@@ -29,7 +29,7 @@ try {
   await client.query('ALTER TABLE unrelated_constraint_name_collision ADD CONSTRAINT product_categories_subdepartment_fk CHECK (id IS NULL OR id > 0)');
 
   const migrations = fs.readdirSync(path.join(root, 'migrations'))
-    .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) <= 38)
+    .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) <= 76)
     .sort();
   for (const file of migrations) {
     await client.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
@@ -160,7 +160,120 @@ try {
   }
   assert.deepEqual((await client.query('SELECT id,status,amount FROM payroll_entries ORDER BY period_from')).rows,
     legacyPayrollIds, 'replaying latest migrations preserves legacy payroll');
-  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline migrations + ${latest.length} new migrations; legacy records preserved; six-decimal warehouse and recipe quantities verified; latest migrations replayed; schema rolled back)`);
+
+  const loyaltyVenue = (await client.query("INSERT INTO venues (name) VALUES ('Loyalty immutability QA') RETURNING id")).rows[0].id;
+  const siblingVenue = (await client.query("INSERT INTO venues (name) VALUES ('Loyalty immutability survivor QA') RETURNING id")).rows[0].id;
+  const loyaltyUser = (await client.query(
+    "INSERT INTO users (venue_id,full_name,login,role) VALUES ($1,'Loyalty immutable QA','loyalty-immutable-' || gen_random_uuid(),'owner') RETURNING id", [loyaltyVenue],
+  )).rows[0].id;
+  const loyaltyProduct = (await client.query(
+    "INSERT INTO products (venue_id,name,category,sale_price) VALUES ($1,'Loyalty immutable QA product','qa',10) RETURNING id", [loyaltyVenue],
+  )).rows[0].id;
+  const promotionId = (await client.query(
+    `INSERT INTO loyalty_promotions (venue_id,version,name,status,starts_at,ends_at,timezone,benefit_kind,benefit_value,created_by)
+     VALUES ($1,1,'Immutable QA campaign','draft','2030-01-01T00:00:00Z','2030-01-02T00:00:00Z','UTC','percent',10,$2) RETURNING promotion_id`, [loyaltyVenue, loyaltyUser],
+  )).rows[0].promotion_id;
+  const settingId = (await client.query(
+    'INSERT INTO loyalty_program_settings (venue_id,version,created_by) VALUES ($1,1,$2) RETURNING id', [loyaltyVenue, loyaltyUser],
+  )).rows[0].id;
+  const scopeId = (await client.query(
+    `INSERT INTO loyalty_promotion_scopes (venue_id,promotion_id,version,scope_kind,product_id)
+     VALUES ($1,$2,1,'include_product',$3) RETURNING id`, [loyaltyVenue, promotionId, loyaltyProduct],
+  )).rows[0].id;
+  const snapshotOrderId = (await client.query(
+    `INSERT INTO orders (venue_id,opened_by,status,selected_promotion_id,selected_promotion_version,
+       selected_promotion_name,selected_promotion_benefit_kind,selected_promotion_benefit_value,
+       selected_promotion_basis,selected_promotion_amount,effective_discount_source)
+     VALUES ($1,$2,'open',$3,1,'Immutable QA campaign','percent',10,100,10,'promotion') RETURNING id`,
+    [loyaltyVenue, loyaltyUser, promotionId],
+  )).rows[0].id;
+  await client.query(
+    `INSERT INTO loyalty_promotions (venue_id,promotion_id,version,name,status,starts_at,ends_at,timezone,benefit_kind,benefit_value)
+     VALUES ($1,$2,2,'Immutable QA campaign v2','draft','2030-01-01T00:00:00Z','2030-01-02T00:00:00Z','UTC','percent',12)`,
+    [loyaltyVenue, promotionId],
+  );
+  const historicSnapshot = await client.query(`SELECT o.selected_promotion_version,p.name,p.benefit_value
+    FROM orders o JOIN loyalty_promotions p
+      ON p.venue_id=o.venue_id AND p.promotion_id=o.selected_promotion_id AND p.version=o.selected_promotion_version
+    WHERE o.id=$1`, [snapshotOrderId]);
+  assert.deepEqual(historicSnapshot.rows.map((row) => [row.selected_promotion_version,row.name,Number(row.benefit_value)]),
+    [[1,'Immutable QA campaign',10]], 'order snapshot continues to resolve its exact promotion version after a newer version is added');
+  const orderPromotionFk = (await client.query(`SELECT condeferrable,confdeltype
+    FROM pg_constraint WHERE conrelid='orders'::regclass AND conname='orders_selected_promotion_version_fk'`)).rows[0];
+  assert.deepEqual(orderPromotionFk, { condeferrable: false, confdeltype: 'r' },
+    'order snapshot retains its immediate promotion-version RESTRICT reference');
+  await client.query('INSERT INTO loyalty_program_settings (venue_id,version) VALUES ($1,1)', [siblingVenue]);
+
+  let expectedFailureIndex = 0;
+  const assertSqlFailure = async (query, params, expectedCode, label) => {
+    const savepoint = `loyalty_expected_failure_${expectedFailureIndex++}`;
+    await client.query(`SAVEPOINT ${savepoint}`);
+    await assert.rejects(client.query(query, params), (error) => error.code === expectedCode, label);
+    await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+    await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+  };
+  await client.query('SAVEPOINT loyalty_temp_venues_shadow');
+  // The actual fixture venue must NOT exist in the shadow relation: the old
+  // unqualified lookup would then incorrectly treat its DELETE as a cascade.
+  await client.query('CREATE TEMP TABLE venues (id uuid)');
+  await assertSqlFailure('DELETE FROM loyalty_program_settings WHERE id=$1', [settingId], '55000',
+    'temporary venues table cannot shadow the owning venue check');
+  await client.query('ROLLBACK TO SAVEPOINT loyalty_temp_venues_shadow');
+  await client.query('RELEASE SAVEPOINT loyalty_temp_venues_shadow');
+
+  for (const [query, params, label] of [
+    ['UPDATE loyalty_program_settings SET max_redemption_percent=max_redemption_percent WHERE id=$1', [settingId], 'settings no-op UPDATE'],
+    ['DELETE FROM loyalty_program_settings WHERE id=$1', [settingId], 'direct settings DELETE'],
+    ['UPDATE loyalty_promotions SET name=name WHERE venue_id=$1 AND promotion_id=$2 AND version=1', [loyaltyVenue, promotionId], 'promotion no-op UPDATE'],
+    ['DELETE FROM loyalty_promotions WHERE venue_id=$1 AND promotion_id=$2 AND version=1', [loyaltyVenue, promotionId], 'direct promotion DELETE'],
+    ['UPDATE loyalty_promotion_scopes SET scope_kind=scope_kind WHERE id=$1', [scopeId], 'scope no-op UPDATE'],
+    ['DELETE FROM loyalty_promotion_scopes WHERE id=$1', [scopeId], 'direct scope DELETE'],
+  ]) {
+    await assertSqlFailure(query, params, '55000', `${label} is rejected by the database guard`);
+  }
+  await client.query('UPDATE users SET deleted_at=now() WHERE id=$1', [loyaltyUser]);
+  await assertSqlFailure('DELETE FROM users WHERE id=$1', [loyaltyUser], '23503',
+    'hard deletion preserves immutable creator attribution');
+
+  const scopeProductFk = (await client.query(`SELECT condeferrable,condeferred,confdeltype
+    FROM pg_constraint WHERE conrelid='loyalty_promotion_scopes'::regclass
+      AND conname='loyalty_promotion_scopes_venue_id_product_id_fkey'`)).rows[0];
+  assert.deepEqual(scopeProductFk, { condeferrable: true, condeferred: true, confdeltype: 'a' },
+    'product scope FK remains tenant-scoped and deferred NO ACTION');
+  await client.query('SAVEPOINT loyalty_scope_fk_check');
+  await client.query('SET CONSTRAINTS loyalty_promotion_scopes_venue_id_product_id_fkey IMMEDIATE');
+  await assertSqlFailure('DELETE FROM products WHERE id=$1', [loyaltyProduct], '23503',
+    'standalone deletion of a scoped product remains blocked');
+  await client.query('ROLLBACK TO SAVEPOINT loyalty_scope_fk_check');
+  await client.query('RELEASE SAVEPOINT loyalty_scope_fk_check');
+
+  await client.query('SAVEPOINT loyalty_venue_cascade');
+  await client.query('SET CONSTRAINTS loyalty_promotion_scopes_venue_id_product_id_fkey DEFERRED');
+  await client.query('UPDATE users SET venue_id=NULL WHERE id=$1', [loyaltyUser]);
+  await client.query('DELETE FROM orders WHERE id=$1', [snapshotOrderId]);
+  await client.query('DELETE FROM products WHERE id=$1', [loyaltyProduct]);
+  await client.query('DELETE FROM venues WHERE id=$1', [loyaltyVenue]);
+  await client.query('SET CONSTRAINTS loyalty_promotion_scopes_venue_id_product_id_fkey IMMEDIATE');
+  await client.query('RELEASE SAVEPOINT loyalty_venue_cascade');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_program_settings WHERE id=$1', [settingId])).rows[0].count,
+    0, 'venue cascade removes settings with immutable triggers enabled');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_promotions WHERE venue_id=$1', [loyaltyVenue])).rows[0].count,
+    0, 'venue cascade removes promotion history with immutable triggers enabled');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_promotion_scopes WHERE id=$1', [scopeId])).rows[0].count,
+    0, 'venue cascade removes promotion scopes with immutable triggers enabled');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_program_settings WHERE venue_id=$1', [siblingVenue])).rows[0].count,
+    1, 'venue cascade leaves sibling venue settings untouched');
+  assert.equal((await client.query('DELETE FROM users WHERE id=$1 RETURNING id', [loyaltyUser])).rowCount,
+    1, 'creator can be hard-deleted after the venue-owned history has been purged');
+  assert.equal((await client.query(`SELECT count(*)::int AS count FROM pg_trigger t
+    JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname=current_schema()
+      AND t.tgname IN ('loyalty_program_settings_immutable','loyalty_promotions_immutable','loyalty_promotion_scopes_immutable')
+      AND t.tgenabled='O'`)).rows[0].count, 3, 'all immutable-history triggers remain enabled after QA cascade');
+  assert.equal((await client.query("SELECT to_regprocedure('reject_loyalty_promotion_history_mutation()') IS NULL AS dropped")).rows[0].dropped,
+    true, 'the replaced pre-076 trigger function is removed');
+
+  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline migrations + ${latest.length} new migrations; legacy records preserved; six-decimal warehouse and recipe quantities verified; 076 immutability, actor retention and venue cascade verified; latest migrations replayed; schema rolled back)`);
 } finally {
   if (transaction) await client.query('ROLLBACK').catch(() => {});
   if (client._connected) await client.end();
