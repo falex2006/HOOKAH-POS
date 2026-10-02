@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const migrationPath = path.join(root, 'migrations', '077_payroll_scheme_snapshots.sql');
 const migration = fs.readFileSync(migrationPath, 'utf8');
+const draftEditsPath = path.join(root, 'migrations', '078_payroll_draft_configuration_edits.sql');
+const draftEditsMigration = fs.readFileSync(draftEditsPath, 'utf8');
+const revisionsPath = path.join(root, 'migrations', '079_payroll_scheme_revision_audit.sql');
+const revisionsMigration = fs.readFileSync(revisionsPath, 'utf8');
 
 for (const table of [
   'payroll_schemes', 'payroll_scheme_versions', 'payroll_role_assignments',
@@ -30,6 +34,16 @@ assert.match(migration, /effective windows overlap/);
 assert.match(migration, /adjustment applications exceed source amount/);
 assert.doesNotMatch(migration, /\b(DROP\s+TABLE|TRUNCATE\s+TABLE|DELETE\s+FROM\s+payroll_entries|UPDATE\s+payroll_entries|INSERT\s+INTO\s+expenses)\b/i,
   '077 must not mutate the existing payroll or expense lifecycle');
+assert.match(draftEditsMigration, /OLD\.status = 'draft' AND NEW\.status = 'draft'/,
+  '078 permits editing only while a scheme version remains in draft');
+assert.match(draftEditsMigration, /payroll scheme version configuration is immutable; create a new version/,
+  '078 preserves active scheme-version immutability');
+assert.match(draftEditsMigration, /payroll_guard_draft_child_mutation/,
+  '078 permits child configuration replacement only while the version is still draft');
+assert.match(revisionsMigration, /CREATE TABLE IF NOT EXISTS payroll_scheme_version_revisions/,
+  '079 adds a replay-safe scheme revision journal');
+assert.match(revisionsMigration, /BEFORE UPDATE OR DELETE ON payroll_scheme_version_revisions/,
+  '079 keeps revision audit append-only');
 
 if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
   console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC PASS (PostgreSQL runtime explicitly skipped)');
@@ -42,6 +56,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
 
   const require = createRequire(import.meta.url);
   const { Client } = require('pg');
+  const { makeService, PayrollSchemeServiceError } = require(path.join(root, 'payroll-scheme-service.js'));
   const client = new Client({ connectionString: databaseUrl });
   const schema = `payroll_migration_qa_${process.pid}_${Date.now()}`;
   const quotedSchema = `"${schema}"`;
@@ -64,10 +79,12 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     await client.query(`SET LOCAL search_path TO ${quotedSchema}, public`);
     await runSql('schema.sql');
     const migrations = fs.readdirSync(path.join(root, 'migrations'))
-      .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) <= 77)
+      .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) <= 79)
       .sort();
     for (const file of migrations) await runSql(path.join('migrations', file));
     await runSql(path.join('migrations', '077_payroll_scheme_snapshots.sql'));
+    await runSql(path.join('migrations', '078_payroll_draft_configuration_edits.sql'));
+    await runSql(path.join('migrations', '079_payroll_scheme_revision_audit.sql'));
 
     const venueA = (await client.query("INSERT INTO venues (name) VALUES ('Payroll QA A') RETURNING id")).rows[0].id;
     const venueB = (await client.query("INSERT INTO venues (name) VALUES ('Payroll QA B') RETURNING id")).rows[0].id;
@@ -266,7 +283,152 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       'calculation snapshots and adjustments do not create or change expenses');
     assert.equal((await client.query('SELECT count(*)::int AS count FROM expenses WHERE venue_id=$1 AND source=\'payroll\'', [venueA])).rows[0].count, 0,
       'no payroll expense is generated before existing payout lifecycle');
-    console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC + POSTGRESQL PASS (replay, tenant FKs, source gating, version/snapshot immutability, adjustment lineage; rollback isolated schema)');
+
+    let serviceSavepointId = 0;
+    const servicePool = {
+      query: (...args) => client.query(...args),
+      async connect() {
+        const savepoint = `payroll_service_${++serviceSavepointId}`;
+        return {
+          async query(sql, params) {
+            const command = String(sql).trim().toUpperCase();
+            if (command.startsWith('BEGIN')) return client.query(`SAVEPOINT ${savepoint}`);
+            if (command === 'COMMIT') return client.query(`RELEASE SAVEPOINT ${savepoint}`);
+            if (command === 'ROLLBACK') {
+              await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+              return client.query(`RELEASE SAVEPOINT ${savepoint}`);
+            }
+            return client.query(sql, params);
+          },
+          release() {}
+        };
+      }
+    };
+    const payrollService = makeService(servicePool);
+    const principalA = { venueId: venueA, userId: ownerA };
+    const draftDefinition = {
+      mode: 'progressive_daily', currency: 'RUB', effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30',
+      roleParameters: { bartender: { perShiftCents: 10000, bracketRatesBps: { 0: 1000 }, milestoneBonusesCents: { 5000000: 0 } } },
+      applyMilestones: true, milestoneCapPolicy: 'separate_from_shift_cap',
+      roleAssignments: [
+        { employeeId: staffA, roleId: 'bartender', effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' },
+        { employeeId: staffOtherA, roleId: 'bartender', effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }
+      ],
+      employeeOverrides: [{ employeeId: staffOtherA, path: 'perShiftCents', mode: 'override', value: 0, effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }],
+      itemRules: [{ menuItemId: productA, roleId: 'bartender', mode: 'additive', rateBps: 100, priority: 5 }]
+    };
+    await assert.rejects(payrollService.listSchemes({ venueId: venueA, userId: staffA }),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 403 && error.code === 'payroll_scheme_owner_only',
+      'staff cannot read payroll configuration');
+    await assert.rejects(payrollService.listSchemes({ venueId: venueB, userId: ownerA }),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 403,
+      'owner identity cannot be replayed against another venue');
+    await assert.rejects(payrollService.createScheme({ venueId: venueA, userId: staffA }, { name: 'Forbidden', definition: draftDefinition }),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 403,
+      'staff cannot create or mutate payroll configuration');
+    const createdScheme = await payrollService.createScheme(principalA, {
+      name: 'Owner QA scheme', description: 'owner-only service contract', definition: draftDefinition,
+      createdBy: ownerB, createdByName: 'Forged actor'
+    });
+    const createdVersion = createdScheme.versions[0];
+    assert.equal(createdVersion.status, 'draft');
+    assert.equal(createdVersion.roleParameters.bartender.perShiftCents, 10000);
+    assert.equal(createdVersion.employeeOverrides[0].value, 0, 'explicit zero override survives readback');
+    assert.ok(createdVersion.roleAssignments.some((row) => row.employeeId === staffA));
+    assert.equal(createdVersion.itemRules[0].menuItemId, productA);
+    assert.equal((await client.query('SELECT created_by FROM payroll_schemes WHERE venue_id=$1 AND id=$2', [venueA, createdScheme.id])).rows[0].created_by, ownerA,
+      'audit actor is sourced from the authenticated owner record, not request fields');
+    const createdHistory = await payrollService.listVersionRevisions(principalA, createdVersion.versionId);
+    assert.equal(createdHistory.length, 1);
+    assert.equal(createdHistory[0].changeKind, 'created');
+    assert.equal(createdHistory[0].changedBy, ownerA);
+    assert.equal(createdHistory[0].changedByName, 'owner-a', 'revision author name comes from the active owner row');
+    await expectSqlFailure(`INSERT INTO payroll_scheme_version_revisions
+      (venue_id,scheme_version_id,revision_no,change_kind,config_snapshot_json,changed_by,changed_by_name)
+      VALUES ($1,$2,2,'edited','{}'::jsonb,$3,'Forged actor')`, [venueA, createdVersion.versionId, staffA], '42501',
+    'revision inserts require an active owner actor');
+    await expectSqlFailure(`INSERT INTO payroll_scheme_version_revisions
+      (venue_id,scheme_version_id,revision_no,change_kind,config_snapshot_json,changed_by,changed_by_name)
+      VALUES ($1,$2,3,'edited','{}'::jsonb,$3,'owner-a')`, [venueA, createdVersion.versionId, ownerA], '23514',
+    'revision sequence cannot be skipped');
+    await expectSqlFailure(`UPDATE payroll_scheme_versions SET effective_to='2026-11-15'
+      WHERE venue_id=$1 AND id=$2`, [venueA, createdVersion.versionId], '23514',
+    'draft window cannot exclude existing role assignments or overrides');
+    const editedDefinition = {
+      ...draftDefinition,
+      effectiveTo: '2026-11-15',
+      roleParameters: { bartender: { perShiftCents: 12000, bracketRatesBps: { 0: 1000 }, milestoneBonusesCents: { 5000000: 0 } } }
+    };
+    editedDefinition.roleAssignments = draftDefinition.roleAssignments.map((row) => ({ ...row, effectiveTo: '2026-11-15' }));
+    editedDefinition.employeeOverrides = draftDefinition.employeeOverrides.map((row) => ({ ...row, effectiveTo: '2026-11-15' }));
+    const replaced = await payrollService.replaceDraftVersion(principalA, createdVersion.versionId, editedDefinition);
+    assert.equal(replaced.roleParameters.bartender.perShiftCents, 12000);
+    assert.equal(replaced.effectiveTo, '2026-11-15');
+    assert.equal(replaced.itemRules.length, 1, 'draft child configuration is atomically replaced');
+    const editedHistory = await payrollService.listVersionRevisions(principalA, createdVersion.versionId);
+    assert.equal(editedHistory.length, 2);
+    assert.equal(editedHistory[1].changeKind, 'edited');
+    assert.equal(editedHistory[1].snapshot.roleParameters.bartender.perShiftCents, 12000);
+    await assert.rejects(payrollService.getVersion({ venueId: venueB, userId: ownerB }, createdVersion.versionId),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 404 && error.code === 'payroll_scheme_version_not_found',
+      'same-role owner of another venue cannot read this version');
+    const activeVersion = await payrollService.activateVersion(principalA, createdVersion.versionId);
+    assert.equal(activeVersion.status, 'active');
+    const activeHistory = await payrollService.listVersionRevisions(principalA, createdVersion.versionId);
+    assert.equal(activeHistory.length, 3);
+    assert.equal(activeHistory[2].changeKind, 'activated');
+    await assert.rejects(payrollService.listVersionRevisions({ venueId: venueB, userId: ownerB }, createdVersion.versionId),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 404,
+      'revision journal is tenant-scoped');
+    await expectSqlFailure('DELETE FROM payroll_scheme_version_revisions WHERE venue_id=$1 AND scheme_version_id=$2',
+      [venueA, createdVersion.versionId], '55000', 'scheme audit revisions cannot be deleted');
+    await expectSqlFailure('TRUNCATE payroll_scheme_version_revisions', [], '55000', 'scheme audit revisions cannot be truncated');
+    await expectSqlFailure('DELETE FROM payroll_item_commission_rules WHERE venue_id=$1 AND id=$2', [venueA, activeVersion.itemRules[0].id], '55000',
+      'active version item commission rules remain immutable');
+    await assert.rejects(payrollService.replaceDraftVersion(principalA, createdVersion.versionId, draftDefinition),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 409 && error.code === 'payroll_scheme_version_immutable',
+      'active scheme configuration cannot be rewritten');
+    const overlappingVersion = await payrollService.createVersion(principalA, createdScheme.id, draftDefinition);
+    const previewInput = {
+      employees: [
+        { id: staffA, activeFrom: '2026-11-01', activeTo: '2026-11-30' },
+        { id: staffOtherA, activeFrom: '2026-11-01', activeTo: '2026-11-30' }
+      ],
+      periodFrom: '2026-11-01', periodTo: '2026-11-01',
+      coverage: { kind: 'month_to_date_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'owner-scenario-v1' },
+      sales: [{ id: 'scenario-line', date: '2026-11-01', employeeId: staffA, menuItemId: productA,
+        department: 'bar', turnoverCents: 10000, commissionBaseCents: 10000 }]
+    };
+    const payrollStateBeforePreview = await client.query(`SELECT
+      (SELECT count(*)::int FROM payroll_calculation_runs WHERE venue_id=$1) AS runs,
+      (SELECT count(*)::int FROM payroll_daily_snapshots WHERE venue_id=$1) AS snapshots,
+      (SELECT count(*)::int FROM payroll_entries WHERE venue_id=$1) AS entries,
+      (SELECT count(*)::int FROM expenses WHERE venue_id=$1 AND source='payroll') AS expenses`, [venueA]);
+    const previewResult = await payrollService.preview(principalA, createdVersion.versionId, previewInput);
+    assert.equal(previewResult.official, false);
+    assert.equal(previewResult.persistence, 'none');
+    assert.equal(previewResult.result.status, 'ready');
+    assert.equal(previewResult.result.employees.find((row) => row.employeeId === staffA).amountCents, 13100);
+    const comparison = await payrollService.compare(principalA, [overlappingVersion.versionId, createdVersion.versionId], previewInput, createdVersion.versionId);
+    const baselineComparison = comparison.comparisons.find((row) => row.versionId === createdVersion.versionId);
+    const draftComparison = comparison.comparisons.find((row) => row.versionId === overlappingVersion.versionId);
+    assert.equal(comparison.official, false);
+    assert.equal(baselineComparison.totalCents, 13100);
+    assert.equal(baselineComparison.deltaToBaselineCents, 0);
+    assert.equal(draftComparison.totalCents, 11100);
+    assert.equal(draftComparison.deltaToBaselineCents, -2000);
+    const payrollStateAfterPreview = await client.query(`SELECT
+      (SELECT count(*)::int FROM payroll_calculation_runs WHERE venue_id=$1) AS runs,
+      (SELECT count(*)::int FROM payroll_daily_snapshots WHERE venue_id=$1) AS snapshots,
+      (SELECT count(*)::int FROM payroll_entries WHERE venue_id=$1) AS entries,
+      (SELECT count(*)::int FROM expenses WHERE venue_id=$1 AND source='payroll') AS expenses`, [venueA]);
+    assert.deepEqual(payrollStateAfterPreview.rows[0], payrollStateBeforePreview.rows[0],
+      'scenario preview and comparison do not persist runs, payroll entries, or expenses');
+    await assert.rejects(payrollService.activateVersion(principalA, overlappingVersion.versionId),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 409 && error.code === 'payroll_scheme_effective_window_conflict',
+      'database overlap guard is preserved at service activation');
+    assert.ok((await payrollService.listSchemes(principalA)).some((row) => row.id === createdScheme.id), 'owner can read persisted schemes after mutation');
+    console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC + POSTGRESQL PASS (replay, tenant FKs, owner-only version CRUD, draft edits, immutable activation, revision audit, non-persisted scenarios, source gates and adjustment lineage; rollback isolated schema)');
   } finally {
     if (transaction) await client.query('ROLLBACK').catch(() => {});
     if (client._connected) await client.end();
