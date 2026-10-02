@@ -57,6 +57,18 @@ assert.equal(progressive.daily[1].employees.find((row) => row.employeeId === 'b'
 assert.equal(progressive.daily[1].employees.find((row) => row.employeeId === 'b').amountCents, 5000); // milestone bonus despite no sale
 assert.equal(progressive.employees.find((row) => row.employeeId === 'c').milestoneBonusCents, 0); // explicit zero override
 
+const effectiveOverride = calculatePayrollScheme({
+  ...baseInput,
+  scheme: {
+    ...baseInput.scheme,
+    employeeOverrides: [{ employeeId: 'a', path: 'perShiftCents', mode: 'override', value: 0, effectiveFrom: '2026-09-02', effectiveTo: '2026-09-02' }],
+    itemRules: []
+  }
+});
+assert.equal(effectiveOverride.status, 'ready');
+assert.equal(effectiveOverride.daily[0].employees.find((row) => row.employeeId === 'a').basePayCents, 10000);
+assert.equal(effectiveOverride.daily[1].employees.find((row) => row.employeeId === 'a').basePayCents, 0);
+
 const capped = calculatePayrollScheme({
   ...baseInput,
   employees: [{ id: 'b' }],

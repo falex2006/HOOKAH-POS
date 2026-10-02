@@ -101,6 +101,8 @@ const validateScheme = (scheme) => {
     if (override.mode === 'override' && override.path === 'cap.basis' && !['venue_day', 'employee_department_day'].includes(override.value)) errors.push('invalid_employee_override_value');
     if (override.mode === 'override' && override.path === 'mode' && !MODES.has(override.value)) errors.push('invalid_employee_override_value');
     if (override.mode === 'override' && override.path === 'applyMilestones' && typeof override.value !== 'boolean') errors.push('invalid_employee_override_value');
+    if ((override.effectiveFrom !== undefined && !isDate(override.effectiveFrom)) || (override.effectiveTo !== undefined && override.effectiveTo !== null && !isDate(override.effectiveTo))
+        || (override.effectiveFrom && override.effectiveTo && override.effectiveTo < override.effectiveFrom)) errors.push('invalid_employee_override_window');
     const key = `${override?.employeeId}|${override?.path}`;
     if (seenOverrides.has(key)) errors.push('duplicate_employee_override');
     seenOverrides.add(key);
@@ -108,7 +110,7 @@ const validateScheme = (scheme) => {
   return [...new Set(errors)];
 };
 
-const resolveRoleParameters = (scheme, employeeId, roleId) => {
+const resolveRoleParameters = (scheme, employeeId, roleId, date) => {
   const base = scheme.roleParameters?.[roleId];
   if (!base) return null;
   const resolved = clone(base);
@@ -116,6 +118,7 @@ const resolveRoleParameters = (scheme, employeeId, roleId) => {
   resolved.applyMilestones ??= scheme.applyMilestones ?? resolved.mode === 'progressive_daily';
   for (const override of scheme.employeeOverrides || []) {
     if (override.employeeId !== employeeId || override.mode !== 'override') continue;
+    if (date && (override.effectiveFrom && override.effectiveFrom > date || override.effectiveTo && override.effectiveTo < date)) continue;
     // Never create an implicit new parameter through an override.
     if (['mode', 'applyMilestones'].includes(override.path) || getPath(resolved, override.path) !== undefined) setPath(resolved, override.path, clone(override.value));
   }
@@ -158,12 +161,18 @@ const calculatePayrollScheme = (input) => {
     if (!employeeIds.has(assignment?.employeeId) || !assignment?.roleId || !isDate(assignment?.effectiveFrom) || (assignment.effectiveTo && !isDate(assignment.effectiveTo)) || (assignment.effectiveTo && assignment.effectiveTo < assignment.effectiveFrom)) blockers.push('invalid_role_assignment');
     const params = scheme?.roleParameters?.[assignment?.roleId];
     if ((!assignment.effectiveTo || assignment.effectiveTo >= input?.periodFrom) && assignment.effectiveFrom <= input?.periodTo && !params) blockers.push('role_parameters_missing');
-    if (params && (!assignment.effectiveTo || assignment.effectiveTo >= input?.periodFrom) && assignment.effectiveFrom <= input?.periodTo) {
-      const resolved = resolveRoleParameters(scheme, assignment.employeeId, assignment.roleId);
-      if (['progressive_daily', 'final_month_threshold'].includes(resolved.mode) && (!resolved.bracketRatesBps || !own(resolved.bracketRatesBps, '0'))) blockers.push('bracket_rates_required');
-      if (['stable_percent', 'percent_only'].includes(resolved.mode) && resolved.stableRateBps === undefined) blockers.push('stable_rate_required');
-      if (resolved.mode !== 'percent_only' && resolved.perShiftCents === undefined) blockers.push('per_shift_rate_required');
-      if (resolved.cap?.basis === 'employee_department_day' && !(resolved.cap.department || resolved.department)) blockers.push('cap_department_required');
+    if (params && (!assignment.effectiveTo || assignment.effectiveTo >= input?.periodFrom) && assignment.effectiveFrom <= input?.periodTo
+        && isDate(assignment.effectiveFrom) && (!assignment.effectiveTo || isDate(assignment.effectiveTo))) {
+      const start = assignment.effectiveFrom > input.periodFrom ? assignment.effectiveFrom : input.periodFrom;
+      const end = assignment.effectiveTo && assignment.effectiveTo < input.periodTo ? assignment.effectiveTo : input.periodTo;
+      for (let date = start; date <= end; date = addDays(date, 1)) {
+        const resolved = resolveRoleParameters(scheme, assignment.employeeId, assignment.roleId, date);
+        if (!resolved) continue;
+        if (['progressive_daily', 'final_month_threshold'].includes(resolved.mode) && (!resolved.bracketRatesBps || !own(resolved.bracketRatesBps, '0'))) blockers.push('bracket_rates_required');
+        if (['stable_percent', 'percent_only'].includes(resolved.mode) && resolved.stableRateBps === undefined) blockers.push('stable_rate_required');
+        if (resolved.mode !== 'percent_only' && resolved.perShiftCents === undefined) blockers.push('per_shift_rate_required');
+        if (resolved.cap?.basis === 'employee_department_day' && !(resolved.cap.department || resolved.department)) blockers.push('cap_department_required');
+      }
     }
     if (params) for (const override of scheme.employeeOverrides || []) if (override.employeeId === assignment.employeeId && override.mode === 'override' && !['mode', 'applyMilestones'].includes(override.path) && getPath(params, override.path) === undefined) blockers.push('employee_override_parameter_missing');
   }
@@ -177,11 +186,14 @@ const calculatePayrollScheme = (input) => {
     if (isDate(activeFrom) && isDate(activeTo) && activeFrom <= activeTo) for (let date = activeFrom; date <= activeTo; date = addDays(date, 1)) if (!resolveRoleAt(assignments, employeeId, date)) blockers.push('role_assignment_gap');
   }
   const effectiveModes = new Set([scheme?.mode].filter(Boolean));
-  for (const assignment of assignments) {
-    if (assignment.effectiveTo && assignment.effectiveTo < input?.periodFrom || assignment.effectiveFrom > input?.periodTo) continue;
-    const params = resolveRoleParameters(scheme || {}, assignment.employeeId, assignment.roleId);
-    const mode = params?.mode || scheme?.mode;
-    if (mode) effectiveModes.add(mode);
+  if (isDate(input?.periodFrom) && isDate(input?.periodTo) && Array.isArray(input?.employees)) {
+    for (let date = input.periodFrom; date <= input.periodTo; date = addDays(date, 1)) for (const employee of employees) {
+      const roleId = resolveRoleAt(assignments, employee.id, date);
+      if (!roleId) continue;
+      const params = resolveRoleParameters(scheme || {}, employee.id, roleId, date);
+      const mode = params?.mode || scheme?.mode;
+      if (mode) effectiveModes.add(mode);
+    }
   }
   if (effectiveModes.has('final_month_threshold')) {
     if (coverage?.kind !== 'month_closed_complete' || input?.monthClosed !== true) blockers.push('closed_month_required');
@@ -229,7 +241,7 @@ const calculatePayrollScheme = (input) => {
     for (const line of daySales) {
       if (!line.employeeId) continue;
       const roleId = resolveRoleAt(assignments, line.employeeId, date);
-      const params = resolveRoleParameters(scheme, line.employeeId, roleId);
+      const params = resolveRoleParameters(scheme, line.employeeId, roleId, date);
       if (!params) { blockers.push('role_parameters_missing'); continue; }
       const effectiveMode = params.mode || scheme.mode;
       const employeeDay = ensureDayEmployee(line.employeeId, roleId);
@@ -248,7 +260,7 @@ const calculatePayrollScheme = (input) => {
       lineCalculations.push({ lineId: line.id, employeeId: line.employeeId, roleId, menuItemId: line.menuItemId || null, department: line.department, commissionBaseCents: line.commissionBaseCents, turnoverCents: line.turnoverCents, baseRateBps: rateBps, itemRuleId: itemRule?.id || null, itemRuleMode: itemRule?.mode || null, itemRateBps: itemRule?.rateBps || 0, appliedRateBps, commissionCents: toSafeNumber(lineCommissionCents) });
     }
     for (const [employeeId, employeeDay] of perEmployee) {
-      const params = resolveRoleParameters(scheme, employeeId, employeeDay.roleId);
+      const params = resolveRoleParameters(scheme, employeeId, employeeDay.roleId, date);
       employeeDay.mode = params?.mode || scheme.mode;
       if (employeeDay.mode !== 'percent_only') employeeDay.basePayCents = BigInt(params?.perShiftCents || 0);
     }
@@ -256,7 +268,7 @@ const calculatePayrollScheme = (input) => {
     for (const employeeId of employeeIds) {
       const roleId = resolveRoleAt(assignments, employeeId, date);
       if (!roleId) continue;
-      const params = resolveRoleParameters(scheme, employeeId, roleId);
+      const params = resolveRoleParameters(scheme, employeeId, roleId, date);
       const employeeMode = params?.mode || scheme.mode;
       const applyMilestones = params?.applyMilestones ?? scheme.applyMilestones ?? employeeMode === 'progressive_daily';
       if (!applyMilestones) continue;
@@ -269,7 +281,7 @@ const calculatePayrollScheme = (input) => {
       }
     }
     for (const [employeeId, employeeDay] of perEmployee) {
-      const params = resolveRoleParameters(scheme, employeeId, employeeDay.roleId);
+      const params = resolveRoleParameters(scheme, employeeId, employeeDay.roleId, date);
       const totalBeforeCap = employeeDay.basePayCents + employeeDay.commissionCents + employeeDay.milestoneBonusCents;
       const capSubject = params?.cap && scheme.milestoneCapPolicy === 'separate_from_shift_cap'
         ? employeeDay.basePayCents + employeeDay.commissionCents
