@@ -1,0 +1,177 @@
+# Контракт архитектуры гибкого расчёта зарплаты
+
+**Статус:** проектный контракт, кодовую реализацию не разрешает и не описывает как уже выполненную.  
+**Источник продукта:** `C:\Users\ADMIN\Desktop\ТЗ_Гибкий_модуль_расчёта_зарплаты_CRM.md`.  
+**Финансовый источник:** `docs/requirements/FINANCE_MODEL.md` и актуальные сообщения чата MASTER.
+
+## 1. Цели и границы
+
+Модуль расширяет существующий зарплатный жизненный цикл `payroll_rules` → `payroll_entries` → `expenses`. Он добавляет настраиваемые версии схем и воспроизводимый расчёт, но не создаёт второй реестр начислений или платежей.
+
+Только владелец площадки может создавать/изменять payroll-конфигурацию: версии схем, ставки по ролям и персональные overrides, пороги, бонусы, caps и item commission rules. Перерасчёт утверждённого периода и запуск нового расчёта для закрытого периода требуют явной аудируемой owner-only операции. Просмотр зарплатных сумм, создание/утверждение черновиков, фактическая выплата и отмена — отдельные permissions: сохранять текущие права payroll lifecycle до отдельного продуктового решения, не расширяя их через finance-read и не смешивая с правом менять конфигурацию. Сейчас UI/API опираются на permission `finance`; для будущих owner-only изменений потребуется серверная проверка фактического venue owner, а не роль manager/admin или platform owner. UI скрытие само по себе не является границей безопасности.
+
+Не входит в зарплатный модуль: изменение order/payment/loyalty ledgers, редактирование сменной кассы, изменение цены закрытого заказа, повторное признание связанного payroll expense, и автоматическое изменение финансовых записей при пересчёте.
+
+## 2. Фактическая отправная точка
+
+- `migrations/021_staff_time_payroll.sql` создаёт `staff_schedules`, `staff_work_logs`, `payroll_rules` (hourly/monthly/percent_revenue/per_shift) и `payroll_entries`.
+- `migrations/040_payroll_lifecycle.sql` добавляет audit-поля и состояния draft/approved/paid/cancelled.
+- `server.js` реализует API правил, создание начисления по правилу и рабочим часам, состояния записи и связывание выплаты с расходом; `payroll.js` содержит текущий calculation helper, а payroll UI находится внутри финансового раздела `portal.js`.
+- Роль `owner` существует в `user_role`, но текущие finance/HR права шире и payroll endpoints должны получить отдельную серверную owner-only проверку для конфигурационных операций.
+- В текущей `order_items` есть `id`, `order_id`, `product_id`, quantity, unit price, station/status и guest number, но нет исполнителя строки, venue_id строки, распределения скидки или ссылки на возврат. `orders.opened_by` не является line attribution. `products.category` и `order_items.station` существуют, но не закрепляют payroll department contract.
+- MASTER подтвердил, что в аналитике linked payroll expense уже учитывается ровно один раз; смены, заказы и лояльность остаются отдельными источниками истины.
+- В модели пока нет версий схем и тарифов, пороговых таблиц, параметрических overrides по роли/сотруднику, атрибуции продажи на строку, snapshot расчёта, item commission rules и сравнения схем.
+
+Это контракт целевого расширения, а не аудит текущего diff. Перед каждой кодовой итерацией повторно проверить HEAD, `git status`, активные сообщения MASTER и затронутые пути.
+
+## 3. Термины и денежные инварианты
+
+- **Схема** — именованная конфигурация расчётной формулы/режима.
+- **Версия схемы** — неизменяемая конфигурация с `effective_from` и, при закрытии, `effective_to`; новая ставка создаёт новую версию.
+- **Назначение** — применение схемы на период к роли или сотруднику площадки.
+- **Calculation snapshot** — неизменяемый результат по площадке, локальному дню и сотруднику с версией правил и детализацией исходных строк.
+- **Начисление** — payroll entry существующего жизненного цикла, созданное из утверждаемого набора расчётных снимков.
+- Все новые сущности площадочные (`venue_id`); организации и сотрудники не пересекают tenant boundary.
+- Расчёт хранит денежные значения в decimal/numeric, без binary floating-point в доменной логике.
+- Для 10.1 порядок строк детерминирован: сначала продажи в venue-local календарном порядке и timestamp/ID, затем диапазон определяется по cumulative turnover площадки на конец локального дня. Ставка дня применяется к комиссионной базе строк этого дня согласно attribution.
+- Пороговый бонус выплачивается однократно при первом пересечении установленного cumulative venue turnover в месяце, всем сотрудникам, которым версия правила назначает бонус, даже если у них нет смены в день пересечения.
+- Смена для модели 10.1 подтверждается фактической продажей сотрудника в день (требование ТЗ), а не `staff_schedules`. Данные `staff_work_logs` пригодны для почасовых исторических правил, но не заменяют sales-based presence.
+- Caps применяются к определённой правилами базе: 35% полной дневной выручки для утреннего универсала и 30% цеховой выручки смены для вечерних ролей в эталонной схеме. Конфигурация должна отклонять или явно нормализовать несовместимые cap scopes; расчёт обязан показывать сумму до и после cap.
+- Позиционный commission rule имеет режим `replace` или `additive`; область и приоритет правил разрешаются детерминированно и входят в snapshot.
+- Изменение правил не переписывает утверждённые или оплаченные снимки. Ретроактивный пересчёт — отдельная owner-only операция с обязательной причиной, автором, временем, исходным snapshot и ссылкой на заменяющий результат.
+- Начисление и выплата продолжают существующий lifecycle. Расход `source='payroll'` появляется/связывается только при фактической выплате; отчёт включает его один раз. Расчётная запись не создаёт второй expense.
+- Выплаченный период заблокирован от редактирования и повторной выплаты. Сторнирование/корректировка — отдельная аудируемая финансовая операция по согласованному финансовому контракту, а не мутация старого snapshot.
+
+## 4. Концептуальная схема данных
+
+Имена предварительные: перед миграцией проверить существующие объекты `schema.sql`, `db.js`, миграции и naming conventions.
+
+1. `payroll_schemes`: `id`, `venue_id`, `name`, `description`, `active`, `created_by`, timestamps. Идентичность схемы не содержит изменяемых ставок.
+2. `payroll_scheme_versions`: `id`, `venue_id`, `scheme_id`, monotonic `version_no`, `mode` (`progressive_daily`, `stable_percent`, `percent_only`, `final_month_threshold`), `effective_from`, `effective_to`, `currency`, `config_json` либо нормализованные дочерние правила, `status` (`draft`, `active`, `retired`), author/audit columns. Уникальность версии по площадке/схеме/номеру; запрет пересекающихся active effective windows для одного назначения.
+3. Нормализованные дочерние правила версии: для роли — default department, mode, per-shift cents, stable rate basis points, `bracketRatesBps` keyed by cumulative turnover cents, milestone bonus cents keyed by threshold cents, cap rate/scope/department and milestone-cap policy. Role defaults can be overridden independently for an employee by explicit `inherit|override` parameter rows, including zero and mode. JSON допустим только для versioned parameters, validated by server schema and snapshotted; tables preferred for thresholds and rates.
+4. `payroll_role_assignments`: `venue_id`, `role_key`/существующий role FK, версия схемы или набор версионных правил, effective dates. Не вводить дублирующий справочник ролей, если доменная роль уже существует.
+5. `payroll_employee_overrides`: площадка, сотрудник, ключ параметра, режим (`inherit`/`override`), значение, effective window, автор. Каждый параметр независим: mode, base, stable rate, каждая bracket rate, cap, milestone bonus, ориентир/план. Значение override=0 допустимо и отличается от наследования.
+6. `payroll_item_commission_rules`: площадка, menu item/category selector, role или employee scope, rate, `replace|additive`, effective dates, priority, author. Персональное правило имеет приоритет над ролевым правилом того же селектора; неоднозначные ties отклоняются при сохранении.
+7. `payroll_calculation_runs`: площадка, период, scheme version, явный input watermark, author/created time, `supersedes_run_id`, причина пересчёта, итоговый checksum. Run append-only; изменения создают новую run.
+8. `payroll_daily_snapshots`: run, площадка, локальная дата, employee ID plus name/role snapshot (без каскадного удаления истории), валюта, eligible shift count, turnover/cumulative turnover, base pay, percent pay, milestone bonus, item adjustments, cap, final amount, source version IDs, explanation. Уникальность `(run_id, local_date, employee_id)`.
+9. `payroll_daily_snapshot_lines`: snapshot, order ID + order item/line ID, sales author/employee ID snapshot, menu item/category/department snapshot, quantity, gross/net commission base, cost/margin if available, applied rule IDs, rate, amount. Уникальность исходной order-line в одном snapshot run. FK включает venue/order boundary; строки не должны исчезать при archive/delete пользователя или заказа. Нулевая/возвращённая/сторнированная продажа обрабатывается согласованно с фин. источником.
+10. `payroll_adjustments`: append-only корректировки со ссылкой на первоначальный run/snapshot/строку, исходный refund/void ID, сотрудника, знаковую сумму, дату признания, целевой run и idempotency key. Одна исходная refund allocation применяется к зарплате не более одного раза. Непогашенный остаток переменной корректировки переносится явно; это не отдельный платёж и не `expense`.
+11. `payroll_entries` расширяется nullable FK на расчётный run/версию. Один run/payment period агрегирует дневные snapshots и adjustments до одной существующей `payroll_entry` на сотрудника, не по отдельной строке заказа/компоненту; period boundary не может пересекать несовместимые версии схемы. Добавить явную idempotency/unique связь run→employee entry и проверку перекрытия существующих legacy entries. Существующий `rule_id`, status, `expense_id` и переходы сохраняются без повторного жизненного цикла. Перед миграцией проверить действующую уникальность и legacy rows.
+12. Audit log фиксирует старое/новое значение конфигурации, scope, время действия, actor, причину, approved/paid transitions и пересчёты. Для владельца показывается diff версии и список сотрудников, затронутых или оставшихся на персональном override.
+
+## 5. Расчётное ядро и режимы
+
+Ядро должно быть чистой детерминированной функцией над переданными нормализованными строками продаж, role assignments, versioned rules и venue-local датами. Суммы передаются целыми копейками, ставки — basis points, комиссии округляются half-up отдельно по каждой строке исходного чека. Для сотрудника/роли режим выбирается из `progressive_daily`, `stable_percent`, `percent_only`, `final_month_threshold`; override режима валидируется вместе со ставками этого режима. Ядро не выполняет записи в orders, payments, loyalty, shifts, expenses или `payroll_entries`. Preview не сохраняет расчётные snapshots; при фиксации run source values копируются в snapshot-lines внутри транзакции. Pure calculator принимает coverage manifest (`kind`, from/to local dates, complete flag, nonempty opaque watermark) и отказывает без него или если MTD line выходит за `periodTo`. Это attestation входного слоя, а не доказательство полноты само по себе: production API обязан получать source rows в согласованном DB snapshot/transaction и формировать watermark по версиям/ID закрытых orders, order lines, pricing snapshots, discount/refund adjustments, attribution, attendance, payroll config и timezone. Изменение любого исходника создаёт новый run. База данных должна запрещать update/delete финализированных run/snapshots (например append-only API + trigger/permissions), а не полагаться только на frontend.
+
+- **10.1 `progressive_daily`:** оклад за фактическую смену + commission с продаж дня по диапазону cumulative venue turnover на конец дня + milestones при первом пересечении + cap. Ставки и строки item-specific вычисляются в целых копейках/basis points; сумма округляется отдельно на каждой order line. Role department задаётся явным стабильным mapping, а не эвристикой по тексту названия; первоначальная миграционная классификация названий с «кальян» допустима как одноразовый проверяемый импорт, не как постоянная бизнес-логика. `turnoverCents` задаёт явно выбранную и сверенную дневную базу выручки площадки; `commissionBaseCents` задаёт нормализованную комиссионную базу конкретной строки. Gross/net-after-discount/refund policy фиксируется для версии схемы, а не выводится из общего заказа.
+- **`stable_percent`:** оклад за подтверждённую смену + стабильный %, применимый к определённой сотруднику выручке.
+- **`percent_only`:** только commission; никаких shift wages.
+- **`final_month_threshold`:** ставка выбирается по итоговому месячному обороту и применяется ко всей квалифицируемой выручке месяца. Ввиду выплаты раз в две недели такой режим несовместим с окончательным закрытием/выплатой первой половины до конца месяца: calculator принимает его только для полного закрытого месяца. Для применения к двум payroll entries понадобится отдельно согласованный provisional advance/true-up contract; он здесь не реализуется.
+- **Исторические схемы 1–9:** обеспечить выразительность параметров без обещания поставки каждого как отдельного preset. До поддержки командного фонда, личного плана, маржи и дневного ориентира должны быть доступны соответствующие данные и формулы; схема не может ссылаться на отсутствующую себестоимость/план. Это отдельное решение о фазах после MVP, а не повод использовать недокументированную формулу.
+- Формулы, bracket boundary convention (`lower inclusive, upper exclusive`, последний диапазон unbounded), округление, refunds/voids, скидочная база, taxes/gratuity и распределение shared lines фиксируются как часть версии и объяснения результата.
+
+## 6. Атрибуция и источники данных
+
+Обязательная гранулярность commission — строка заказа: каждая строка приписывается сотруднику, фактически совершившему/пробившему эту конкретную позицию. Ни общий `orders.opened_by`, ни смена, ни равное деление заказа не заменяют line attribution.
+
+Инвентаризация схемы подтвердила, что сейчас line author отсутствует, а `opened_by` на заказе не доказывает, кто выполнил конкретную позицию. До первой реализации определить безопасную точку фиксации сотрудника в POS и хранить неизменяемый `sales_employee_id` на строке/событии; нельзя выводить исполнителя из текущей смены после закрытия заказа. Миграция старых строк без автора должна помечать их `unattributed` и включать в сверку, но не приписывать сотруднику без утверждённой политики.
+
+Кассовая сверка сопоставляет line-sales totals и cash/payment tender по площадке/дню/способу оплаты. Разница является диагностикой, не изменяет commission base автоматически. `order_items` сейчас не содержит строки распределения скидки или возврата, поэтому net commission base требует отдельного согласованного price/refund contract и безопасного источника line-level amounts. Loyalty redemption/deposit/prepayment/refunds остаются их собственными движениями и не прибавляются к выручке повторно.
+
+## 7. API-контракт (предварительный)
+
+Все endpoints tenant-scoped и проверяют авторизацию на сервере. Owner-only endpoints возвращают 403 без раскрытия чужих площадок.
+
+- `GET /api/payroll/schemes`, `GET /api/payroll/schemes/:id/versions`: чтение только тем, кому разрешён просмотр конфигурации; текущий route `/finance` и permission `finance` не следует молча расширять пользователям с `finance_read`.
+- `POST /api/payroll/schemes`, `POST /api/payroll/schemes/:id/versions`: создание схемы/черновой версии.
+- `POST /api/payroll/versions/:id/activate` и `POST /api/payroll/versions/:id/retire`: валидация effective dates, отсутствия конфликтов и защиты закрытых периодов.
+- `PUT /api/payroll/roles/:roleId/assignments`, `PUT /api/payroll/employees/:userId/overrides`: редактирование owner-only; каждый parameter override несёт explicit `inherit|override` и effective date.
+- `PUT /api/payroll/item-commission-rules/:ruleId` / `POST ...`: upsert versioned replace/additive rule.
+- `POST /api/payroll/calculations/preview`: deterministic read-only preview, breakdown by employee/day/line, caps, milestones, warnings, reconciliation totals; не пишет начисления или расходы. Scope доступа к конфигурационным preview vs личным суммам сотрудника — явное серверное permission.
+- `POST /api/payroll/calculation-runs`: создать immutable run/snapshots с idempotency key и input watermark; повтор ключа возвращает тот же run.
+- `GET /api/payroll/calculation-runs/:id` и `GET /api/payroll/dashboard`: чтение версий, aggregate и drilldown из того же snapshots source.
+- `POST /api/payroll/calculation-runs/:id/recalculate`: owner-only, требует reason, сохраняет supersedes lineage; запрещён для затрагивающего paid period без отдельного финансового reversal workflow.
+- Интеграция с `/api/payroll/entries`: утверждение и выплата используют существующие переходы. Выплата создаёт/связывает ровно один payroll expense и фиксирует ссылку на run; повторная оплата идемпотентна.
+
+Названия и формы запросов — проектный proposal; проверять router conventions и RBAC перед кодом. Не добавлять альтернативный lifecycle parallel to existing entries.
+
+## 8. Интерфейс
+
+1. Owner-only настройки: список схем/версий, draft preview, сравнение версий, effective dates и audit history. Сейчас payroll UI встроен в `/finance`, отдельного payroll маршрута нет; оставить его там, если отдельный маршрут не согласован, и не расширять пункт навигации/route доступ для `finance_read` случайно.
+2. Настройка ставки по роли с пороговой таблицей и видимым списком затронутых сотрудников; персональные overrides на каждом параметре независимо, включая явный персональный ноль.
+3. Каталог позиционных правил: item, роль/сотрудник, ставка, replace/additive, период действия, конфликты.
+4. Распределение смен/персонала: добавить подменного сотрудника с ролью без создания новой роли; не создавать смену как доказательство продаж.
+5. Расчётный экран: выбрать площадку/период/версию, preview с drilldown до строки чека, cumulative bracket, базой комиссии, bonus threshold, cap и итогом; отдельные alerts о неизвестном авторе строки и несверенной кассе.
+6. Сравнение схем: одинаковый snapshot входных данных и период, отдельные суммы по сотруднику/дню и дельта; симуляция ничего не сохраняет в ledger.
+7. Dashboard: агрегаты и детализация читают только выбранный неизменяемый run, показывают draft/provisional vs approved/paid, общие начисления, выплаты и расхождение сверки. Нельзя отдельно пересчитывать карточки другой формулой.
+8. Закрытие периода и выплата используют существующий lifecycle. UI не предлагает изменение выплаченного периода; исправление ведёт к аудируемому корректирующему workflow.
+
+## 9. Права и аудит
+
+- Owner-only на payroll configuration/activation и ретроактивный пересчёт. Текущие payroll draft/approve/pay/cancel permissions сохраняются до отдельного решения владельца продукта; новый просмотр зарплатных сумм и конфигурации не открывать шире действующих payroll ACL.
+- Защита tenant должна быть проверена на каждом API по `venue_id`/membership, включая вложенные item/rule IDs.
+- Каждая конфигурационная правка содержит actor и `effective_from`, сохраняет прежнюю версию; не удалять применявшуюся версию физически.
+- Аудировать preview не обязательно как финансовое изменение, но сохранять calculation run, approve/pay/cancel и retroactive recalc. Причина обязательна для отмены/перерасчёта и видима в audit trail.
+- Персональные данные и зарплатные значения возвращать только ролям, которым разрешён просмотр payroll; точная матрица сверяется с auth implementation перед API.
+
+## 10. План миграции и поставки
+
+**Этап 0 — контракт/инвентаризация (без продуктовых правок):** подтвердить owner role, staff/role model, order line IDs/authorship, category→department, sale/refund basis, currency/timezone, current payroll UI/API and schema; сравнить все активные diffs/HEAD с MASTER. Этот документ фиксирует целевое направление.
+
+**Этап 1 — additive schema:** новые схемы/версии/assignment/overrides/item rules/runs/snapshots; nullable link из payroll_entries на run. Никаких destructive rename/drop и массового переписывания существующих правил. Backfill для старых payroll rows не выдумывает snapshots; маркировать legacy source.
+
+**Этап 2 — attribution:** добавить actor на POS order line через согласованный write path; согласовать department source и line-level net revenue allocation. Старые lines остаются unattributed. Добавить индексы/FKs/checks и tenant-scoped ограничения после проверки historical data.
+
+**Этап 3 — shadow calculator:** 10.1 и три обязательных режима считаются параллельно в preview/shadow, сравниваются с контрольными примерами Excel/владельца; никаких автоматических выплат или расходных записей.
+
+Изолированный первый engineering slice — чистый `payroll-schemes.js` и его focused contract QA на нормализованных входах (центовая арифметика, versioned config, per-role/person mode/rate resolution, 10.1 + три обязательных режима). Он требует coverage manifest и role assignment на каждый день активного employment window, блокирует расчёт при отсутствующей attribution или невалидных входах и не выполняет API/DB writes; этим slice не заявляется сквозная payroll-функция. Caller обязан передавать точную basis для sales/commission amount.
+
+**Этап 4 — owner UI и snapshot:** версионируемая конфигурация, preview, audit, immutable run, compare и dashboard. Создание run — отдельно от approval.
+
+**Этап 5 — lifecycle integration:** дневные snapshots агрегируются в одну entry на сотрудника/период/run, затем используют существующие review/pay переходы. До создания entry не допускается пересечение с существующими неоплаченными/оплаченными периодами того же сотрудника. При фактическом pay в транзакции обеспечить один expense и точную связь run↔entry↔expense. Проверить повторные запросы, блокировку оплаченных периодов и void/refund. Согласовать с MASTER, когда daily snapshot суммы должны попадать в фин. отчёты: существующая аналитика равномерно раскладывает entry по дням; report не должен одновременно учитывать и entry allocation, и daily snapshots.
+
+**Этап 6 — расширение формул:** исторические варианты, margin/team fund/personal target после подтверждения доступности unit cost, source attribution и определения плана. Версии движка/формул должны быть явны в snapshots, чтобы будущая смена кода не меняла старые суммы.
+
+Rollback — только отключение feature flag и откат использования новых сущностей; после создания snapshots сохранять их для аудита. Схемы rollout/backfill требуют отдельного DB/security review по проектным правилам.
+
+## 11. Файловые границы и совместная работа
+
+Параллельно изменяются многие файлы CRM. До согласования с MASTER кодовые изменения в перечисленные shared zones запрещены.
+
+- Этот новый документ: `docs/requirements/PAYROLL_ARCHITECTURE_CONTRACT.md` — зарплатный чат может поддерживать как product contract.
+- Предварительно ожидаемые shared zones: `server.js`, `schema.sql`, новые migrations, `db.js`, payroll UI entry points (уточнить фактические файлы), `portal.js`, `dist/portal.js`, API/auth code и финансовые отчёты.
+- OWNER of finance lifecycle/expenses/reporting: MASTER. OWNER of loyalty rules/ledger: loyalty chat. Payroll не меняет их ledgers и не редактирует чужие рабочие файлы без согласования.
+- Рекомендуемый первый кодовой PR после инвентаризации — только additive migrations и узкий API/domain layer с owner tests; `server.js` затрагивать лишь по согласованному списку файлов, не одновременно с MASTER. Не выпускать dist snapshots вручную до установления build/sync contract.
+- Перед каждым этапом отправлять MASTER список файлов, контрактов, тестовых сценариев и commit boundary; после завершения присылать commit hash, миграции и результаты проверок.
+- Текущий workspace содержит много dirty tracked/untracked файлов, включая `server.js`, `schema.sql`, `db.js`, `portal.js`, `dist/portal.js`, финансовые отчёты и loyalty migrations. Этот контракт их не присваивает зарплатной работе; сначала выяснить владельцев изменений и чистое основание.
+
+## 12. Решения, требующие продуктового подтверждения
+
+Следующие неоднозначности не блокируют контракт, но должны быть определены владельцем до production calculator:
+
+1. **Решено исходным ТЗ:** commission attribution относится к сотруднику, который пробил конкретную позицию чека. Это не исполнитель услуги, не сотрудник, открывший заказ, и не все сотрудники смены. POS должен сохранять actor на каждой строке продажи; `orders.opened_by` и факт работы за столом этого не заменяют. Если позднее потребуется платить исполнителю услуги отдельно от кассира, это будет отдельная атрибуция и отдельное продуктовое решение, а не автоматическая подмена текущего правила.
+2. **Решено владельцем:** commission base — чистая сумма конкретной строки после применённых скидок и возвратов. Источник должен возвращать финальное распределение скидок/возвратов по строкам; payroll не распределяет order-level discount собственной эвристикой и не суммирует loyalty/deposit/prepayment движения повторно. Пока текущая POS-модель не предоставляет подтверждённое line-net значение, production расчёт должен блокироваться для таких источников, а не подменять net суммой до скидки. Отдельно остаётся решить, как отражать возврат, проведённый после закрытия расчётного периода.
+3. **Рабочее правило зарплатного контура:** закрытый run и выплаченная запись никогда не мутируются. Возврат, проведённый после snapshot, становится отдельной корректировкой следующего открытого расчёта с ссылкой на исходную строку продажи и возврат. Сумма корректировки не превращается автоматически в отрицательную выплату и не удерживается из фиксированной оплаты; не покрытый будущей переменной частью остаток переносится как видимый долг корректировки и требует отдельного подтверждённого финансового процесса. Для невыплаченного, но уже утверждённого периода также создаётся новая корректирующая версия/run с lineage, прежний snapshot сохраняется. В текущей POS-схеме нет ledger возвратов конкретной строки заказа: будущий API обязан блокировать refund adjustment до появления проверяемого source refund allocation; `source_key` и DB лимит относительно исходной комиссии сами по себе не доказывают реальность возврата.
+4. К какому цеху относятся смешанные/переименованные позиции: использовать закреплённую menu category/department; названия не являются надёжной постоянно действующей категоризацией. Сейчас есть `order_items.station` и `products.category`, но нет подтверждённого ownerable department mapping для payroll.
+5. Кто получает threshold bonus: пять перечисленных штатных сотрудников, активные назначения схемы или все сотрудники с ролью; даты найма/выхода и подменные нуждаются в явной eligibility.
+6. **Рабочее правило зарплатного контура:** процентный cap ограничивает только sales-linked дневные компоненты (оклад смены и комиссию). Milestone bonus — отдельное фиксированное право, выплачиваемое по событию порога независимо от личных продаж, поэтому не обрезается дневным sales-cap; сумма бонуса и факт превышения общей доли расходов явно показываются в snapshot и reconciliation. Для общих командных caps допускается только явно заданное правило распределения между сотрудниками; результат должен быть детерминирован и сохранён по строкам. Так сохраняется смысл обоих положений ТЗ — защитного лимита по продажам и безусловной премии.
+7. Разбивка оклада за смену, если сотрудник частично отработал/сделал несколько overlapping logs; ТЗ говорит о факте продаж, но не задаёт правило длительности.
+8. Семантика персональных ставок для bracket table и персональных overrides при смене роли/схемы; обеспечить snapshot effective config.
+9. Для historical schemes: точные формулы и guardrails для margin 48%, excess-plan 65%/40%, командного фонда и дневных ориентиров; не выводить их из описания без согласованной числовой модели.
+10. Должен ли owner отдельно подтверждать payroll calculation run перед его преобразованием в черновики текущих payroll entries; существующий `approved` → `paid` workflow при этом сохраняется.
+11. Retention: новая payroll history не должна удаляться существующими `ON DELETE CASCADE` через `users` или venue; определить архивирование/ограничения hard-delete и сохранить snapshot employee identity для прошлых периодов.
+12. `payroll_entries.expense_id` в текущей схеме допускает `ON DELETE SET NULL`; определить защиту от потери связи и повторного/пропущенного признания выплаченной зарплаты в finance analytics.
+13. Кто может видеть точные зарплатные суммы, расчётные строки, ставки и сравнение схем; `finance_read` не должен автоматически давать доступ к чувствительным зарплатным деталям.
+
+Дополнительное противоречие исходного ТЗ, требующее решения до production-валидации схемы: там одновременно заданы ограничение дневной выплаты долей выручки сотрудника и milestone-премия всем пяти штатным сотрудникам независимо от продаж в день пересечения порога. Для сотрудника без продаж база выручки равна нулю, а безусловная премия положительна, поэтому оба требования не могут выполняться одновременно. Валидатор будущей конфигурации не должен скрыто обрезать или пропускать такую премию; владелец должен определить, является ли премия исключением из дневного лимита, либо лимит считается по другой базе/периоду.
+
+## 13. Критерии готовности будущей реализации
+
+- Любой результат можно воспроизвести из неизменяемой версии формулы, конфигурации, sales line inputs и локального календаря.
+- Две позиции одного чека могут начисляться разным сотрудникам; незаданные attribution не присваиваются молча.
+- Персональный override независим по параметрам, включая 0, и журнал изменений объясняет область воздействия.
+- Повторный preview/run/pay не удваивает суммы или расходы; tenant isolation подтверждён.
+- Выплаченный период не пересчитывается молча; correction имеет lineage и аудит.
+- Dashboard, сравнение схем, calculation detail и payroll entries строятся из того же snapshot source.
+- Financial report учитывает связанный expense один раз; order/payment/loyalty ledgers после salary calculation неизменны.
+- Каждая миграция additive/replay-safe и проверена на legacy data и конкурентных изменениях MASTER.
