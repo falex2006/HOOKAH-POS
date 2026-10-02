@@ -151,8 +151,9 @@ async function runSuite(value) {
     }
     if (name === 'saas-quota-suspension-postgres-qa.mjs') {
       const password = crypto.randomBytes(32).toString('hex'), email = 'local-full-qa@example.invalid';
+      const saasDatabaseUrl = await freshDatabase('orders_qa_' + crypto.randomBytes(8).toString('hex'));
       let output = '';
-      app = spawn(process.execPath, [path.join(root, 'server.js')], { cwd: root, windowsHide: true, env: { ...env, DATABASE_URL: urlFor(c), PORT: '0', AUTH_REQUIRED: 'true', SAAS_OWNER_EMAIL: email, SAAS_OWNER_PASSWORD: password }, stdio: ['ignore', 'pipe', 'pipe'] });
+      app = spawn(process.execPath, [path.join(root, 'server.js')], { cwd: root, windowsHide: true, env: { ...env, DATABASE_URL: saasDatabaseUrl, PORT: '0', AUTH_REQUIRED: 'true', SAAS_OWNER_EMAIL: email, SAAS_OWNER_PASSWORD: password }, stdio: ['ignore', 'pipe', 'pipe'] });
       let startupError;
       app.once('error', error => { startupError = error; });
       app.stdout.on('data', chunk => { output += chunk; }); app.stderr.on('data', chunk => { output += chunk; });
@@ -165,7 +166,7 @@ async function runSuite(value) {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
       assert.ok(base, 'Owned SaaS QA app did not start');
-      await execute(name, { ...env, SAAS_OWNER_EMAIL: email, SAAS_OWNER_PASSWORD: password }, c, [base], [password]);
+      await execute(name, { ...env, DATABASE_URL: saasDatabaseUrl, MIGRATIONS_PG_TEST_DATABASE_URL: saasDatabaseUrl, SAAS_OWNER_EMAIL: email, SAAS_OWNER_PASSWORD: password }, c, [base], [password]);
     } else await execute(name, env, c);
   } finally {
     if (app?.pid) {
