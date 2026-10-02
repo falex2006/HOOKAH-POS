@@ -9,8 +9,11 @@ const distIndex = readFileSync(new URL('../dist/index.html', import.meta.url), '
 const distApp = readFileSync(new URL('../dist/app.js', import.meta.url), 'utf8');
 for (const [name, html] of [['source', index], ['dist', distIndex]]) {
   for (const id of ['payment-reservation-field', 'payment-reservation-receipt', 'payment-reservation']) assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1, `${name} payment UI has exactly one ${id}`);
-  assert.match(html, /app\.js\?rev=181/, `${name} loads the reservation allocation handler`);
+  assert.match(html, /app\.js\?rev=\d+/, `${name} loads the versioned reservation allocation handler`);
 }
+const sourceAppRevision = index.match(/app\.js\?rev=(\d+)/)?.[1];
+const distAppRevision = distIndex.match(/app\.js\?rev=(\d+)/)?.[1];
+assert.equal(distAppRevision, sourceAppRevision, 'source and dist load the same POS app revision');
 assert.equal(distApp, app, 'published POS app includes the reservation allocation handler');
 assert.match(app, /method==='reservation'/, 'payment UI can post the reservation tender');
 assert.match(app, /reservationPrepaymentReceipts/, 'payment UI renders available booking receipts');
