@@ -6,6 +6,14 @@
 const { randomUUID } = require('node:crypto');
 const { calculatePayrollScheme, validateScheme } = require('./payroll-schemes');
 
+// Preview is owner-only and scenario-only, but a privileged caller can still
+// submit oversized collections. Bound work before entering the calculator's
+// employee × day and sales-line loops.
+const MAX_PREVIEW_EMPLOYEES = 500;
+const MAX_PREVIEW_SALES_LINES = 20000;
+const MAX_PREVIEW_ASSIGNMENTS = 5000;
+const MAX_SCHEME_CHILD_ROWS = 15000;
+
 class PayrollSchemeServiceError extends Error {
   constructor(code, status = 400) {
     super(code);
@@ -33,6 +41,8 @@ const ensureDefinition = (definition, schemeId, versionId) => {
   if (!definition || typeof definition !== 'object' || Array.isArray(definition)) fail('scheme_definition_required');
   if (definition.employeeOverrides !== undefined && !Array.isArray(definition.employeeOverrides)) fail('invalid_employee_overrides');
   if (definition.itemRules !== undefined && !Array.isArray(definition.itemRules)) fail('invalid_item_rules');
+  if ((definition.employeeOverrides?.length || 0) + (definition.itemRules?.length || 0)
+      + (definition.roleAssignments?.length || 0) > MAX_SCHEME_CHILD_ROWS) fail('scheme_definition_too_large', 413);
   const effectiveFrom = nullableDate(definition.effectiveFrom, 'invalid_effective_from');
   if (!effectiveFrom) fail('effective_from_required');
   const effectiveTo = nullableDate(definition.effectiveTo, 'invalid_effective_to');
@@ -208,6 +218,16 @@ const calculateScenario = (scheme, previewInput) => calculatePayrollScheme({
   }
 });
 
+const assertPreviewSize = (input, scheme) => {
+  if ((Array.isArray(input.employees) && input.employees.length > MAX_PREVIEW_EMPLOYEES)
+      || (Array.isArray(input.sales) && input.sales.length > MAX_PREVIEW_SALES_LINES)) {
+    fail('preview_input_too_large', 413);
+  }
+  if ((scheme.roleAssignments?.length || 0) > MAX_PREVIEW_ASSIGNMENTS
+      || (scheme.employeeOverrides?.length || 0) > MAX_PREVIEW_ASSIGNMENTS
+      || (scheme.itemRules?.length || 0) > MAX_PREVIEW_ASSIGNMENTS) fail('scheme_definition_too_large', 413);
+};
+
 const sumCentsSafely = (values) => {
   const total = values.reduce((sum, value) => sum + BigInt(value), 0n);
   return total <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(total) : null;
@@ -245,6 +265,7 @@ const makeService = (pool) => {
     if (!previewInput || typeof previewInput !== 'object' || Array.isArray(previewInput)) fail('preview_input_required');
     return withOwnerRead(pool, principal, async (db, actor) => {
       const scheme = await loadVersion(db, actor.venueId, versionId);
+      assertPreviewSize(previewInput, scheme);
       const result = calculateScenario(scheme, previewInput);
       return { official: false, persistence: 'none', scenario: true, scheme, result };
     });
@@ -257,6 +278,7 @@ const makeService = (pool) => {
     return withOwnerRead(pool, principal, async (db, actor) => {
       const orderedIds = [...versionIds].sort((left, right) => String(left) < String(right) ? -1 : String(left) > String(right) ? 1 : 0);
       const schemes = await Promise.all(orderedIds.map((id) => loadVersion(db, actor.venueId, id)));
+      for (const scheme of schemes) assertPreviewSize(previewInput, scheme);
       const results = schemes.map((scheme) => ({ scheme, result: calculateScenario(scheme, previewInput) }));
       const baseline = results.find((item) => item.scheme.versionId === baselineVersionId);
       const baselineAmounts = new Map((baseline?.result.employees || []).map((item) => [item.employeeId, item.amountCents]));

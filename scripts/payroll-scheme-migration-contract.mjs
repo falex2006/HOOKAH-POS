@@ -409,6 +409,17 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     assert.equal(previewResult.persistence, 'none');
     assert.equal(previewResult.result.status, 'ready');
     assert.equal(previewResult.result.employees.find((row) => row.employeeId === staffA).amountCents, 13100);
+    await assert.rejects(payrollService.preview(principalA, createdVersion.versionId, { ...previewInput, employees: Array(501).fill({ id: staffA }) }),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
+      'oversized employee scenarios are rejected by the service before calculation');
+    await assert.rejects(payrollService.compare(principalA, [overlappingVersion.versionId, createdVersion.versionId],
+      { ...previewInput, sales: Array(20001).fill(previewInput.sales[0]) }, createdVersion.versionId),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
+    'oversized sales comparisons are rejected by the service before calculation');
+    const tooManyAssignments = { ...draftDefinition, roleAssignments: Array(15001).fill(draftDefinition.roleAssignments[0]) };
+    await assert.rejects(payrollService.createVersion(principalA, createdScheme.id, tooManyAssignments),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'scheme_definition_too_large',
+      'oversized combined scheme child rows are rejected before writes');
     const comparison = await payrollService.compare(principalA, [overlappingVersion.versionId, createdVersion.versionId], previewInput, createdVersion.versionId);
     const baselineComparison = comparison.comparisons.find((row) => row.versionId === createdVersion.versionId);
     const draftComparison = comparison.comparisons.find((row) => row.versionId === overlappingVersion.versionId);
