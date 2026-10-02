@@ -224,76 +224,148 @@
     {
       "id": "L10",
       "title": "Возвраты, отмены и обратные движения",
-      "status": "in_progress",
+      "status": "complete",
       "steps": [
         {
           "id": "L10.1",
           "title": "Зафиксировать правила отмены и возврата по типу платежа",
-          "status": "in_progress"
+          "status": "complete"
         },
         {
           "id": "L10.2",
           "title": "Добавить обратные движения для бонусов и денег гостя",
-          "status": "pending"
+          "status": "complete"
         },
         {
           "id": "L10.3",
           "title": "Обработать возврат и перенос предоплаты брони",
-          "status": "pending"
+          "status": "complete"
         },
         {
           "id": "L10.4",
           "title": "Защитить возвраты от повторов и проверить сверки",
-          "status": "pending"
+          "status": "complete"
         }
       ]
     },
     {
       "id": "L11",
       "title": "Настройки программы и акции",
-      "status": "pending",
+      "status": "complete",
       "steps": [
         {
           "id": "L11.1",
-          "title": "Согласовать настройки курса, лимитов и срока бонусов",
-          "status": "pending"
+          "title": "Зафиксировать действующие правила бонусов и открытые решения владельца",
+          "status": "complete",
+          "detail": "Закреплено в LOYALTY_POLICY_CONTRACT.md: source of truth по каждому параметру, временный профиль, отделение бонусов от денег гостя, все открытые бизнес-решения перечислены. Числа и ставки фактически не менялись.",
+          "acceptance": [
+            "Курс, лимит чека, срок/уведомление и исключения расчётной базы перечислены как решения владельца",
+            "Текущий локальный контракт и отсутствие истечения подтверждены кодом",
+            "Депозитный баланс гостя отделён от бонусов"
+          ]
         },
         {
           "id": "L11.2",
-          "title": "Описать область действия, совместимость и приоритет акций",
-          "status": "pending"
+          "title": "Зафиксировать версионирование, площадки и порядок расчёта акций",
+          "status": "complete",
+          "detail": "UI/API/permissions/storage/re-read/QA contract in LOYALTY_POLICY_CONTRACT.md; first-campaign schema and eligibility, stable tie-break, no stacking default, VIP floor, tender separation. Public hookah lounge comparison informs optional 20% cap proposal; compatible defaults remain 100% and no-expiry; business may configure future versions.",
+          "acceptance": [
+            "Versioned venue settings and owner/admin-only edit boundary documented",
+            "Promotion model, eligibility, deterministic selection, POS explanation and regression matrix documented",
+            "Market benchmark linked and clearly distinguished from this venue approved policy",
+            "No campaign/expiry/monetary change silently enabled by documentation"
+          ]
         },
         {
           "id": "L11.3",
-          "title": "Реализовать только подтверждённые бизнес-правила",
-          "status": "pending"
+          "title": "Реализовать утверждённые настройки и совместимые defaults",
+          "status": "complete",
+          "acceptance": [
+            "Только подтверждённые денежные правила влияют на расчёт",
+            "Версии/снимки сохраняются для новых заказов, старые и открытые не переоцениваются",
+            "API проверяет venue scope, право, аудит и конкурентное изменение"
+          ]
         },
         {
           "id": "L11.4",
-          "title": "Показать сотруднику объяснение расчёта и действующих правил",
-          "status": "pending"
+          "title": "Показать сотруднику применённые правила и расчёт до оплаты",
+          "status": "complete",
+          "acceptance": [
+            "POS показывает сумму/источник применённой групповой или одобренной ручной скидки, VIP-доплату и лимит списания с причиной",
+            "До закрытия оценка учитывает цену после скидки и бонусные tender; после закрытия повторное чтение показывает только сохранённые базу, ставку и результат начисления",
+            "Права чтения объяснения проверяются через orders; изменение настроек политики остаётся owner/admin"
+          ],
+          "detail": "Окно оплаты объясняет сумму и источник фактически применённой скидки, VIP-доплату, оценку базы/ставки/начисления до закрытия либо точный сохранённый снимок после него, cap и минимум первой операции. Акции, offers и причины выбора/исключения реализованы в L11.6; визуальный desktop/mobile проход остаётся в L13.3."
+        },
+        {
+          "id": "L11.5",
+          "title": "Создать управляемые акции с периодом и областью товаров",
+          "status": "complete",
+          "acceptance": [
+            "Venue-scoped версии кампаний можно создать, изменить, архивировать и перечитать; PostgreSQL аудит атомарен, версии/scopes защищены от UPDATE/DELETE",
+            "Период с timezone offset, IANA timezone, выгода, приоритет и product/category scopes валидируются на сервере; товарные ссылки и категории принадлежат текущей площадке",
+            "Только owner/admin меняет; expectedVenueId/version защищают stale context; чужая площадка изолирована; новые кампании только draft",
+            "Экран /admin#loyalty даёт owner/admin полный путь create/edit/activate/archive/reload; новая кампания по умолчанию черновик, условия и версия атомарны; визуальный desktop/mobile проход включён в L13.3",
+            "Memory и PostgreSQL сценарии покрывают ошибки, RBAC, версии, архив, аудит, пустой список, конфликт версии и tenant scope; локальные migration/runtime assets доступны"
+          ],
+          "detail": "L11.5 реализует управление условиями и версиями кампаний; серверное применение цены и POS eligibility explanation завершены в L11.6. Проверены memory/PostgreSQL, миграция на локальную БД и health/assets; визуальный UI проход остаётся в L13.3. Интервал сохраняется как UTC instants и отображается в заданном IANA timezone."
+        },
+        {
+          "id": "L11.6",
+          "title": "Рассчитать акции и объяснить выбор или исключение в POS",
+          "status": "complete",
+          "acceptance": [
+            "Единый server evaluator считает scope/период/скидку и причины; правила cap/priority/tie зафиксированы и покрыты тестом",
+            "Quote, payment/close, pending revenue и отчёты используют одинаковую best-only цену; активация сериализуется с первой оплатой после ценовой и partial-payment сверки",
+            "Закрытый заказ сохраняет версию/условия кампании и offers; POS объясняет источник/сумму/исключение, повторное чтение не переоценивает чек"
+          ],
+          "detail": "Завершено локально: PostgreSQL E2E покрывает активную кампанию, quote, частичную и полную оплату, смену версии без переоценки, историческое чтение, pending revenue и гонку первой оплаты с активацией. Общая venue lock сериализует конкурирующие операции. UI активации доступен owner/admin. Визуальный desktop/mobile проход остаётся в L13.3."
         }
       ]
     },
     {
       "id": "L12",
       "title": "Отчёты и административная сверка",
-      "status": "pending",
+      "status": "in_progress",
       "steps": [
         {
           "id": "L12.1",
-          "title": "Сверка выданных, списанных, возвращённых и доступных обязательств",
-          "status": "pending"
+          "title": "Сверка выданных, списанных, возвращённых и доступных обязательств с датами событий",
+          "status": "complete",
+          "acceptance": [
+            "API сверяет текущие бонусные и денежные балансы с журналами, отдельно показывает удержания бонусов и незачтённые предоплаты",
+            "Движения за локальный диапазон дат основаны на времени события; возврат показывается один раз по immutable reversal, payout channel отделён от wallet effect",
+            "Старые неподтверждённые суммы бронирований отделены от квитанций; verified deposit counter сверяется с receipt net refunds",
+            "Отчёт финансово доступен в UI и закрыт для операционных сотрудников; тест покрывает дату, суммы, venue isolation и расхождения",
+            "Локальная сборка CRM проходит health check и отдает синхронный finance UI asset"
+          ],
+          "detail": "Завершено локально: GET /api/loyalty/reconciliation принимает venue-local диапазон from/to, разделяет snapshot обязательств и period event flows, сверяет bonus/deposit ledgers, clawback, остатки предоплат и verified counters; неподтверждённые старые deposit_paid выведены отдельно. Финансовый экран подключён, UI различает бонусные единицы, рубли и внешние выплаты. PostgreSQL E2E проверяет время/суммы, single-count refunds, wallet/external payout partition, invalid range, finance RBAC, tenant isolation и ledger сверку. CRM пересобран и локально healthy; визуальный просмотр страницы остаётся L13.3."
         },
         {
           "id": "L12.2",
-          "title": "Отчёты по скидкам, группам, пополнениям и зачётам",
-          "status": "pending"
+          "title": "Отчёты по скидкам, группам, пополнениям и зачётам: дата продажи, приёма денег и выплаты",
+          "status": "complete",
+          "detail": "Локально реализовано в periodBusiness GET /api/loyalty/reconciliation и показано в финансовом отчёте: закрытые продажи/зафиксированные скидки по локальному closed_at, группы и акции по снимку; реальные cash/card/QR поступления по created_at и источнику; внешние выплаты по reversal created_at и method/source. Reservation tender и allocation/reopen исключены из новой кассы/выплат. Старые закрытые заказы без полного снимка помечаются, gross/net fallback берётся из сохранённых строк заказа и фактических оплат; minimumAdjustment включён в мост сверки.",
+          "acceptance": [
+            "Скидки и продажи фильтруются по venue-local дате закрытия и берутся из снимков цены; видны источники, группы и акции",
+            "Реальные поступления группируются по event-date, методу и источнику; бонусный и внутренний reservation tender не считаются кассовым поступлением",
+            "Фактические возвраты группируются по event-date, каналу и источнику; возврат зачёта не считается выплатой",
+            "Legacy чекам без снимка не приписываются неизвестные скидки; gross/net fallback и флаг неполного снимка покрыты PG QA",
+            "Финансовый экран показывает отличия даты продажи, приёма денег и выплаты с пояснением двойного учёта"
+          ]
         },
         {
           "id": "L12.3",
           "title": "Разобрать исторические брони без подтверждённых квитанций",
-          "status": "pending"
+          "status": "in_progress",
+          "detail": "Локальная БД проверена: найдена 1 бронь с legacy deposit_paid общей суммой 1 500 ₽; старое поле не изменяется и не превращается в квитанцию. Финансовый API возвращает tenant-scoped список для ручной сверки; memory-путь timezone исправлен, source/dist portal синхронизированы. Операционные роли получают 403, finance_read видит только агрегаты, owner/admin — capped detail list; для агрегатного менеджера SQL guest/booking details не выполняется. Проверки memory 22/22 и reservation-prepayment PostgreSQL E2E прошли. Не завершено: UI-заголовок должен различать legacy-значение и подтверждённые квитанции; в строках нужно показывать net после возвратов; отмена legacy-брони должна предупреждать о неразобранной старой сумме; нужен сквозной визуальный сценарий.",
+          "acceptance": [
+            "Legacy deposit_paid не изменяется и не считается подтверждённым поступлением автоматически",
+            "Финансовый API возвращает список legacy броней только в активном venue scope, с receipt totals/count и ограничением списка",
+            "UI показывает старые данные для ручной сверки, предупреждая что это не факт поступления",
+            "Сверены заголовки для строк с/без новых квитанций, net refunds, отмена брони и source/dist parity",
+            "После ручной сверки ночного аудита путь перепроверен сквозным PG/UI сценарием"
+          ]
         },
         {
           "id": "L12.4",
@@ -319,7 +391,7 @@
         },
         {
           "id": "L13.3",
-          "title": "Проверить мобильный POS, экран гостя и отчёты",
+          "title": "Проверить desktop/mobile loyalty UI, POS, экран гостя и отчёты",
           "status": "pending"
         },
         {

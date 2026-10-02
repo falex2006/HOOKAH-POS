@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const read=(path)=>fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
+const server=read('server.js');const portal=read('portal.js');const distPortal=read('dist/portal.js');const api=read('API.md');
+assert.match(server,/pathname === '\/api\/loyalty\/reconciliation' && req\.method === 'GET'/);
+assert.match(server,/invalid_reconciliation_period/);assert.match(server,/invalid_reconciliation_date/);
+for(const field of ['periodMovements','legacyReservations','legacyReviewTruncated','receipt_count','receipt_total','prepayment_outstanding','prepayment_mismatch_count','legacy_unverified_deposit','bonus_reversed','deposit_external_refund','prepayment_applied','discounts_by_source','discounts_by_group','discounts_by_promotion','receipts_by_method','receipts_by_source','payouts_by_method','payouts_by_source']) assert.ok(server.includes(field),`server reconciliation includes ${field}`);
+assert.match(server,/if \(process\.env\.AUTH_REQUIRED === 'true' && isOperationalEmployee\(req\)\) return json\(res, 403/,'operational finance_read roles are denied guest-level financial reconciliation');
+assert.match(server,/legacyReviewAccessRequired:!canReviewLegacyReservations/,'finance_read users receive aggregate figures without guest-level legacy rows');
+assert.match(server,/resolveIanaTimezone\(venue\?\.timezone,businessTimezone\)/,'memory reconciliation resolves the venue timezone');
+for(const text of ['Сверка бонусов, денег гостей и предоплат','loyalty-reconciliation-from','loyalty-reconciliation-to','Обновить сверку','Доступно бонусов сейчас','Неиспользованные предоплаты','Выплачено гостю наличными, картой или QR','Продажи и скидки по дате закрытия','Принятые деньги по дате события','Фактические выплаты по дате возврата','Исторические суммы броней без подтверждённых квитанций','Не создавайте квитанцию и не оформляйте возврат без первичного документа','данные отдельных гостей и броней доступны только владельцу или администратору']) assert.ok(portal.includes(text),`finance report includes ${text}`);
+assert.doesNotMatch(portal,/Сумма уже входит в строку сторно/,'external payouts are shown as a disjoint bucket');
+assert.equal(portal,distPortal,'published portal bundle matches source');assert.match(api,/GET \/api\/loyalty\/reconciliation\?from=/);
+console.log('LOYALTY RECONCILIATION CONTRACT: PASS');
