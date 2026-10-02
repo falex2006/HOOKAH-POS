@@ -6,6 +6,7 @@ assert.match(server,/pathname === '\/api\/loyalty\/reconciliation' && req\.metho
 assert.match(server,/invalid_reconciliation_period/);assert.match(server,/invalid_reconciliation_date/);
 for(const field of ['periodMovements','legacyReservations','legacyReviewTruncated','receipt_count','receipt_total','prepayment_outstanding','prepayment_mismatch_count','legacy_unverified_deposit','bonus_reversed','deposit_external_refund','prepayment_applied','discounts_by_source','discounts_by_group','discounts_by_promotion','receipts_by_method','receipts_by_source','payouts_by_method','payouts_by_source']) assert.ok(server.includes(field),`server reconciliation includes ${field}`);
 assert.match(server,/SUM\(GREATEST\(0,p\.amount-COALESCE\(rr\.refunded,0\)\)\) AS receipt_total/,'legacy reservation receipt totals are net of receipt reversals');
+assert.match(server,/item\.prepaymentRefunds\|\|\[\]\)\.filter\(\(refund\)=>refund\.receiptId===receipt\.id\)/,'memory legacy reservation receipt totals subtract receipt refunds');
 assert.match(server,/if \(process\.env\.AUTH_REQUIRED === 'true' && isOperationalEmployee\(req\)\) return json\(res, 403/,'operational finance_read roles are denied guest-level financial reconciliation');
 assert.match(server,/legacyReviewAccessRequired:!canReviewLegacyReservations/,'finance_read users receive aggregate figures without guest-level legacy rows');
 assert.match(server,/resolveIanaTimezone\(venue\?\.timezone,businessTimezone\)/,'memory reconciliation resolves the venue timezone');
