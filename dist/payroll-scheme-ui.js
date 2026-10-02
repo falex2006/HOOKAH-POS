@@ -11,10 +11,11 @@
   const MAX_RENDERED_LINES = 2000;
   const MAX_COMPARE_EMPLOYEE_DAYS = 500;
   const MAX_COMPARE_LINES = 500;
+  let venueTimezone = String(sessionUser.timezone || '');
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const venueLocalToday = () => {
-    try { return new Intl.DateTimeFormat('en-CA', { timeZone: sessionUser.timezone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: venueTimezone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
     catch (_) { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
   };
   const request = async (path, options = {}) => {
@@ -161,6 +162,11 @@
     let selectedVersionIds = [];
     let pending = false;
     previewInput.value = JSON.stringify(defaultPreview(), null, 2);
+    previewInput.addEventListener('input', () => { previewInput.dataset.userEdited = 'true'; });
+    const venueTimezonePromise = request('/api/venue').then((venue) => {
+      if (typeof venue?.timezone === 'string' && venue.timezone.trim()) venueTimezone = venue.timezone.trim();
+      if (!previewInput.dataset.userEdited) previewInput.value = JSON.stringify(defaultPreview(), null, 2);
+    }).catch(() => null);
 
     const notify = (text, kind = '') => { message.textContent = text; message.className = `form-message${kind ? ` ${kind}-message` : ''}`; };
     const definitionFromVersion = (version) => ({
@@ -197,7 +203,8 @@
       editor.hidden = false;
       notify(version.status === 'draft' ? 'Открыт редактируемый черновик.' : 'Активная версия защищена от редактирования. Создайте новую версию для изменений.');
     };
-    const showEditor = (action, { scheme = null, version = null } = {}) => {
+    const showEditor = async (action, { scheme = null, version = null } = {}) => {
+      await venueTimezonePromise;
       editorAction = action;
       selectedVersion = version;
       editor.hidden = false;
@@ -215,14 +222,14 @@
       if (!button || pending) return;
       try {
         if (button.matches('[data-scheme-reload], [data-scheme-retry]')) return await load();
-        if (button.matches('[data-scheme-new]')) return showEditor({ kind: 'create' });
+        if (button.matches('[data-scheme-new]')) return await showEditor({ kind: 'create' });
         if (button.matches('[data-scheme-editor-cancel]')) { editor.hidden = true; editorAction = null; return; }
         if (button.matches('[data-scheme-open-version]')) return await openVersion(button.dataset.schemeOpenVersion);
         if (button.matches('[data-scheme-new-version]')) {
           const scheme = schemes.find((item) => item.id === button.dataset.schemeNewVersion);
           const latest = sortedVersions(scheme || {})[0];
           const version = latest ? await request(`/api/payroll/versions/${encodeURIComponent(latest.id)}`) : null;
-          return showEditor({ kind: 'new-version', schemeId: scheme.id }, { scheme, version });
+          return await showEditor({ kind: 'new-version', schemeId: scheme.id }, { scheme, version });
         }
         if (button.matches('[data-scheme-activate]')) {
           pending = true; button.disabled = true;

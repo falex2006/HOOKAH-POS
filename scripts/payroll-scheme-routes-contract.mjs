@@ -97,6 +97,11 @@ result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: {
 assert.equal(result.status, 200);
 assert.equal(calls.at(-1)[0], 'compare');
 assert.deepEqual(calls.at(-1).slice(1), [{ userId: id, venueId }, [versionId, id], previewInput, versionId]);
+result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: { versionIds: [versionId, id], baselineVersionId: versionId, previewInput } }, {
+  selectedService: { ...service, compare: async () => { throw Object.assign(new Error('comparison_currency_mismatch'), { status: 400, code: 'comparison_currency_mismatch' }); } }
+});
+assert.equal(result.status, 400, 'mixed currency comparisons return a client error');
+assert.equal(result.body.error, 'comparison_currency_mismatch');
 
 result = await dispatch({ ...requestFor('GET', '/api/payroll/schemes'), user: null });
 assert.equal(result.status, 401);
