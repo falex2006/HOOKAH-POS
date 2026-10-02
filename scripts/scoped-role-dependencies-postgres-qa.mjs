@@ -93,10 +93,10 @@ try {
   const prefix = portal.slice(0, portal.indexOf('const compressUploadedImage'));
   for (const role of ['bartender','hookah_master','senior_bartender','senior_hookah_master']) {
     const redirects = [];
-    vm.runInNewContext(prefix, { localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role }) }, window: { location: { replace: url => redirects.push(url) } } });
+    vm.runInNewContext(prefix, { URLSearchParams, localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role }) }, window: { location: { replace: url => redirects.push(url) } } });
     assert.deepEqual(redirects, [], `${role} actual portal bootstrap permits session refresh`);
   }
-  assert.throws(() => vm.runInNewContext(prefix, { localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role: 'platform_owner' }) }, window: { location: { replace() {} } } }), /portal_permission_required/, 'SaaS role does not enter tenant portal');
+  assert.throws(() => vm.runInNewContext(prefix, { URLSearchParams, localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role: 'platform_owner' }) }, window: { location: { replace() {} } } }), /portal_permission_required/, 'SaaS role does not enter tenant portal');
   assert.ok(portal.includes("api('/api/staff')") && portal.includes("api('/api/payroll/rules')") && portal.includes("api('/api/clients')"), 'UI consumes current POS lookups');
   console.log(`SCOPED ROLE DEPENDENCIES POSTGRES QA: PASS (${checks} real HTTP checks; senior bootstrap; minimal DTO; denied writes; tenant isolation; persisted product)`);
 } finally {
