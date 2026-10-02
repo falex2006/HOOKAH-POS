@@ -11,6 +11,8 @@ const draftEditsPath = path.join(root, 'migrations', '078_payroll_draft_configur
 const draftEditsMigration = fs.readFileSync(draftEditsPath, 'utf8');
 const revisionsPath = path.join(root, 'migrations', '079_payroll_scheme_revision_audit.sql');
 const revisionsMigration = fs.readFileSync(revisionsPath, 'utf8');
+const runMetadataPath = path.join(root, 'migrations', '081_payroll_run_metadata.sql');
+const runMetadataMigration = fs.readFileSync(runMetadataPath, 'utf8');
 
 for (const table of [
   'payroll_schemes', 'payroll_scheme_versions', 'payroll_role_assignments',
@@ -44,6 +46,18 @@ assert.match(revisionsMigration, /CREATE TABLE IF NOT EXISTS payroll_scheme_vers
   '079 adds a replay-safe scheme revision journal');
 assert.match(revisionsMigration, /BEFORE UPDATE OR DELETE ON payroll_scheme_version_revisions/,
   '079 keeps revision audit append-only');
+assert.match(runMetadataMigration, /ADD COLUMN IF NOT EXISTS venue_timezone text/,
+  '081 adds a nullable run-local timezone snapshot without a guessed default');
+assert.match(runMetadataMigration, /ADD COLUMN IF NOT EXISTS currency char\(3\)/,
+  '081 adds a nullable ISO currency snapshot without a guessed default');
+assert.match(runMetadataMigration, /FOR SHARE OF v,sv/,
+  '081 validates both source settings under a transaction lock');
+assert.match(runMetadataMigration, /pg_catalog\.pg_timezone_names/,
+  '081 validates timezone snapshots against the database timezone catalog');
+assert.match(runMetadataMigration, /NEW\.currency IS DISTINCT FROM configured_currency/,
+  '081 binds the run currency snapshot to the exact scheme version');
+assert.doesNotMatch(runMetadataMigration, /\b(UPDATE\s+payroll_calculation_runs|DELETE\s+FROM\s+payroll_calculation_runs|INSERT\s+INTO\s+payroll_entries|INSERT\s+INTO\s+expenses)\b/i,
+  '081 does not backfill run metadata or enter the payroll payout lifecycle');
 
 if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
   console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC PASS (PostgreSQL runtime explicitly skipped)');
@@ -141,6 +155,19 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     assert.equal((await client.query("SELECT count(*)::int AS count FROM payroll_scheme_versions WHERE venue_id=$1 AND scheme_id=$2 AND status='active' AND effective_from <= '2026-09-30'::date AND COALESCE(effective_to,'infinity'::date) >= '2026-09-10'::date", [venueA, schemeA])).rows[0].count, 1,
       'fixture has a known active version overlapping the second version window');
 
+    const legacyRun = (await client.query(`INSERT INTO payroll_calculation_runs
+      (venue_id,scheme_version_id,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+       unattributed_line_count,missing_net_line_count,input_watermark,engine_version,blocked_reason,idempotency_key,created_by,created_by_name)
+      VALUES ($1,$2,'2026-09-01','2026-09-14','blocked','unknown','unknown',0,0,0,
+       'pre-metadata-run','payroll-schemes-v1','Legacy fixture predates immutable run metadata','legacy-metadata-run',$3,'Owner A') RETURNING id`,
+    [venueA, versionA, ownerA])).rows[0].id;
+    await runSql(path.join('migrations', '081_payroll_run_metadata.sql'));
+    await runSql(path.join('migrations', '081_payroll_run_metadata.sql'));
+    assert.deepEqual((await client.query('SELECT venue_timezone,currency FROM payroll_calculation_runs WHERE venue_id=$1 AND id=$2', [venueA, legacyRun])).rows[0],
+      { venue_timezone: null, currency: null }, 'legacy run metadata stays explicitly unknown without a guessed backfill');
+    const venueTimezone = (await client.query('SELECT timezone FROM venues WHERE id=$1', [venueA])).rows[0].timezone;
+    assert.ok(venueTimezone, 'test venue provides a source timezone for new run metadata');
+
     const overlapVersion = (await client.query(`INSERT INTO payroll_scheme_versions
       (venue_id,scheme_id,version_no,mode,effective_from,config_json,created_by,created_by_name)
       VALUES ($1,$2,2,'progressive_daily','2026-09-10','{"brackets":[]}',$3,'Owner A') RETURNING id`, [venueA, schemeA, ownerA])).rows[0].id;
@@ -171,21 +198,47 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     const order = (await client.query("INSERT INTO orders (venue_id,opened_by,status) VALUES ($1,$2,'closed') RETURNING id", [venueA, ownerA])).rows[0].id;
     const orderItem = (await client.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,status) VALUES ($1,$2,1,100,\'ready\') RETURNING id', [order, productA])).rows[0].id;
     const run = (await client.query(`INSERT INTO payroll_calculation_runs
-      (venue_id,scheme_version_id,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
        unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,engine_version,idempotency_key,created_by,created_by_name)
-      VALUES ($1,$2,'2026-09-01','2026-09-14','ready','complete','net_after_discounts_refunds',1,0,0,
-       'qa-watermark','${'a'.repeat(64)}','payroll-schemes-v1','run-a',$3,'Owner A') RETURNING id`, [venueA, versionA, ownerA])).rows[0].id;
+      VALUES ($1,$2,$3,'RUB','2026-09-01','2026-09-14','ready','complete','net_after_discounts_refunds',1,0,0,
+       'qa-watermark','${'a'.repeat(64)}','payroll-schemes-v1','run-a',$4,'Owner A') RETURNING id`, [venueA, versionA, venueTimezone, ownerA])).rows[0].id;
+    assert.deepEqual((await client.query('SELECT venue_timezone,currency FROM payroll_calculation_runs WHERE venue_id=$1 AND id=$2', [venueA, run])).rows[0],
+      { venue_timezone: venueTimezone, currency: 'RUB' }, 'new run persists immutable venue timezone and scheme currency snapshots');
     await expectSqlFailure(`INSERT INTO payroll_calculation_runs
       (venue_id,scheme_version_id,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
        unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,engine_version,idempotency_key,created_by,created_by_name)
-      VALUES ($1,$2,'2026-09-01','2026-09-14','ready','incomplete','unknown',1,1,1,
-       'qa-watermark',NULL,'payroll-schemes-v1','run-invalid',$3,'Owner A')`, [venueA, versionA, ownerA], '23514',
+      VALUES ($1,$2,'2026-09-01','2026-09-14','blocked','unknown','unknown',0,0,0,
+       'missing-metadata','${'e'.repeat(64)}','payroll-schemes-v1','run-no-metadata',$3,'Owner A')`, [venueA, versionA, ownerA], '23514',
+    'new runs cannot omit immutable timezone and currency snapshots');
+    await expectSqlFailure(`INSERT INTO payroll_calculation_runs
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+       unattributed_line_count,missing_net_line_count,input_watermark,engine_version,blocked_reason,idempotency_key,created_by,created_by_name)
+      VALUES ($1,$2,'Not/A_Timezone','RUB','2026-09-01','2026-09-14','blocked','unknown','unknown',0,0,0,
+       'invalid-zone','payroll-schemes-v1','Fixture','run-invalid-zone',$3,'Owner A')`, [venueA, versionA, ownerA], '23514',
+    'new runs reject timezone values that are absent from the IANA timezone catalog');
+    await expectSqlFailure(`INSERT INTO payroll_calculation_runs
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+       unattributed_line_count,missing_net_line_count,input_watermark,engine_version,blocked_reason,idempotency_key,created_by,created_by_name)
+      VALUES ($1,$2,'Asia/Yekaterinburg','RUB','2026-09-01','2026-09-14','blocked','unknown','unknown',0,0,0,
+       'mismatched-zone','payroll-schemes-v1','Fixture','run-mismatched-zone',$3,'Owner A')`, [venueA, versionA, ownerA], '23514',
+    'new runs cannot snapshot a timezone that differs from their venue');
+    await expectSqlFailure(`INSERT INTO payroll_calculation_runs
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+       unattributed_line_count,missing_net_line_count,input_watermark,engine_version,blocked_reason,idempotency_key,created_by,created_by_name)
+      VALUES ($1,$2,$3,'USD','2026-09-01','2026-09-14','blocked','unknown','unknown',0,0,0,
+       'mismatched-currency','payroll-schemes-v1','Fixture','run-mismatched-currency',$4,'Owner A')`,
+    [venueA, versionA, venueTimezone, ownerA], '23514', 'new runs cannot snapshot a currency that differs from their scheme version');
+    await expectSqlFailure(`INSERT INTO payroll_calculation_runs
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+       unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,engine_version,idempotency_key,created_by,created_by_name)
+      VALUES ($1,$2,$3,'RUB','2026-09-01','2026-09-14','ready','incomplete','unknown',1,1,1,
+       'qa-watermark',NULL,'payroll-schemes-v1','run-invalid',$4,'Owner A')`, [venueA, versionA, venueTimezone, ownerA], '23514',
     'a run with missing actor/net proof cannot be marked ready');
     await expectSqlFailure(`INSERT INTO payroll_calculation_runs
-      (venue_id,scheme_version_id,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
        unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,engine_version,idempotency_key,created_by,created_by_name)
-      VALUES ($1,$2,'2026-09-01','2026-09-14','ready','complete','net_after_discounts_refunds',1,0,0,
-       'qa-watermark','${'b'.repeat(64)}','payroll-schemes-v1','run-a',$3,'Owner A')`, [venueA, versionA, ownerA], '23505',
+      VALUES ($1,$2,$3,'RUB','2026-09-01','2026-09-14','ready','complete','net_after_discounts_refunds',1,0,0,
+       'qa-watermark','${'b'.repeat(64)}','payroll-schemes-v1','run-a',$4,'Owner A')`, [venueA, versionA, venueTimezone, ownerA], '23505',
     'run idempotency key is venue-unique');
 
     const snapshot = (await client.query(`INSERT INTO payroll_daily_snapshots
@@ -213,10 +266,11 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     await expectSqlFailure('DELETE FROM payroll_daily_snapshot_lines WHERE venue_id=$1 AND id=$2', [venueA, line], '55000',
       'snapshot lines reject delete');
     const blockedRun = (await client.query(`INSERT INTO payroll_calculation_runs
-      (venue_id,scheme_version_id,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
        unattributed_line_count,missing_net_line_count,input_watermark,engine_version,blocked_reason,idempotency_key,created_by,created_by_name)
-      VALUES ($1,$2,'2026-09-15','2026-09-30','blocked','incomplete','unknown',1,1,1,'incomplete-watermark',
-       'payroll-schemes-v1','missing line attribution and net amount','blocked-run',$3,'Owner A') RETURNING id`, [venueA, nextVersion, ownerA])).rows[0].id;
+      VALUES ($1,$2,$3,'RUB','2026-09-15','2026-09-30','blocked','incomplete','unknown',1,1,1,'incomplete-watermark',
+       'payroll-schemes-v1','missing line attribution and net amount','blocked-run',$4,'Owner A') RETURNING id`,
+    [venueA, nextVersion, venueTimezone, ownerA])).rows[0].id;
     await expectSqlFailure(`INSERT INTO payroll_daily_snapshots
       (venue_id,run_id,employee_id,employee_name_snapshot,role_key_snapshot,local_date,amount_before_cap,final_amount)
       VALUES ($1,$2,$3,'Staff A','bartender','2026-09-15',0,0)`, [venueA, blockedRun, staffA], '55000',
@@ -246,10 +300,10 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
        'adj-over-line-cap',$4,'Owner A')`, [venueA, line, staffA, ownerA], '23514',
     'refund/void adjustments cannot cumulatively exceed original line commission');
     const targetRun = (await client.query(`INSERT INTO payroll_calculation_runs
-      (venue_id,scheme_version_id,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
        unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,engine_version,idempotency_key,created_by,created_by_name)
-      VALUES ($1,$2,'2026-10-01','2026-10-14','ready','complete','net_after_discounts_refunds',0,0,0,
-       'target-watermark','${'c'.repeat(64)}','payroll-schemes-v1','target-run',$3,'Owner A') RETURNING id`, [venueA, nextVersion, ownerA])).rows[0].id;
+      VALUES ($1,$2,$3,'RUB','2026-10-01','2026-10-14','ready','complete','net_after_discounts_refunds',0,0,0,
+       'target-watermark','${'c'.repeat(64)}','payroll-schemes-v1','target-run',$4,'Owner A') RETURNING id`, [venueA, nextVersion, venueTimezone, ownerA])).rows[0].id;
     await client.query(`INSERT INTO payroll_daily_snapshots
       (venue_id,run_id,employee_id,employee_name_snapshot,role_key_snapshot,local_date,amount_before_cap,final_amount)
       VALUES ($1,$2,$3,'Staff A','bartender','2026-10-01',0,0)`, [venueA, targetRun, staffA]);
@@ -265,10 +319,10 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       VALUES ($1,$2,$3,4,$4,'Owner A')`, [venueA, adjustment, targetRun, ownerA], '23505',
     'one adjustment is applied only once per target run');
     const targetRun2 = (await client.query(`INSERT INTO payroll_calculation_runs
-      (venue_id,scheme_version_id,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
+      (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
        unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,engine_version,idempotency_key,created_by,created_by_name)
-      VALUES ($1,$2,'2026-10-15','2026-10-31','ready','complete','net_after_discounts_refunds',0,0,0,
-       'target-watermark-2','${'d'.repeat(64)}','payroll-schemes-v1','target-run-2',$3,'Owner A') RETURNING id`, [venueA, nextVersion, ownerA])).rows[0].id;
+      VALUES ($1,$2,$3,'RUB','2026-10-15','2026-10-31','ready','complete','net_after_discounts_refunds',0,0,0,
+       'target-watermark-2','${'d'.repeat(64)}','payroll-schemes-v1','target-run-2',$4,'Owner A') RETURNING id`, [venueA, nextVersion, venueTimezone, ownerA])).rows[0].id;
     await client.query(`INSERT INTO payroll_daily_snapshots
       (venue_id,run_id,employee_id,employee_name_snapshot,role_key_snapshot,local_date,amount_before_cap,final_amount)
       VALUES ($1,$2,$3,'Staff A','bartender','2026-10-15',0,0)`, [venueA, targetRun2, staffA]);
