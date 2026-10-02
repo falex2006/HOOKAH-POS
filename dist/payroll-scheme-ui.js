@@ -7,8 +7,16 @@
 
   const MAX_PREVIEW_EMPLOYEES = 500;
   const MAX_PREVIEW_SALES = 20000;
+  const MAX_RENDERED_EMPLOYEE_DAYS = 2000;
+  const MAX_RENDERED_LINES = 2000;
+  const MAX_COMPARE_EMPLOYEE_DAYS = 500;
+  const MAX_COMPARE_LINES = 500;
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  const venueLocalToday = () => {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: sessionUser.timezone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+    catch (_) { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+  };
   const request = async (path, options = {}) => {
     const response = await fetch(path, { credentials: 'same-origin', ...options });
     const raw = await response.text();
@@ -18,7 +26,7 @@
     return data;
   };
   const defaultDefinition = () => ({
-    mode: 'progressive_daily', currency: 'RUB', effectiveFrom: new Date().toISOString().slice(0, 10), effectiveTo: null,
+    mode: 'progressive_daily', currency: 'RUB', effectiveFrom: venueLocalToday(), effectiveTo: null,
     applyMilestones: true, milestoneCapPolicy: 'included_in_cap',
     roleParameters: {
       bartender: { department: 'bar', perShiftCents: 0, bracketRatesBps: { 0: 0 } },
@@ -26,13 +34,91 @@
     }, roleAssignments: [], employeeOverrides: [], itemRules: []
   });
   const defaultPreview = () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = venueLocalToday();
     return { periodFrom: today, periodTo: today, coverage: { kind: 'month_to_date_complete', from: `${today.slice(0, 7)}-01`, through: today, complete: true, watermark: 'manual-scenario' }, monthClosed: false, employees: [], sales: [] };
   };
   const validatePreview = (input) => {
     if (!input || !Array.isArray(input.employees) || !Array.isArray(input.sales)) throw new Error('В сценарии нужны списки сотрудников и продаж.');
     if (input.employees.length > MAX_PREVIEW_EMPLOYEES || input.sales.length > MAX_PREVIEW_SALES) throw new Error(`Ограничение сценария: до ${MAX_PREVIEW_EMPLOYEES} сотрудников и ${MAX_PREVIEW_SALES} строк продаж.`);
     return input;
+  };
+  const money = (value, currency = 'RUB') => {
+    if (!Number.isSafeInteger(value)) return '—';
+    try { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value / 100); }
+    catch (_) { return `${new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2 }).format(value / 100)} ${escapeHtml(currency)}`; }
+  };
+  const blockerLabels = {
+    sales_coverage_manifest_required: 'Не подтверждён полный состав продаж за выбранный период.',
+    sales_coverage_does_not_cover_period: 'Данные о продажах не покрывают весь выбранный период.',
+    unattributed_sales_line: 'Для одной или нескольких строк продаж не назначен сотрудник.',
+    sales_employee_unassigned: 'У сотрудника строки продажи нет назначения роли на эту дату.',
+    role_assignment_gap: 'У сотрудника отсутствует назначение роли на часть активного периода.',
+    role_parameters_missing: 'Для назначенной роли не заданы параметры оплаты.',
+    invalid_sales_line: 'Одна или несколько строк продаж содержат некорректные суммы или даты.',
+    amount_exceeds_safe_integer_cents: 'Сумма слишком велика для безопасного расчёта; проверьте входные данные.',
+    invalid_single_month_period: 'Выберите корректный период внутри одного календарного месяца.',
+    closed_month_required: 'Для этого режима нужен закрытый месяц и подтверждённые данные за полный месяц.',
+    closed_month_mismatch: 'Данные закрытого месяца не совпадают с выбранным периодом.',
+    invalid_employee: 'Проверьте даты работы и идентификаторы сотрудников.',
+    unknown_sales_employee: 'Строка продаж ссылается на неизвестного сотрудника.',
+    input_collections_required: 'Заполните списки сотрудников, назначений ролей и продаж.',
+    invalid_role_assignment: 'Проверьте роли сотрудников и даты их назначения.',
+    overlapping_role_assignments: 'У сотрудника пересекаются периоды назначения ролей.',
+    employee_override_employee_unknown: 'Персональная настройка ссылается на неизвестного сотрудника.',
+    employee_override_parameter_missing: 'Персональная настройка задаёт параметр, которого нет в ставке роли.',
+    item_rule_scope_unknown: 'Позиционное правило ссылается на неизвестную роль или сотрудника.',
+    full_month_period_required: 'Выберите полный календарный месяц.',
+    month_to_date_coverage_boundary_mismatch: 'Граница данных с начала месяца не совпадает с периодом.',
+    bracket_rates_required: 'Добавьте ставку для начального диапазона выручки.',
+    stable_rate_required: 'Задайте процентную ставку для роли.',
+    per_shift_rate_required: 'Задайте оплату за смену для роли.',
+    cap_department_required: 'Укажите цех, к выручке которого применяется ограничение.'
+  };
+  const renderBlockers = (result) => result.status === 'blocked'
+    ? `<div class="warning-message"><strong>Расчёт заблокирован</strong><ul>${(result.blockers || []).map((code) => `<li title="${escapeHtml(code)}">${escapeHtml(blockerLabels[code] || `Проверьте входные данные (${code}).`)}</li>`).join('')}</ul></div>`
+    : '';
+  const renderDetails = (result, employeeNames, baselineResult = null, renderBudget = { employeeDays: MAX_RENDERED_EMPLOYEE_DAYS, lines: MAX_RENDERED_LINES }) => {
+    const currency = result.currency || 'RUB';
+    const baselineValid = baselineResult?.status === 'ready';
+    const baselineByDay = new Map((baselineValid ? baselineResult?.daily || [] : []).flatMap((day) => (day.employees || []).map((row) => [`${day.date}|${row.employeeId}`, row.amountCents])));
+    const daily = (result.daily || []).map((day) => {
+      const employeeSource = day.employees || [];
+      const employeeShown = employeeSource.slice(0, renderBudget.employeeDays);
+      renderBudget.employeeDays -= employeeShown.length;
+      const employeeRows = employeeShown.map((row) => {
+        const key = `${day.date}|${row.employeeId}`;
+        const previousFound = baselineValid && baselineByDay.has(key);
+        const previous = previousFound ? baselineByDay.get(key) : 0;
+        const delta = baselineValid && Number.isSafeInteger(row.amountCents) && Number.isSafeInteger(previous) ? row.amountCents - previous : null;
+        const baselineCells = baselineResult ? `<td>${baselineValid ? money(previousFound ? previous : 0, currency) : '—'}</td><td>${money(delta, currency)}</td>` : '';
+        return `<tr><td>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</td><td>${escapeHtml(row.roleId || '')}</td><td>${money(row.basePayCents, currency)}</td><td>${money(row.commissionCents, currency)}</td><td>${money(row.milestoneBonusCents, currency)}</td><td>${money(row.capCents, currency)}</td><td>${money(row.capReductionCents, currency)}</td><td><strong>${money(row.amountCents, currency)}</strong></td>${baselineCells}</tr>`;
+      }).join('');
+      const lineSource = day.lines || [];
+      const lineShown = lineSource.slice(0, renderBudget.lines);
+      renderBudget.lines -= lineShown.length;
+      const lines = lineShown.map((line) => `<tr><td>${escapeHtml(line.lineId)}</td><td>${escapeHtml(employeeNames.get(line.employeeId) || line.employeeId)}</td><td>${escapeHtml(line.menuItemId || '—')}</td><td>${escapeHtml(line.department)}</td><td>${money(line.commissionBaseCents, currency)}</td><td>${escapeHtml((Number(line.appliedRateBps) / 100).toLocaleString('ru-RU'))}%</td><td>${money(line.commissionCents, currency)}</td></tr>`).join('');
+      const omittedEmployees = employeeSource.length - employeeShown.length;
+      const omittedLines = lineSource.length - lineShown.length;
+      const omitted = omittedEmployees || omittedLines ? `<p class="muted">Детализация ограничена: скрыто ${omittedEmployees} дневных строк сотрудников и ${omittedLines} строк продаж. Общие суммы выше рассчитаны полностью.</p>` : '';
+      return `<details class="finance-scheme-day"><summary>${escapeHtml(day.date)} · выручка ${money(day.venueTurnoverCents, currency)} · накопительно ${money(day.cumulativeVenueTurnoverCents, currency)}</summary><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>Роль</th><th>Оклад</th><th>Комиссия</th><th>Премия</th><th>Лимит</th><th>Срезано</th><th>Итого</th>${baselineResult ? '<th>База</th><th>Δ к базе</th>' : ''}</tr></thead><tbody>${employeeRows || `<tr><td colspan="${baselineResult ? 10 : 8}">Нет начислений за день</td></tr>`}</tbody></table></div><h4>Строки продаж и комиссия</h4><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>ID строки</th><th>Сотрудник</th><th>Позиция</th><th>Цех</th><th>База комиссии</th><th>Ставка</th><th>Комиссия</th></tr></thead><tbody>${lines || '<tr><td colspan="7">Детализация отсутствует или ограничена общим лимитом отображения.</td></tr>'}</tbody></table></div>${omitted}</details>`;
+    }).join('');
+    return `${renderBlockers(result)}<p><strong>${escapeHtml(result.periodFrom)} — ${escapeHtml(result.periodTo)} · ${escapeHtml(result.status)}</strong> · месячная база ${money(result.monthTurnoverCents, currency)}</p><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>Смены</th><th>Оклад</th><th>Комиссия</th><th>Премии</th><th>Срезано cap</th><th>Итого</th></tr></thead><tbody>${(result.employees || []).map((row) => `<tr><td>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</td><td>${escapeHtml(row.shifts)}</td><td>${money(row.basePayCents, currency)}</td><td>${money(row.commissionCents, currency)}</td><td>${money(row.milestoneBonusCents, currency)}</td><td>${money(row.capReductionCents, currency)}</td><td><strong>${money(row.amountCents, currency)}</strong></td></tr>`).join('') || '<tr><td colspan="7">Нет сотрудников в расчёте</td></tr>'}</tbody></table></div><h4>Детализация по дню и чеку</h4>${daily || '<p class="empty">Нет дневных данных.</p>'}`;
+  };
+  const renderPreview = (payload, previewInput) => {
+    const names = new Map((previewInput.employees || []).filter((employee) => employee && typeof employee === 'object').map((employee) => [employee.id, employee.name || employee.fullName || employee.id]));
+    return renderDetails(payload.result || {}, names);
+  };
+  const renderComparison = (payload, previewInput) => {
+    const names = new Map((previewInput.employees || []).filter((employee) => employee && typeof employee === 'object').map((employee) => [employee.id, employee.name || employee.fullName || employee.id]));
+    const baseline = (payload.results || []).find((entry) => entry.scheme.versionId === payload.baselineVersionId)?.result;
+    const currency = payload.currency || payload.results?.[0]?.result?.currency || 'RUB';
+    const summaryByVersion = new Map((payload.comparisons || []).map((item) => [item.versionId, item]));
+    const summaries = (payload.results || []).map((entry) => { const item = summaryByVersion.get(entry.scheme.versionId) || {}; return `<tr><td>${escapeHtml(entry.scheme.name)}</td><td>${escapeHtml(entry.scheme.versionNo)}</td><td>${escapeHtml(item.status || entry.result.status)}</td><td>${money(item.totalCents, currency)}</td><td>${money(item.deltaToBaselineCents, currency)}</td></tr>`; }).join('');
+    const versions = (payload.results || []).map((entry) => {
+      const renderBudget = { employeeDays: MAX_COMPARE_EMPLOYEE_DAYS, lines: MAX_COMPARE_LINES };
+      return `<details class="finance-scheme-version"><summary>${escapeHtml(entry.scheme.name)} · версия ${escapeHtml(entry.scheme.versionNo)} · ${escapeHtml(entry.result.status)}</summary>${renderDetails(entry.result, names, entry.scheme.versionId === payload.baselineVersionId ? null : baseline, renderBudget)}</details>`;
+    }).join('');
+    return `<p>Сравнение использует один входной сценарий для всех версий. Валюта: ${escapeHtml(currency)}.</p><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Схема</th><th>Версия</th><th>Статус</th><th>Итого</th><th>Δ к базовой версии</th></tr></thead><tbody>${summaries}</tbody></table></div>${versions}`;
   };
 
   const mount = () => {
@@ -56,7 +142,7 @@
       <div class="finance-scheme-preview" data-scheme-preview hidden>
         <div class="panel-head"><div><h3>Сценарный расчёт</h3><span class="muted" data-scheme-selected-label></span></div><div class="toolbar-row"><button type="button" class="button small primary" data-scheme-run-preview>Рассчитать preview</button><button type="button" class="button small" data-scheme-compare>Сравнить выбранные</button></div></div>
         <label>Нормализованные входные данные сценария<textarea data-scheme-preview-input rows="12" spellcheck="false"></textarea></label>
-        <pre data-scheme-preview-result class="finance-scheme-result" hidden></pre>
+        <div data-scheme-preview-result class="finance-scheme-result" hidden></div>
       </div>`;
     payrollPanel.insertBefore(panel, payrollPanel.firstChild);
 
@@ -151,14 +237,14 @@
           if (!selectedVersion) throw new Error('Сначала откройте версию схемы.');
           const preview = validatePreview(JSON.parse(previewInput.value));
           const result = await request(`/api/payroll/versions/${encodeURIComponent(selectedVersion.versionId)}/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ previewInput: preview }) });
-          previewResult.hidden = false; previewResult.textContent = JSON.stringify(result, null, 2); notify('Готов сценарный preview. Он не является официальным расчётом и не сохранён.', 'success'); return;
+          previewResult.hidden = false; previewResult.innerHTML = renderPreview(result, preview); notify('Готов сценарный preview. Он не является официальным расчётом и не сохранён.', 'success'); return;
         }
         if (button.matches('[data-scheme-compare]')) {
           const versionIds = [...panel.querySelectorAll('[data-scheme-compare-version]:checked')].map((item) => item.dataset.schemeCompareVersion);
           if (versionIds.length < 2 || versionIds.length > 8) throw new Error('Выберите от 2 до 8 версий для сравнения.');
           const preview = validatePreview(JSON.parse(previewInput.value));
           const result = await request('/api/payroll/compare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ versionIds, baselineVersionId: versionIds[0], previewInput: preview }) });
-          previewResult.hidden = false; previewResult.textContent = JSON.stringify(result, null, 2); notify('Сравнение готово. Это сценарные значения без сохранения начислений.', 'success'); return;
+          previewResult.hidden = false; previewResult.innerHTML = renderComparison(result, preview); notify('Сравнение готово. Это сценарные значения без сохранения начислений.', 'success'); return;
         }
       } catch (error) { notify(`Не удалось выполнить действие: ${error.message}`, 'error'); }
       finally { pending = false; }

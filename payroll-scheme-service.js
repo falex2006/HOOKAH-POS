@@ -11,7 +11,6 @@ const { calculatePayrollScheme, validateScheme } = require('./payroll-schemes');
 // employee × day and sales-line loops.
 const MAX_PREVIEW_EMPLOYEES = 500;
 const MAX_PREVIEW_SALES_LINES = 20000;
-const MAX_PREVIEW_ASSIGNMENTS = 5000;
 const MAX_SCHEME_CHILD_ROWS = 15000;
 
 class PayrollSchemeServiceError extends Error {
@@ -223,9 +222,8 @@ const assertPreviewSize = (input, scheme) => {
       || (Array.isArray(input.sales) && input.sales.length > MAX_PREVIEW_SALES_LINES)) {
     fail('preview_input_too_large', 413);
   }
-  if ((scheme.roleAssignments?.length || 0) > MAX_PREVIEW_ASSIGNMENTS
-      || (scheme.employeeOverrides?.length || 0) > MAX_PREVIEW_ASSIGNMENTS
-      || (scheme.itemRules?.length || 0) > MAX_PREVIEW_ASSIGNMENTS) fail('scheme_definition_too_large', 413);
+  if ((scheme.roleAssignments?.length || 0) + (scheme.employeeOverrides?.length || 0)
+      + (scheme.itemRules?.length || 0) > MAX_SCHEME_CHILD_ROWS) fail('scheme_definition_too_large', 413);
 };
 
 const sumCentsSafely = (values) => {
@@ -278,6 +276,7 @@ const makeService = (pool) => {
     return withOwnerRead(pool, principal, async (db, actor) => {
       const orderedIds = [...versionIds].sort((left, right) => String(left) < String(right) ? -1 : String(left) > String(right) ? 1 : 0);
       const schemes = await Promise.all(orderedIds.map((id) => loadVersion(db, actor.venueId, id)));
+      if (new Set(schemes.map((scheme) => scheme.currency)).size > 1) fail('comparison_currency_mismatch', 400);
       for (const scheme of schemes) assertPreviewSize(previewInput, scheme);
       const results = schemes.map((scheme) => ({ scheme, result: calculateScenario(scheme, previewInput) }));
       const baseline = results.find((item) => item.scheme.versionId === baselineVersionId);
@@ -303,7 +302,7 @@ const makeService = (pool) => {
           employeeDeltas: result.status !== 'ready' || baseline?.result.status !== 'ready' ? [] : deltas
         };
       });
-      return { official: false, persistence: 'none', scenario: true, baselineVersionId, comparisons, results };
+      return { official: false, persistence: 'none', scenario: true, currency: schemes[0].currency, baselineVersionId, comparisons, results };
     });
   };
 

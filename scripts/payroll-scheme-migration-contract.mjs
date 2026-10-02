@@ -389,6 +389,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       (error) => error instanceof PayrollSchemeServiceError && error.status === 409 && error.code === 'payroll_scheme_version_immutable',
       'active scheme configuration cannot be rewritten');
     const overlappingVersion = await payrollService.createVersion(principalA, createdScheme.id, draftDefinition);
+    const foreignCurrencyVersion = await payrollService.createVersion(principalA, createdScheme.id, { ...draftDefinition, currency: 'USD' });
     const previewInput = {
       employees: [
         { id: staffA, activeFrom: '2026-11-01', activeTo: '2026-11-30' },
@@ -428,6 +429,9 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     assert.equal(baselineComparison.deltaToBaselineCents, 0);
     assert.equal(draftComparison.totalCents, 11100);
     assert.equal(draftComparison.deltaToBaselineCents, -2000);
+    await assert.rejects(payrollService.compare(principalA, [createdVersion.versionId, foreignCurrencyVersion.versionId], previewInput, createdVersion.versionId),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 400 && error.code === 'comparison_currency_mismatch',
+      'comparison rejects schemes with different currencies instead of adding unlike cents');
     const payrollStateAfterPreview = await client.query(`SELECT
       (SELECT count(*)::int FROM payroll_calculation_runs WHERE venue_id=$1) AS runs,
       (SELECT count(*)::int FROM payroll_daily_snapshots WHERE venue_id=$1) AS snapshots,
