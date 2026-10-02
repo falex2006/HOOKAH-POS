@@ -13,6 +13,7 @@ const suites = new Set([
   'migrations-pg-runtime-qa.mjs', 'migrations-pg-041-recovery-concurrency-qa.mjs',
   'venue-inventory-departments-postgres-qa.mjs', 'purchase-payment-postgres-api-qa.mjs',
   'guest-loyalty-postgres-api-qa.mjs', 'finance-categories-postgres-api-qa.mjs',
+  'loyalty-promotions-postgres-qa.mjs',
   'payroll-lifecycle-postgres-api-qa.mjs', 'tasks-postgres-e2e-qa.mjs', 'delivery-persistence-qa.mjs',
   'finance-employee-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs',
   'finance-shift-analytics-postgres-qa.mjs', 'paid-order-balance-postgres-qa.mjs',
@@ -119,7 +120,7 @@ async function runSuite(value) {
     RECIPE_DEPLETION_PG_TEST_DATABASE_URL: urlFor(c), SHIFT_NOTIFICATIONS_TEST_DATABASE_URL: urlFor(c),
     MIGRATIONS_PG_TEST_DOCKER_CONTAINER: c.regressionContainer };
   async function freshDatabase(database) {
-    assert.match(database, /^(?:orders_qa_[a-f0-9]+|shifts_qa_[a-f0-9]+|reservations_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|territory_qa)$/);
+    assert.match(database, /^(?:postgres_qa_[a-f0-9]+|orders_qa_[a-f0-9]+|promotions_qa_[a-f0-9]+|shifts_qa_[a-f0-9]+|reservations_qa_[a-f0-9]+|audit_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|territory_qa)$/);
     await verifyTarget(c);
     const admin = new Pool({ connectionString: urlFor(c), max: 1 });
     try {
@@ -137,9 +138,12 @@ async function runSuite(value) {
     await verifyTarget(c);
     if (name === 'shift-notifications-e2e-qa.mjs') env.SHIFT_NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('shifts_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'notifications-postgres-qa.mjs') env.NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('notifications_qa_' + crypto.randomBytes(8).toString('hex'));
-    if (['paid-order-balance-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs', 'finance-shift-analytics-postgres-qa.mjs'].includes(name)) env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('orders_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('postgres_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (['paid-order-balance-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs', 'finance-shift-analytics-postgres-qa.mjs', 'guest-loyalty-postgres-api-qa.mjs'].includes(name)) env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('orders_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'loyalty-promotions-postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('promotions_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'reservation-prepayment-postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('reservations_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'reservation-local-date-postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('reservations_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'audit-privacy-postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('audit_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'purchase-auto-order-postgres-e2e-qa.mjs') {
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('territory_qa');
       env.CRM_QA_DATABASE_NAME = 'territory_qa'; env.MIGRATIONS_PG_TEST_PORT = '31931';
