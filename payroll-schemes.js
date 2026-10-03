@@ -235,7 +235,7 @@ const calculatePayrollScheme = (input) => {
     const perEmployee = new Map();
     const ensureDayEmployee = (employeeId, roleId) => {
       const key = employeeId;
-      if (!perEmployee.has(key)) perEmployee.set(key, { employeeId, roleId, shifts: 0, basePayCents: 0n, commissionCents: 0n, milestoneBonusCents: 0n, amountBeforeCapCents: 0n, capCents: null, capReductionCents: 0n, amountCents: 0n, departmentSalesCents: new Map() });
+      if (!perEmployee.has(key)) perEmployee.set(key, { employeeId, roleId, shifts: 0, basePayCents: 0n, commissionCents: 0n, milestoneBonusCents: 0n, amountBeforeCapCents: 0n, capCents: null, capReductionCents: 0n, amountCents: 0n, departmentSalesCents: new Map(), departmentTurnoverCents: new Map() });
       return perEmployee.get(key);
     };
     for (const line of daySales) {
@@ -248,6 +248,7 @@ const calculatePayrollScheme = (input) => {
       employeeDay.mode = effectiveMode;
       employeeDay.shifts = 1;
       addToMap(employeeDay.departmentSalesCents, line.department, BigInt(line.commissionBaseCents));
+      addToMap(employeeDay.departmentTurnoverCents, line.department, BigInt(line.turnoverCents));
       const rateBps = effectiveMode === 'progressive_daily'
         ? selectedBracketRate(params, monthTurnoverOnDay)
         : effectiveMode === 'final_month_threshold'
@@ -290,7 +291,7 @@ const calculatePayrollScheme = (input) => {
       if (params?.cap) {
         const capBase = params.cap.basis === 'venue_day'
           ? (dailyVenueTurnover.get(date)?.daily || 0n)
-          : (employeeDay.departmentSalesCents.get(params.cap.department || params.department) || 0n);
+          : (employeeDay.departmentTurnoverCents.get(params.cap.department || params.department) || 0n);
         capCents = rateAmountCents(capBase, params.cap.rateBps);
       }
       const cappedSubject = capCents === null || capSubject <= capCents ? capSubject : capCents;
@@ -319,7 +320,7 @@ const calculatePayrollScheme = (input) => {
       venueTurnoverCents: toSafeNumber(dailyVenueTurnover.get(date)?.daily || 0n),
       cumulativeVenueTurnoverCents: toSafeNumber(monthTurnoverOnDay),
       lines: lineCalculations,
-      employees: [...perEmployee.values()].sort((a, b) => String(a.employeeId).localeCompare(String(b.employeeId))).map((row) => ({ ...row, departmentSalesCents: Object.fromEntries([...row.departmentSalesCents].map(([key, value]) => [key, toSafeNumber(value)])), basePayCents: toSafeNumber(row.basePayCents), commissionCents: toSafeNumber(row.commissionCents), milestoneBonusCents: toSafeNumber(row.milestoneBonusCents), amountBeforeCapCents: toSafeNumber(row.amountBeforeCapCents), capCents: row.capCents === null ? null : toSafeNumber(row.capCents), capReductionCents: toSafeNumber(row.capReductionCents), amountCents: toSafeNumber(row.amountCents) }))
+      employees: [...perEmployee.values()].sort((a, b) => String(a.employeeId).localeCompare(String(b.employeeId))).map((row) => ({ ...row, departmentSalesCents: Object.fromEntries([...row.departmentSalesCents].map(([key, value]) => [key, toSafeNumber(value)])), departmentTurnoverCents: Object.fromEntries([...row.departmentTurnoverCents].map(([key, value]) => [key, toSafeNumber(value)])), basePayCents: toSafeNumber(row.basePayCents), commissionCents: toSafeNumber(row.commissionCents), milestoneBonusCents: toSafeNumber(row.milestoneBonusCents), amountBeforeCapCents: toSafeNumber(row.amountBeforeCapCents), capCents: row.capCents === null ? null : toSafeNumber(row.capCents), capReductionCents: toSafeNumber(row.capReductionCents), amountCents: toSafeNumber(row.amountCents) }))
     });
   }
 

@@ -76,13 +76,47 @@ const capped = calculatePayrollScheme({
   periodFrom: '2026-09-03',
   periodTo: '2026-09-03',
   coverage: { ...baseInput.coverage, through: '2026-09-03', watermark: 'cap-fixture-v1' },
-  sales: [{ id: 'hookah-sale', date: '2026-09-03', employeeId: 'b', menuItemId: 'hookah', department: 'hookah', turnoverCents: 20000, commissionBaseCents: 20000 }],
+  sales: [{ id: 'hookah-sale', date: '2026-09-03', employeeId: 'b', menuItemId: 'hookah', department: 'hookah', turnoverCents: 20000, commissionBaseCents: 8000 }],
   scheme: { ...baseInput.scheme, roleParameters: { hookah: { perShiftCents: 10000, bracketRatesBps: { 0: 5000 }, cap: { rateBps: 3000, basis: 'employee_department_day', department: 'hookah' } } }, employeeOverrides: [], itemRules: [] }
 });
 assert.equal(capped.status, 'ready');
-assert.equal(capped.employees.find((row) => row.employeeId === 'b').amountBeforeCapCents, 20000);
+assert.equal(capped.daily[0].lines[0].commissionCents, 4000, 'commission remains based on net commissionable line amount');
+assert.equal(capped.daily[0].employees[0].departmentSalesCents.hookah, 8000, 'existing commission-base diagnostic retains its prior meaning');
+assert.equal(capped.daily[0].employees[0].departmentTurnoverCents.hookah, 20000, 'cap diagnostics expose employee-attributed department turnover');
+assert.equal(capped.daily[0].employees[0].capCents, 6000, 'cap is calculated from turnover rather than commission base');
+assert.equal(capped.employees.find((row) => row.employeeId === 'b').amountBeforeCapCents, 14000);
 assert.equal(capped.employees.find((row) => row.employeeId === 'b').amountCents, 6000);
-assert.equal(capped.employees.find((row) => row.employeeId === 'b').capReductionCents, 14000);
+assert.equal(capped.employees.find((row) => row.employeeId === 'b').capReductionCents, 8000);
+
+const scopedDepartmentCap = calculatePayrollScheme({
+  ...baseInput,
+  employees: [{ id: 'b' }, { id: 'c' }],
+  roleAssignments: [baseInput.roleAssignments[1], { ...baseInput.roleAssignments[1], employeeId: 'c' }],
+  periodFrom: '2026-09-03',
+  periodTo: '2026-09-03',
+  coverage: { ...baseInput.coverage, through: '2026-09-03', watermark: 'scoped-department-cap-v1' },
+  sales: [
+    { id: 'hookah-sale-b1', date: '2026-09-03', employeeId: 'b', menuItemId: 'hookah', department: 'hookah', turnoverCents: 5000, commissionBaseCents: 5000 },
+    { id: 'hookah-sale-b2', date: '2026-09-03', employeeId: 'b', menuItemId: 'hookah', department: 'hookah', turnoverCents: 3000, commissionBaseCents: 3000 },
+    { id: 'bar-sale-b', date: '2026-09-03', employeeId: 'b', menuItemId: 'tea', department: 'bar', turnoverCents: 4000, commissionBaseCents: 4000 },
+    { id: 'hookah-sale-c', date: '2026-09-03', employeeId: 'c', menuItemId: 'hookah', department: 'hookah', turnoverCents: 12000, commissionBaseCents: 12000 }
+  ],
+  scheme: {
+    ...baseInput.scheme,
+    applyMilestones: false,
+    roleParameters: { hookah: { perShiftCents: 10000, bracketRatesBps: { 0: 5000 }, cap: { rateBps: 3000, basis: 'employee_department_day', department: 'hookah' } } },
+    employeeOverrides: [], itemRules: []
+  }
+});
+assert.equal(scopedDepartmentCap.status, 'ready');
+const bDepartmentDay = scopedDepartmentCap.daily[0].employees.find((row) => row.employeeId === 'b');
+const cDepartmentDay = scopedDepartmentCap.daily[0].employees.find((row) => row.employeeId === 'c');
+assert.deepEqual(bDepartmentDay.departmentTurnoverCents, { hookah: 8000, bar: 4000 },
+  'department turnover aggregates same-employee lines but keeps departments separate');
+assert.equal(bDepartmentDay.capCents, 2400, 'employee cap excludes another employee and other departments');
+assert.equal(bDepartmentDay.amountCents, 2400);
+assert.equal(cDepartmentDay.capCents, 3600, 'each employee uses their own department turnover');
+assert.equal(cDepartmentDay.amountCents, 3600);
 
 const stable = calculatePayrollScheme({
   ...baseInput,
