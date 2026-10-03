@@ -1,10 +1,12 @@
 'use strict';
 
 // Persistence API for payroll-owned version configuration. Route callers must
-// build the principal from authenticated server session state. preview/compare
-// use owner-supplied scenario data and never attest POS source data or persist it.
+// build the principal from authenticated server session state. Scenario preview
+// uses caller-supplied data; the separate venue-turnover preview reads a
+// source-backed venue total. Neither path attests payroll data or persists it.
 const { randomUUID } = require('node:crypto');
 const { calculatePayrollScheme, validateScheme } = require('./payroll-schemes');
+const { makePayrollVenueTurnoverSource } = require('./payroll-venue-turnover-source');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -275,6 +277,28 @@ const makeService = (pool) => {
     });
   };
 
+  const previewWithVenueDailyTurnover = async (principal, versionId, previewInput = {}) => {
+    if (!previewInput || typeof previewInput !== 'object' || Array.isArray(previewInput)) fail('preview_input_required');
+    return withOwnerRead(pool, principal, async (db, actor) => {
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      const venueTurnover = await makePayrollVenueTurnoverSource(db).getVenueDailyTurnover(actor, {
+        from: previewInput.coverage?.from,
+        through: previewInput.coverage?.through
+      });
+      const scenarioInput = { ...previewInput, venueDailyTurnover: venueTurnover.venueDailyTurnover };
+      assertPreviewSize(scenarioInput, scheme);
+      const result = calculateScenario(scheme, scenarioInput);
+      return {
+        official: false,
+        persistence: 'none',
+        scenario: true,
+        sourceVenueTurnover: venueTurnover,
+        scheme,
+        result
+      };
+    });
+  };
+
   const compare = async (principal, versionIds, previewInput = {}, baselineVersionId) => {
     if (!Array.isArray(versionIds) || versionIds.length < 2 || versionIds.length > 8 || new Set(versionIds).size !== versionIds.length) fail('comparison_versions_required');
     if (versionIds.some((versionId) => typeof versionId !== 'string' || !UUID.test(versionId))
@@ -379,7 +403,8 @@ const makeService = (pool) => {
     return scheme;
   });
 
-  return { listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion, preview, compare };
+  return { listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion,
+    preview, previewWithVenueDailyTurnover, compare };
 };
 
 module.exports = { PayrollSchemeServiceError, makeService };

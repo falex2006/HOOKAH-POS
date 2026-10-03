@@ -200,7 +200,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     await expectSqlFailure("UPDATE payroll_scheme_versions SET config_json='{}'::jsonb WHERE venue_id=$1 AND id=$2", [venueA, versionA], '55000',
       'active version parameters cannot be rewritten');
 
-    const order = (await client.query("INSERT INTO orders (venue_id,opened_by,status) VALUES ($1,$2,'closed') RETURNING id", [venueA, ownerA])).rows[0].id;
+    const order = (await client.query("INSERT INTO orders (venue_id,opened_by,status,closed_at,final_total_snapshot) VALUES ($1,$2,'closed','2026-11-01T12:00:00Z',1200) RETURNING id", [venueA, ownerA])).rows[0].id;
     const orderItem = (await client.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,status) VALUES ($1,$2,1,100,\'ready\') RETURNING id', [order, productA])).rows[0].id;
     const run = (await client.query(`INSERT INTO payroll_calculation_runs
       (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,eligible_line_count,
@@ -556,6 +556,19 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     assert.equal(previewResult.persistence, 'none');
     assert.equal(previewResult.result.status, 'ready');
     assert.equal(previewResult.result.employees.find((row) => row.employeeId === staffA).amountCents, 13100);
+    const sourcedPreviewResult = await payrollService.previewWithVenueDailyTurnover(principalA, createdVersion.versionId, previewInput);
+    assert.equal(sourcedPreviewResult.official, false);
+    assert.equal(sourcedPreviewResult.persistence, 'none');
+    assert.equal(sourcedPreviewResult.sourceVenueTurnover.previewOnly, true);
+    assert.equal(sourcedPreviewResult.sourceVenueTurnover.venueDailyTurnover[0].turnoverCents, 120000,
+      'source-backed scenario uses the locked final order total for venue caps and thresholds');
+    assert.equal(sourcedPreviewResult.result.venueTurnoverBasis, 'venue_daily_manifest_scenario');
+    assert.equal(sourcedPreviewResult.result.status, 'ready');
+    assert.equal(sourcedPreviewResult.result.employees.find((row) => row.employeeId === staffA).commissionCents,
+      previewResult.result.employees.find((row) => row.employeeId === staffA).commissionCents,
+      'adding venue turnover source must not alter the line-level net commission result');
+    assert.equal(sourcedPreviewResult.result.employees.find((row) => row.employeeId === staffA).commissionCents, 1100,
+      'commission remains calculated from caller net base at 10% base rate plus 1% item rule');
     await assert.rejects(payrollService.preview(principalA, createdVersion.versionId, { ...previewInput, employees: Array(501).fill({ id: staffA }) }),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
       'oversized employee scenarios are rejected by the service before calculation');
