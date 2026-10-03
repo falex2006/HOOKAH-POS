@@ -6,6 +6,8 @@
 const { randomUUID } = require('node:crypto');
 const { calculatePayrollScheme, validateScheme } = require('./payroll-schemes');
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 // Preview is owner-only and scenario-only, but a privileged caller can still
 // submit oversized collections. Bound work before entering the calculator's
 // employee × day and sales-line loops.
@@ -271,6 +273,10 @@ const makeService = (pool) => {
 
   const compare = async (principal, versionIds, previewInput = {}, baselineVersionId) => {
     if (!Array.isArray(versionIds) || versionIds.length < 2 || versionIds.length > 8 || new Set(versionIds).size !== versionIds.length) fail('comparison_versions_required');
+    if (versionIds.some((versionId) => typeof versionId !== 'string' || !UUID.test(versionId))
+        || typeof baselineVersionId !== 'string' || !UUID.test(baselineVersionId)) {
+      fail('invalid_payroll_scheme_version_id');
+    }
     if (!previewInput || typeof previewInput !== 'object' || Array.isArray(previewInput)) fail('preview_input_required');
     if (!versionIds.includes(baselineVersionId)) fail('comparison_baseline_required');
     return withOwnerRead(pool, principal, async (db, actor) => {

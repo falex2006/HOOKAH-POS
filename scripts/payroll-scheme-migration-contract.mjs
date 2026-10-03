@@ -365,6 +365,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     };
     const payrollService = makeService(servicePool);
     const principalA = { venueId: venueA, userId: ownerA };
+    const principalB = { venueId: venueB, userId: ownerB };
     const draftDefinition = {
       mode: 'progressive_daily', currency: 'RUB', effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30',
       roleParameters: { bartender: { perShiftCents: 10000, bracketRatesBps: { 0: 1000 }, milestoneBonusesCents: { 5000000: 0 } } },
@@ -528,6 +529,10 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       'active scheme configuration cannot be rewritten');
     const overlappingVersion = await payrollService.createVersion(principalA, createdScheme.id, draftDefinition);
     const foreignCurrencyVersion = await payrollService.createVersion(principalA, createdScheme.id, { ...draftDefinition, currency: 'USD' });
+    const foreignTenantScheme = await payrollService.createScheme(principalB, {
+      name: 'Foreign tenant QA scheme',
+      definition: { ...draftDefinition, roleAssignments: [], employeeOverrides: [], itemRules: [] }
+    });
     await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, schemeVersionId: overlappingVersion.versionId, idempotencyKey: 'blocked-run-draft-version-001' }),
       (error) => error instanceof PayrollCalculationRunError && error.status === 403,
       'draft scheme versions cannot create calculation runs');
@@ -558,6 +563,20 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       { ...previewInput, sales: Array(20001).fill(previewInput.sales[0]) }, createdVersion.versionId),
     (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
     'oversized sales comparisons are rejected by the service before calculation');
+    await assert.rejects(payrollService.compare(principalA, ['not-a-uuid', createdVersion.versionId], previewInput, createdVersion.versionId),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 400 && error.code === 'invalid_payroll_scheme_version_id',
+      'malformed comparison version IDs are rejected as client errors before PostgreSQL casts them');
+    await assert.rejects(payrollService.compare(principalA, [overlappingVersion.versionId, createdVersion.versionId], previewInput, 42),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 400 && error.code === 'invalid_payroll_scheme_version_id',
+      'malformed comparison baseline IDs are rejected as client errors before database access');
+    await assert.rejects(payrollService.compare(principalA, [overlappingVersion.versionId, '00000000-0000-4000-8000-000000009998'],
+      previewInput, overlappingVersion.versionId),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 404 && error.code === 'payroll_scheme_version_not_found',
+    'well-formed but absent comparison IDs retain the tenant-safe not-found response');
+    await assert.rejects(payrollService.compare(principalA, [overlappingVersion.versionId, foreignTenantScheme.versions[0].versionId],
+      previewInput, overlappingVersion.versionId),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 404 && error.code === 'payroll_scheme_version_not_found',
+    'cross-tenant comparison IDs are indistinguishable from absent IDs');
     const tooManyAssignments = { ...draftDefinition, roleAssignments: Array(15001).fill(draftDefinition.roleAssignments[0]) };
     await assert.rejects(payrollService.createVersion(principalA, createdScheme.id, tooManyAssignments),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'scheme_definition_too_large',

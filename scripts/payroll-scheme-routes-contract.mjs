@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const { handlePayrollSchemeRoute, sameOriginMutation } = require('../payroll-scheme-routes.js');
+const { makeService: makePayrollSchemeService } = require('../payroll-scheme-service.js');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const id = '00000000-0000-4000-8000-000000000001';
 const venueId = '00000000-0000-4000-8000-000000000002';
@@ -97,6 +98,21 @@ result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: {
 assert.equal(result.status, 200);
 assert.equal(calls.at(-1)[0], 'compare');
 assert.deepEqual(calls.at(-1).slice(1), [{ userId: id, venueId }, [versionId, id], previewInput, versionId]);
+const rejectingPool = {
+  query: async () => { throw new Error('malformed comparison IDs must be rejected before DB access'); },
+  connect: async () => { throw new Error('malformed comparison IDs must be rejected before DB access'); }
+};
+const validatingService = makePayrollSchemeService(rejectingPool);
+result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: {
+  versionIds: ['not-a-uuid', id], baselineVersionId: id, previewInput
+} }, { selectedService: validatingService });
+assert.equal(result.status, 400, 'malformed comparison version IDs are client errors');
+assert.equal(result.body.error, 'invalid_payroll_scheme_version_id');
+result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: {
+  versionIds: [versionId, id], baselineVersionId: 42, previewInput
+} }, { selectedService: validatingService });
+assert.equal(result.status, 400, 'malformed comparison baseline IDs are client errors');
+assert.equal(result.body.error, 'invalid_payroll_scheme_version_id');
 result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: { versionIds: [versionId, id], baselineVersionId: versionId, previewInput } }, {
   selectedService: { ...service, compare: async () => { throw Object.assign(new Error('comparison_currency_mismatch'), { status: 400, code: 'comparison_currency_mismatch' }); } }
 });
