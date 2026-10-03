@@ -563,6 +563,11 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       { ...previewInput, sales: Array(20001).fill(previewInput.sales[0]) }, createdVersion.versionId),
     (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
     'oversized sales comparisons are rejected by the service before calculation');
+    await assert.rejects(payrollService.preview(principalA, createdVersion.versionId, {
+      ...previewInput, venueDailyTurnover: Array(32).fill({ date: '2026-11-01', turnoverCents: 0 })
+    }),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
+    'venue turnover manifests are bounded to a single calendar month');
     await assert.rejects(payrollService.compare(principalA, ['not-a-uuid', createdVersion.versionId], previewInput, createdVersion.versionId),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 400 && error.code === 'invalid_payroll_scheme_version_id',
       'malformed comparison version IDs are rejected as client errors before PostgreSQL casts them');
@@ -589,6 +594,35 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     assert.equal(baselineComparison.deltaToBaselineCents, 0);
     assert.equal(draftComparison.totalCents, 11100);
     assert.equal(draftComparison.deltaToBaselineCents, -2000);
+    const overflowDefinition = {
+      ...draftDefinition,
+      roleParameters: { bartender: { perShiftCents: Number.MAX_SAFE_INTEGER, bracketRatesBps: { 0: 0 }, milestoneBonusesCents: { 5000000: 0 } } },
+      employeeOverrides: [{ employeeId: staffOtherA, path: 'perShiftCents', mode: 'override', value: Number.MAX_SAFE_INTEGER,
+        effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }],
+      itemRules: []
+    };
+    const zeroDefinition = {
+      ...overflowDefinition,
+      roleParameters: { bartender: { perShiftCents: 0, bracketRatesBps: { 0: 0 }, milestoneBonusesCents: { 5000000: 0 } } },
+      employeeOverrides: []
+    };
+    const overflowScheme = await payrollService.createScheme(principalA, { name: 'Aggregate overflow QA', definition: overflowDefinition });
+    const zeroScheme = await payrollService.createScheme(principalA, { name: 'Aggregate zero QA', definition: zeroDefinition });
+    const overflowInput = {
+      ...previewInput,
+      venueDailyTurnover: [{ date: '2026-11-01', turnoverCents: 0 }],
+      sales: [
+        { id: 'overflow-a', date: '2026-11-01', employeeId: staffA, menuItemId: productA, department: 'bar', turnoverCents: 0, commissionBaseCents: 0 },
+        { id: 'overflow-b', date: '2026-11-01', employeeId: staffOtherA, menuItemId: productA, department: 'bar', turnoverCents: 0, commissionBaseCents: 0 }
+      ]
+    };
+    const overflowComparison = await payrollService.compare(principalA,
+      [zeroScheme.versions[0].versionId, overflowScheme.versions[0].versionId], overflowInput, overflowScheme.versions[0].versionId);
+    const zeroAgainstOverflow = overflowComparison.comparisons.find((row) => row.versionId === zeroScheme.versions[0].versionId);
+    const overflowBaseline = overflowComparison.comparisons.find((row) => row.versionId === overflowScheme.versions[0].versionId);
+    assert.equal(zeroAgainstOverflow.deltaToBaselineCents, null, 'aggregate comparison delta below MIN_SAFE_INTEGER is not returned as an imprecise number');
+    assert.equal(zeroAgainstOverflow.aggregateBlocker, 'amount_exceeds_safe_integer_cents', 'unsafe negative aggregate is explicitly blocked');
+    assert.equal(overflowBaseline.totalCents, null, 'positive aggregate above MAX_SAFE_INTEGER is already blocked');
     await assert.rejects(payrollService.compare(principalA, [createdVersion.versionId, foreignCurrencyVersion.versionId], previewInput, createdVersion.versionId),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 400 && error.code === 'comparison_currency_mismatch',
       'comparison rejects schemes with different currencies instead of adding unlike cents');

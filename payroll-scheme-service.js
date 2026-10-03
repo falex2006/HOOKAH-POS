@@ -13,7 +13,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 // employee × day and sales-line loops.
 const MAX_PREVIEW_EMPLOYEES = 500;
 const MAX_PREVIEW_SALES_LINES = 20000;
+const MAX_PREVIEW_VENUE_DAYS = 31;
 const MAX_SCHEME_CHILD_ROWS = 15000;
+const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
+const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
 class PayrollSchemeServiceError extends Error {
   constructor(code, status = 400) {
@@ -221,7 +224,8 @@ const calculateScenario = (scheme, previewInput) => calculatePayrollScheme({
 
 const assertPreviewSize = (input, scheme) => {
   if ((Array.isArray(input.employees) && input.employees.length > MAX_PREVIEW_EMPLOYEES)
-      || (Array.isArray(input.sales) && input.sales.length > MAX_PREVIEW_SALES_LINES)) {
+      || (Array.isArray(input.sales) && input.sales.length > MAX_PREVIEW_SALES_LINES)
+      || (Array.isArray(input.venueDailyTurnover) && input.venueDailyTurnover.length > MAX_PREVIEW_VENUE_DAYS)) {
     fail('preview_input_too_large', 413);
   }
   if ((scheme.roleAssignments?.length || 0) + (scheme.employeeOverrides?.length || 0)
@@ -230,7 +234,7 @@ const assertPreviewSize = (input, scheme) => {
 
 const sumCentsSafely = (values) => {
   const total = values.reduce((sum, value) => sum + BigInt(value), 0n);
-  return total <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(total) : null;
+  return total >= MIN_SAFE_BIGINT && total <= MAX_SAFE_BIGINT ? Number(total) : null;
 };
 
 const makeService = (pool) => {
