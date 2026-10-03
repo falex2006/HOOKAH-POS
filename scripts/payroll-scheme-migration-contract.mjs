@@ -71,6 +71,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
   const require = createRequire(import.meta.url);
   const { Client } = require('pg');
   const { makeService, PayrollSchemeServiceError } = require(path.join(root, 'payroll-scheme-service.js'));
+  const { makePayrollCalculationRunService, PayrollCalculationRunError } = require(path.join(root, 'payroll-calculation-run-service.js'));
   const client = new Client({ connectionString: databaseUrl });
   const schema = `payroll_migration_qa_${process.pid}_${Date.now()}`;
   const quotedSchema = `"${schema}"`;
@@ -431,6 +432,85 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     const activeHistory = await payrollService.listVersionRevisions(principalA, createdVersion.versionId);
     assert.equal(activeHistory.length, 3);
     assert.equal(activeHistory[2].changeKind, 'activated');
+    const runService = makePayrollCalculationRunService(servicePool);
+    const blockedRequest = {
+      schemeVersionId: activeVersion.versionId,
+      periodFrom: '2026-11-01',
+      periodTo: '2026-11-14',
+      idempotencyKey: 'blocked-run-november-001'
+    };
+    const payrollStateBeforeBlockedRun = (await client.query(`SELECT
+      (SELECT count(*)::int FROM payroll_calculation_runs WHERE venue_id=$1) AS runs,
+      (SELECT count(*)::int FROM payroll_daily_snapshots WHERE venue_id=$1) AS snapshots,
+      (SELECT count(*)::int FROM payroll_daily_snapshot_lines WHERE venue_id=$1) AS lines,
+      (SELECT count(*)::int FROM payroll_adjustments WHERE venue_id=$1) AS adjustments,
+      (SELECT count(*)::int FROM payroll_entries WHERE venue_id=$1) AS entries,
+      (SELECT count(*)::int FROM expenses WHERE venue_id=$1) AS expenses`, [venueA])).rows[0];
+    const blockedServiceRun = await runService.createBlockedRun(principalA, blockedRequest);
+    assert.deepEqual(Object.keys(runService), ['createBlockedRun'], 'the scoped service exposes no ready-run or lifecycle mutation operation');
+    assert.equal(blockedServiceRun.status, 'blocked');
+    assert.equal(blockedServiceRun.source_coverage, 'unknown');
+    assert.equal(blockedServiceRun.commission_basis, 'unknown');
+    assert.equal(blockedServiceRun.input_checksum, null);
+    assert.match(blockedServiceRun.blocked_reason, /official_payroll_sources_unavailable/);
+    assert.equal(blockedServiceRun.created_by, ownerA, 'blocked run audit actor comes from the authenticated venue owner');
+    assert.ok(blockedServiceRun.venue_timezone && blockedServiceRun.currency === 'RUB', 'new blocked run snapshots source timezone and version currency');
+    const retriedBlockedServiceRun = await runService.createBlockedRun(principalA, blockedRequest);
+    assert.equal(retriedBlockedServiceRun.id, blockedServiceRun.id, 'same venue and idempotency key returns the original immutable blocked run');
+    assert.deepEqual(retriedBlockedServiceRun, blockedServiceRun, 'idempotent retry returns the full original persisted metadata');
+    const alternateScheme = await payrollService.createScheme(principalA, {
+      name: 'Alternate QA scheme', description: 'same period, different scheme identity', definition: draftDefinition
+    });
+    const alternateVersion = await payrollService.activateVersion(principalA, alternateScheme.versions[0].versionId);
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, schemeVersionId: alternateVersion.versionId }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 409 && error.code === 'payroll_run_idempotency_conflict',
+      'idempotency key cannot be reused for a different active scheme version');
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, periodTo: '2026-11-15' }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 409 && error.code === 'payroll_run_idempotency_conflict',
+      'idempotency key cannot be reused for a different payroll period');
+    await assert.rejects(runService.createBlockedRun({ venueId: venueA, userId: staffA }, blockedRequest),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 403,
+      'staff cannot create payroll calculation runs');
+    await assert.rejects(runService.createBlockedRun({ venueId: venueB, userId: ownerA }, blockedRequest),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 403,
+      'owner identity cannot be replayed against another venue');
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, schemeVersionId: '00000000-0000-4000-8000-000000009999', idempotencyKey: 'blocked-run-missing-version' }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 403,
+      'unavailable and cross-tenant scheme versions fail closed');
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, periodFrom: '2026-11-31', idempotencyKey: 'blocked-run-invalid-date' }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 400 && error.code === 'invalid_payroll_period_from',
+      'invalid calendar dates are rejected before persistence');
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, periodFrom: '2026-11-15', idempotencyKey: 'blocked-run-reversed-date' }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 400 && error.code === 'invalid_payroll_period',
+      'reversed periods are rejected before persistence');
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, periodTo: '2026-12-01', idempotencyKey: 'blocked-run-cross-month' }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 400 && error.code === 'payroll_run_must_fit_one_month',
+      'cross-month requests are rejected before persistence');
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, idempotencyKey: 'bad' }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 400 && error.code === 'invalid_payroll_run_idempotency_key',
+      'short idempotency keys are rejected before persistence');
+    await assert.rejects(runService.createBlockedRun({ venueId: venueA, userId: 'bad' }, blockedRequest),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 403,
+      'invalid principals cannot create payroll runs');
+    await expectSqlFailure(`INSERT INTO payroll_daily_snapshots
+      (venue_id,run_id,employee_id,employee_name_snapshot,role_key_snapshot,local_date,amount_before_cap,final_amount)
+      VALUES ($1,$2,$3,'Staff A','bartender','2026-11-01',0,0)`,
+    [venueA, blockedServiceRun.id, staffA], '55000', 'blocked runs cannot own calculation snapshots');
+    await expectSqlFailure('UPDATE payroll_calculation_runs SET blocked_reason=blocked_reason WHERE venue_id=$1 AND id=$2',
+      [venueA, blockedServiceRun.id], '55000', 'blocked runs remain append-only');
+    await expectSqlFailure('DELETE FROM payroll_calculation_runs WHERE venue_id=$1 AND id=$2',
+      [venueA, blockedServiceRun.id], '55000', 'blocked runs cannot be deleted');
+    const payrollStateAfterBlockedRun = (await client.query(`SELECT
+      (SELECT count(*)::int FROM payroll_calculation_runs WHERE venue_id=$1) AS runs,
+      (SELECT count(*)::int FROM payroll_daily_snapshots WHERE venue_id=$1) AS snapshots,
+      (SELECT count(*)::int FROM payroll_daily_snapshot_lines WHERE venue_id=$1) AS lines,
+      (SELECT count(*)::int FROM payroll_adjustments WHERE venue_id=$1) AS adjustments,
+      (SELECT count(*)::int FROM payroll_entries WHERE venue_id=$1) AS entries,
+      (SELECT count(*)::int FROM expenses WHERE venue_id=$1) AS expenses`, [venueA])).rows[0];
+    assert.deepEqual(payrollStateAfterBlockedRun, {
+      ...payrollStateBeforeBlockedRun,
+      runs: payrollStateBeforeBlockedRun.runs + 1
+    }, 'blocked run inserts exactly one header and has no snapshot, adjustment, payroll-entry, or expense side effects');
     await assert.rejects(payrollService.listVersionRevisions({ venueId: venueB, userId: ownerB }, createdVersion.versionId),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 404,
       'revision journal is tenant-scoped');
@@ -444,6 +524,9 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       'active scheme configuration cannot be rewritten');
     const overlappingVersion = await payrollService.createVersion(principalA, createdScheme.id, draftDefinition);
     const foreignCurrencyVersion = await payrollService.createVersion(principalA, createdScheme.id, { ...draftDefinition, currency: 'USD' });
+    await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, schemeVersionId: overlappingVersion.versionId, idempotencyKey: 'blocked-run-draft-version-001' }),
+      (error) => error instanceof PayrollCalculationRunError && error.status === 403,
+      'draft scheme versions cannot create calculation runs');
     const previewInput = {
       employees: [
         { id: staffA, activeFrom: '2026-11-01', activeTo: '2026-11-30' },
@@ -497,7 +580,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       (error) => error instanceof PayrollSchemeServiceError && error.status === 409 && error.code === 'payroll_scheme_effective_window_conflict',
       'database overlap guard is preserved at service activation');
     assert.ok((await payrollService.listSchemes(principalA)).some((row) => row.id === createdScheme.id), 'owner can read persisted schemes after mutation');
-    console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC + POSTGRESQL PASS (replay, tenant FKs, owner-only version CRUD, draft edits, immutable activation, revision audit, non-persisted scenarios, source gates and adjustment lineage; rollback isolated schema)');
+    console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC + POSTGRESQL PASS (replay, tenant FKs, owner-only schemes and blocked runs, idempotency, no financial side effects, immutable history, source gates and adjustment lineage; rollback isolated schema)');
   } finally {
     if (transaction) await client.query('ROLLBACK').catch(() => {});
     if (client._connected) await client.end();
