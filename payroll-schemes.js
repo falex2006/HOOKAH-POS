@@ -6,6 +6,7 @@
 const MODES = new Set(['progressive_daily', 'stable_percent', 'percent_only', 'final_month_threshold']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+const MAX_VENUE_DAILY_TURNOVER_DAYS = 31;
 
 const isDate = (value) => {
   if (typeof value !== 'string' || !DATE_RE.test(value)) return false;
@@ -13,8 +14,18 @@ const isDate = (value) => {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
 const monthStartOf = (date) => `${date.slice(0, 7)}-01`;
-const daysInMonth = (date) => new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)).getUTCDate();
+const daysInMonth = (date) => {
+  const lastDay = new Date(0);
+  lastDay.setUTCHours(0, 0, 0, 0);
+  lastDay.setUTCFullYear(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0);
+  return lastDay.getUTCDate();
+};
 const monthEndOf = (date) => `${date.slice(0, 7)}-${String(daysInMonth(date)).padStart(2, '0')}`;
+const inclusiveDateCount = (from, through) => {
+  if (!isDate(from) || !isDate(through) || through < from) return 0;
+  const count = Math.floor((Date.parse(`${through}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86400000) + 1;
+  return count <= MAX_VENUE_DAILY_TURNOVER_DAYS ? count : 0;
+};
 const addDays = (date, count) => {
   const value = new Date(`${date}T00:00:00.000Z`);
   value.setUTCDate(value.getUTCDate() + count);
@@ -141,6 +152,7 @@ const addToMap = (map, key, amount) => map.set(key, (map.get(key) || 0n) + amoun
 const calculatePayrollScheme = (input) => {
   const blockers = [];
   const scheme = input?.scheme;
+  const hasVenueDailyTurnover = own(input, 'venueDailyTurnover');
   blockers.push(...validateScheme(scheme));
   if (!isDate(input?.periodFrom) || !isDate(input?.periodTo) || input.periodTo < input.periodFrom || input.periodFrom.slice(0, 7) !== input.periodTo.slice(0, 7)) blockers.push('invalid_single_month_period');
   const monthStart = isDate(input?.periodFrom) ? monthStartOf(input.periodFrom) : '';
@@ -151,6 +163,33 @@ const calculatePayrollScheme = (input) => {
   if (coverage?.kind === 'month_to_date_complete' && coverage.through !== input?.periodTo) blockers.push('month_to_date_coverage_boundary_mismatch');
   if (coverage?.kind === 'month_closed_complete' && (input?.monthClosed !== true || coverage.through !== monthEnd)) blockers.push('closed_month_mismatch');
   if (scheme?.mode === 'final_month_threshold' && (coverage?.kind !== 'month_closed_complete' || input?.monthClosed !== true)) blockers.push('closed_month_required');
+  const venueTurnoverByDate = new Map();
+  if (hasVenueDailyTurnover) {
+    let invalidVenueTurnoverManifest = !Array.isArray(input.venueDailyTurnover)
+      || !isDate(coverage?.from) || !isDate(coverage?.through);
+    let expectedDateCount = 0;
+    if (isDate(coverage?.from) && isDate(coverage?.through)) {
+      expectedDateCount = inclusiveDateCount(coverage.from, coverage.through);
+      if (!expectedDateCount) invalidVenueTurnoverManifest = true;
+    }
+    for (const row of Array.isArray(input.venueDailyTurnover) ? input.venueDailyTurnover : []) {
+      if (!row || !isDate(row.date) || !isDate(coverage?.from) || !isDate(coverage?.through)
+          || row.date < coverage.from || row.date > coverage.through
+          || !isNonNegativeInteger(row.turnoverCents) || venueTurnoverByDate.has(row.date)) {
+        invalidVenueTurnoverManifest = true;
+        continue;
+      }
+      venueTurnoverByDate.set(row.date, BigInt(row.turnoverCents));
+    }
+    if (expectedDateCount > 0) {
+      for (let dayOffset = 0; dayOffset < expectedDateCount; dayOffset += 1) {
+        const date = addDays(coverage.from, dayOffset);
+        if (!venueTurnoverByDate.has(date)) invalidVenueTurnoverManifest = true;
+      }
+      if (venueTurnoverByDate.size !== expectedDateCount) invalidVenueTurnoverManifest = true;
+    }
+    if (invalidVenueTurnoverManifest) blockers.push('invalid_venue_daily_turnover_manifest');
+  }
   if (!Array.isArray(input?.employees) || !Array.isArray(input?.roleAssignments) || !Array.isArray(input?.sales)) blockers.push('input_collections_required');
   const employees = Array.isArray(input?.employees) ? input.employees : [];
   const employeeIds = new Set(employees.map((item) => item?.id).filter(Boolean));
@@ -165,7 +204,8 @@ const calculatePayrollScheme = (input) => {
         && isDate(assignment.effectiveFrom) && (!assignment.effectiveTo || isDate(assignment.effectiveTo))) {
       const start = assignment.effectiveFrom > input.periodFrom ? assignment.effectiveFrom : input.periodFrom;
       const end = assignment.effectiveTo && assignment.effectiveTo < input.periodTo ? assignment.effectiveTo : input.periodTo;
-      for (let date = start; date <= end; date = addDays(date, 1)) {
+      for (let dayOffset = 0, dayCount = inclusiveDateCount(start, end); dayOffset < dayCount; dayOffset += 1) {
+        const date = addDays(start, dayOffset);
         const resolved = resolveRoleParameters(scheme, assignment.employeeId, assignment.roleId, date);
         if (!resolved) continue;
         if (['progressive_daily', 'final_month_threshold'].includes(resolved.mode) && (!resolved.bracketRatesBps || !own(resolved.bracketRatesBps, '0'))) blockers.push('bracket_rates_required');
@@ -183,11 +223,14 @@ const calculatePayrollScheme = (input) => {
     const employee = employees.find((item) => item.id === employeeId);
     const activeFrom = employee?.activeFrom && employee.activeFrom > input?.periodFrom ? employee.activeFrom : input?.periodFrom;
     const activeTo = employee?.activeTo && employee.activeTo < input?.periodTo ? employee.activeTo : input?.periodTo;
-    if (isDate(activeFrom) && isDate(activeTo) && activeFrom <= activeTo) for (let date = activeFrom; date <= activeTo; date = addDays(date, 1)) if (!resolveRoleAt(assignments, employeeId, date)) blockers.push('role_assignment_gap');
+    for (let dayOffset = 0, dayCount = inclusiveDateCount(activeFrom, activeTo); dayOffset < dayCount; dayOffset += 1) {
+      if (!resolveRoleAt(assignments, employeeId, addDays(activeFrom, dayOffset))) blockers.push('role_assignment_gap');
+    }
   }
   const effectiveModes = new Set([scheme?.mode].filter(Boolean));
   if (isDate(input?.periodFrom) && isDate(input?.periodTo) && Array.isArray(input?.employees)) {
-    for (let date = input.periodFrom; date <= input.periodTo; date = addDays(date, 1)) for (const employee of employees) {
+    for (let dayOffset = 0, dayCount = inclusiveDateCount(input.periodFrom, input.periodTo); dayOffset < dayCount; dayOffset += 1) for (const employee of employees) {
+      const date = addDays(input.periodFrom, dayOffset);
       const roleId = resolveRoleAt(assignments, employee.id, date);
       if (!roleId) continue;
       const params = resolveRoleParameters(scheme || {}, employee.id, roleId, date);
@@ -208,16 +251,20 @@ const calculatePayrollScheme = (input) => {
     if (!line?.employeeId && isNonNegativeInteger(line?.commissionBaseCents) && line.commissionBaseCents > 0 && line.date >= input.periodFrom && line.date <= input.periodTo) blockers.push('unattributed_sales_line');
     if (line?.employeeId && isDate(line.date) && !resolveRoleAt(assignments, line.employeeId, line.date)) blockers.push('sales_employee_unassigned');
   }
-  if (blockers.length) return { status: 'blocked', mode: scheme?.mode || null, periodFrom: input?.periodFrom || null, periodTo: input?.periodTo || null, blockers: [...new Set(blockers)], daily: [], employees: [] };
+  if (blockers.length) return { status: 'blocked', mode: scheme?.mode || null, periodFrom: input?.periodFrom || null, periodTo: input?.periodTo || null,
+    venueTurnoverBasis: hasVenueDailyTurnover ? 'venue_daily_manifest_scenario' : 'sales_line_sum_scenario',
+    blockers: [...new Set(blockers)], daily: [], employees: [] };
 
   const sortedSales = sales.slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
   const turnoverByDate = new Map();
   for (const line of sortedSales) addToMap(turnoverByDate, line.date, BigInt(line.turnoverCents));
   const dailyVenueTurnover = new Map();
   let cumulativeMonthTurnover = 0n;
-  for (let day = monthStart; day <= monthEnd; day = addDays(day, 1)) {
-    cumulativeMonthTurnover += turnoverByDate.get(day) || 0n;
-    dailyVenueTurnover.set(day, { daily: turnoverByDate.get(day) || 0n, cumulative: cumulativeMonthTurnover });
+  for (let dayOffset = 0, dayCount = inclusiveDateCount(monthStart, monthEnd); dayOffset < dayCount; dayOffset += 1) {
+    const day = addDays(monthStart, dayOffset);
+    const dailyTurnover = hasVenueDailyTurnover ? (venueTurnoverByDate.get(day) || 0n) : (turnoverByDate.get(day) || 0n);
+    cumulativeMonthTurnover += dailyTurnover;
+    dailyVenueTurnover.set(day, { daily: dailyTurnover, cumulative: cumulativeMonthTurnover });
   }
   const finalMonthTurnover = cumulativeMonthTurnover;
   const monthTurnoverAtPeriodEnd = dailyVenueTurnover.get(input.periodTo)?.cumulative || 0n;
@@ -228,7 +275,8 @@ const calculatePayrollScheme = (input) => {
     return employeeTotals.get(employeeId);
   };
 
-  for (let date = input.periodFrom; date <= input.periodTo; date = addDays(date, 1)) {
+  for (let dayOffset = 0, dayCount = inclusiveDateCount(input.periodFrom, input.periodTo); dayOffset < dayCount; dayOffset += 1) {
+    const date = addDays(input.periodFrom, dayOffset);
     const monthTurnoverOnDay = dailyVenueTurnover.get(date)?.cumulative || 0n;
     const daySales = sortedSales.filter((line) => line.date === date);
     const lineCalculations = [];
@@ -336,6 +384,7 @@ const calculatePayrollScheme = (input) => {
     currency: scheme.currency || 'RUB',
     periodFrom: input.periodFrom,
     periodTo: input.periodTo,
+    venueTurnoverBasis: hasVenueDailyTurnover ? 'venue_daily_manifest_scenario' : 'sales_line_sum_scenario',
       monthTurnoverCents: toSafeNumber(effectiveModes.has('final_month_threshold') ? finalMonthTurnover : monthTurnoverAtPeriodEnd),
       modes: [...effectiveModes].sort(),
     blockers: [...new Set(blockers)],
