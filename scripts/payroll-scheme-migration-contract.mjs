@@ -76,6 +76,10 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
   const schema = `payroll_migration_qa_${process.pid}_${Date.now()}`;
   const quotedSchema = `"${schema}"`;
   let transaction = false;
+  let schemaCommitted = false;
+  let releaseConcurrentInsertBarrier = null;
+  const concurrentClients = new Set();
+  const closingConcurrentClients = [];
   let savepointIndex = 0;
   const expectSqlFailure = async (query, params, code, label) => {
     const savepoint = `payroll_expected_failure_${savepointIndex++}`;
@@ -580,9 +584,61 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       (error) => error instanceof PayrollSchemeServiceError && error.status === 409 && error.code === 'payroll_scheme_effective_window_conflict',
       'database overlap guard is preserved at service activation');
     assert.ok((await payrollService.listSchemes(principalA)).some((row) => row.id === createdScheme.id), 'owner can read persisted schemes after mutation');
-    console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC + POSTGRESQL PASS (replay, tenant FKs, owner-only schemes and blocked runs, idempotency, no financial side effects, immutable history, source gates and adjustment lineage; rollback isolated schema)');
+    await client.query('COMMIT');
+    transaction = false;
+    schemaCommitted = true;
+    await client.query(`SET search_path TO ${quotedSchema}, public`);
+
+    let insertWaiters = 0;
+    const insertBarrier = new Promise((resolve) => { releaseConcurrentInsertBarrier = resolve; });
+    const concurrentPool = {
+      async connect() {
+        const connection = new Client({ connectionString: databaseUrl });
+        await connection.connect();
+        concurrentClients.add(connection);
+        await connection.query(`SET search_path TO ${quotedSchema}, public`);
+        return {
+          async query(sql, params) {
+            if (/^\s*INSERT\s+INTO\s+payroll_calculation_runs\b/i.test(String(sql))) {
+              insertWaiters += 1;
+              if (insertWaiters === 2) releaseConcurrentInsertBarrier();
+              await insertBarrier;
+            }
+            return connection.query(sql, params);
+          },
+          release() {
+            const closing = connection.end().catch(() => {});
+            concurrentClients.delete(connection);
+            closingConcurrentClients.push(closing);
+          }
+        };
+      }
+    };
+    const concurrentRunService = makePayrollCalculationRunService(concurrentPool);
+    const concurrentRequest = { ...blockedRequest, idempotencyKey: 'blocked-run-concurrent-retry-001' };
+    const concurrentRuns = await Promise.all([
+      concurrentRunService.createBlockedRun(principalA, concurrentRequest),
+      concurrentRunService.createBlockedRun(principalA, concurrentRequest)
+    ]);
+    assert.equal(insertWaiters, 2, 'both independent PostgreSQL sessions reach the insert before either can proceed');
+    assert.equal(concurrentRuns[0].id, concurrentRuns[1].id, 'concurrent same-key requests return one persisted run');
+    assert.deepEqual(concurrentRuns[0], concurrentRuns[1], 'concurrent retries return identical immutable run metadata');
+    assert.equal((await client.query(`SELECT count(*)::int AS count FROM payroll_calculation_runs
+      WHERE venue_id=$1 AND idempotency_key=$2`, [venueA, concurrentRequest.idempotencyKey])).rows[0].count, 1,
+    'concurrent same-key requests persist exactly one payroll run');
+    console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC + POSTGRESQL PASS (replay, tenant FKs, owner-only schemes and blocked runs, sequential and concurrent idempotency, no financial side effects, immutable history, source gates and adjustment lineage; isolated schema cleanup)');
   } finally {
+    if (releaseConcurrentInsertBarrier) releaseConcurrentInsertBarrier();
     if (transaction) await client.query('ROLLBACK').catch(() => {});
+    await Promise.all([
+      ...[...concurrentClients].map(async (connection) => {
+        await connection.end().catch(() => {});
+      }),
+      ...closingConcurrentClients
+    ]);
+    if (schemaCommitted) {
+      await client.query('DROP SCHEMA IF EXISTS ' + quotedSchema + ' CASCADE');
+    }
     if (client._connected) await client.end();
   }
 }
