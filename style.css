@@ -342,6 +342,16 @@
  .staff-theme .order{border-radius:16px}
 }
 
+/* Shared control sizing: keep action rows aligned across finance, stock and admin pages. */
+.velora-theme .button,
+.velora-theme button.button,
+.velora-theme a.button{min-height:42px;display:inline-flex;align-items:center;justify-content:center;line-height:1.2;vertical-align:middle}
+.velora-theme .toolbar-row{align-items:center}
+.velora-theme .toolbar-row>.button,
+.velora-theme .toolbar-row>button,
+.velora-theme .toolbar-row>select,
+.velora-theme .toolbar-row>.custom-select{min-height:42px}
+
 /* Keep numeric fields visually clean; keyboard input and min/max validation remain active. */
 .staff-theme input[type=number],.velora-theme input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .staff-theme input[type=number]::-webkit-inner-spin-button,.staff-theme input[type=number]::-webkit-outer-spin-button,.velora-theme input[type=number]::-webkit-inner-spin-button,.velora-theme input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
