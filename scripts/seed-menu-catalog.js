@@ -19,9 +19,18 @@ async function main() {
     const categories = [...new Set((catalog.products || []).map((item) => String(item.category || '').trim()).filter(Boolean))];
     for (const name of categories) {
       await client.query(
+        `UPDATE product_categories
+         SET is_active=true
+         WHERE venue_id=$1 AND lower(name)=lower($2)`,
+        [venueId, name]
+      );
+      await client.query(
         `INSERT INTO product_categories (venue_id, name)
-         VALUES ($1, $2)
-         ON CONFLICT (venue_id, name) DO UPDATE SET is_active=true`,
+         SELECT $1, $2
+         WHERE NOT EXISTS (
+           SELECT 1 FROM product_categories
+           WHERE venue_id=$1 AND lower(name)=lower($2)
+         )`,
         [venueId, name]
       );
     }
