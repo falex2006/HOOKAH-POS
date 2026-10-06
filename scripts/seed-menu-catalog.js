@@ -21,7 +21,18 @@ async function main() {
       await client.query(
         `UPDATE product_categories
          SET is_active=true
-         WHERE venue_id=$1 AND lower(name)=lower($2)`,
+         WHERE id = (
+           SELECT id
+           FROM product_categories
+           WHERE venue_id=$1 AND lower(btrim(name))=lower(btrim($2))
+           ORDER BY is_active DESC, id ASC
+           LIMIT 1
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM product_categories
+           WHERE venue_id=$1 AND lower(btrim(name))=lower(btrim($2)) AND is_active
+         )`,
         [venueId, name]
       );
       await client.query(
@@ -29,7 +40,7 @@ async function main() {
          SELECT $1, $2
          WHERE NOT EXISTS (
            SELECT 1 FROM product_categories
-           WHERE venue_id=$1 AND lower(name)=lower($2)
+           WHERE venue_id=$1 AND lower(btrim(name))=lower(btrim($2))
          )`,
         [venueId, name]
       );
