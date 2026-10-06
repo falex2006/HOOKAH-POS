@@ -202,6 +202,8 @@
 
 /* Split-screen/tablet layout: collapse the admin shell before content becomes cramped. */
 @media (max-width:760px){
+  html,body{width:100%;max-width:100%;overflow-x:hidden}
+  .velora-theme .portal-app{width:100%;min-width:0;overflow-x:hidden}
   .velora-theme .portal-sidebar{width:68px;padding:20px 10px}
   .velora-theme .brand div,.velora-theme .side-label,.velora-theme .portal-nav span,.velora-theme .sidebar-footer{display:none}
   .velora-theme .portal-nav{gap:10px}
@@ -209,8 +211,10 @@
   .velora-theme .portal-nav a .icon{display:block;width:20px;height:20px;flex:0 0 20px;color:currentColor}
   .velora-theme .portal-header{padding:0 16px}
   .velora-theme .header-right>span:not(.avatar){display:none}
-  .velora-theme .portal-content{padding:20px 14px}
+  .velora-theme .portal-main{width:calc(100vw - 68px);max-width:calc(100vw - 68px);min-width:0;overflow-x:hidden}
+  .velora-theme .portal-content{width:100%;max-width:100%;box-sizing:border-box;padding:20px 14px;overflow-x:hidden}
   .velora-theme .page-title{display:block}
+  .velora-theme .page-title>div{min-width:0;max-width:100%;overflow-wrap:anywhere}
   .velora-theme .page-title h1{font-size:29px}
   .velora-theme .page-title>.button{display:flex;width:max-content;margin-top:18px}
   .velora-theme .page-title .date-input{margin-top:18px}
