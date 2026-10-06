@@ -41,7 +41,8 @@ async function main() {
          WHERE NOT EXISTS (
            SELECT 1 FROM product_categories
            WHERE venue_id=$1 AND lower(btrim(name))=lower(btrim($2))
-         )`,
+         )
+         ON CONFLICT DO NOTHING`,
         [venueId, name]
       );
     }
