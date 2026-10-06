@@ -3204,13 +3204,20 @@ function renderFinance() {
   const sectionNav = document.createElement('nav');
   sectionNav.className = 'finance-section-nav';
   sectionNav.setAttribute('aria-label', 'Разделы финансов');
-  sectionNav.innerHTML = '<button type="button" data-finance-jump="payroll">Зарплата</button><button type="button" data-finance-jump="expenses">Расходы</button><button type="button" data-finance-jump="payables">Поставщики</button><button type="button" data-finance-jump="analytics">Аналитика</button>';
+  sectionNav.innerHTML = '<button type="button" class="is-active" data-finance-jump="overview">Обзор</button><button type="button" data-finance-jump="operations">Операции</button><button type="button" data-finance-jump="payroll">Зарплата</button><button type="button" data-finance-jump="expenses">Расходы</button><button type="button" data-finance-jump="payables">Поставщики</button><button type="button" data-finance-jump="analytics">Аналитика</button>';
   target.querySelector('.page-title')?.after(sectionNav);
   target.querySelector('.finance-chart-panel')?.setAttribute('data-finance-section', 'analytics');
   sectionNav.addEventListener('click', (event) => {
-    const key = event.target.closest('[data-finance-jump]')?.dataset.financeJump;
-    const section = key && target.querySelector(`[data-finance-section="${key}"]`);
-    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const button = event.target.closest('[data-finance-jump]');
+    const key = button?.dataset.financeJump;
+    if (!key) return;
+    sectionNav.querySelectorAll('[data-finance-jump]').forEach((item) => item.classList.toggle('is-active', item === button));
+    const groups = {
+      overview: ['overview'], operations: ['operations'], payroll: ['payroll'], expenses: ['expenses'], payables: ['payables'], analytics: ['analytics']
+    };
+    const visible = new Set(groups[key] || ['overview']);
+    target.querySelectorAll('[data-finance-section]').forEach((section) => { section.hidden = !visible.has(section.dataset.financeSection); });
+    target.querySelector('.finance-kpi-grid')?.toggleAttribute('hidden', key !== 'overview');
   });
   const payablesSection = document.createElement('section');
   payablesSection.className = 'panel finance-payables-panel';
@@ -3427,7 +3434,14 @@ function renderFinance() {
     const financeStaff = target.querySelector('.finance-staff-panel');
     const financeCash = target.querySelector('.cash-register-panel');
     const financePayments = target.querySelector('.finance-payments-grid');
+    financeCash?.setAttribute('data-finance-section', 'operations');
+    financePayments?.setAttribute('data-finance-section', 'operations');
+    discountSection.setAttribute('data-finance-section', 'operations');
+    financeChart?.setAttribute('data-finance-section', 'analytics');
+    financeBusiness?.setAttribute('data-finance-section', 'analytics');
+    financeStaff?.setAttribute('data-finance-section', 'analytics');
     target.append(payrollSection, expenseSection, payablesSection, discountSection, financeCash, financePayments, financeChart, financeBusiness, financeStaff);
+    sectionNav.querySelector('[data-finance-jump="overview"]')?.click();
     const register = payrollSection.querySelector('#payroll-register');
     const registerMessage = payrollSection.querySelector('#payroll-message');
     if (staticDemo()) {
