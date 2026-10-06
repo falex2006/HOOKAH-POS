@@ -392,6 +392,10 @@ const normalizeManagementSidebar = () => {
   sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
     const activeLink = group.querySelector('a.active');
     const summary = group.querySelector(':scope > summary');
+    // The current section must stay discoverable even when the user previously
+    // collapsed that group on another page. Saved disclosure state still
+    // controls inactive groups, but the active route always reveals its path.
+    if (activeLink) group.open = true;
     // Keep the user's saved disclosure state; the active child remains marked
     // on the group summary even when that group is intentionally collapsed.
     summary?.setAttribute('aria-expanded', String(group.open));
