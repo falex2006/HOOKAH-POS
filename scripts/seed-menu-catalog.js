@@ -18,6 +18,7 @@ async function main() {
     await client.query('BEGIN');
     const categories = [...new Set((catalog.products || []).map((item) => String(item.category || '').trim()).filter(Boolean))];
     for (const name of categories) {
+      console.log(`Seeding category: ${name}`);
       await client.query(
         `UPDATE product_categories
          SET is_active=true
