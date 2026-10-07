@@ -3002,3 +3002,6 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 @media(max-width:620px){.velora-theme .finance-payroll-panel>.panel-head{align-items:flex-start}.velora-theme .finance-payroll-panel>.panel-head .button{width:100%}.velora-theme .finance-payroll-panel .product-editor{padding:14px}.velora-theme .finance-payroll-panel .payroll-entry-row{grid-template-columns:1fr;gap:10px}.velora-theme .finance-payroll-panel .payroll-entry-row>strong{justify-self:start}.velora-theme .finance-payroll-panel .payroll-entry-actions{grid-column:auto;justify-content:stretch}.velora-theme .finance-payroll-panel .payroll-entry-actions .button{flex:1}}
 
 
+
+.inventory-item-modal{position:fixed!important;inset:16px;z-index:80;max-width:920px;margin:auto;overflow:auto;box-shadow:0 28px 90px rgba(0,0,0,.65);border-color:rgba(255,255,255,.2)}body.inventory-editor-open{overflow:hidden}
+@media(max-width:640px){.inventory-item-modal{inset:8px;border-radius:16px;padding:16px}.inventory-item-modal .form-grid{grid-template-columns:1fr}}
