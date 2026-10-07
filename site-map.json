@@ -39,6 +39,7 @@
     {"path":"/network","file":"network.html","mode":"admin","title":"Моя сеть"},
     {"path":"/platform","file":"platform.html","mode":"platform","title":"Платформа"}
   ],
+  "inventoryDirectoryPresentation": {"layout":"cascade","columns":["departments","subdepartments","categories"],"editor":"modal","categorySearch":true},
   "inventoryViews": [
     {"view":"products","group":"menu","title":"Каталог товаров"},
     {"view":"recipes","group":"menu","title":"Технологические карты"},

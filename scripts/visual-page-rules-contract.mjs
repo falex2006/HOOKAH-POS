@@ -81,3 +81,7 @@ const headings = [...rules.matchAll(/^### `([^`]+)`/gm)].map((m) => m[1]);
 assert.equal(new Set(headings).size, headings.length, 'duplicate page rule heading');
 assert.equal(headings.length, map.entries.length, 'page rule count differs from canonical map');
 console.log(`VISUAL PAGE RULES CONTRACT: PASS (${headings.length} canonical pages, ${map.adminSubroutes.length} admin subsections)`);
+
+assert.equal(map.inventoryDirectoryPresentation.layout, "cascade");
+assert.equal(map.inventoryDirectoryPresentation.editor, "modal");
+assert.match(rules, /Справочники склада: каскадный выбор/);

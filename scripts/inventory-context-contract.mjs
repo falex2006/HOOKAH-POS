@@ -24,11 +24,10 @@ assert.match(portal, /const addButton = document\.querySelector\('#new-product'\
 assert.match(portal, /addButton\.disabled = form\.dataset\.submitting === '1'; addButton\.innerHTML = `\$\{icon\('plus'\)\} Добавить товар`/,
   'closing or saving the product editor must restore the add-product action');
 assert.match(portal, /id="open-products"/, 'directory panel retains its catalog navigation action');
-assert.match(portal, /actions: \[\['department', 'Новый цех', 'primary'\], \['subdepartment', 'Новый подцех', ''\], \['category', 'Новая категория', ''\]\]/,
-  'directory creation actions belong together in the page heading');
-const directoryPanelMarkup = portal.match(/const categoryPanel = document\.createElement\('section'\);[\s\S]*?target\.append\(categoryPanel\)/)?.[0] || '';
-assert.doesNotMatch(directoryPanelMarkup, /id="new-inventory-department"|id="new-inventory-subdepartment"|id="new-product-category"/,
-  'directory body must not duplicate its heading creation actions');
+assert.match(portal, /directories: \{ title: 'Цехи и категории'/, 'directory title matches its purpose');
+for (const id of ['new-inventory-department', 'new-inventory-subdepartment', 'new-product-category']) {
+  assert.ok(portal.includes(`id="${id}"`), `context creation missing ${id}`);
+}
 for (const id of ['new-recipe', 'new-product', 'create-auto-order']) {
   assert.equal(portal.match(new RegExp(`id="${id}"`, 'g'))?.length || 0, 1, `expected one visible source control for ${id}`);
 }

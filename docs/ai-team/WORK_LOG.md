@@ -4974,3 +4974,12 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Этап 7/7 (итоговый QA и локальный релиз): завершён. `main` чистая, единственный worktree; HEAD и `origin/main` совпадают на `7919479a`.
 - Полный статический QA: 136/136 PASS. Этапы 1–6 отмечены завершёнными; VPS не обновлялся по плану.
 - Локальная версия готова для следующего отдельного решения о релизе на VPS.
+
+## 2026-10-07 — компактные справочники склада
+- Реализован согласованный каскад цех → подцех → категория; все/без подцеха, поиск, счётчики, меню действий, модальные редакторы, вторичные свёрнутые каталоги.
+- API/схема/данные/права не изменены. В архиве сохранены активные родительские ветки. Исправлены reset editId, потеря выбора при reload, видимая подпись custom select, фокус после закрытия/перерисовки и повторная загрузка подцехов.
+- Архитектор проверил существующий UI/API контракт; code_health_engineer проверил baseline и итоговый diff. Два замечания фокус/retry исправлены.
+- PASS: node --check portal.js; inventory-hierarchy, category-tobacco, subdepartment-api, directory-rename-runtime, inventory-context, inventory-responsive, visual-page-rules; git diff --check.
+- Новый inventory-directory-browser-qa.cjs PASS на изолированном memory-сервере: минимальные fixtures, каскад/поиск/создание/редактирование/отмена/архив/восстановление/API reread/reload; 1920/1366/390, нулевое горизонтальное переполнение и pageerror. Скриншоты просмотрены. Первый список Y328 Full HD. Mobile — последовательные вертикальные колонки, drawer закрыт при проверке.
+- Производственные данные для QA не изменялись; полный PostgreSQL CRUD через production UI не выполнялся. Серверные обработчики неизменны; проверки их контрактов и mocked transaction QA PASS.
+- CSS revision398 / portal459 синхронизированы root/dist HTML; публикация через существующий deploy workflow с резервной копией и SKIP_MENU_SEED_ONCE=true.
