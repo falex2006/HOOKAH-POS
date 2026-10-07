@@ -3005,3 +3005,18 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 
 .inventory-item-modal{position:fixed!important;inset:16px;z-index:80;max-width:920px;margin:auto;overflow:auto;box-shadow:0 28px 90px rgba(0,0,0,.65);border-color:rgba(255,255,255,.2)}body.inventory-editor-open{overflow:hidden}
 @media(max-width:640px){.inventory-item-modal{inset:8px;border-radius:16px;padding:16px}.inventory-item-modal .form-grid{grid-template-columns:1fr}}
+
+/* Subtle focus treatment for modal editors: a slow silver sweep makes the active layer clear without competing with the form. */
+@property --inventory-modal-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.velora-theme .inventory-item-modal {
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(#1b1f25, #171a1f) padding-box,
+    conic-gradient(from var(--inventory-modal-angle), rgba(232,238,245,.08), rgba(255,255,255,.78), rgba(232,238,245,.08) 18deg, rgba(232,238,245,.08) 360deg) border-box;
+  animation: inventory-modal-border-sweep 8s linear infinite;
+  box-shadow: 0 28px 90px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.05), 0 0 26px rgba(221,231,240,.08);
+}
+@keyframes inventory-modal-border-sweep { to { --inventory-modal-angle: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .velora-theme .inventory-item-modal { animation: none; }
+}
