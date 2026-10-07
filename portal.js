@@ -2918,7 +2918,7 @@ function renderInventory() {
   };
   const refreshInventoryContext = () => renderInventoryContext(new URL(location.href).searchParams.get('view') || 'stock');
   const setInventoryView = (requestedView, { historyMode = 'push', scroll = true } = {}) => {
-    const view = Object.hasOwn(inventorySections, requestedView) ? requestedView : 'stock';
+    const view = Object.hasOwn(inventorySections, requestedView) ? requestedView : 'stock'; target.classList.toggle('inventory-directory-mode', view === 'directories');
     const visible = inventorySections[view];
     document.querySelectorAll('.inventory-stock-panel,.inventory-item-editor-panel,.inventory-auto-order-panel,.inventory-purchase-panel,.inventory-movement-editor,.movement-history,.visual-catalog-panel,.inventory-departments-panel,.inventory-tobacco-catalog-panel,.inventory-alcohol-catalog-panel,.recipes-panel,.premix-panel').forEach((section) => section.classList.toggle('inventory-view-hidden', !visible.some((selector) => section.matches(selector))));
     renderInventoryContext(view);
