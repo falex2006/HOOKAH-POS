@@ -2971,3 +2971,28 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .settings-dashboard-grid label input[type="checkbox"]:disabled,.settings-dashboard-insights label input[type="checkbox"]:disabled{opacity:.5;cursor:not-allowed}
 .portal.light-theme .settings-dashboard-grid label input[type="checkbox"],.portal.light-theme .settings-dashboard-insights label input[type="checkbox"]{border-color:#b9c4cb;background:#e6ebef;box-shadow:inset 0 1px 2px #22334418}
 .portal.light-theme .settings-dashboard-grid label input[type="checkbox"]:checked,.portal.light-theme .settings-dashboard-insights label input[type="checkbox"]:checked{border-color:#e87532;background:linear-gradient(135deg,#ffae4a,#f16c2d)}
+
+/* Staff and payroll surfaces share the same hierarchy: heading, controls, content, actions. */
+.velora-theme .staff-panel{overflow:hidden}
+.velora-theme .staff-panel .panel-head{padding-bottom:16px;border-bottom:1px solid #2b3038}
+.velora-theme .staff-list{gap:0;border:1px solid #2b3038;border-radius:12px;overflow:hidden;background:#15181d}
+.velora-theme .staff-row{min-height:66px;padding:12px 14px;border-bottom:1px solid #292e36;background:transparent;transition:background .16s ease}
+.velora-theme .staff-row:last-child{border-bottom:0}
+.velora-theme .staff-row:hover{background:#1c2026}
+.velora-theme .staff-row .staff-avatar{width:34px;height:34px}
+.velora-theme .staff-row>div>b{display:block;line-height:1.25;color:#f2f4f6}
+.velora-theme .staff-row>div>small{margin-top:4px;line-height:1.35;color:#8f99a5}
+.velora-theme .staff-row .staff-edit,.velora-theme .staff-row .staff-delete{height:36px;min-height:36px}
+.velora-theme .finance-payroll-panel{scroll-margin-top:20px}
+.velora-theme .finance-payroll-panel>.panel-head{align-items:center;padding-bottom:16px;border-bottom:1px solid #2b3038}
+.velora-theme .finance-payroll-panel .product-editor{margin:16px 0 18px;padding:18px;border:1px solid #343b46;border-radius:12px;background:#15191f}
+.velora-theme .finance-payroll-panel .finance-payroll-filters{margin:16px 0;padding:14px;border:1px solid #2b3038;border-radius:12px;background:#15181d}
+.velora-theme .finance-payroll-panel .finance-payroll-filters label{font-size:11px;letter-spacing:.02em}
+.velora-theme .finance-payroll-panel .expense-list{display:grid;gap:8px}
+.velora-theme .finance-payroll-panel .payroll-entry-row{display:grid;grid-template-columns:minmax(260px,1fr) auto minmax(280px,auto);align-items:center;gap:14px;padding:14px 16px;border:1px solid #2b3038;border-radius:12px;background:#15181d}
+.velora-theme .finance-payroll-panel .payroll-entry-row:hover{border-color:#414955;background:#1a1e24}
+.velora-theme .finance-payroll-panel .payroll-entry-actions{justify-content:flex-end;gap:8px;min-width:0}
+.velora-theme .finance-payroll-panel .payroll-entry-actions .button{min-height:38px;white-space:nowrap}
+.velora-theme .finance-payroll-panel .payroll-cancel-editor{grid-column:1/-1;margin:0;padding-top:12px;border-top:1px solid #2b3038}
+@media(max-width:900px){.velora-theme .finance-payroll-panel .payroll-entry-row{grid-template-columns:minmax(0,1fr) auto}.velora-theme .finance-payroll-panel .payroll-entry-actions{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:620px){.velora-theme .finance-payroll-panel>.panel-head{align-items:flex-start}.velora-theme .finance-payroll-panel>.panel-head .button{width:100%}.velora-theme .finance-payroll-panel .product-editor{padding:14px}.velora-theme .finance-payroll-panel .payroll-entry-row{grid-template-columns:1fr;gap:10px}.velora-theme .finance-payroll-panel .payroll-entry-row>strong{justify-self:start}.velora-theme .finance-payroll-panel .payroll-entry-actions{grid-column:auto;justify-content:stretch}.velora-theme .finance-payroll-panel .payroll-entry-actions .button{flex:1}}
