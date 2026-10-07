@@ -1600,7 +1600,12 @@ function setupDashboardModules() {
   const apply = () => {
     if (!current()) return;
     controls.forEach((input) => { input.checked = visible[input.dataset.dashboardModuleToggle] !== false; });
-    document.querySelectorAll('[data-dashboard-module]').forEach((node) => { node.hidden = !(window.location.hash === '#shift-control' && node.id === 'shift-control') && visible[node.dataset.dashboardModule] === false; });
+    const focusedAdminPage = window.location.pathname === '/admin' && ['#staff', '#permissions', '#tasks'].includes(window.location.hash);
+    document.querySelectorAll('[data-dashboard-module]').forEach((node) => {
+      const pageOwnsModule = focusedAdminPage ? node.id === 'staff' : true;
+      const shiftFocus = window.location.hash === '#shift-control' && node.id === 'shift-control';
+      node.hidden = !pageOwnsModule || (!shiftFocus && visible[node.dataset.dashboardModule] === false);
+    });
   };
   controls.forEach((input) => input.addEventListener('change', () => {
     const name = input.dataset.dashboardModuleToggle;
