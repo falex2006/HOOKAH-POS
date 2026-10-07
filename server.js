@@ -1738,6 +1738,30 @@ async function api(req, res) {
       const input=await body(req); if (input.active === false && current.rows[0].isPrimary) return json(res,409,{error:'primary_owner_must_be_transferred_first'}); if (input.isPrimary === true && current.rows[0].active === false) return json(res,409,{error:'inactive_owner_cannot_be_primary'}); if (input.login !== undefined && !/^[^\s@]+@[^\s@]+$/.test(String(input.login).trim())) return json(res,400,{error:'valid_owner_email_required'}); if (req.method === 'PATCH' && input.isPrimary === true) { const client=await repositories.pool.connect(); try { await client.query('BEGIN'); await client.query('UPDATE organization_memberships SET is_primary=false WHERE organization_id=$1 AND membership_role=\'owner\'', [organizationId]); await client.query('UPDATE organization_memberships SET is_primary=true,status=\'active\' WHERE organization_id=$1 AND user_id=$2 AND membership_role=\'owner\'', [organizationId,targetId]); await client.query('COMMIT'); recordAudit(req,'platform.owner_transferred','organization_owner',targetId,current.rows[0],{...current.rows[0],isPrimary:true}); return json(res,200,{...current.rows[0],isPrimary:true}); } catch(error) { await client.query('ROLLBACK').catch(()=>{}); return json(res,503,{error:'owner_transfer_failed'}); } finally { client.release(); } } const fields=[]; const values=[]; if(input.name!==undefined){values.push(String(input.name).trim());fields.push(`full_name=$${values.length}`);} if(input.login!==undefined){values.push(String(input.login).trim().toLowerCase());fields.push(`login=$${values.length}`);} if(input.password){ if(String(input.password).length<8)return json(res,400,{error:'password_too_short'}); values.push(await hashPassword(input.password));fields.push(`password_hash=$${values.length}`);} if(input.active!==undefined){values.push(Boolean(input.active));fields.push(`is_active=$${values.length}`);} if(!fields.length)return json(res,200,current.rows[0]); values.push(targetId); let updated; try { updated=await repositories.pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=${values.length} RETURNING id,full_name AS name,login,is_active AS active`,values); } catch(error) { if(input.login!==undefined && error.code==='23505') return json(res,409,{error:'owner_login_already_exists'}); throw error; } if(input.password || input.active === false) { await repositories.pool.query('DELETE FROM auth_sessions WHERE user_id=$1',[targetId]); for (const [sessionToken, session] of sessions) if (session.user?.id === targetId) sessions.delete(sessionToken); } recordAudit(req,'platform.owner_updated','organization_owner',targetId,current.rows[0],updated.rows[0]); return json(res,200,updated.rows[0]);
     } catch (error) { return json(res,503,{error:'owner_management_failed'}); }
   }
+  if (platformOrgPath && req.method === 'GET') {
+    if (denyUnless(req, res, 'platform')) return;
+    const organizationId = platformOrgPath[1];
+    if (repositories?.pool && !/^[0-9a-f-]{36}$/i.test(organizationId)) return json(res, 404, { error: 'organization_not_found' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(organizationId)) {
+      try {
+        const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,COALESCE(s.plan,o.plan) AS "subscriptionPlan",COALESCE(s.seats_limit,5) AS "seatsLimit",COALESCE(s.venues_limit,1) AS "venuesLimit",
+          (SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,
+          (SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true AND u.deleted_at IS NULL) AS seats,
+          (SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city,
+          (SELECT COALESCE(json_agg(json_build_object('id',u.id,'name',u.full_name,'login',u.login,'active',u.is_active,'isPrimary',m.is_primary) ORDER BY m.is_primary DESC,u.full_name),'[]'::json)
+             FROM users u JOIN organization_memberships m ON m.user_id=u.id AND m.organization_id=o.id
+            WHERE u.organization_id=o.id AND m.membership_role='owner' AND u.deleted_at IS NULL) AS owners
+          FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1 LIMIT 1`, [organizationId]);
+        if (!rows[0]) return json(res, 404, { error: 'organization_not_found' });
+        const item = rows[0];
+        return json(res, 200, { ...item, venues: Number(item.venues || 0), seats: Number(item.seats || 0), seatsLimit: Number(item.seatsLimit || 0), venuesLimit: Number(item.venuesLimit || 0), owners: item.owners || [] });
+      } catch (_) { return json(res, 503, { error: 'organization_details_unavailable' }); }
+    }
+    const item = saasOrganizations.find((entry) => entry.id === organizationId);
+    if (!item) return json(res, 404, { error: 'organization_not_found' });
+    const owners = (item.owners || provisionedAccounts.filter((entry) => entry.organizationId === organizationId).map((entry) => ({ id: entry.id, name: entry.name, login: entry.username, active: true, isPrimary: true }))).map((owner) => ({ ...owner, active: owner.active !== false, isPrimary: owner.isPrimary !== false }));
+    return json(res, 200, { ...item, venues: Number(item.venues || 0), seats: Number(item.seats || 0), seatsLimit: Number(item.seatsLimit || saasPlans[item.plan]?.seatsLimit || 0), venuesLimit: Number(item.venuesLimit || saasPlans[item.plan]?.venuesLimit || 0), owners });
+  }
   if (platformOrgPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'platform')) return;
     if (repositories?.pool) return json(res, 410, { error: 'use_subscription_endpoint' });
