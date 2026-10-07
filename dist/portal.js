@@ -196,6 +196,7 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
   const currentPath = currentUrl.pathname;
   const currentHash = currentUrl.hash;
   const currentView = currentUrl.searchParams.get('view') || 'stock';
+  const initialDocumentReload = (() => { try { return performance.getEntriesByType('navigation')[0]?.type === 'reload'; } catch (_) { return false; } })();
   const defaultGroupOpen = (key) => {
     if (key === 'operations') return ['/', '/orders', '/reservations', '/clients', '/delivery'].includes(currentPath);
     if (key === 'menu') return currentPath === '/inventory' && ['products', 'recipes'].includes(currentView);
@@ -372,7 +373,8 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
   const normalizedGroups = [...disclosureRoot.querySelectorAll('details.sidebar-nav-group[data-nav-group]')];
   const savedOpenGroup = normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true);
   const hasSavedDisclosureState = normalizedGroups.some((group) => savedGroupState(group.dataset.navGroup) !== null);
-  const preferredGroup = routeChange ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup : (currentPath === '/admin' && !currentHash ? null : normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup))));
+  const preferCurrentRoute = routeChange || !initialDocumentReload;
+  const preferredGroup = preferCurrentRoute ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup : (currentPath === '/admin' && !currentHash ? null : normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup))));
   normalizedGroups.forEach((group) => { group.open = group === preferredGroup; });
   const homeLink = sidebar.querySelector(':scope > a[href="/admin"]');
   if (homeLink && homeLink.dataset.homeDisclosureBound !== 'true') {

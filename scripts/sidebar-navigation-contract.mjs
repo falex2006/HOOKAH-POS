@@ -8,7 +8,8 @@ assert.match(portal, /const rememberGroupState = \(details, key\) => \{/);
 // Navigation now restores a single preferred group. Restoring every saved group
 // was deliberately removed because it reopened multiple sections after reload.
 assert.match(portal, /const savedOpenGroup = normalizedGroups\.find\(\(group\) => savedGroupState\(group\.dataset\.navGroup\) === true\);/);
-assert.ok(portal.includes('const preferredGroup = routeChange ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup'));
+assert.ok(portal.includes('const preferCurrentRoute = routeChange || !initialDocumentReload;'));
+assert.ok(portal.includes('const preferredGroup = preferCurrentRoute ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup'));
 assert.match(portal, /normalizedGroups\.forEach\(\(group\) => \{ group\.open = group === preferredGroup; \}\)/);
 assert.match(portal, /homeLink\.addEventListener\('click', \(\) => \{\s*normalizedGroups\.forEach\(\(group\) => \{\s*group\.open = false;/);
 assert.doesNotMatch(portal, /activeGroup\.open = true/);
