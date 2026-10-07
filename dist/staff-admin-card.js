@@ -26,4 +26,3 @@
   // employee modal covering another admin section.
   window.addEventListener('hashchange',()=>{navigationEpoch+=1;document.querySelectorAll('.staff-admin-modal').forEach((modal)=>modal.remove());});
 })();
-

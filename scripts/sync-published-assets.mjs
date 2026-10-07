@@ -122,6 +122,3 @@ cpSync(resolve(root, 'assets', 'login-background.mp4'), resolve(root, 'dist', 'a
 cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'), { recursive: true });
     .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`)
     .replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
-
-
-
