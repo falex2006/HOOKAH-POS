@@ -3306,6 +3306,15 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .portal.velora-theme .staff-catalog .staff-list-tools .custom-select{width:100%;min-width:0;}
 .portal.velora-theme .staff-catalog .staff-list-tools input::placeholder{color:#9bacc6;opacity:1;}
 
+/* System role editor uses the same compact permission language as custom roles. */
+.velora-theme #staff.staff-permissions-mode .system-role-list .system-role-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 14px;border:1px solid #30363f;border-radius:13px;background:linear-gradient(110deg,rgba(255,255,255,.025),transparent)}
+.velora-theme #staff.staff-permissions-mode .system-role-list .system-role-item>div{display:grid;gap:4px;min-width:0}
+.velora-theme #staff.staff-permissions-mode .system-role-list .system-role-item b{color:#f3f5f7}
+.velora-theme #staff.staff-permissions-mode .system-role-list .system-role-item small{color:#9da7b5;line-height:1.35}
+.velora-theme #staff.staff-permissions-mode .system-role-list .system-role-item button{min-height:36px;white-space:nowrap}
+.velora-theme #staff.staff-permissions-mode .system-role-list .system-role-owner{grid-template-columns:1fr auto}
+.velora-theme #staff.staff-permissions-mode .system-role-edit-name{padding:12px 14px;border:1px solid #343b46;border-radius:11px;background:#151a22;color:#ffb36f;font-weight:750}
+
 /* Staff directory: one calm control rail and consistent geometry for every view. */
 .portal.velora-theme .staff-catalog .staff-directory-view-controls {
   grid-column: 1 / -1;
