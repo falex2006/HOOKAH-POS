@@ -4969,3 +4969,8 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Этап 6/7 (визуальная доводка): подэтап 6.1 завершён. Design, visual-page, live-defect, header, sidebar, date, staff and payroll UI contracts PASS.
 - Edge runtime check: `/admin#staff` renders the staff and role sections; `/finance#payroll` renders the payroll register and aligned filter block. In demo-memory mode the register explicitly shows the expected database-required empty/error state; this is not a silent failure.
 - Переход к Этапу 7/7 — итоговый QA и подготовка локального релиза.
+
+## 2026-10-07 — staged plan complete
+- Этап 7/7 (итоговый QA и локальный релиз): завершён. `main` чистая, единственный worktree; HEAD и `origin/main` совпадают на `7919479a`.
+- Полный статический QA: 136/136 PASS. Этапы 1–6 отмечены завершёнными; VPS не обновлялся по плану.
+- Локальная версия готова для следующего отдельного решения о релизе на VPS.
