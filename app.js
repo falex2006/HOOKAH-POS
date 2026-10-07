@@ -296,7 +296,9 @@ const renderZone=(zone)=>{
     const safeLabel=escapeFloorText(label);
     const ariaLabel=escapeFloorText(`${t.name||'Стол'}: ${label}`);
     const smallText=t.status==='reserved'&&t.reservation?.createdByRole?`Оформил: ${t.reservation.createdByRole}`:capacityText;
-    return `<button type="button" class="table shape-${place.shape} ${place.rotation%180?'is-rotated':''} ${t.status==='occupied'?'busy':t.status==='reserved'?'reserve':t.status==='awaiting_payment'?'awaiting':t.status==='blocked'?'blocked':'free'} ${String(currentOrder?.tableId||'')===String(t.id)?'sel':''}" style="${style}" data-table="${escapeFloorText(t.id)}" data-status="${escapeFloorText(t.status||'free')}" data-layout-x="${place.x}" data-layout-y="${place.y}" data-layout-width="${place.width}" data-layout-height="${place.height}" aria-label="${ariaLabel}" title="${ariaLabel}" ${t.status==='blocked'?'disabled':''}><strong>${safeTableName}</strong><em>${safeLabel}</em><small>${escapeFloorText(smallText)}</small></button>`;
+    const amenities=t.layout?.amenities||{};
+    const amenityMarkup=(amenities.playstation5||amenities.television)?`<span class="table-amenities" aria-label="Оснащение стола">${amenities.playstation5?'<b class="table-amenity table-amenity--playstation">PS5</b>':''}${amenities.television?'<b class="table-amenity table-amenity--tv">TV</b>':''}</span>`:'';
+    return `<button type="button" class="table shape-${place.shape} ${place.rotation%180?'is-rotated':''} ${t.status==='occupied'?'busy':t.status==='reserved'?'reserve':t.status==='awaiting_payment'?'awaiting':t.status==='blocked'?'blocked':'free'} ${String(currentOrder?.tableId||'')===String(t.id)?'sel':''}" style="${style}" data-table="${escapeFloorText(t.id)}" data-status="${escapeFloorText(t.status||'free')}" data-layout-x="${place.x}" data-layout-y="${place.y}" data-layout-width="${place.width}" data-layout-height="${place.height}" aria-label="${ariaLabel}" title="${ariaLabel}" ${t.status==='blocked'?'disabled':''}><strong>${safeTableName}</strong><em>${safeLabel}</em><small>${escapeFloorText(smallText)}</small>${amenityMarkup}</button>`;
   }).join('')+'</div>';
   updateFloorMapMode();
 };

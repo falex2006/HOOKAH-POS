@@ -2369,21 +2369,21 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/floor/tables' && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
-    const input = await body(req); const zoneId = String(input.zoneId || '').trim(); const name = String(input.name || '').trim(); const capacity = Number(input.capacity || 2); const minCapacity = Number(input.minCapacity ?? capacity); const maxCapacity = Number(input.maxCapacity ?? capacity); const minimumOrderTotal = Number(input.minimumOrderTotal || 0);
+    const input = await body(req); const zoneId = String(input.zoneId || '').trim(); const name = String(input.name || '').trim(); const capacity = Number(input.capacity || 2); const minCapacity = Number(input.minCapacity ?? capacity); const maxCapacity = Number(input.maxCapacity ?? capacity); const minimumOrderTotal = Number(input.minimumOrderTotal || 0); const requestedLayout = input.layout && typeof input.layout === 'object' && !Array.isArray(input.layout) ? input.layout : {}; const amenities = requestedLayout.amenities && typeof requestedLayout.amenities === 'object' && !Array.isArray(requestedLayout.amenities) ? { playstation5: Boolean(requestedLayout.amenities.playstation5), television: Boolean(requestedLayout.amenities.television) } : { playstation5: false, television: false }; const tableLayout = { amenities };
     if (!zoneId || !name || name.length > 80) return json(res, 400, { error: 'invalid_table_name' });
     if (!Number.isInteger(capacity) || capacity < 1 || capacity > 100 || !Number.isInteger(minCapacity) || !Number.isInteger(maxCapacity) || minCapacity < 1 || maxCapacity < minCapacity || maxCapacity > 100) return json(res, 400, { error: 'invalid_table_capacity' });
     if (!Number.isFinite(minimumOrderTotal) || minimumOrderTotal < 0) return json(res, 400, { error: 'invalid_vip_minimum' });
     if (repositories?.pool && !/^[0-9a-f-]{36}$/i.test(zoneId)) return json(res, 404, { error: 'zone_not_found' });
     return runFloorMutation(req, res, input.expectedVenueId, repositories?.pool ? venueDbId : currentVenueId, async (client) => {
       if (client) {
-        const { rows } = await client.query('INSERT INTO tables (zone_id,name,capacity,min_capacity,max_capacity,min_deposit,min_order_total) SELECT id,$2,$3,$4,$5,$6,$6 FROM zones WHERE id=$1 AND venue_id=$7 RETURNING id,name,status,capacity,min_capacity,max_capacity,min_order_total,layout,archived_at AS "archivedAt",archive_version AS "archiveVersion"', [zoneId, name, capacity, minCapacity, maxCapacity, minimumOrderTotal, venueDbId]);
+        const { rows } = await client.query('INSERT INTO tables (zone_id,name,capacity,min_capacity,max_capacity,min_deposit,min_order_total,layout) SELECT id,$2,$3,$4,$5,$6,$6,$7::jsonb FROM zones WHERE id=$1 AND venue_id=$8 RETURNING id,name,status,capacity,min_capacity,max_capacity,min_order_total,layout,archived_at AS "archivedAt",archive_version AS "archiveVersion"', [zoneId, name, capacity, minCapacity, maxCapacity, minimumOrderTotal, JSON.stringify(tableLayout), venueDbId]);
         if (!rows[0]) return { status: 404, body: { error: 'zone_not_found' } };
         const table = { ...rows[0], archiveVersion: Number(rows[0].archiveVersion || 0), minimumOrderTotal: Number(rows[0].min_order_total), minCapacity: Number(rows[0].min_capacity || rows[0].capacity), maxCapacity: Number(rows[0].max_capacity || rows[0].capacity), layout: rows[0].layout || {} };
         return { status: 201, body: table, audit: { action: 'floor_table.created', entityType: 'table', entityId: table.id, before: null, after: table } };
       }
       const zone = floor.find((entry) => entry.id === zoneId);
       if (!zone) return { status: 404, body: { error: 'zone_not_found' } };
-      const table = { id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, status: 'free', capacity, minCapacity, maxCapacity, minimumOrderTotal, archivedAt: null, archiveVersion: 0, layout: {} };
+      const table = { id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, status: 'free', capacity, minCapacity, maxCapacity, minimumOrderTotal, archivedAt: null, archiveVersion: 0, layout: tableLayout };
       zone.tables.push(table);
       return { status: 201, body: table, audit: { action: 'floor_table.created', entityType: 'table', entityId: table.id, before: null, after: table } };
     });
@@ -2473,7 +2473,12 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const input = await body(req);
     const tableId = decodeURIComponent(floorTablePath[1]);
     if (repositories?.pool && !/^[0-9a-f-]{36}$/i.test(tableId)) return json(res, 404, { error: 'table_not_found' });
-    const layout = input.layout && typeof input.layout === 'object' && !Array.isArray(input.layout) ? input.layout : {};
+    const requestedLayout = input.layout && typeof input.layout === 'object' && !Array.isArray(input.layout) ? input.layout : {};
+    const layout = { ...requestedLayout };
+    if (layout.amenities !== undefined) {
+      if (!layout.amenities || typeof layout.amenities !== 'object' || Array.isArray(layout.amenities)) return json(res, 400, { error: 'invalid_table_amenities' });
+      layout.amenities = { playstation5: Boolean(layout.amenities.playstation5), television: Boolean(layout.amenities.television) };
+    }
     for (const key of ['x', 'y', 'width', 'height', 'rotation']) if (layout[key] !== undefined && (!Number.isFinite(Number(layout[key])) || Number(layout[key]) < 0 || Number(layout[key]) > 5000)) return json(res, 400, { error: 'invalid_table_layout' });
     if (layout.unit !== undefined && !['px', 'grid'].includes(String(layout.unit))) return json(res, 400, { error: 'invalid_table_layout_unit' });
     if (layout.shape !== undefined && !['rectangle', 'square', 'circle', 'oval', 'freeform'].includes(String(layout.shape))) return json(res, 400, { error: 'invalid_table_shape' });
