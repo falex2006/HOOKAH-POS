@@ -2867,3 +2867,8 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   .velora-theme .orders-view .orders-table tbody td.empty{display:block;grid-column:1/-1;padding:14px 8px;border:0;text-align:center}
   .velora-theme .orders-view .orders-table tbody td.empty::before{content:none}
 }
+
+/* Small control polish: keep status badges, phone fields and native dates on the same visual grid. */
+.velora-theme .network-row .toolbar-row{align-items:center}
+.velora-theme input[type="tel"]{box-sizing:border-box;min-height:44px;line-height:1.2;padding-block:0}
+.velora-theme input[type="date"],.velora-theme input[type="time"]{box-sizing:border-box;min-height:44px;line-height:1.2;padding-block:0;color-scheme:dark}
