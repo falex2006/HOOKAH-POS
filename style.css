@@ -3349,7 +3349,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .portal.velora-theme .staff-catalog .staff-directory-view-controls {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: auto minmax(250px, 1fr) minmax(260px, 1.2fr);
+  grid-template-columns: auto 276px minmax(0, 1fr);
   align-items: center;
   gap: 14px 18px;
   min-width: 0;
@@ -3375,8 +3375,10 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   border-radius: 10px;
   background: #0d151f;
 }
-.portal.velora-theme .staff-catalog .staff-view-switch button {
-  min-height: 36px;
+.portal.velora-theme .staff-catalog .staff-view-switch button,
+.portal.velora-theme .staff-catalog .staff-card-scale-control button {
+  min-width: 0;
+  min-height: 44px;
   padding: 0 13px;
   border: 0;
   border-radius: 7px;
@@ -3389,14 +3391,16 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   transition: background .18s ease, color .18s ease, box-shadow .18s ease;
 }
 .portal.velora-theme .staff-catalog .staff-view-switch button:hover { color: var(--staff-text); }
-.portal.velora-theme .staff-catalog .staff-view-switch button[aria-pressed="true"] {
+.portal.velora-theme .staff-catalog .staff-view-switch button[aria-pressed="true"],
+.portal.velora-theme .staff-catalog .staff-card-scale-control button[aria-pressed="true"] {
   background: linear-gradient(110deg, rgba(255, 80, 91, .95), rgba(255, 145, 62, .95));
   color: #fff;
   box-shadow: 0 5px 14px rgba(255, 91, 88, .2);
 }
-.portal.velora-theme .staff-catalog .staff-card-scale:not([hidden]) {
+.portal.velora-theme .staff-catalog .staff-card-scale {
   display: grid;
-  grid-template-columns: auto minmax(150px, 1fr);
+  grid-template-columns: auto 184px;
+  justify-content: end;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -3406,33 +3410,38 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 }
 .portal.velora-theme .staff-catalog .staff-card-scale-control {
   display: grid;
-  grid-template-columns: auto minmax(90px, 1fr) auto;
+  grid-template-columns: repeat(4, 44px);
+  padding: 3px;
+  border: 1px solid #33465a;
+  border-radius: 10px;
+  background: #0d151f;
+  box-sizing: border-box;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   min-width: 0;
   color: #8092aa;
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
-.portal.velora-theme .staff-catalog .staff-card-scale input { width: 100%; min-width: 0; accent-color: var(--staff-orange); }
+.portal.velora-theme .staff-catalog .staff-card-scale.is-disabled { opacity: .45; }
 
-.portal.velora-theme .staff-catalog #staff-list[data-view="cards"] { grid-template-columns: repeat(auto-fill, minmax(var(--staff-card-min, 240px), 1fr)); }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"] { grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--staff-card-min, 240px)), 1fr)); }
 .portal.velora-theme .staff-catalog #staff-list[data-view="list"],
 .portal.velora-theme .staff-catalog #staff-list[data-view="table"] { grid-template-columns: minmax(0, 1fr); }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="1"] { --staff-card-min: 210px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="2"] { --staff-card-min: 240px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="3"] { --staff-card-min: 280px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="4"] { --staff-card-min: 320px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="1"] { --staff-card-min: 210px; --staff-avatar-radius:75px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="2"] { --staff-card-min: 240px; --staff-avatar-radius:88px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="3"] { --staff-card-min: 280px; --staff-avatar-radius:101px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="4"] { --staff-card-min: 320px; --staff-avatar-radius:114px; }
 .portal.velora-theme .staff-catalog #staff-list .staff-card { min-height: 430px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="1"] .staff-card-portrait { min-height: 166px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="1"] .staff-card-avatar { width: min(150px, 100%); }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="2"] .staff-card-portrait { min-height: 190px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="2"] .staff-card-avatar { width: min(176px, 100%); }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="3"] .staff-card-portrait { min-height: 214px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="3"] .staff-card-avatar { width: min(202px, 100%); }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="4"] .staff-card-portrait { min-height: 238px; }
-.portal.velora-theme .staff-catalog #staff-list[data-card-scale="4"] .staff-card-avatar { width: min(228px, 100%); }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="1"] .staff-card-portrait { min-height: 166px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="1"] .staff-card-avatar { width: min(150px, 100%); }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="2"] .staff-card-portrait { min-height: 190px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="2"] .staff-card-avatar { width: min(176px, 100%); }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="3"] .staff-card-portrait { min-height: 214px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="3"] .staff-card-avatar { width: min(202px, 100%); }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="4"] .staff-card-portrait { min-height: 238px; }
+.portal.velora-theme .staff-catalog #staff-list[data-view="cards"][data-card-scale="4"] .staff-card-avatar { width: min(228px, 100%); }
 
 .portal.velora-theme .staff-catalog #staff-list .staff-directory-row {
   display: grid;
@@ -3459,10 +3468,10 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .portal.velora-theme .staff-catalog .staff-directory-row .staff-card-contacts { display: grid; gap: 6px; min-width: 0; margin: 0; font-size: 13px; }
 .portal.velora-theme .staff-catalog .staff-directory-row .staff-card-status { justify-self: start; margin: 0; }
 .portal.velora-theme .staff-catalog .staff-directory-row .staff-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; min-width: 0; }
-.portal.velora-theme .staff-catalog .staff-directory-row .staff-card-actions button { width: auto; min-width: 112px; min-height: 40px; }
+.portal.velora-theme .staff-catalog .staff-directory-row .staff-card-actions button { width: auto; min-width: 112px; min-height: 44px; }
 
 .portal.velora-theme .staff-catalog .staff-table-scroll { overflow-x: auto; border: 1px solid var(--staff-border); border-radius: 12px; background: var(--staff-card-deep); }
-.portal.velora-theme .staff-catalog .staff-directory-table { width: 100%; min-width: 860px; border-collapse: collapse; table-layout: fixed; }
+.portal.velora-theme .staff-catalog .staff-directory-table { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; }
 .portal.velora-theme .staff-catalog .staff-directory-table th { padding: 13px 16px; border-bottom: 1px solid var(--staff-border-soft); color: #8092aa; font-size: 11px; font-weight: 750; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
 .portal.velora-theme .staff-catalog .staff-directory-table td { padding: 14px 16px; border-bottom: 1px solid rgba(43, 58, 76, .72); color: var(--staff-muted); vertical-align: middle; }
 .portal.velora-theme .staff-catalog .staff-directory-table tbody tr:last-child td { border-bottom: 0; }
@@ -3475,23 +3484,41 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .portal.velora-theme .staff-catalog .staff-directory-table tr.staff-row > td { display: table-cell; }
 .portal.velora-theme .staff-catalog .staff-directory-table .staff-card-status { margin: 0; }
 .portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions button { width: auto; min-height: 38px; padding-inline: 11px; }
+.portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions button { width: auto; min-height: 44px; padding-inline: 11px; }
 
-@media (max-width: 1080px) {
-  .portal.velora-theme .staff-catalog .staff-directory-view-controls { grid-template-columns: auto minmax(220px, 1fr); }
-  .portal.velora-theme .staff-catalog .staff-card-scale:not([hidden]) { grid-column: 1 / -1; }
+/* Size is reserved in every view; table icons never inherit portrait positioning. */
+.portal.velora-theme .staff-catalog .staff-card-scale-control button { padding: 0; }
+.portal.velora-theme .staff-catalog .staff-card-scale-control button:disabled { cursor: default; }
+.portal.velora-theme .staff-catalog .staff-card-portrait .staff-card-owner { right: max(0px, calc(50% - var(--staff-avatar-radius, 88px))); }
+.portal.velora-theme .staff-catalog .staff-table-person .staff-card-owner { position: static; flex: 0 0 24px; width: 24px; height: 24px; border: 0; background: transparent; }
+.portal.velora-theme .staff-catalog .staff-table-person .staff-card-owner svg { width: 18px; height: 18px; }
+.portal.velora-theme .staff-catalog .staff-directory-table th:nth-child(1) { width: 23%; }
+.portal.velora-theme .staff-catalog .staff-directory-table th:nth-child(2) { width: 17%; }
+.portal.velora-theme .staff-catalog .staff-directory-table th:nth-child(3) { width: 24%; }
+.portal.velora-theme .staff-catalog .staff-directory-table th:nth-child(4) { width: 15%; }
+.portal.velora-theme .staff-catalog .staff-directory-table td { overflow-wrap: anywhere; }
+.portal.velora-theme .staff-catalog .staff-directory-table .staff-card-status { white-space: nowrap; padding-inline: 9px; }
+.portal.velora-theme .staff-catalog #staff-list [hidden] { display: none !important; }
+
+@media (max-width: 1280px) {
+  .portal.velora-theme .staff-catalog .staff-directory-view-controls { grid-template-columns: auto 276px; justify-content: start; }
+  .portal.velora-theme .staff-catalog .staff-card-scale { grid-column: 1 / -1; justify-content: start; }
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row { grid-template-columns: 58px minmax(150px, 1fr) minmax(180px, 1.2fr) auto; }
-  .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions { grid-column: 2 / -1; justify-content: flex-start; }
+  .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions { grid-column: 2 / -1; grid-row: 2; justify-content: flex-start; }
 }
 @media (max-width: 680px) {
   .portal.velora-theme .staff-catalog .staff-directory-view-controls { grid-template-columns: 1fr; gap: 10px; }
   .portal.velora-theme .staff-catalog .staff-view-switch { width: 100%; }
-  .portal.velora-theme .staff-catalog .staff-card-scale:not([hidden]) { grid-template-columns: 1fr; }
-  .portal.velora-theme .staff-catalog .staff-card-scale-control { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .portal.velora-theme .staff-catalog .staff-card-scale { grid-template-columns: 1fr; }
+  .portal.velora-theme .staff-catalog .staff-card-scale-control { width: 184px; }
+
+}
+
+@media (max-width: 1100px) {
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row { grid-template-columns: 54px minmax(0, 1fr); gap: 10px 12px; }
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-contacts,
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-status,
-  .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions { grid-column: 1 / -1; }
+  .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions { grid-column: 1 / -1; grid-row: auto; }
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-status { justify-self: start; }
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions { justify-content: stretch; }
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions button { flex: 1 1 130px; }
@@ -3777,3 +3804,5 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme #loyalty-reconciliation-results>.kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:900px){.velora-theme #loyalty-reconciliation-results>.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.velora-theme .loyalty-reconciliation-panel>.toolbar-row,.velora-theme #loyalty-reconciliation-results>.kpi-grid{grid-template-columns:1fr}}
+
+.portal.velora-theme .staff-catalog :is(.staff-directory-row,.staff-table-row) .staff-card-actions button{flex:0 0 auto;height:auto;padding:10px 12px}

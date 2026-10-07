@@ -1,6 +1,8 @@
 const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_PATH || 'playwright');
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 (async () => {
   const server = spawn(process.execPath, ['server.js'], {
@@ -36,7 +38,7 @@ const assert = require('node:assert/strict');
     const managerPassword = 'ViewQa1234';
     const created = await page.request.post(`${base}/api/staff`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { name: 'QA управляющий вида каталога', login: managerLogin, password: managerPassword, role: 'manager', birthDate: '1990-01-01' },
+      data: { name: 'QA управляющий вида каталога', login: managerLogin, password: managerPassword, role: 'manager', birthDate: '1990-01-01', phoneNumbers: [{number: '+79990000000', primary: true}], telegram: '@qa_staff' },
     });
     assert.equal(created.status(), 201, await created.text());
     const managerToken = await login(managerLogin, managerPassword);
@@ -76,28 +78,45 @@ const assert = require('node:assert/strict');
     await page.locator('[data-staff-view="cards"]').click();
     await page.waitForFunction(() => document.querySelector('#staff-list')?.dataset.view === 'cards');
     assert.ok(await page.locator('.staff-card .staff-edit').count() > 0, 'cards must retain profile actions');
-    const scale = page.getByLabel('Размер плиток сотрудников');
-    await scale.press('End');
+    await page.locator('[data-staff-scale="4"]').click();
     await page.waitForFunction(() => document.querySelector('#staff-list')?.dataset.cardScale === '4');
     await page.reload({ waitUntil: 'networkidle' });
     assert.equal(await page.locator('#staff-list').getAttribute('data-view'), 'cards', 'last selected view must persist on reload');
     assert.equal(await page.locator('#staff-list').getAttribute('data-card-scale'), '4', 'card scale must persist on reload');
-    for (const width of [390, 620, 768, 1440]) {
+    fs.mkdirSync('tmp/staff-views', { recursive: true });
+    for (const width of [390, 620, 768, 1440, 1920]) {
       await page.setViewportSize({ width, height: 900 });
       await page.locator('#staff-list').waitFor();
       const layout = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, page: document.documentElement.scrollWidth }));
       assert.ok(layout.page <= layout.viewport + 1, `page must not scroll horizontally at ${width}px: ${JSON.stringify(layout)}`);
+      for (const view of ['cards', 'list', 'table']) {
+        await page.locator(`[data-staff-view="${view}"]`).click();
+        await page.waitForTimeout(300);
+        const bounds = await page.locator('[data-staff-view]').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().height));
+        assert.equal(new Set(bounds).size, 1, 'view buttons equal heights');
+        if (view !== 'cards') {
+          const avatar = await page.locator('#staff-list .staff-card-avatar').first().boundingBox();
+          assert.ok(avatar.width <= 60, 'card scale must not leak into list/table');
+        }
+        const icons = await page.locator('.staff-table-contacts svg').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().width));
+        if (view === 'table') assert.ok(icons.length > 0, 'contact icon fixture present');
+        assert.ok(icons.every(width => width <= 24), 'contact icons bounded');
+        if ([390,1920].includes(width)) await page.screenshot({ path: path.resolve(`tmp/staff-views/${view}-${width}.png`) });
+      }
       if (width <= 620) {
         await page.locator('[data-staff-view="table"]').click();
         await page.locator('.staff-directory-table tbody .staff-table-row').first().waitFor({ timeout: 1000 }).catch(() => {});
         const tableDisplay = await page.locator('.staff-directory-table').evaluate((node) => getComputedStyle(node).display);
-        assert.equal(tableDisplay, 'block', 'table should become stacked on narrow screens');
+        assert.equal(tableDisplay, 'table', 'table retains columns with local scrolling on narrow screens');
+        assert.equal(await page.locator('.staff-table-scroll').evaluate(n => getComputedStyle(n).overflowX), 'auto');
+        assert.equal(await page.locator('.staff-table-person .staff-card-owner').first().evaluate(n => getComputedStyle(n).position), 'static', 'crown stays inside owner row');
       }
     }
     assert.deepEqual(pageErrors, [], `unexpected browser errors: ${pageErrors.join('; ')}`);
-    console.log('PASS staff directory cards/list/table, range and per-account preference isolation; responsive widths 390/620/768/1440');
+    console.log('PASS staff directory cards/list/table, presets and per-account preference isolation; responsive widths 390/620/768/1440');
   } finally {
     if (browser) await browser.close();
     server.kill();
   }
 })().catch((error) => { console.error(error); process.exitCode = 1; });
+

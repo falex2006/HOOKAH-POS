@@ -2072,7 +2072,7 @@ function renderDashboard() {
       const roleLabel = labels[person.role] || person.role || "Сотрудник"; const accessLabel = person.customRoleName ? `${roleLabel} · роль: ${person.customRoleName}` : roleLabel;
       const identity = `<div class="staff-card-identity"><h3>${name}</h3><p>${esc(accessLabel)}</p></div>`;
       if (view === 'list') return `<article class="staff-directory-row staff-row${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}"><div class="staff-directory-avatar">${avatar}</div>${identity}<div class="staff-card-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</div>${status}${actions}</article>`;
-      if (view === 'table') return `<tr class="staff-table-row staff-row${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}"><td data-label="Сотрудник"><div class="staff-table-person">${avatar}<strong>${name}</strong>${person.role === 'owner' ? `<span class="staff-card-owner" title="Владелец заведения" aria-label="Владелец заведения">${staffCardIcon('crown')}</span>` : ''}</div></td><td data-label="Должность">${esc(accessLabel)}</td><td data-label="Контакты" class="staff-table-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</td><td data-label="Статус">${status}</td><td data-label="Действия">${actions}</td></tr>`;
+      if (view === 'table') return `<tr class="staff-table-row staff-row${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}"><td data-label="Сотрудник"><div class="staff-table-person">${avatar}<strong>${name}</strong>${person.role === 'owner' ? `<span class="staff-card-owner" title="Владелец заведения" aria-label="Владелец заведения">${staffCardIcon('crown')}</span>` : ''}</div></td><td data-label="Должность">${esc(accessLabel)}</td><td data-label="Контакты" class="staff-table-contacts"><div class="staff-card-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</div></td><td data-label="Статус">${status}</td><td data-label="Действия">${actions}</td></tr>`;
       return `<article class="staff-card${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}">
         <div class="staff-card-portrait">
           ${avatar}
@@ -2133,7 +2133,7 @@ function renderDashboard() {
   const staffList = document.querySelector('#staff-list');
   if (staffPanel && staffHead && staffList) {
     const staffTools = document.createElement('div'); staffTools.className = 'staff-list-tools';
-    staffTools.innerHTML = '<input id="staff-search" class="table-search" type="search" placeholder="Поиск сотрудника" aria-label="Поиск сотрудника"><select id="staff-role-filter" aria-label="Фильтр по роли"><option value="">Все роли</option><option value="admin">Администратор</option><option value="manager">Управляющий</option><option value="senior_bartender">Старший бармен</option><option value="bartender">Бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="hookah_master">Кальянщик</option><option value="cleaner">Уборщица / уборщик</option><option value="security">Охрана</option><option value="technician">Техник</option><option value="other_staff">Другая должность</option></select><select id="staff-status-filter" aria-label="Фильтр по статусу"><option value="">Все статусы</option><option value="active">Активные</option><option value="inactive">Заблокированные</option></select><div class="staff-directory-view-controls" role="group" aria-label="Вид списка сотрудников"><span class="staff-view-label">Вид отображения</span><div class="staff-view-switch"><button type="button" data-staff-view="cards" aria-pressed="true">Плитки</button><button type="button" data-staff-view="list" aria-pressed="false">Список</button><button type="button" data-staff-view="table" aria-pressed="false">Таблица</button></div><label class="staff-card-scale" hidden><span>Размер плиток</span><span class="staff-card-scale-control"><span>Компактнее</span><input type="range" min="1" max="4" step="1" aria-label="Размер плиток сотрудников"><span>Крупнее</span></span></label></div>';
+    staffTools.innerHTML = '<input id="staff-search" class="table-search" type="search" placeholder="Поиск сотрудника" aria-label="Поиск сотрудника"><select id="staff-role-filter" aria-label="Фильтр по роли"><option value="">Все роли</option><option value="admin">Администратор</option><option value="manager">Управляющий</option><option value="senior_bartender">Старший бармен</option><option value="bartender">Бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="hookah_master">Кальянщик</option><option value="cleaner">Уборщица / уборщик</option><option value="security">Охрана</option><option value="technician">Техник</option><option value="other_staff">Другая должность</option></select><select id="staff-status-filter" aria-label="Фильтр по статусу"><option value="">Все статусы</option><option value="active">Активные</option><option value="inactive">Заблокированные</option></select><div class="staff-directory-view-controls" role="group" aria-label="Вид списка сотрудников"><span class="staff-view-label">Вид отображения</span><div class="staff-view-switch"><button type="button" data-staff-view="cards" aria-pressed="true">Плитки</button><button type="button" data-staff-view="list" aria-pressed="false">Список</button><button type="button" data-staff-view="table" aria-pressed="false">Таблица</button></div><div class="staff-card-scale" role="group" aria-label="Размер плиток сотрудников"><span>Размер плиток</span><div class="staff-card-scale-control"><button type="button" data-staff-scale="1" aria-label="Компактные плитки" title="Компактные плитки">S</button><button type="button" data-staff-scale="2" aria-label="Средние плитки" title="Средние плитки">M</button><button type="button" data-staff-scale="3" aria-label="Крупные плитки" title="Крупные плитки">L</button><button type="button" data-staff-scale="4" aria-label="Очень крупные плитки" title="Очень крупные плитки">XL</button></div></div></div>';
     staffPanel.insertBefore(staffTools, staffPanel.querySelector('.staff-layout'));
     if (canManageStaff) {
       const addButton = document.createElement('button'); addButton.type = 'button'; addButton.className = 'button primary staff-add-button'; addButton.textContent = '＋ Добавить сотрудника'; staffHead.append(addButton);
@@ -2179,12 +2179,16 @@ function renderDashboard() {
     ['staff-search','staff-role-filter','staff-status-filter'].forEach((id) => document.querySelector(`#${id}`)?.addEventListener('input', filterRenderedStaff));
     ['staff-role-filter','staff-status-filter'].forEach((id) => document.querySelector(`#${id}`)?.addEventListener('change', filterRenderedStaff));
     const viewButtons = [...staffTools.querySelectorAll('[data-staff-view]')];
-    const scaleInput = staffTools.querySelector('.staff-card-scale input');
+    const scaleButtons = [...staffTools.querySelectorAll('[data-staff-scale]')];
     const scaleLabel = staffTools.querySelector('.staff-card-scale');
     const applyStaffDirectoryPreference = () => {
       viewButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.staffView === staffDirectoryPreference.view)));
-      scaleLabel.hidden = staffDirectoryPreference.view !== 'cards';
-      scaleInput.value = String(staffDirectoryPreference.cardScale);
+      const cardsView = staffDirectoryPreference.view === 'cards';
+      scaleLabel.classList.toggle('is-disabled', !cardsView);
+      scaleButtons.forEach((button) => {
+        button.disabled = !cardsView;
+        button.setAttribute('aria-pressed', String(Number(button.dataset.staffScale) === staffDirectoryPreference.cardScale));
+      });
       if (staffList) { staffList.dataset.view = staffDirectoryPreference.view; staffList.dataset.cardScale = String(staffDirectoryPreference.cardScale); }
       if (currentStaffItems.length) { renderStaff(currentStaffItems); filterRenderedStaff(); }
     };
@@ -2202,8 +2206,7 @@ function renderDashboard() {
       }
     };
     viewButtons.forEach((button) => button.addEventListener('click', () => updateStaffDirectoryPreference({ view: button.dataset.staffView })));
-    scaleInput.addEventListener('input', () => updateStaffDirectoryPreference({ cardScale: Number(scaleInput.value) }, false));
-    scaleInput.addEventListener('change', () => updateStaffDirectoryPreference({ cardScale: Number(scaleInput.value) }));
+    scaleButtons.forEach((button) => button.addEventListener('click', () => updateStaffDirectoryPreference({ cardScale: Number(button.dataset.staffScale) })));
     applyStaffDirectoryPreference();
     const preferenceIdentity = preferenceSessionIdentity();
     api('/api/session/preferences').then((data) => {
