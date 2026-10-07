@@ -4012,12 +4012,13 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   const staffAvatar = pathname.match(/^\/api\/staff\/([^/]+)\/avatar$/);
   if (staffAvatar && req.method === 'POST') {
-    if (!hasPermission(req, 'staff_manage') && String(req.user?.id || '') !== staffAvatar[1]) return json(res, 403, { error: 'forbidden', permission: 'staff' });
+    const isSelf = String(req.user?.id || '') === staffAvatar[1];
+    if (!hasPermission(req, 'staff_manage') && !isSelf) return json(res, 403, { error: 'forbidden', permission: 'staff' });
     const input = await body(req);
     let normalizedAvatar;
     try { normalizedAvatar = await normalizeStaffAvatarData(input.imageData); } catch (error) { return json(res, 400, { error: error.code || 'invalid_avatar' }); }
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffAvatar[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET avatar_url=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [normalizedAvatar, staffAvatar[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found' }); recordAudit(req, 'staff.avatar_updated', 'staff', rows[0].id, { avatarUrl: '[image]' }, { avatarUrl: '[image]' }); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_avatar_failed', detail: error.message }); } }
-    const person = staff.find((entry) => entry.id === staffAvatar[1]); if (!person) return json(res, 404, { error: 'staff_not_found' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffAvatar[1])) { try { const target = await repositories.pool.query('SELECT id,role FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL', [staffAvatar[1], venueDbId]); if (!target.rows[0]) return json(res, 404, { error: 'staff_not_found' }); if (!isSelf && !canManageStaffTarget(req, target.rows[0].role)) return json(res, 403, { error: target.rows[0].role === 'owner' ? 'owner_staff_protected' : 'staff_management_required' }); const { rows } = await repositories.pool.query(`UPDATE users SET avatar_url=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [normalizedAvatar, staffAvatar[1], venueDbId]); recordAudit(req, 'staff.avatar_updated', 'staff', rows[0].id, { avatarUrl: '[image]' }, { avatarUrl: '[image]' }); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_avatar_failed', detail: error.message }); } }
+    const person = staff.find((entry) => entry.id === staffAvatar[1]); if (!person) return json(res, 404, { error: 'staff_not_found' }); if (!isSelf && !canManageStaffTarget(req, person.role)) return json(res, 403, { error: person.role === 'owner' ? 'owner_staff_protected' : 'staff_management_required' });
     const hadAvatar = Boolean(person.avatarUrl); person.avatarUrl = normalizedAvatar; recordAudit(req, 'staff.avatar_updated', 'staff', person.id, { avatarUrl: hadAvatar ? '[image]' : null }, { avatarUrl: '[image]' }); return json(res, 200, person);
   }
   const staffProfile = pathname.match(/^\/api\/staff\/([^/]+)\/profile$/);
