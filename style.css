@@ -98,6 +98,34 @@
 .danger-outline { border-color: rgba(255,100,110,.45); color: #ff9ca4; background: transparent; }
 .badge.warning { color: #ffd17a; background: rgba(255,190,80,.12); }
 .badge.info { color: #ffb08f; background: rgba(255,111,128,.13); }
+.velora-theme .client-actions .vip-badge {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(255,213,132,.28);
+  background: linear-gradient(112deg, #3b3327 0%, #685238 42%, #3a3024 76%);
+  color: #ffe4a2;
+  box-shadow: 0 0 0 1px rgba(255,214,137,.06), 0 5px 16px rgba(188,137,50,.16);
+  text-shadow: 0 1px 8px rgba(255,210,126,.24);
+}
+.velora-theme .client-actions .vip-badge::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -70% -85%;
+  background: linear-gradient(104deg, transparent 43%, rgba(255,255,255,.5) 49%, rgba(255,231,166,.16) 54%, transparent 61%);
+  transform: translateX(-62%) rotate(8deg);
+  animation: vip-badge-sheen 5.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes vip-badge-sheen {
+  0%, 56% { opacity: 0; transform: translateX(-62%) rotate(8deg); }
+  65% { opacity: 1; }
+  82%, 100% { opacity: 0; transform: translateX(62%) rotate(8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .velora-theme .client-actions .vip-badge::after { animation: none; opacity: .12; transform: none; }
+}
 @media (max-width: 900px) { .discount-row { grid-template-columns: minmax(0,1fr); } }
 .order-item-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; }
 .staff-theme .order-item-row { grid-template-columns: minmax(0, 1fr) auto max-content; }
