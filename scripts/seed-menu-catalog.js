@@ -18,34 +18,31 @@ async function main() {
     await client.query('BEGIN');
     const categories = [...new Set((catalog.products || []).map((item) => String(item.category || '').trim()).filter(Boolean))];
     for (const name of categories) {
-      console.log(`Seeding category: ${name}`);
-      await client.query(
-        `UPDATE product_categories
-         SET is_active=true
-         WHERE id = (
-           SELECT id
-           FROM product_categories
-           WHERE venue_id=$1 AND lower(btrim(name))=lower(btrim($2))
-           ORDER BY is_active DESC, id ASC
-           LIMIT 1
-         )
-         AND NOT EXISTS (
-           SELECT 1
-           FROM product_categories
-           WHERE venue_id=$1 AND lower(btrim(name))=lower(btrim($2)) AND is_active
-         )`,
-        [venueId, name]
-      );
-      await client.query(
-        `INSERT INTO product_categories (venue_id, name)
-         SELECT $1, $2
-         WHERE NOT EXISTS (
-           SELECT 1 FROM product_categories
-           WHERE venue_id=$1 AND lower(btrim(name))=lower(btrim($2))
-         )
-         ON CONFLICT DO NOTHING`,
-        [venueId, name]
-      );
+      await client.query('SAVEPOINT seed_menu_category');
+      try {
+        await client.query(
+          `INSERT INTO product_categories (venue_id, name)
+           SELECT $1, $2
+           WHERE NOT EXISTS (
+             SELECT 1 FROM product_categories
+             WHERE venue_id=$1 AND lower(name)=lower($2) AND is_active=true
+           )
+           ON CONFLICT (venue_id, name) DO UPDATE SET is_active=true`,
+          [venueId, name]
+        );
+        await client.query('RELEASE SAVEPOINT seed_menu_category');
+      } catch (error) {
+        await client.query('ROLLBACK TO SAVEPOINT seed_menu_category');
+        await client.query('RELEASE SAVEPOINT seed_menu_category');
+        if (error.code !== '23505' || error.constraint !== 'idx_product_categories_active_name') throw error;
+        const activeCategory = await client.query(
+          `SELECT 1 FROM product_categories
+           WHERE venue_id=$1 AND lower(name)=lower($2) AND is_active=true
+           LIMIT 1`,
+          [venueId, name]
+        );
+        if (!activeCategory.rowCount) throw error;
+      }
     }
     for (const item of catalog.products || []) {
       await client.query(

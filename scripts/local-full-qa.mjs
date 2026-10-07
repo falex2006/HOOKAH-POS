@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 // Reviewed allowlists. New tests require explicit review; live/browser scripts are never discovered.
 const staticTests = [
+  "seed-menu-category-idempotency-contract.mjs",
   "admin-section-heading-contract.mjs",
   "ai-team-contract.mjs",
   "auth-smoke-crop-contract.mjs",
