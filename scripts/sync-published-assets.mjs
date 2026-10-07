@@ -18,7 +18,6 @@ const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '11';
 const payrollSchemeUiRevision = '17';
 const purchaseDocumentValidationRevision = '1';
-const payrollSchemeUiRevision = '17';
 const brandRevision = '2';
 const brandHead = `<!-- Hookah POS brand icons -->
 <link rel="icon" href="/assets/brand/icons/favicon.ico?rev=${brandRevision}" sizes="any">
