@@ -4931,3 +4931,15 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Browser runtime menu audit: 27 пунктов/маршрутов присутствуют, включая персонал, роли, задачи, лояльность, настройки, интеграции, сеть, диагностику, уведомления и помощь. Исчезнувших маршрутов по DOM-аудиту не обнаружено.
 - Основной dirty checkout не перезаписывался; он сохранён как источник незавершённых изменений. Для разработки каноническим локальным checkout является `HOOKAH CRM 2-release`.
 - Browser QA after canonical alignment: `/finance` now exposes payroll UI after applying pending migrations 077–081. Owner sees «Настройка зарплатных схем» and «Зарплатный реестр» lower on the same finance overview page; API no longer returns `payroll_scheme_unavailable`, empty state correctly says to create the first draft scheme.
+
+## 2026-10-07 — local canonical audit after VPS handoff
+- Локальный канонический checkout: `HOOKAH CRM 2-release`, ветка `main`, SHA `bd2893d0`; рабочее дерево чистое, `origin/main` совпадает.
+- Статический полный QA: 136/136 PASS.
+- Проверены все зарегистрированные worktree: незакоммиченные материалы сохранены отдельно и не смешаны с `main`; уникальные изменения staff-directory/manager-permissions и auth-smoke не переносились из-за конфликтов и отсутствия безопасного подтверждения совместимости.
+- VPS намеренно не изменяется после этого аудита: пользователи продолжают наполнять базу. Дальнейшие правки выполняются локально.
+
+## 2026-10-07 — local canonical audit after VPS handoff
+- Локальный канонический checkout: `HOOKAH CRM 2-release`, ветка `main`, SHA `bd2893d0`; рабочее дерево чистое, `origin/main` совпадает.
+- Статический полный QA: 136/136 PASS.
+- Проверены все зарегистрированные worktree: незакоммиченные материалы сохранены отдельно и не смешаны с `main`; уникальные изменения staff-directory/manager-permissions и auth-smoke не переносились из-за конфликтов и отсутствия безопасного подтверждения совместимости.
+- VPS намеренно не изменяется после этого аудита: пользователи продолжают наполнять базу. Дальнейшие правки выполняются локально.
