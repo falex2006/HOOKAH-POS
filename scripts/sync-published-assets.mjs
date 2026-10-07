@@ -96,8 +96,8 @@ for (const path of htmlFiles) {
     .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`)
     .replace(/auth-smoke\.js\?rev=\d+/g, `auth-smoke.js?rev=${authSmokeRevision}`)
     .replace(/auth-smoke\.css\?rev=\d+/g, `auth-smoke.css?rev=${authSmokeCssRevision}`)
-    .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`);
-    .replace(/payroll-scheme-ui\\.js\\?rev=\\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
+    .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`)
+    .replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
   const versionedHtml = html.replace(/purchase-document-validation\.js\?rev=\d+/g, `purchase-document-validation.js?rev=${purchaseDocumentValidationRevision}`);
   writeFileSync(path, versionedHtml);
 }
@@ -120,7 +120,8 @@ cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', '
 cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));
 cpSync(resolve(root, 'assets', 'login-background.mp4'), resolve(root, 'dist', 'assets', 'login-background.mp4'));
 cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'), { recursive: true });
-console.log(`Synced app.js rev=${appRevision}, portal.js rev=${portalRevision}, lock.js rev=${lockRevision}, staff-profile.js rev=${staffProfileRevision}, login.js rev=${loginRevision}, staff-admin-card.js rev=${staffAdminCardRevision}, style.css rev=${cssRevision} across ${htmlFiles.length} source and dist routes.`);
+    .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`)
+    .replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
 
 
 
