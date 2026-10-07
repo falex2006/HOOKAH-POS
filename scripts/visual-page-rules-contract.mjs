@@ -85,3 +85,7 @@ console.log(`VISUAL PAGE RULES CONTRACT: PASS (${headings.length} canonical page
 assert.equal(map.inventoryDirectoryPresentation.layout, "cascade");
 assert.equal(map.inventoryDirectoryPresentation.editor, "modal");
 assert.match(rules, /Справочники склада: каскадный выбор/);
+
+assert.equal(map.inventoryMovementsPresentation.default, "documents");
+assert.equal(map.inventoryMovementsPresentation.editor, "modal");
+assert.match(rules, /Поставки и списания: журнал прежде формы/);

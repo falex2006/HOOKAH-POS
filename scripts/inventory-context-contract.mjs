@@ -57,3 +57,7 @@ assert.match(css, /\.inventory-context-kpis>\.kpi>strong\{overflow-wrap:anywhere
   'context KPIs must handle long values consistently');
 
 console.log(`INVENTORY CONTEXT CONTRACT: PASS (${requiredViews.length} views, one primary action per view, empty states and responsive layout)`);
+
+assert.ok(portal.includes('let refreshRecipesAfterProducts = () => {};'), 'product completion callback exists outside recipe block');
+assert.ok(portal.includes('drawProducts(data.items); refreshRecipesAfterProducts();'), 'product success avoids out-of-scope recipe function');
+assert.ok(portal.includes('refreshRecipesAfterProducts = () => { syncRecipeProductOptions(); renderRecipes(); };'), 'recipe refresh captures its local renderer');

@@ -4988,3 +4988,13 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Первый выпуск71d88664 опубликован штатно, backup/health PASS. Проверка реальных33 категорий выявила неограниченную длину списка, которую небольшой local fixture не покрывал.
 - Добавлены ограниченные прокручиваемые списки с заголовками вне scroll, inline-меню последней строки без обрезки, 44px кнопки. QA расширен до40 категорий; никакие production записи не менялись. Cache revisions399/460.
 - Dense QA42: PASS1920/1366/390, last-row hit-test/edit, scroll bounds. Исправлен mobile grid-row overlap. В memory fixture есть toast ошибки вспомогательного каталога; основные directory API и JS runtime PASS. Финальный code-health bounded-list review PASS.
+
+## 2026-10-07 — журнал поставок и списаний
+- Причина: постоянно открытая приёмка и крупные KPI отодвигали документы за первый экран. Реализованы компактная шапка, внутренние Документы/Операции, ограниченные журналы и модальные редакторы приёмки/списания, включая draft edit и auto-order entry.
+- Существующие API, RBAC, tenant, проводки и сторно сохранены. Подписи операций не выводят технический UUID в основную строку, доступны единицы. При pending закрытие блокируется; отмена ручной операции сбрасывает количество и единицу вместе. Исправлены найденные review проблемы pending scope и повторного открытия.
+- Изменения: portal.js/style.css, root/dist cache461/400, визуальный контракт/site map; отдельный guarded PostgreSQL browser suite и allowlist runner, VM helper stubs с дополнительными modal assertions.
+- PASS: JS syntax, purchase-documents/date/pending/reversal, inventory-form-pending/context/responsive, visual-page-rules, git diff --check. Code-health baseline/final review; system architect API contract audit выполнены.
+- Локальный PostgreSQL browser QA:35 черновиков, создание/редактирование/отмена/проведение, списание и сверка stock SQL+API10→8, reload, pending Escape/backdrop, read-only manager403, tenant isolation; screenshots1920/1366/390 просмотрены. Runner создаёт и удаляет только собственную disposable БД; production данные не затронуты.
+- В synthetic QA виден вспомогательный toast каталога при успешном HTTP products: не ошибка основного журнала; отдельно от границ текущего UI-пакета. Автозаказ проверен по сохранению входного контракта; отдельный новый end-to-end автозаказ не создавался.
+
+- Финальный dense PG QA PASS включая последний документ на всех ширинах; cleanup подтверждён. Причина вспомогательного toast найдена: renderRecipes вызывался вне lexical scope. Исправлен явный callback из recipe scope, code-health подтвердил, добавлен contract и пройден быстрый directory browser regression без отдельной БД.

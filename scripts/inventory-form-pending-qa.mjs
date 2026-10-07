@@ -91,6 +91,9 @@ const movementFields = new Map([
 ]);
 const movementMessage = { textContent: '', className: '' };
 const movementButton = { disabled: false, textContent: 'Сохранить операцию' };
+const movementClose = { disabled: false };
+const movementCancel = { disabled: false };
+let movementModalCloseCount = 0;
 let movementResetCount = 0;
 let selectRefreshCount = 0;
 movementFields.get('#movement-item')._customSelectRefresh = () => { selectRefreshCount += 1; };
@@ -98,14 +101,18 @@ const movementForm = { dataset: {}, reset: () => { movementResetCount += 1; }, q
 let onMovementSubmit;
 const movementRequests = [];
 vm.runInNewContext(portal.slice(movementStart, movementEnd), {
-  document: { querySelector: (selector) => selector === '#movement-form' ? { addEventListener: (_event, callback) => { onMovementSubmit = callback; } } : selector === '#movement-message' ? movementMessage : movementFields.get(selector) },
+  document: { querySelector: (selector) => selector === '#movement-form' ? { addEventListener: (_event, callback) => { onMovementSubmit = callback; } } : selector === '#movement-message' ? movementMessage : selector === '#inventory-movement-dialog [data-journal-close]' ? movementClose : selector === '#movement-cancel' ? movementCancel : movementFields.get(selector) },
   api: () => new Promise((resolve, reject) => movementRequests.push({ resolve, reject })),
+  portalNotice: () => {},
+  closeMovementEditor: (key) => { assert.equal(key, 'movement'); assert.equal(movementForm.dataset.submitting, '0', 'movement closes after pending releases'); assert.equal(movementClose.disabled, false); assert.equal(movementCancel.disabled, false); movementModalCloseCount += 1; },
   load: () => {}, loadAutoOrders: () => {},
 });
 const submitMovement = () => onMovementSubmit({ preventDefault() {}, target: movementForm });
 submitMovement();
 assert.equal(movementRequests.length, 1);
 assert.equal(movementButton.disabled, true);
+assert.equal(movementClose.disabled, true);
+assert.equal(movementCancel.disabled, true);
 assert.equal(movementFields.get('#movement-delta').disabled, true);
 submitMovement();
 assert.equal(movementRequests.length, 1, 'pending movement must not duplicate');
@@ -115,12 +122,16 @@ assert.equal(movementMessage.textContent, 'Недостаточно остатк
 assert.equal(movementButton.disabled, false);
 assert.equal(movementButton.textContent, 'Сохранить операцию');
 assert.equal(movementFields.get('#movement-delta').disabled, false);
+assert.equal(movementClose.disabled, false);
+assert.equal(movementCancel.disabled, false);
+assert.equal(movementModalCloseCount, 0, 'failed movement remains open');
 assert.ok(selectRefreshCount >= 2, 'custom select must refresh on lock and unlock');
 submitMovement();
 assert.equal(movementRequests.length, 2);
 movementRequests[1].resolve({ id: 'movement-qa' });
 await settle();
 assert.equal(movementResetCount, 1, 'successful movement must reset form once');
+assert.equal(movementModalCloseCount, 1, 'successful movement requests modal close once');
 assert.equal(movementMessage.textContent, 'Движение сохранено, остаток обновлён');
 assert.equal(movementButton.disabled, false);
 

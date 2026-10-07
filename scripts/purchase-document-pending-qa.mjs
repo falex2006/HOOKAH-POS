@@ -44,10 +44,13 @@ const form = { dataset: {}, addEventListener: (_name, handler) => { handlers.sub
 const requests = [];
 const notices = [];
 let resetCount = 0;
+let modalCloseCount = 0;
 let loadResult = true;
 const context = {
   purchaseForm: form, purchaseActionPending: false,
   setPurchasePending: (pending) => { context.purchaseActionPending = pending; },
+  closeMovementEditor: (key) => { assert.equal(key, 'purchase'); assert.equal(context.purchaseActionPending, false, 'receipt closes only after pending is released'); modalCloseCount += 1; },
+  openMovementEditor: () => {},
   getPurchaseLines: () => [{ ingredientId: 'stock-1', quantity: 1, unit: 'шт', unitCost: 10 }],
   document: { querySelector: (selector) => fields.get(selector) },
   resetPurchaseForm: () => { resetCount += 1; },
@@ -79,10 +82,12 @@ assert.equal(requests[0].options.method, 'POST');
 submit(); handlers.cancel(); await post(); await voidDraft();
 assert.equal(requests.length, 1, 'save blocks duplicate, post, and void');
 assert.equal(resetCount, 0, 'cancel cannot replace pending editor');
+assert.equal(modalCloseCount, 0, 'pending receipt stays open');
 requests[0].reject({ payload: { error: 'invalid_purchase_unit' } });
 await tick();
 assert.equal(context.purchaseActionPending, false);
 assert.match(message.textContent, /единицу закупки/);
+assert.equal(modalCloseCount, 0, 'failed receipt stays open for correction');
 submit();
 assert.equal(requests.length, 2, 'failed save retries immediately');
 let resolveLoad;
@@ -94,6 +99,7 @@ assert.equal(context.purchaseActionPending, true);
 resolveLoad(false);
 await tick();
 assert.equal(resetCount, 1);
+assert.equal(modalCloseCount, 1, 'successful receipt closes after refresh and unlock');
 assert.match(message.textContent, /Черновик сохранён/);
 assert.ok(notices.some((item) => item.text.includes('список не обновился')));
 
