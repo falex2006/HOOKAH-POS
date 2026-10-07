@@ -6,10 +6,7 @@ const start = source.indexOf("if (pathname === '/api/shifts' && req.method === '
 const end = source.indexOf("if (pathname === '/api/venue' && req.method === 'GET')", start);
 assert.ok(start >= 0 && end > start, 'shift open/close API block is available');
 const block = source.slice(start, end);
-const validShiftCashStart = source.indexOf('const validShiftCash =');
-const validShiftCashEnd = source.indexOf('\n};', validShiftCashStart) + 3;
-const validShiftCashSource = source.slice(validShiftCashStart, validShiftCashEnd);
-assert.match(validShiftCashSource, /const validShiftCash/);
+const validShiftCashSource = source.slice(source.indexOf('const validCashAmount ='), source.indexOf('\nconst orderBalanceConflict', source.indexOf('const validCashAmount =')));
 const shiftId = '33333333-3333-4333-8333-333333333333';
 
 const makePool = ({ active = false, unresolvedLegacyCashCount = 0, unresolvedLegacyCashAmount = 0, attributedCashAmount = 300 } = {}) => {
@@ -24,6 +21,8 @@ const makePool = ({ active = false, unresolvedLegacyCashCount = 0, unresolvedLeg
     if (normalized.startsWith('INSERT INTO audit_events')) { state.audits.push({ action: params[2], id: params[3], after: params[4] }); return { rows: [] }; }
     if (normalized.startsWith('SELECT id,venue_id,opening_cash AS')) return { rows: state.active && !state.closed ? [{ id: shiftId, venue_id: params[1], openingCash: '1000', openedAt: '2026-09-27T10:00:00Z' }] : [] };
     if (normalized.startsWith('SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount),0) AS amount')) return { rows: [{ count: unresolvedLegacyCashCount, amount: String(unresolvedLegacyCashAmount) }] };
+    if (normalized.startsWith('SELECT COALESCE(SUM(amount),0) AS amount FROM guest_deposit_receipts')) return { rows: [{ amount: '0' }] };
+    if (normalized.startsWith('SELECT COALESCE(SUM(amount),0) AS amount FROM reservation_pre_payment_receipts')) return { rows: [{ amount: '0' }] };
     if (normalized.startsWith('SELECT COALESCE(SUM(p.amount),0)')) return { rows: [{ amount: String(attributedCashAmount) }] };
     if (normalized.startsWith('UPDATE shifts SET closed_at=now()')) { state.closingCash = params[0]; state.expectedCash = params[1]; state.cashVariance = params[0] - params[1]; state.closed = true; state.active = false; return { rows: [{ id: shiftId, openedAt: '2026-09-27T10:00:00Z', closedAt: '2026-09-27T20:00:00Z', openingCash: 1000, closingCash: state.closingCash, expectedCash: state.expectedCash, cashVariance: state.cashVariance }] }; }
     throw new Error(`unexpected SQL: ${normalized}`);

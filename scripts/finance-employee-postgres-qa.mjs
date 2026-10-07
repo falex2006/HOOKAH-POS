@@ -177,7 +177,7 @@ try {
   assert.equal(dashboard.data.employeeView, true);
   assert.equal(dashboard.data.selectedShiftId, null);
   assert.deepEqual(dashboard.data.shifts, [{ id:'employee-today' }]);
-  assert.deepEqual(dashboard.data.totals, { revenue:enrichedRevenue,paymentCount:4,cash:140,cashless:90,other:0,closedOrders:4 }); checks += 6;
+  assert.deepEqual(dashboard.data.totals, { revenue:enrichedRevenue,paymentCount:4,cash:140,cashless:90,other:0,closedOrders:4,depositTopUps:{ total:0,cash:0,cashless:0,count:0 },reservationPrepayments:{ total:0,cash:0,cashless:0,count:0 } }); checks += 8;
   const enrichedReport = await request('/api/finance/report?date=' + forgedDate + '&type=z');
   assert.equal(enrichedReport.status, 200);
   assert.deepEqual(Object.keys(enrichedReport.data).sort(), ['type','date','generatedAt','reportNumber','checksCount','revenue','employeeView'].sort(), 'report excludes all manager-only financial fields');

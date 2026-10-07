@@ -12,7 +12,7 @@ const connectionString = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 const target = validateQaDatabaseUrl(connectionString, 'Reservation calendar-date QA');
 assert.equal(target.url.hostname, '127.0.0.1');
 assert.equal(Number(target.url.port), 31931, 'Only disposable regression PostgreSQL is allowed');
-assert.equal(target.database, 'hookah_local_qa');
+assert.match(target.database, /^reservations_qa_[a-f0-9]+$/i, 'Only a freshly migrated disposable reservation database is allowed');
 assert.equal(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'hookah-full-regression-qa-20261001');
 const inspection = spawnSync('docker', ['inspect', process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
 assert.equal(inspection.status, 0, 'Disposable QA container must exist');
@@ -52,7 +52,7 @@ async function runChild() {
   for (const fixture of fixtures) {
     for (const time of ['00:15', '17:00', '23:45']) {
       const created = await repository.create({ venueId: fixture.venue, clientId: fixture.guest,
-        tableId: fixture.table, guestName: 'Synthetic date QA', date: '2026-10-03', time, guests: 2, deposit: 0 });
+        tableId: fixture.table, guestName: 'Synthetic date QA', date: '2026-10-03', time, guests: 2, deposit: 125.50 });
       const rows = await repository.list(fixture.venue, '2026-10-03');
       const row = rows.find(entry => entry.id === created.id);
       assert.ok(row, 'Saved reservation must remain in its requested venue calendar day');
@@ -61,6 +61,9 @@ async function runChild() {
       assert.equal(row.time, time);
       assert.equal(JSON.parse(JSON.stringify(row)).date, '2026-10-03', 'JSON preserves the exact calendar date');
       assert.equal(row.tableId, fixture.table);
+      assert.equal(Number(row.depositRequired), 125.50, 'reservation stores the amount required by the venue');
+      assert.equal(Number(row.depositPaid), 0, 'creating a reservation never claims money was collected');
+      assert.equal(Number(row.deposit), 0, 'legacy collected-deposit alias stays truthful for a new unpaid reservation');
       const allRows = await repository.list(fixture.venue);
       assert.equal(allRows.find(entry => entry.id === created.id).date, '2026-10-03');
       for (const wrongDay of ['2026-10-02', '2026-10-04']) {
@@ -71,8 +74,10 @@ async function runChild() {
       const expectedInstant = fixture.timezone === 'Asia/Yekaterinburg'
         ? { '00:15': '2026-10-02T19:15:00.000Z', '17:00': '2026-10-03T12:00:00.000Z', '23:45': '2026-10-03T18:45:00.000Z' }[time]
         : { '00:15': '2026-10-03T07:15:00.000Z', '17:00': '2026-10-04T00:00:00.000Z', '23:45': '2026-10-04T06:45:00.000Z' }[time];
-      const stored = (await pool.query('SELECT starts_at FROM reservations WHERE id=$1 AND venue_id=$2', [created.id, fixture.venue])).rows[0];
+      const stored = (await pool.query('SELECT starts_at,deposit_required,deposit_paid FROM reservations WHERE id=$1 AND venue_id=$2', [created.id, fixture.venue])).rows[0];
       assert.equal(stored.starts_at.toISOString(), expectedInstant, 'UTC instant is derived from venue timezone, independently of host timezone');
+      assert.equal(Number(stored.deposit_required), 125.50);
+      assert.equal(Number(stored.deposit_paid), 0);
     }
   }
   console.log(`PASS reservation calendar dates: host=${hostTimezone}, 2 venue timezones, 6 create/list/JSON/UTC scenarios`);

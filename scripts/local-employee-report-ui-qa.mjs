@@ -5,8 +5,8 @@ import vm from 'node:vm';
 // Execute the actual portal branches and renderer. No browser, PostgreSQL or product writes.
 const source = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const branch = (path) => {
-  const start = source.indexOf(`  if (path === '${path}' &&`);
-  const end = source.indexOf(`if (path === '${path}')`, start);
+  const start = source.indexOf(`  if (path === '${path}'`);
+  const end = source.indexOf('  if (path ===', start + 1);
   assert.ok(start >= 0 && end > start, `${path}: actual employee demo branch exists`);
   return source.slice(start, end);
 };
@@ -51,7 +51,7 @@ for (const role of ['platform_owner', 'unknown_role']) {
 }
 async function runDemo(path, role, rows = orders) {
   return vm.runInNewContext(`(async () => { ${branch(path)} })()`, {
-    path, method: 'GET', Date: FixedDate, Intl,
+    path, method: 'GET', Date: FixedDate, Intl, URL, window: { location: { origin: 'http://localhost' } },
     url: `${path}?date=2000-01-01&type=waiter`,
     portalUser: { id: 'roman', name: 'Роман', role },
     demoSelectedVenue: () => ({ id: 'venue-a', timezone: 'Asia/Yekaterinburg' }),

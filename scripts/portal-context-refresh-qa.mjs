@@ -9,7 +9,7 @@ const node=key=>{if(!nodes.has(key))nodes.set(key,{textContent:'old',innerHTML:'
 const document={querySelector:node,querySelectorAll:key=>[node(key)]};
 const pending=[];
 const shiftStart=source.indexOf('const portalShiftListeners = new Set();');
-const shiftEnd=source.indexOf('const refreshVisiblePortalShift =',shiftStart);
+const shiftEnd=source.indexOf('let portalContextGeneration =',shiftStart);
 assert.ok(shiftStart>=0&&shiftEnd>shiftStart,'shared shift publisher and coalesced reader are exercised with the context');
 const refresh=new Function('document','api','esc','money','formatActiveStaffCount','updateDashboardGreeting','portalPermissions',`let venueTimezone='old';${source.slice(shiftStart,shiftEnd)}${source.slice(start,end)}return refreshPortalContext;`)(document,url=>new Promise((resolve,reject)=>pending.push({url,resolve,reject})),String,String,String,()=>{},new Set(['floor']));
 const old=refresh();const newer=refresh();

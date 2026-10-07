@@ -26,7 +26,7 @@ try {
       if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`); }
     });
   });
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 375, height: 800 }, locale: 'ru-RU' });
   const exceptions = [];
   page.on('pageerror', (error) => exceptions.push(error.message));

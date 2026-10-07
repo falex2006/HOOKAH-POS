@@ -24,8 +24,8 @@ for (const [file, alias] of pages) {
   }
 }
 const portal = read('portal.js');
-assert.match(portal, /document\.querySelectorAll\('\[data-venue-name\]'\)\.forEach\(\(node\) => \{ node\.textContent = venue\.name \|\| 'Заведение'; \}\)/,
-  'the existing venue API updates the header and supplies a generic name only when the venue name is absent');
+assert.match(portal, /document\.querySelectorAll\('\[data-venue-name\]'\)\.forEach\(\(node\) => \{ node\.textContent = venue\.name \|\| 'Hookah POS'; \}\)/,
+  'the existing venue API updates the header and supplies the product name only when the venue name is absent');
 assert.match(portal, /document\.querySelectorAll\('\[data-venue-name\]'\)\.forEach\(\(node\) => \{ node\.textContent = 'Заведение недоступно'; \}\)/,
   'failed venue loading remains visibly distinct from a real venue name');
 assert.match(portal, /document\.querySelectorAll\('\[data-venue-name\],\[data-venue-address\],\[data-metric\]'\)\.forEach\(\(node\) => \{ node\.textContent = '—'; \}\)/,

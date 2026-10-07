@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "sharp": "^0.35.5"
   },
   "scripts": {
     "qa:local:setup": "node scripts/local-full-qa-setup.cjs",
@@ -11,6 +12,7 @@
     "qa:local:seed": "node scripts/seed-local-full-qa.mjs --config tmp/full-local-qa/runtime.json",
     "qa:local:guards": "node scripts/local-full-qa.mjs --check-guards",
     "qa:local:full": "node scripts/local-full-qa.mjs --all",
+    "qa:staff-avatar-image": "node scripts/staff-avatar-image-qa.mjs",
     "start": "node server.js",
     "db:migrate": "node scripts/migrate.js",
     "qa:tasks": "node scripts/tasks-qa.mjs",

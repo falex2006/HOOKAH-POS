@@ -1,6 +1,21 @@
 const form = document.querySelector('#login-form');
+// A login page always starts a fresh authentication attempt; never reuse a stale staff identity.
+localStorage.removeItem('crm_session_token');
+localStorage.removeItem('crm_session_user');
 const setupForm = document.querySelector('#setup-form');
 const setupMessage = document.querySelector('#setup-message');
+const passwordResetForm = document.querySelector('#password-reset-form');
+const passwordResetMessage = document.querySelector('#password-reset-message');
+const passwordResetInput = document.querySelector('#reset-password');
+const passwordResetConfirmInput = document.querySelector('#reset-password-confirm');
+const passwordResetToken = new URLSearchParams(location.hash.slice(1)).get('reset');
+const isPasswordReset = Boolean(passwordResetToken && passwordResetForm);
+if (isPasswordReset) {
+  if (form) form.hidden = true;
+  if (setupForm) setupForm.hidden = true;
+  passwordResetForm.hidden = false;
+  passwordResetInput?.focus();
+}
 const passwordInput = document.querySelector('#login-password');
 const usernameInput = document.querySelector('#login-username');
 const trustDeviceInput = document.querySelector('#login-trust-device');
@@ -35,6 +50,7 @@ document.querySelector('#setup-password-toggle')?.addEventListener('click', (eve
 });
 
 const showSetupIfNeeded = async () => {
+  if (isPasswordReset) return;
   if (form && setupForm) { form.hidden = false; setupForm.hidden = true; }
   try {
     const response = await fetch('/api/setup/status', { cache: 'no-store' });
@@ -51,6 +67,49 @@ const showSetupIfNeeded = async () => {
   } catch (_) {}
 };
 showSetupIfNeeded();
+
+passwordResetForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!passwordResetToken || passwordResetForm.dataset.submitting === 'true') return;
+  const submit = passwordResetForm.querySelector('button[type="submit"]');
+  const password = passwordResetInput.value;
+  if (password !== passwordResetConfirmInput.value) {
+    passwordResetMessage.textContent = 'Пароли не совпадают. Проверьте оба поля.';
+    passwordResetConfirmInput.focus();
+    return;
+  }
+  passwordResetMessage.textContent = 'Сохраняем новый пароль…';
+  passwordResetForm.dataset.submitting = 'true';
+  submit.disabled = true;
+  try {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetToken: passwordResetToken, newPassword: password }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'password_reset_failed');
+    passwordResetInput.value = '';
+    passwordResetConfirmInput.value = '';
+    passwordResetForm.dataset.complete = 'true';
+    passwordResetMessage.textContent = 'Пароль обновлён. Теперь войдите с новым паролем.';
+    submit.hidden = true;
+    history.replaceState(null, '', '/login');
+  } catch (error) {
+    passwordResetInput.value = '';
+    passwordResetConfirmInput.value = '';
+    const messages = {
+      reset_token_invalid_or_expired: 'Ссылка недействительна или срок её действия истёк. Запросите новую ссылку у владельца платформы.',
+      password_too_short: 'Пароль должен содержать не менее 8 символов.',
+      password_reset_requires_database: 'Восстановление пароля недоступно в этом режиме. Обратитесь к владельцу платформы.',
+    };
+    passwordResetMessage.textContent = messages[error.message] || 'Не удалось обновить пароль. Запросите новую ссылку и повторите попытку.';
+    passwordResetInput.focus();
+  } finally {
+    passwordResetForm.dataset.submitting = 'false';
+    if (!passwordResetForm.dataset.complete) submit.disabled = false;
+  }
+});
 
 const trustedReturnCard = document.createElement('section');
 trustedReturnCard.className = 'login-card trusted-pin-card';
@@ -100,7 +159,7 @@ trustedReturnCard.querySelector('.trusted-pin-keypad')?.addEventListener('click'
 });
 trustedReturnCard.querySelector('#trusted-pin-submit')?.addEventListener('click', unlockTrustedSession);
 async function checkTrustedPinReturn() {
-  if (!form || trustedSessionUser) return;
+  if (isPasswordReset || !form || trustedSessionUser) return;
   try {
     const response = await fetch('/api/session', { cache: 'no-store' });
     if (!response.ok) return;

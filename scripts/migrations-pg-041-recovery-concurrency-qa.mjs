@@ -92,7 +92,7 @@ try {
 
   await setup.query('UPDATE shifts SET closed_at=now() WHERE closed_at IS NULL');
   const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-  const validShiftCashStart = server.indexOf('const validShiftCash =');
+  const validShiftCashStart = server.indexOf('const validCashAmount =');
   const validShiftCashEnd = server.indexOf('\n};', validShiftCashStart) + 3;
   const validShiftCashSource = server.slice(validShiftCashStart, validShiftCashEnd);
   const routeStart = server.indexOf("if (pathname === '/api/shifts' && req.method === 'POST')");

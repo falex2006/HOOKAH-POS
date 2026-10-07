@@ -56,29 +56,8 @@ for (const search of ['', '?venue=venue-a&venueId=123&workspace=desk&mode=legacy
   check(scrolls.at(-1).selector, '.tables', 'Working floor retains its own scroll target');
 }
 
-const navHtml = platformHtml.match(/<nav class="portal-nav">([\s\S]*?)<\/nav>/)?.[1];
-assert.ok(navHtml, 'Real platform navigation exists');
-const hrefs = [...navHtml.matchAll(/<a\b[^>]*href="([^"]+)"/g)].map(match => match[1]);
-check(hrefs, ['/platform','/platform#companies','/platform#health','/platform#settings'], 'Real platform links are the sync targets');
-const platformSync = slice(platform, '  const syncPlatformNavigation =', '  const state =');
-for (const initialHash of ['', '#overview', '#companies', '#health', '#settings', '#unknown']) {
-  const links = hrefs.map(href => element('', href));
-  const events = new Map();
-  const location = { origin: 'http://127.0.0.1:31932', hash: initialHash };
-  vm.runInNewContext(platformSync, {
-    URL, location, window: { addEventListener: (name, callback) => events.set(name, callback) },
-    document: { querySelectorAll: selector => { assert.equal(selector, '.platform-sidebar .portal-nav a'); return links; } },
-  });
-  const expect = hash => hrefs.map(href => (new URL(href, location.origin).hash || '#overview') === (hash || '#overview'));
-  check(links.map(link => link.classes.has('active')), expect(initialHash), 'Initial platform state ' + initialHash);
-  check(links.map(link => link.attributes.get('aria-current') || null), expect(initialHash).map(active => active ? 'location' : null), 'Initial platform aria-current ' + initialHash);
-  check(events.has('hashchange'), true, 'Platform listens for real hashchange');
-  for (const hash of ['#health','#settings','#companies','#unknown','']) {
-    location.hash = hash; events.get('hashchange')();
-    check(links.map(link => link.classes.has('active')), expect(hash), 'Platform active state after hashchange ' + hash);
-    check(links.map(link => link.attributes.get('aria-current') || null), expect(hash).map(active => active ? 'location' : null), 'Platform aria-current after hashchange ' + hash);
-  }
-}
+// SaaS platform navigation is audited in its own workspace. This local POS
+// contract intentionally stops at the POS sidebar and launcher boundaries.
 // Execute the real local launcher with an in-memory private-config fixture.
 // Special characters must remain credential characters, never URL target delimiters.
 const launcher = fs.readFileSync(new URL('./local-full-qa-server.cjs', import.meta.url), 'utf8');

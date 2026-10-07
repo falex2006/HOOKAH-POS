@@ -50,6 +50,7 @@ async function runLogin({ response, fetchError } = {}) {
     setTimeout() {},
     location: { replace(url) { redirects.push(url); } },
   };
+  const location = { hash: '', replace(url) { redirects.push(url); } };
   const createNode = (tagName = 'div') => {
     const node = {
       tagName,
@@ -88,7 +89,7 @@ async function runLogin({ response, fetchError } = {}) {
     createElement: createNode,
     querySelector(selector) { return values.get(selector) ?? null; },
   };
-  vm.runInNewContext(source, { document, window, localStorage, fetch, Promise, Date });
+  vm.runInNewContext(source, { document, window, location, localStorage, fetch, Promise, Date, URLSearchParams });
 
   const username = values.get('#login-username');
   const password = values.get('#login-password');

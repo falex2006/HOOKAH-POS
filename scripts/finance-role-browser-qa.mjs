@@ -10,10 +10,11 @@ const { chromium } = createRequire(import.meta.url)(playwrightPath);
 const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const loginFor = (role) => `f_${role}_${Date.now().toString(36)}`;
 const adminPassword = `qa-admin-${unique}`;
+const ownerPassword = `qa-owner-${unique}`;
 const staffPassword = 'qa-pass-123';
 const child = spawn(process.execPath, ['server.js'], {
   cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true,
-  env: { ...process.env, HOST: '127.0.0.1', PORT: '0', DATABASE_URL: '', AUTH_REQUIRED: 'true', DEMO_MODE: 'false', NODE_ENV: 'test', DEMO_ADMIN_PASSWORD: adminPassword },
+  env: { ...process.env, HOST: '127.0.0.1', PORT: '0', DATABASE_URL: '', AUTH_REQUIRED: 'true', DEMO_MODE: 'false', NODE_ENV: 'test', DEMO_ADMIN_PASSWORD: adminPassword, DEMO_OWNER_PASSWORD: ownerPassword },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let output = '';
@@ -32,14 +33,16 @@ try {
   };
   const admin = await request('/api/login', 'POST', null, { username: 'admin', password: adminPassword });
   assert.equal(admin.status, 200);
+  const owner = await request('/api/login', 'POST', null, { username: 'owner', password: ownerPassword });
+  assert.equal(owner.status, 200);
   const logins = new Map();
   for (const role of ['bartender', 'manager']) {
     const login = loginFor(role);
     logins.set(role, login);
-    const created = await request('/api/staff', 'POST', admin.data.token, { name: `Finance QA ${role}`, login, password: staffPassword, role, birthDate: '1990-01-01' });
+    const created = await request('/api/staff', 'POST', role === 'manager' ? owner.data.token : admin.data.token, { name: `Finance QA ${role}`, login, password: staffPassword, role, birthDate: '1990-01-01' });
     assert.equal(created.status, 201, `${role} account created: ${JSON.stringify(created.data)}`);
   }
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   for (const role of ['bartender', 'manager']) {
     const context = await browser.newContext({ viewport: { width: 320, height: 800 }, locale: 'ru-RU' });
     try {

@@ -12,7 +12,7 @@ const { Client, Pool } = require('pg');
 const setup = new Client({ connectionString: databaseUrl });
 const pool = new Pool({ connectionString: databaseUrl, max: 4 });
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-const validShiftCashStart = server.indexOf('const validShiftCash =');
+const validShiftCashStart = server.indexOf('const validCashAmount =');
 const validShiftCashEnd = server.indexOf('\n};', validShiftCashStart) + 3;
 const validShiftCashSource = server.slice(validShiftCashStart, validShiftCashEnd);
 const shiftStart = server.indexOf("if (pathname === '/api/shifts' && req.method === 'GET')");
@@ -27,13 +27,14 @@ let venueId = null;
 let userId = null;
 let orderId = null;
 let productId = null;
+let guestId = null;
 
 const callShiftApi = async ({ path, method = 'POST', body = {}, role = 'owner' }) => {
   let response;
   const pathname = path;
   const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts','isOperationalEmployee','hasPermission',
     `${validShiftCashSource}\nreturn (async()=>{${shiftRoute}})();`)(
-    pathname, { method, user: { id: userId, name: 'Cash QA', role } }, {}, { pool }, venueId,
+    pathname, { method, headers: {}, user: { id: userId, name: 'Cash QA', role } }, {}, { pool, audit: { record: async () => {} } }, venueId,
     () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {}, [], () => false,
     (_req, permission) => permission === 'finance_read' && ['owner','admin','manager','developer'].includes(role),
   );
@@ -43,15 +44,17 @@ const callShiftApi = async ({ path, method = 'POST', body = {}, role = 'owner' }
 const callPaymentApi = async ({ path, method = 'POST', body = {} }) => {
   let response;
   const pathname = path;
-  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnless','body','json','recordAudit','requireOpenShift','orders','scaleBatchRecipeIngredients','depleteRecipeForOrder','approvedDiscountTotal','orderTotal','validPaymentAmount','roundMoney','orderBalanceConflict','moneyCents',
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnless','body','json','recordAudit','requireOpenShift','orders','scaleBatchRecipeIngredients','depleteRecipeForOrder','approvedDiscountTotal','orderTotal','validPaymentAmount','roundMoney','orderBalanceConflict','moneyCents','pgOrderPricing','accrueGuestOrderBonus',
     `return (async()=>{${paymentRoute}})();`)(
-    pathname, { method, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool }, venueId,
+    pathname, { method, headers: {}, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool, audit: { record: async () => {} } }, venueId,
     () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {},
     async () => false, [], () => [], async () => ({ lines: [], totalCost: 0 }), () => 0, () => 0,
     (value) => Number.isFinite(value) && value > 0 && Math.abs(value * 100 - Math.round(value * 100)) < 1e-7,
     (value) => Math.round(Number(value) * 100) / 100,
     ({ due, paid }) => Math.round(Number(paid) * 100) > Math.round(Number(due) * 100),
     (value) => Math.round(Number(value) * 100),
+    async (client, id, minimum = 0) => { const items = await client.query('SELECT quantity,unit_price FROM order_items WHERE order_id=$1', [id]); const payments = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM payments WHERE order_id=$1 AND status IN ('paid','partially_paid')", [id]); const subtotal = items.rows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unit_price), 0); const due = Math.max(subtotal, Number(minimum || 0)); return { subtotal, discount: 0, net: subtotal, due, paid: Number(payments.rows[0]?.amount || 0), minimumAdjustment: due - subtotal, source: 'none', groupDiscountAmount: null, groupDiscountGroupId: null, groupDiscountName: null, groupDiscountPercent: null, groupDiscountBase: null }; },
+    async () => ({ base: 0, percent: 0, earned: 0, balance: null }),
   );
   return response || result;
 };
@@ -84,7 +87,7 @@ try {
     'a failed checklist validation does not change the open shift');
 
   const payment = await callPaymentApi({ path: `/api/orders/${orderId}/payments`, body: { amount: 300, method: 'cash' } });
-  assert.equal(payment.status, 201);
+  assert.equal(payment.status, 201, JSON.stringify(payment));
   assert.equal(payment.data.closed, true, 'full payment closes the sale');
   assert.equal(payment.data.shiftId, shiftId, 'payment API attributes cash to the active shift');
   const persistedOrder = await setup.query('SELECT status,closed_in_shift_id FROM orders WHERE id=$1', [orderId]);
@@ -95,17 +98,22 @@ try {
   assert.equal(Number(persistedPayment.rows[0].amount), 300);
   assert.equal(persistedPayment.rows[0].shift_id, shiftId);
 
+  guestId = (await setup.query("INSERT INTO guests (venue_id,full_name) VALUES ($1,'Refund cash QA guest') RETURNING id", [venueId])).rows[0].id;
+  const cashRefundSource = (await setup.query("INSERT INTO guest_account_entries (venue_id,guest_id,account_type,amount,reason,source_type,source_key) VALUES ($1,$2,'deposit',30,'QA original deposit','deposit_top_up','shift-qa-cash-source') RETURNING id", [venueId, guestId])).rows[0].id;
+  const nonCashRefundSource = (await setup.query("INSERT INTO guest_account_entries (venue_id,guest_id,account_type,amount,reason,source_type,source_key) VALUES ($1,$2,'deposit',10,'QA card deposit','deposit_top_up','shift-qa-card-source') RETURNING id", [venueId, guestId])).rows[0].id;
+  await setup.query("INSERT INTO guest_account_reversals (venue_id,guest_id,source_entry_id,shift_id,account_type,amount,payout_method,reason,idempotency_key,actor_id) VALUES ($1,$2,$3,$4,'deposit',30,'cash','QA cash payout','shift-qa-cash-reversal',$5),($1,$2,$6,$4,'deposit',10,'card','QA card return','shift-qa-card-reversal',$5)", [venueId, guestId, cashRefundSource, shiftId, userId, nonCashRefundSource]);
+
   const closed = await callShiftApi({ path: `/api/shifts/${shiftId}/close`, body: { closingCash: 1250, checklistConfirmed: true } });
   assert.equal(closed.status, 200);
   assert.equal(Number(closed.data.openingCash), 1000);
-  assert.equal(Number(closed.data.expectedCash), 1300, 'expected cash is opening float plus cash payments explicitly linked to the shift');
+  assert.equal(Number(closed.data.expectedCash), 1270, 'expected cash subtracts a cash refund from the actual payout shift, while a card refund does not change cash');
   assert.equal(Number(closed.data.closingCash), 1250);
-  assert.equal(Number(closed.data.cashVariance), -50, 'cash shortage is persisted as actual minus expected');
+  assert.equal(Number(closed.data.cashVariance), -20, 'cash shortage is persisted as actual minus cash after the refund outflow');
 
   const finalShift = await setup.query('SELECT closed_at,opening_cash,expected_cash,closing_cash,cash_variance FROM shifts WHERE id=$1', [shiftId]);
   assert.ok(finalShift.rows[0].closed_at);
-  assert.equal(Number(finalShift.rows[0].expected_cash), 1300);
-  assert.equal(Number(finalShift.rows[0].cash_variance), -50);
+  assert.equal(Number(finalShift.rows[0].expected_cash), 1270);
+  assert.equal(Number(finalShift.rows[0].cash_variance), -20);
   const repeatClose = await callShiftApi({ path: `/api/shifts/${shiftId}/close`, body: { closingCash: 1250, checklistConfirmed: true } });
   assert.equal(repeatClose.status, 404, 'a closed shift cannot be reconciled or closed a second time');
 
@@ -114,6 +122,9 @@ try {
   await pool.end();
   if (setup._connected) {
     if (venueId) {
+      await setup.query('DELETE FROM guest_account_reversals WHERE venue_id=$1', [venueId]).catch(() => {});
+      await setup.query('DELETE FROM guest_account_entries WHERE venue_id=$1', [venueId]).catch(() => {});
+      await setup.query('DELETE FROM guests WHERE venue_id=$1', [venueId]).catch(() => {});
       await setup.query('DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]).catch(() => {});
       await setup.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]).catch(() => {});
       await setup.query('DELETE FROM orders WHERE venue_id=$1', [venueId]).catch(() => {});

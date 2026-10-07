@@ -5,6 +5,16 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { isValidIsoDate } = require('../payroll.js');
+const isValidIsoTimestamp = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  const text = value.trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-]\d{2}:\d{2})$/);
+  if (!match) return false;
+  const [, year, month, day, hour, minute, second = '00', , offset] = match;
+  if (Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59 || (offset !== 'Z' && (Number(offset.slice(1, 3)) > 23 || Number(offset.slice(4)) > 59))) return false;
+  const calendar = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  return calendar.getUTCFullYear() === Number(year) && calendar.getUTCMonth() === Number(month) - 1 && calendar.getUTCDate() === Number(day) && !Number.isNaN(Date.parse(text));
+};
 const source = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const start = source.indexOf("  if (pathname === '/api/staff/schedule' && req.method === 'POST')");
 const end = source.indexOf("  if (pathname === '/api/staff/time' && req.method === 'GET')", start);
@@ -22,7 +32,7 @@ async function execute(input, { allowed = true, employeeFound = true } = {}) {
   let bodyReads = 0;
   const context = {
     pathname: '/api/staff/schedule', req: { method: 'POST', user: { id: actorId } }, res: {}, venueDbId: venueId,
-    isValidIsoDate,
+    isValidIsoDate, isValidIsoTimestamp,
     body: async () => { bodyReads++; return input; },
     json: (_, status, data) => { response = { status, data }; },
     denyUnless: (_, res, permission) => {

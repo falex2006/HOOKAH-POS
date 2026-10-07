@@ -46,10 +46,11 @@ const expectStatus = (response, status, label) => {
 };
 
 const adminToken = await login('admin', adminPassword);
+const ownerToken = await login('owner', ownerPassword);
 const createAccount = async (role, loginName) => {
   const created = await request('/api/staff', {
     method: 'POST',
-    token: adminToken,
+    token: ownerToken,
     body: { name: `Finance access QA ${role}`, login: loginName, password: 'qa-pass-123', role, birthDate: '1990-01-01', employmentStartedAt: '2020-01-01' },
   });
   expectStatus(created, 201, `create ${role} test account`);
@@ -60,7 +61,6 @@ const createAccount = async (role, loginName) => {
 try {
   const bartenderToken = await createAccount('bartender', `qa_bartender_${suffix}`);
   const managerToken = await createAccount('manager', `qa_manager_${suffix}`);
-  const ownerToken = await login('owner', ownerPassword);
 
   for (const [role, token] of [['bartender', bartenderToken]]) {
     expectStatus(await request('/api/expenses', { token }), 403, `${role} expense list`);

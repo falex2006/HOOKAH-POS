@@ -1,3 +1,5 @@
+import sharp from 'sharp';
+
 const base = process.argv[2] || 'http://localhost:3000';
 const target = new URL(base);
 if (!['localhost', '127.0.0.1', '::1'].includes(target.hostname)) {
@@ -78,8 +80,13 @@ await request('/api/venue', { method: 'PATCH', body: body({ expectedVenueId: ven
 
 const staff = await request('/api/staff', { method: 'POST', body: body({ name: `Тестовый бармен ${suffix}`, login: `local_staff_${suffix}`, password: 'local1234', birthDate: '1995-05-15', role: 'bartender', phoneNumbers: [{ number: '+79990001124', primary: true }], telegram: '@local_staff_test' }) });
 if (staff.role !== 'bartender' || !staff.phoneNumbers?.length) throw new Error('Staff create contract returned incomplete profile');
-const staffAvatar = await request(`/api/staff/${staff.id}/avatar`, { method: 'POST', body: body({ imageData: 'data:image/png;base64,AA==' }) });
-if (staffAvatar.avatarUrl !== 'data:image/png;base64,AA==') throw new Error('Staff avatar contract failed');
+const avatarFixture = await sharp({ create: { width: 1200, height: 800, channels: 3, background: { r: 102, g: 34, b: 50 } } }).png().toBuffer();
+const staffAvatar = await request(`/api/staff/${staff.id}/avatar`, { method: 'POST', body: body({ imageData: `data:image/png;base64,${avatarFixture.toString('base64')}` }) });
+if (!staffAvatar.avatarUrl?.startsWith('data:image/webp;base64,') || Buffer.from(staffAvatar.avatarUrl.split(',')[1], 'base64').length > 80 * 1024) throw new Error('Staff avatar was not normalized into the storage budget');
+const staffAvatarAfterReload = (await request('/api/staff')).items?.find((item) => item.id === staff.id);
+if (staffAvatarAfterReload?.avatarUrl !== staffAvatar.avatarUrl) throw new Error('Normalized staff avatar did not persist in the staff list');
+const invalidStaffAvatar = await requestRaw(`/api/staff/${staff.id}/avatar`, { method: 'POST', body: body({ imageData: 'data:image/png;base64,AA==' }) });
+if (invalidStaffAvatar.status !== 400 || invalidStaffAvatar.payload?.error !== 'invalid_avatar') throw new Error('Invalid staff avatar was not rejected');
 await request(`/api/staff/${staff.id}/status`, { method: 'PATCH', body: body({ active: false }) });
 await request(`/api/staff/${staff.id}/archive`, { method: 'POST', body: '{}' });
 const visibleStaff = await request('/api/staff');

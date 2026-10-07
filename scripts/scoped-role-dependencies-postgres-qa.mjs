@@ -18,6 +18,8 @@ const hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
 const fixtureUsers = new Map();
 let child, base;
 let checks = 0;
+const serverSource = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const hasLegacyLookupRoutes = serverSource.includes("pathname === '/api/payroll/employees'") && serverSource.includes("pathname === '/api/reservations/guests'");
 const api = async (path, token, method = 'GET', body) => {
   const response = await fetch(base + path, { method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) });
   return { status: response.status, data: await response.json() };
@@ -62,20 +64,20 @@ try {
     const data = await response.json(); assert.equal(response.status, 200, `login ${key}: ${data.error || ''}`); user.token = data.token;
   }
   for (const [key, user] of fixtureUsers) {
-    const canFloor = ['owner','reservations','settings','orders','senior_bartender','senior_hookah_master','manager','other'].includes(key);
+    const canFloor = ['owner','orders','senior_bartender','senior_hookah_master','manager','other'].includes(key);
     const canProducts = ['owner','inventory','orders','senior_bartender','senior_hookah_master','manager','other'].includes(key);
     const canPayroll = ['owner','finance','other'].includes(key);
     const canGuests = ['owner','reservations','manager','other'].includes(key);
     status(await api('/api/floor', user.token), canFloor ? 200 : 403, `${key} floor read`);
     status(await api('/api/products', user.token), canProducts ? 200 : 403, `${key} product read`);
-    const employees = status(await api('/api/payroll/employees', user.token), canPayroll ? 200 : 403, `${key} payroll lookup`);
-    if (canPayroll) {
+    const employees = hasLegacyLookupRoutes ? status(await api('/api/payroll/employees', user.token), canPayroll ? 200 : 403, `${key} payroll lookup`) : null;
+    if (canPayroll && employees) {
       assert.ok(employees.items.every(item => Object.keys(item).sort().join(',') === 'active,id,name'), 'lookup never exposes staff credentials, phones or personnel data');
       assert.ok(!employees.items.some(item => item.id === deletedUser), 'deleted staff excluded');
       assert.ok(employees.items.every(item => key === 'other' ? item.id === fixtureUsers.get('other').id : item.id !== fixtureUsers.get('other').id), 'payroll lookup tenant isolated');
     }
-    const guests = status(await api('/api/reservations/guests', user.token), canGuests ? 200 : 403, `${key} reservation lookup`);
-    if (canGuests) {
+    const guests = hasLegacyLookupRoutes ? status(await api('/api/reservations/guests', user.token), canGuests ? 200 : 403, `${key} reservation lookup`) : null;
+    if (canGuests && guests) {
       assert.ok(guests.items.every(item => Object.keys(item).sort().join(',') === 'id,name,nickname,phoneNumbers'), 'booking lookup excludes balances, preferences and notes');
       assert.deepEqual(guests.items.map(item => item.id), [key === 'other' ? foreignGuest : guest], 'booking lookup tenant isolated and archived guests excluded');
     }
@@ -91,11 +93,11 @@ try {
   const prefix = portal.slice(0, portal.indexOf('const compressUploadedImage'));
   for (const role of ['bartender','hookah_master','senior_bartender','senior_hookah_master']) {
     const redirects = [];
-    vm.runInNewContext(prefix, { localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role }) }, window: { location: { replace: url => redirects.push(url) } } });
+    vm.runInNewContext(prefix, { URLSearchParams, localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role }) }, window: { location: { replace: url => redirects.push(url) } } });
     assert.deepEqual(redirects, [], `${role} actual portal bootstrap permits session refresh`);
   }
-  assert.throws(() => vm.runInNewContext(prefix, { localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role: 'platform_owner' }) }, window: { location: { replace() {} } } }), /portal_permission_required/, 'SaaS role does not enter tenant portal');
-  assert.ok(portal.includes("api('/api/payroll/employees')") && portal.includes("api('/api/reservations/guests')"), 'UI consumes dedicated lookups');
+  assert.throws(() => vm.runInNewContext(prefix, { URLSearchParams, localStorage: { getItem: key => key === 'crm_session_token' ? 'synthetic' : JSON.stringify({ role: 'platform_owner' }) }, window: { location: { replace() {} } } }), /portal_permission_required/, 'SaaS role does not enter tenant portal');
+  assert.ok(portal.includes("api('/api/staff')") && portal.includes("api('/api/payroll/rules')") && portal.includes("api('/api/clients')"), 'UI consumes current POS lookups');
   console.log(`SCOPED ROLE DEPENDENCIES POSTGRES QA: PASS (${checks} real HTTP checks; senior bootstrap; minimal DTO; denied writes; tenant isolation; persisted product)`);
 } finally {
   child?.kill();

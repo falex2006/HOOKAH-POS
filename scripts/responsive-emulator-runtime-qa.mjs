@@ -1,12 +1,33 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const playwrightPath = process.env.PLAYWRIGHT_PACKAGE_PATH;
 if (!playwrightPath) throw new Error('Set PLAYWRIGHT_PACKAGE_PATH to the installed Playwright package directory');
 const { chromium } = createRequire(import.meta.url)(playwrightPath);
-const base = process.env.CRM_QA_URL || 'http://127.0.0.1:3239';
+let qaServer;
+let base = process.env.CRM_QA_URL || '';
+if (!base) {
+  let output = '';
+  qaServer = spawn(process.execPath, ['server.js'], {
+    cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true,
+    env: { ...process.env, HOST: '127.0.0.1', PORT: '0', DATABASE_URL: '', AUTH_REQUIRED: 'false', DEMO_MODE: 'false', NODE_ENV: 'test' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  qaServer.stdout.on('data', (chunk) => { output += chunk; });
+  qaServer.stderr.on('data', (chunk) => { output += chunk; });
+  base = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Responsive QA server did not start: ${output}`)), 15000);
+    qaServer.once('error', reject);
+    qaServer.stdout.on('data', () => {
+      const match = output.match(/CRM running on http:\/\/localhost:(\d+)/);
+      if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`); }
+    });
+  });
+}
 const outputDir = path.resolve('docs/ai-team/responsive-emulator');
 await mkdir(outputDir, { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
@@ -136,4 +157,5 @@ try {
 } finally {
   await context.request.post(`${base}/api/logout`).catch(() => {});
   await browser.close();
+  qaServer?.kill();
 }

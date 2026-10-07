@@ -11,7 +11,8 @@ const loginRevision = /const loginRevision = '(\d+)'/.exec(fs.readFileSync('scri
 const profile = fs.readFileSync('staff-profile.js', 'utf8');
 const lock = fs.readFileSync('lock.js', 'utf8');
 const server = fs.readFileSync('server.js', 'utf8');
-const loginRequestStart = js.indexOf("response = await fetch('/api/login'");
+const loginFormSubmitStart = js.indexOf("form?.addEventListener('submit'");
+const loginRequestStart = js.indexOf("response = await fetch('/api/login'", loginFormSubmitStart);
 const localDemoFallback = js.indexOf('const user = demoUsers', loginRequestStart);
 const responseHandlingStart = js.indexOf('const data = await response.json()', loginRequestStart);
 const required = [
@@ -41,6 +42,11 @@ const required = [
   ['login password input is identified as an existing password', /id="login-password"[^>]*autocomplete="current-password"/.test(html)],
   ['published flat login route keeps the safe initial state', /id="login-form"(?![^>]*\shidden)/.test(distHtml) && /id="setup-form"\s+hidden/.test(distHtml)],
   ['published /login/ directory alias matches the safe initial state', /id="login-form"(?![^>]*\shidden)/.test(distDirectoryHtml) && /id="setup-form"\s+hidden/.test(distDirectoryHtml)],
+  ['owner recovery form is available on the branded login page', html.includes('id="password-reset-form"') && html.includes('id="reset-password-confirm"')],
+  ['published login aliases carry the recovery form', [distHtml, distDirectoryHtml].every(markup => markup.includes('id="password-reset-form"'))],
+  ['recovery token stays in the URL fragment and is submitted once', /location\.hash\.slice\(1\)/.test(js) && /resetToken: passwordResetToken, newPassword: password/.test(js) && /history\.replaceState\(null, '', '\/login'\)/.test(js)],
+  ['recovery flow verifies confirmation and does not fall through to first-run setup', /password !== passwordResetConfirmInput\.value/.test(js) && /if \(isPasswordReset\) return;/.test(js)],
+  ['server consumes valid recovery tokens only with a configured database', /password_reset_requires_database/.test(server) && /password_reset_token_hash=NULL,password_reset_expires_at=NULL/.test(server)],
   ['published login behavior and cache revisions stay synchronized', js === distJs && [html,distHtml,distDirectoryHtml].every(markup => markup.includes(`login.js?rev=${loginRevision}`))],
   ['first-run setup is opt-in for the current environment', /FIRST_RUN_SETUP_ENABLED === 'true'/.test(server) && /if \(!firstRunSetupEnabled\) return json\(res, 200, \{ required: false \}\)/.test(server)],
   ['login HTML cannot stay cached with stale first-run markup', /if \(requestPath === '\/login\.html'\) headers\['Cache-Control'\] = 'no-store'/.test(server)],

@@ -39,7 +39,7 @@ try {
   const order = await api('/api/orders', 'POST', { tableId: 'discount-ui-qa' }, 201);
   await api(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201);
   const first = await api(`/api/orders/${order.id}/discount-requests`, 'POST', { type: 'percent', value: 10, reason: 'UI QA approve' }, 201);
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 320, height: 640 }, locale: 'ru-RU' });
   const exceptions = [];
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });

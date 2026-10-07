@@ -13,8 +13,9 @@ assert.match(portal.slice(start, end), /if \(form\.dataset\.submitting === '1'\)
 assert.match(portal.slice(scope, start), /#new-recipe'\)\?\.addEventListener\('click', \(\) => \{ if \(form\.dataset\.submitting !== '1'\)/, 'new editor must stay closed while saving');
 
 const fields = new Map();
-for (const id of ['recipe-id', 'recipe-name', 'recipe-product', 'recipe-type', 'recipe-yield-quantity', 'recipe-yield-unit', 'recipe-portion-count', 'recipe-technology', 'recipe-serve']) fields.set(`#${id}`, { value: '' });
+for (const id of ['recipe-id', 'recipe-name', 'recipe-category', 'recipe-product', 'recipe-type', 'recipe-yield-quantity', 'recipe-yield-unit', 'recipe-portion-count', 'recipe-technology', 'recipe-serve']) fields.set(`#${id}`, { value: '' });
 fields.get('#recipe-name').value = 'QA карта';
+fields.get('#recipe-category').value = 'Коктейли';
 fields.get('#recipe-type').value = 'sale';
 fields.get('#recipe-yield-quantity').value = '1';
 fields.get('#recipe-yield-unit').value = 'порция';
@@ -56,6 +57,7 @@ submit();
 assert.equal(requests.length, 1);
 assert.equal(requests[0].url, '/api/recipes');
 assert.equal(requests[0].options.method, 'POST');
+assert.equal(JSON.parse(requests[0].options.body).category, 'Коктейли');
 assert.equal(form.dataset.submitting, '1');
 assert.equal(submitButton.disabled, true);
 assert.equal(newButton.disabled, true);

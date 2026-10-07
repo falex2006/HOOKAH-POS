@@ -171,7 +171,7 @@ try {
   assert.equal(Number(tampered.totals.revenue), 60, 'employee cannot alter current-day scope');
   assert.deepEqual(tampered.shifts, [{ id: 'employee-today' }]);
 
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 375, height: 812 }, locale: 'ru-RU' });
   const auditReads = [];
   const staffReads = [];

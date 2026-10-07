@@ -1,5 +1,5 @@
 'use strict';
-const { redactAuditData, sanitizeAuditEvent } = require('./audit-privacy');
+const { sanitizeAuditEvent } = require('./audit-privacy');
 
 const PURCHASE_UNIT_FACTORS = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
 
@@ -47,8 +47,8 @@ async function allocatePremixBatchConsumption(client, input) {
 class OrderRepository {
   constructor(pool) { this.pool = pool; }
   async listOpen(venueId, includeClosed = false) {
-    const { rows } = await this.pool.query(`SELECT o.id, o.table_id AS "tableId", CASE WHEN z.id IS NOT NULL THEN t.name END AS "tableName", o.status, o.vip_minimum AS "minimumOrderTotal", o.notes, o.created_at AS "createdAt", o.guest_id AS "guestId", g.full_name AS "guestName", g.phone AS "guestPhone",
-      o.closed_at AS "closedAt", COALESCE((SELECT SUM(pay.amount) FROM payments pay WHERE pay.order_id=o.id AND pay.status IN ('paid','partially_paid')),0) AS "finalTotal",
+    const { rows } = await this.pool.query(`SELECT o.id, o.table_id AS "tableId", o.reservation_id AS "reservationId", CASE WHEN z.id IS NOT NULL THEN t.name END AS "tableName", o.status, o.vip_minimum AS "minimumOrderTotal", o.notes, o.created_at AS "createdAt", o.guest_id AS "guestId", g.full_name AS "guestName", g.phone AS "guestPhone", o.group_discount_group_id AS "groupDiscountGroupId", o.group_discount_name AS "groupDiscountName", o.group_discount_percent AS "groupDiscountPercent", o.group_discount_base AS "groupDiscountBase", o.group_discount_amount AS "groupDiscountAmount", o.effective_discount_source AS "effectiveDiscountSource", o.subtotal_snapshot AS "subtotalSnapshot", o.discount_total_snapshot AS "discountTotalSnapshot", o.minimum_adjustment_snapshot AS "minimumAdjustmentSnapshot", o.final_total_snapshot AS "finalTotalSnapshot", o.pricing_version AS "pricingVersion",
+      o.closed_at AS "closedAt", COALESCE(o.final_total_snapshot,(SELECT SUM(pay.amount) FROM payments pay WHERE pay.order_id=o.id AND pay.status IN ('paid','partially_paid')),0) AS "finalTotal",
       COALESCE(json_agg(json_build_object('id', oi.id, 'productId', oi.product_id, 'name', p.name, 'quantity', oi.quantity, 'unitPrice', oi.unit_price, 'station', oi.station, 'status', oi.status)) FILTER (WHERE oi.id IS NOT NULL), '[]') AS items
       FROM orders o LEFT JOIN guests g ON g.id=o.guest_id LEFT JOIN tables t ON t.id=o.table_id LEFT JOIN zones z ON z.id=t.zone_id AND z.venue_id=o.venue_id LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN products p ON p.id=oi.product_id
       WHERE o.venue_id=$1 ${includeClosed ? '' : "AND o.status IN ('open','in_progress','ready')"} GROUP BY o.id, g.full_name, g.phone, t.name, z.id ORDER BY o.created_at DESC`, [venueId]);
@@ -58,10 +58,24 @@ class OrderRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query('SELECT id FROM venues WHERE id=$1 FOR UPDATE', [input.venueId]);
+      const { rows: loyaltyRows } = await client.query('SELECT version,bonus_ruble_rate AS "rate",max_redemption_percent AS "capPercent",min_redemption_points AS "minimumPoints" FROM loyalty_program_settings WHERE venue_id=$1 ORDER BY version DESC LIMIT 1', [input.venueId]);
+      const loyaltyPolicy = loyaltyRows[0] || { version: 0, rate: 1, capPercent: 100, minimumPoints: 1 };
       let tableMinimum = 0;
-      if (input.tableId) { const target = await client.query("SELECT t.id,t.min_order_total FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' FOR UPDATE OF t", [input.tableId, input.venueId]); if (!target.rows[0]) throw new Error('table_not_found_or_unavailable'); tableMinimum = Number(target.rows[0].min_order_total || 0); const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) throw new Error('table_has_active_order'); }
+      if (input.tableId) { const target = await client.query("SELECT t.id,t.min_order_total FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' FOR UPDATE OF t", [input.tableId, input.venueId]); if (!target.rows[0]) throw new Error('table_not_found_or_unavailable'); tableMinimum = Number(target.rows[0].min_order_total || 0); const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) { if(input.reservationId){const linked=await client.query('SELECT 1 FROM orders WHERE venue_id=$1 AND reservation_id=$2 LIMIT 1',[input.venueId,input.reservationId]);if(linked.rows[0])throw new Error('reservation_already_linked');} throw new Error('table_has_active_order'); } }
+      let reservationId = null, guestId = input.guestId || null;
+      if (input.reservationId) {
+        const reservation = await client.query('SELECT id,status,table_id AS "tableId",guest_id AS "guestId",deposit_paid AS "legacyDepositPaid" FROM reservations WHERE id=$1 AND venue_id=$2 FOR UPDATE', [input.reservationId,input.venueId]);
+        if (!reservation.rows[0]) throw new Error('reservation_not_found');
+        if (reservation.rows[0].status !== 'confirmed') throw new Error('reservation_not_confirmed');
+        if (String(reservation.rows[0].tableId || '') !== String(input.tableId || '')) throw new Error('reservation_table_mismatch');
+        if (guestId && String(guestId) !== String(reservation.rows[0].guestId || '')) throw new Error('reservation_guest_mismatch');
+        const linked = await client.query("SELECT id FROM orders WHERE venue_id=$1 AND reservation_id=$2 LIMIT 1",[input.venueId,input.reservationId]);
+        if (linked.rows[0]) throw new Error('reservation_already_linked');
+        reservationId = input.reservationId; guestId = reservation.rows[0].guestId;
+      }
       const vipMinimum = Math.max(Number(input.vipMinimum || 0), tableMinimum);
-      const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, vipMinimum, input.notes || null]);
+      const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, guest_id, vip_minimum, notes,loyalty_redemption_policy_version,loyalty_redemption_rate,loyalty_redemption_cap_percent,loyalty_redemption_min_points) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, table_id AS "tableId", reservation_id AS "reservationId", guest_id AS "guestId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt",loyalty_redemption_policy_version AS "redemptionPolicyVersion",loyalty_redemption_rate AS "redemptionRate",loyalty_redemption_cap_percent AS "redemptionCapPercent",loyalty_redemption_min_points AS "redemptionMinPoints"', [input.venueId, input.tableId || null, input.openedBy, reservationId, guestId, vipMinimum, input.notes || null,Number(loyaltyPolicy.version),Number(loyaltyPolicy.rate),Number(loyaltyPolicy.capPercent),Number(loyaltyPolicy.minimumPoints)]);
       if (input.tableId) await client.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [input.tableId, input.venueId]);
       await client.query('COMMIT');
       return rows[0];
@@ -549,8 +563,15 @@ class ReservationRepository {
     const dateClause = date ? ` AND ${localStartsAt}::date=$2::date` : '';
     if (date) params.push(date);
     const { rows } = await this.pool.query(`SELECT r.id, g.full_name AS "guestName", g.phone, to_char(${localStartsAt},'YYYY-MM-DD') AS date, to_char(${localStartsAt},'HH24:MI') AS time,
-      r.table_id AS "tableId", t.name AS "tableName", z.name AS "zoneName", r.guests_count AS guests, r.deposit_paid AS deposit, r.status, r.notes
+      r.table_id AS "tableId", r.guest_id AS "guestId", t.name AS "tableName", z.name AS "zoneName", r.guests_count AS guests, r.deposit_required AS "depositRequired", r.deposit_paid AS deposit, r.deposit_paid AS "depositPaid", r.deposit_paid AS "legacyDepositPaid", r.verified_deposit_paid AS "verifiedDepositPaid", r.status, r.notes, linked_order.id AS "linkedOrderId", COALESCE(prepayments.receipts,'[]'::jsonb) AS "prepaymentReceipts",COALESCE(allocations.items,'[]'::jsonb) AS "prepaymentAllocations"
       FROM reservations r LEFT JOIN venues v ON v.id=r.venue_id LEFT JOIN guests g ON g.id=r.guest_id LEFT JOIN tables t ON t.id=r.table_id LEFT JOIN zones z ON z.id=t.zone_id
+      LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('id',p.id,'amount',p.amount,'available',GREATEST(0,p.amount-COALESCE(a.amount,0)+COALESCE(ar.amount,0)-COALESCE(rr.amount,0)),'method',p.payment_method,'reason',p.reason,'shiftId',p.shift_id,'createdAt',p.created_at,'actorName',u.full_name,'reversals',COALESCE(rr.items,'[]'::jsonb)) ORDER BY p.created_at,p.id) AS receipts FROM reservation_pre_payment_receipts p LEFT JOIN users u ON u.id=p.actor_id
+        LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount FROM reservation_pre_payment_allocations x WHERE x.venue_id=p.venue_id AND x.receipt_id=p.id) a ON true
+        LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount FROM reservation_pre_payment_allocation_reversals x JOIN reservation_pre_payment_allocations ax ON ax.venue_id=x.venue_id AND ax.id=x.allocation_id WHERE x.venue_id=p.venue_id AND ax.receipt_id=p.id) ar ON true
+        LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount,jsonb_agg(jsonb_build_object('id',x.id,'amount',x.amount,'method',x.payout_method,'reason',x.reason,'shiftId',x.shift_id,'createdAt',x.created_at,'actorName',ru.full_name) ORDER BY x.created_at,x.id) AS items FROM reservation_pre_payment_receipt_reversals x LEFT JOIN users ru ON ru.id=x.actor_id WHERE x.venue_id=p.venue_id AND x.receipt_id=p.id) rr ON true
+        WHERE p.venue_id=r.venue_id AND p.reservation_id=r.id) prepayments ON true
+      LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('id',a.id,'receiptId',a.receipt_id,'orderId',a.order_id,'paymentId',a.payment_id,'amount',a.amount,'orderStatus',o.status,'reversalId',ar.id,'reversalReason',ar.reason,'reversedAt',ar.created_at) ORDER BY a.created_at,a.id) AS items FROM reservation_pre_payment_allocations a JOIN orders o ON o.venue_id=a.venue_id AND o.id=a.order_id LEFT JOIN reservation_pre_payment_allocation_reversals ar ON ar.venue_id=a.venue_id AND ar.allocation_id=a.id WHERE a.venue_id=r.venue_id AND a.reservation_id=r.id) allocations ON true
+      LEFT JOIN LATERAL (SELECT o.id FROM orders o WHERE o.venue_id=r.venue_id AND o.reservation_id=r.id ORDER BY o.created_at LIMIT 1) linked_order ON true
       WHERE r.venue_id=$1${dateClause} ORDER BY r.starts_at`, params);
     return rows;
   }
@@ -560,9 +581,9 @@ class ReservationRepository {
       await client.query('BEGIN');
       const guest = input.clientId ? await client.query('SELECT id FROM guests WHERE id=$1 AND venue_id=$2', [input.clientId, input.venueId]) : await client.query(`INSERT INTO guests (venue_id, phone, full_name) VALUES ($1,$2,$3) ON CONFLICT (venue_id, phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id`, [input.venueId, input.phone || null, input.guestName]); if (!guest.rows[0]) throw new Error('guest_not_found');
       const { rows } = await client.query(`INSERT INTO reservations (venue_id, table_id, guest_id, starts_at, guests_count, deposit_required, deposit_paid, status, notes)
-        VALUES ($1,$2,$3,($4::timestamp AT TIME ZONE COALESCE((SELECT NULLIF(timezone,'') FROM venues WHERE id=$1),'Asia/Yekaterinburg')),$5,$6,$6,'confirmed',$7) RETURNING id`, [input.venueId, input.tableId, guest.rows[0].id, `${input.date}T${input.time}:00`, input.guests || 1, input.deposit || 0, input.notes || null]);
+        VALUES ($1,$2,$3,($4::timestamp AT TIME ZONE COALESCE((SELECT NULLIF(timezone,'') FROM venues WHERE id=$1),'Asia/Yekaterinburg')),$5,$6,0,'confirmed',$7) RETURNING id`, [input.venueId, input.tableId, guest.rows[0].id, `${input.date}T${input.time}:00`, input.guests || 1, input.deposit || 0, input.notes || null]);
       await client.query('COMMIT');
-      return { ...input, id: rows[0].id, status: 'confirmed' };
+      return { ...input, id: rows[0].id, depositRequired: Number(input.deposit || 0), depositPaid: 0, legacyDepositPaid: 0, verifiedDepositPaid: 0, prepaymentReceipts: [], deposit: 0, status: 'confirmed' };
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
 }
@@ -581,8 +602,9 @@ class AuditRepository {
     const { rows } = await this.pool.query(`SELECT a.id, a.action, a.entity_type AS "entityType", a.entity_id AS "entityId", a.actor_id AS "actorId", COALESCE(u.full_name, 'система') AS actor, a.before_data AS "beforeData", a.after_data AS "afterData", a.created_at AS "createdAt" FROM audit_events a LEFT JOIN users u ON u.id=a.actor_id WHERE ${clauses.join(' AND ')} ORDER BY a.created_at DESC LIMIT $${params.length}`, params);
     return rows.map(sanitizeAuditEvent);
   }
-  async record(input) {
-    await this.pool.query(`INSERT INTO audit_events (venue_id, actor_id, action, entity_type, entity_id, before_data, after_data) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [input.venueId, input.actorId || null, input.action, input.entityType, input.entityId || null, redactAuditData(input.beforeData ?? null), redactAuditData(input.afterData ?? null)]);
+  async record(input, client = this.pool) {
+    const safe = sanitizeAuditEvent(input);
+    await client.query(`INSERT INTO audit_events (venue_id, actor_id, action, entity_type, entity_id, before_data, after_data) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [input.venueId, input.actorId || null, input.action, input.entityType, input.entityId || null, safe.beforeData, safe.afterData]);
   }
 }
 
@@ -611,8 +633,8 @@ class SessionRepository {
     finally { client.release(); }
   }
   async get(tokenHash) {
-    const { rows } = await this.pool.query(`SELECT s.id,u.id AS "userId",u.organization_id AS "organizationId",COALESCE(s.active_venue_id,u.venue_id) AS "venueId",u.full_name AS name,u.role,u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.preferences,u.pin_updated_at AS "pinUpdatedAt"
-      FROM auth_sessions s JOIN users u ON u.id=s.user_id JOIN organizations o ON o.id=u.organization_id
+    const { rows } = await this.pool.query(`SELECT s.id,u.id AS "userId",u.organization_id AS "organizationId",COALESCE(s.active_venue_id,u.venue_id) AS "venueId",u.full_name AS name,u.role,u.custom_role_id AS "customRoleId",cr.permission_scopes AS "customRolePermissionScopes",u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.preferences,u.pin_updated_at AS "pinUpdatedAt"
+      FROM auth_sessions s JOIN users u ON u.id=s.user_id LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.venue_id=COALESCE(s.active_venue_id,u.venue_id) AND cr.is_active=true JOIN organizations o ON o.id=u.organization_id
       JOIN organization_subscriptions os ON os.organization_id=o.id JOIN organization_memberships m ON m.organization_id=o.id AND m.user_id=u.id
       WHERE s.token_hash=$1 AND s.expires_at>now() AND u.is_active=true AND o.is_active=true AND os.status <> 'cancelled' AND m.status='active'`, [tokenHash]);
     return rows[0] || null;

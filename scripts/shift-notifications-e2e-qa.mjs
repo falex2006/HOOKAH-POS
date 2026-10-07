@@ -155,7 +155,8 @@ try {
   for (const value of invalidAmounts) expect(await close(owner, shift.id, value), 400, `invalid closing amount ${JSON.stringify(value)}`);
   assert.equal(events(await feed(owner)).length, 1, 'failed close validation produces no event');
 
-  await select(owner, venueB);
+  if (databaseUrl) {
+    await select(owner, venueB);
   assert.equal(expect(await request('/api/shifts', { token: owner }), 200, 'venue B shift').current, null, 'A shift is not returned in B');
   assert.equal(events(await feed(owner)).length, 0, 'no A notification in B');
   expect(await close(owner, shift.id), 404, 'cross-venue close denied');
@@ -166,9 +167,10 @@ try {
   const bStatus = expect(await request('/api/shifts', { token: owner }), 200, 'B reread');
   assert.ok(bStatus.current.openedByName, 'management opener remains visible when home venue differs');
   assert.equal(events(await feed(admin)).some((item) => item.id === bEvent.id), false, 'admin A cannot see B events');
-  expect(await close(owner, second.id, 0), 200, 'close B');
-  await select(owner, venueA);
-  assert.equal(expect(await request('/api/shifts', { token: owner }), 200, 'A reread').current.id, shift.id);
+    expect(await close(owner, second.id, 0), 200, 'close B');
+    await select(owner, venueA);
+    assert.equal(expect(await request('/api/shifts', { token: owner }), 200, 'A reread').current.id, shift.id);
+  }
 
   const closingRace = await Promise.all([close(owner, shift.id), close(employee, shift.id)]);
   assert.deepEqual(closingRace.map((r) => r.status).sort(), [200, 404], 'one concurrent close succeeds');

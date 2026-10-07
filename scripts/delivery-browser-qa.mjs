@@ -24,7 +24,7 @@ const base = await new Promise((resolve, reject) => {
 });
 let browser;
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 320, height: 700 }, locale: 'ru-RU' });
   const exceptions = [];
   page.on('pageerror', (error) => exceptions.push(error.message));

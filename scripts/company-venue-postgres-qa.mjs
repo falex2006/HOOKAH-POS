@@ -121,7 +121,7 @@ try {
   const playwrightPath = process.env.PLAYWRIGHT_PACKAGE_PATH;
   if (!playwrightPath) throw new Error('Set PLAYWRIGHT_PACKAGE_PATH');
   const { chromium } = createRequire(import.meta.url)(playwrightPath);
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const context = await browser.newContext({ viewport: { width: 375, height: 800 }, locale: 'ru-RU' });
   const editor = await context.newPage();
   await editor.goto(`${base}/login`, { waitUntil: 'networkidle' });

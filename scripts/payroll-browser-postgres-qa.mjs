@@ -47,7 +47,7 @@ try {
   });
   const health = await (await fetch(`${base}/api/health`)).json();
   assert.equal(health.database, 'postgres');
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 375, height: 812 }, locale: 'ru-RU' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));

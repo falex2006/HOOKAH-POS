@@ -10,7 +10,22 @@ const migrations = [
 for (const file of migrations) {
   if (!existsSync(new URL(`../migrations/${file}`, import.meta.url))) throw new Error(`missing migration: ${file}`);
 }
-if (!portal.includes('inventory-subdepartment-options')) throw new Error('inventory item form has no subdepartment options');
+if (!portal.includes("id=\"inventory-item-subdepartment\"")) throw new Error('inventory item form has no subdepartment selector');
+if (!portal.includes("querySelector('#inventory-item-subdepartment')") || !portal.includes('String(item.departmentCode) === department')) throw new Error('subdepartment options are not populated for the selected department');
+if (!portal.includes('Подцех — участок внутри цеха') || !portal.includes('Категории — группы похожих позиций')) throw new Error('inventory directory is missing plain-language hierarchy explanations');
+if (!portal.includes('Без подцеха') || !portal.includes('Выберите созданный подцех')) throw new Error('inventory item form does not clarify that subdepartment is optional and directory-backed');
+if (!portal.includes('id="inventory-subdepartment-section"')) throw new Error('subdepartment directory section is missing from the hierarchy view');
+if (!portal.includes("document.querySelector('#inventory-subdepartment-list'); subdepartmentList.after(subdepartmentTools)")) throw new Error('subdepartment editor is not placed beside its directory');
+if (!portal.includes("document.querySelector('#inventory-department-list').after(departmentTools)")) throw new Error('department editor is not placed beside its directory');
+if (!portal.includes('data-subdepartment-retry') || !portal.includes('data-category-retry')) throw new Error('directory load errors need visible retry controls');
+if (!portal.includes('target.insertBefore(categoryPanel, tobaccoCatalogPanel)')) throw new Error('primary warehouse hierarchy must appear before the secondary tobacco directory');
+if (!portal.includes(' → весь цех') || !portal.includes(' · группа позиций') || !portal.includes('Активная категория')) throw new Error('category rows must show their hierarchy, purpose and status');
+for (const status of ['status=all', 'inventoryDirectoryStatus', 'data-inventory-directory-status="archived"', 'Восстановить', 'Удалить навсегда', 'Запросить удаление']) if (!portal.includes(status)) throw new Error(`inventory directory lifecycle UI is missing ${status}`);
+for (const route of ["url.searchParams.get('status')", 'inventoryDepartmentRestore', 'productCategoryRestore', 'inventorySubdepartmentRestore', '/api/inventory/deletion-requests', '/api/inventory/permanent-deletions', 'inventory_deletion_owner_required']) if (!server.includes(route)) throw new Error(`inventory archive/restore/delete API is missing ${route}`);
+for (const contract of ["portalUser.role === 'owner'", "portalUser.role === 'manager'", 'window.confirm(`Владелец подтверждает окончательное удаление', 'requestDelete && !window.confirm', 'FOR UPDATE', "status='rejected'"]) {
+  if (!portal.includes(contract) && !server.includes(contract)) throw new Error(`inventory deletion approval contract is missing ${contract}`);
+}
+if (!portal.includes('data-archive-type') || !portal.includes('data-restore-type') || !portal.includes('product-category-edit')) throw new Error('directory archive/restore actions are missing for authorized staff');
 if (!portal.includes('syncInventoryHierarchyOptions')) throw new Error('inventory hierarchy option sync is missing');
 if (!portal.includes("const subdepartmentSelect = document.querySelector('#inventory-subdepartment-department')") || !portal.includes('subdepartmentSelect.innerHTML = options')) throw new Error('subdepartment department options do not refresh when the department directory changes');
 if (!portal.includes('if (departmentSelect && selectedDepartment && [...departmentSelect.options].some((option) => option.value === selectedDepartment)) departmentSelect.value = selectedDepartment')) throw new Error('new category form does not inherit the currently selected department');

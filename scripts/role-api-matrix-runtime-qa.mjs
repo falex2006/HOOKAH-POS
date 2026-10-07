@@ -21,6 +21,7 @@ const child = spawn(process.execPath, ['server.js'], {
 });
 let baseUrl = '';
 let adminToken = '';
+let ownerToken = '';
 const createdStaffIds = [];
 
 const request = async (path, { method = 'GET', token, body } = {}) => {
@@ -59,10 +60,13 @@ try {
   const adminLogin = await request('/api/login', { method: 'POST', body: { username: 'admin', password: adminPassword } });
   expectStatus(adminLogin, 200, 'admin login');
   adminToken = adminLogin.data.token;
+  const ownerLogin = await request('/api/login', { method: 'POST', body: { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo' } });
+  expectStatus(ownerLogin, 200, 'owner login');
+  ownerToken = ownerLogin.data.token;
 
   const createAccount = async (role, login) => {
     const created = await request('/api/staff', {
-      method: 'POST', token: adminToken,
+      method: 'POST', token: ownerToken,
       body: { name: `Role matrix ${role}`, login, password: 'qa-pass-123', role, birthDate: '1990-01-01' },
     });
     expectStatus(created, 201, `admin creates ${role}`);

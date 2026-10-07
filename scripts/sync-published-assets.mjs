@@ -5,13 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '375';
-const portalRevision = '425';
+const cssRevision = '387';
+const portalRevision = '438';
 const lockRevision = '22';
-const appRevision = '176';
-const platformRevision = '5';
+const appRevision = '181';
+const platformRevision = '6';
+const platformCssRevision = '2';
 const staffProfileRevision = '6';
-const loginRevision = '97';
+const loginRevision = '98';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '11';
@@ -28,6 +29,33 @@ const brandHead = `<!-- Hookah POS brand icons -->
 <meta name="theme-color" content="#171A20">
 <meta property="og:image" content="/assets/brand/icons/og-image-1200x630.png?rev=${brandRevision}">
 <!-- /Hookah POS brand icons -->`;
+
+// SaaS-only work must not rewrite POS pages just to publish its own assets.
+// Keep the full-project sync below for coordinated application releases.
+if (process.argv.includes('--saas-only')) {
+  const sources = ['platform.html', 'login.html'];
+  const aliases = Object.entries(routeAliases).filter(([, source]) => sources.includes(source));
+  for (const source of sources) cpSync(resolve(root, source), resolve(root, 'dist', source));
+  for (const [alias, source] of aliases) {
+    mkdirSync(resolve(root, 'dist', alias, '..'), { recursive: true });
+    cpSync(resolve(root, source), resolve(root, 'dist', alias));
+  }
+  const paths = [...sources.map((name) => resolve(root, name)), ...sources.map((name) => resolve(root, 'dist', name)), ...aliases.map(([alias]) => resolve(root, 'dist', alias))];
+  for (const path of paths) {
+    const html = readFileSync(path, 'utf8')
+      .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
+      .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
+      .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
+      .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`);
+    writeFileSync(path, html);
+  }
+  cpSync(resolve(root, 'platform.js'), resolve(root, 'dist', 'platform.js'));
+  cpSync(resolve(root, 'platform.css'), resolve(root, 'dist', 'platform.css'));
+  cpSync(resolve(root, 'login.js'), resolve(root, 'dist', 'login.js'));
+  console.log('Synced SaaS platform and shared login assets only; POS pages were not visited.');
+  process.exit(0);
+}
+
 // Keep flat pages and directory-index aliases in dist aligned with their source
 // templates. Static hosts commonly resolve /login/ to dist/login/index.html,
 // so every public route alias must receive the same safe initial markup.
@@ -57,6 +85,7 @@ for (const path of htmlFiles) {
       return open + withReducedMotion + close;
     })
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
+    .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
     .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
     .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
@@ -75,6 +104,7 @@ cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
 cpSync(resolve(root, 'platform.js'), resolve(root, 'dist', 'platform.js'));
+cpSync(resolve(root, 'platform.css'), resolve(root, 'dist', 'platform.css'));
 cpSync(resolve(root, 'staff-telegram-link.js'), resolve(root, 'dist', 'staff-telegram-link.js'));
 cpSync(resolve(root, 'vip-deposit-ui.js'), resolve(root, 'dist', 'vip-deposit-ui.js'));
 cpSync(resolve(root, 'staff-profile.js'), resolve(root, 'dist', 'staff-profile.js'));
@@ -85,5 +115,6 @@ for (const name of ['login-smoke-ambient.png', 'login-smoke-ambient.mp4']) cpSyn
 cpSync(resolve(root, 'staff-admin-card.js'), resolve(root, 'dist', 'staff-admin-card.js'));
 cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', 'purchase-document-validation.js'));
 cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));
+cpSync(resolve(root, 'assets', 'login-background.mp4'), resolve(root, 'dist', 'assets', 'login-background.mp4'));
 cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'), { recursive: true });
 console.log(`Synced app.js rev=${appRevision}, portal.js rev=${portalRevision}, lock.js rev=${lockRevision}, staff-profile.js rev=${staffProfileRevision}, login.js rev=${loginRevision}, staff-admin-card.js rev=${staffAdminCardRevision}, style.css rev=${cssRevision} across ${htmlFiles.length} source and dist routes.`);

@@ -39,8 +39,8 @@ assert.match(summary, /order\.finalTotal !== undefined && order\.finalTotal !== 
   'memory finance summary preserves explicit zero final totals instead of substituting gross sales');
 assert.match(report, /order\.finalTotal !== undefined && order\.finalTotal !== null \? Number\(order\.finalTotal\) : Number\(orderNetTotal\(order\)\)/,
   'memory finance report preserves explicit zero final totals instead of substituting gross sales');
-assert.match(report, /GREATEST\(0,GREATEST\(COALESCE\(o\.vip_minimum,0\),COALESCE\(i\.subtotal,0\)-COALESCE\(d\.discount,0\)\)\) AS "finalTotal"/,
-  'PostgreSQL finance report derives the zero-total fallback from persisted order items and approved discounts');
+assert.match(report, /COALESCE\(o\.final_total_snapshot,GREATEST\(0,GREATEST\(COALESCE\(o\.vip_minimum,0\),COALESCE\(i\.subtotal,0\)-COALESCE\(d\.discount,0\)\)\)\) AS "finalTotal"/,
+  'PostgreSQL finance report preserves locked order totals and derives the fallback from persisted order items and approved discounts');
 assert.match(analytics, /manualExpenses\.filter\(\(expense\) => expense\.date === date && !\['purchase', 'payroll'\]\.includes\(expense\.source\)\)/,
   'memory-backed server analytics includes ordinary operating expenses while separating purchase/payroll treatment');
 assert.match(portal, /const totalPayroll = days\.reduce\(\(sum, row\) => sum \+ Number\(row\.payroll \|\| 0\), 0\)/,

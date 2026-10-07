@@ -28,7 +28,7 @@ const api = async (path, token, method = 'GET', data) => {
   return { status: response.status, data: await response.json() };
 };
 const expect = (result, status, label, error) => {
-  equal(result.status, status, label + ' status');
+  equal(result.status, status, label + ' status ' + JSON.stringify(result.data));
   if (error) equal(result.data.error, error, label + ' error');
   return result.data;
 };
@@ -87,6 +87,7 @@ try {
   equal(await sessionsFor('worker'), 2, 'Two synthetic worker sessions exist');
   for (const value of ['', 'ab', 'with space', 'user@example.invalid', 'x'.repeat(33), null, {}, 123])
     expect(await patch('worker','owner',{ login: value }), 400, 'Invalid login is rejected', 'invalid_staff_login');
+  // null is the explicit clear value for an existing contact email.
   for (const value of ['bad', 'person@', 'person@invalid', 'a b@example.invalid', 'a@example.invalid\nBcc:x@y.invalid', {}, 42, 'x'.repeat(255) + '@example.invalid'])
     expect(await patch('worker','owner',{ email: value }), 400, 'Invalid email is rejected', 'invalid_staff_email');
   expect(await patch('worker','worker',{ login:'SelfDenied' }),403,'Worker cannot rename self','staff_management_required');

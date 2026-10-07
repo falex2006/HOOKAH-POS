@@ -18,7 +18,7 @@ const checks = [
   ['Employee table page renders selectable tables', /querySelectorAll\('\.table'\)|querySelectorAll\("\.table"\)/, app],
   ['Order item removal uses an explicit item endpoint and DELETE method', /apiJson\(`\/api\/orders\/\$\{orderId\}\/items\/\$\{itemId\}`,\{method:deleted\?'DELETE':'PATCH'/, app],
   ['Order deletion requires reason and stock decision', /Причина удаления[\s\S]*Списать ингредиенты по технологической карте/, app],
-  ['Employee finance page returns after showing only own received payments today, including partial receipts', /МОЯ СМЕНА[\s\S]*Поступившие сегодня платежи по вашим заказам, включая частичные оплаты[\s\S]*return;[\s\S]*Динамика показателей/, portal],
+  ['Employee finance page returns after showing only own received payments today, including partial receipts', /МОЯ СМЕНА[\s\S]*Ваши оплаты сегодня[\s\S]*Все поступившие платежи, включая частичные[\s\S]*employeeView !== true[\s\S]*renderFinanceReport/, portal],
 ];
 
 let failed = 0;

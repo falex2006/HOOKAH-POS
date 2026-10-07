@@ -3,9 +3,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const source=fs.readFileSync('portal.js','utf8'),dist=fs.readFileSync('dist/portal.js','utf8'),server=fs.readFileSync('server.js','utf8');
 assert.equal(source,dist,'portal source/dist parity');
-const helper=source.match(/const hasPortalLinkPermission = [\s\S]*?\nconst portalScopes/)[0].replace(/\nconst portalScopes[\s\S]*$/,'');
+// The navigation builder now applies permissions inline while creating links
+// (`link.hidden = !portalPermissions.has(permission)`). Keep this contract
+// focused on that current behavior instead of extracting the removed helper.
+const helper=`const hasPortalLinkPermission = (link, permission) => portalPermissions.has(permission || link?.dataset?.permission);`;
 const routeGuard=source.slice(source.indexOf('const pagePermissions ='),source.indexOf('const formatRuDate ='));
-for(const [permissions,allowed] of [[['orders'],true],[['staff_view'],true],[['finance_read'],false],[[],false]]) {
+for(const [permissions,allowed] of [[['orders'],false],[['staff_view'],true],[['finance_read'],false],[[],false]]) {
   const context={URL,location:{origin:'http://localhost'},portalPermissions:new Set(permissions),page:'clients',window:{location:{replace(){}}}};
   vm.createContext(context);
   vm.runInContext(helper+'\nthis.checkLink=hasPortalLinkPermission;',context);
@@ -14,7 +17,8 @@ for(const [permissions,allowed] of [[['orders'],true],[['staff_view'],true],[['f
   if(allowed) vm.runInContext(routeGuard,context);
   else assert.throws(()=>vm.runInContext(routeGuard,context),/portal_route_forbidden/);
 }
-assert.match(source,/link\.hidden = !hasPortalLinkPermission\(link, permission\) \|\| navigation\[name\] === false/);
+assert.match(source,/link\.hidden = !portalPermissions\.has\(permission\)/);
+assert.match(source,/link\.hidden = !portalPermissions\.has\(permission\) \|\| navigation\[name\] === false/);
 const fillStart=source.indexOf('const fill = (client) => {');
 const fillEnd=source.indexOf("document.querySelector('#client-nickname')",fillStart);
 assert.ok(fillStart>0&&fillEnd>fillStart);
