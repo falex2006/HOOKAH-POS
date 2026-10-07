@@ -2755,6 +2755,7 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .velora-theme .finance-expenses-filters input,.velora-theme .finance-expenses-filters .button,.velora-theme .report-controls input,.velora-theme .report-controls .custom-select-trigger{min-height:44px;height:44px}
 .velora-theme .report-controls .toolbar-row{grid-template-columns:minmax(160px,.8fr) minmax(180px,1.5fr) auto;min-width:0}
 .velora-theme .report-controls .toolbar-row>*{min-width:0}
+@media(max-width:760px){.velora-theme .report-controls .toolbar-row{grid-template-columns:minmax(0,1fr);width:100%}.velora-theme .report-controls,.velora-theme .report-grid,.velora-theme #report-kpis{min-width:0}.velora-theme #report-kpis .kpi{min-width:0;width:100%}}
 .velora-theme .finance-chart-controls{align-items:end;gap:10px}
 .velora-theme .finance-chart-controls label{display:grid;gap:6px;align-content:end}
 .velora-theme .finance-chart-controls .custom-select-trigger{min-height:44px;height:44px}
