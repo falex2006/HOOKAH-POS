@@ -67,6 +67,16 @@ for (const entry of map.entries) {
   assert.ok(tree.includes('| `' + entry.path + '` |'), `page absent from site tree ${entry.path}`);
 }
 for (const subroute of map.adminSubroutes) assert.ok(rules.includes('`' + subroute + '`'), `missing admin rule ${subroute}`);
+assert.match(rules, /`\/admin#permissions` сохраняет общую боковую панель, верхнюю шапку и заголовок админки[\s\S]*?количеством назначенных сотрудников[\s\S]*?личные профили и имена сотрудников не дублируются[\s\S]*?архивирование недоступно, пока роль назначена/,
+  'permissions page must keep the shell and present roles without employee profile cards');
+assert.match(portal, /custom-role-title[\s\S]*?custom-role-description[\s\S]*?custom-role-assignees/,
+  'permissions roles must show descriptions, assigned counts and scope labels');
+assert.match(portal, /staff-permissions-mode/,
+  'permissions styling must be scoped inside the staff panel');
+assert.match(css, /#staff\.staff-permissions-mode/,
+  'permissions styling must not restyle the shared admin shell');
+assert.match(portal, /data-custom-role-archive="\$\{r\.id\}" \$\{count\?'disabled/,
+  'assigned roles must not be archivable');
 const headings = [...rules.matchAll(/^### `([^`]+)`/gm)].map((m) => m[1]);
 assert.equal(new Set(headings).size, headings.length, 'duplicate page rule heading');
 assert.equal(headings.length, map.entries.length, 'page rule count differs from canonical map');

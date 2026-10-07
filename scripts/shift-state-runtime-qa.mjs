@@ -9,6 +9,7 @@ const staticContext = {
   Promise, Date, Number, JSON, Math, Error,
   localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
   staticStaffDemo: () => true,
+  window: { HOOKAH_SHIFT_CLOSE: { checklistVersion: 1, checklistItems: [{ id: 'ordersReviewed' }, { id: 'cashCounted' }, { id: 'inventoryReviewed' }, { id: 'externalFiscalReportsHandled' }], validateChecklist: (value) => Boolean(value?.version === 1 && value?.items?.ordersReviewed && value?.items?.cashCounted && value?.items?.inventoryReviewed && value?.items?.externalFiscalReportsHandled), freezeChecklist: (value, actorId, confirmedAt) => ({ version: 1, items: Object.entries(value.items).map(([id]) => ({ id, checked: true, checkedBy: actorId, checkedAt: confirmedAt })) }) }, },
 };
 const staticStart = staff.indexOf('const validStaticShiftCash=');
 const staticEnd = staff.indexOf('const shiftCloseFailureMessage=', staticStart);
@@ -21,9 +22,9 @@ assert.equal((await demo()).current.id, opened.id);
 await assert.rejects(demo({ method: 'POST', body: JSON.stringify({ openingCash: 0 }) }), /shift_already_open/);
 const closePath = `/api/shifts/${opened.id}/close`;
 await assert.rejects(demo({ method: 'POST', url: closePath, body: JSON.stringify({ closingCash: 0 }) }), /shift_checklist_required/);
-await demo({ method: 'POST', url: closePath, body: JSON.stringify({ closingCash: 0, checklistConfirmed: true }) });
+await demo({ method: 'POST', url: closePath, body: JSON.stringify({ closingCash: 0, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } }) });
 assert.equal((await demo()).current, null, 'closed static fixture is never current');
-await assert.rejects(demo({ method: 'POST', url: closePath, body: JSON.stringify({ closingCash: 0, checklistConfirmed: true }) }), /shift_not_found_or_closed/);
+await assert.rejects(demo({ method: 'POST', url: closePath, body: JSON.stringify({ closingCash: 0, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } }) }), /shift_not_found_or_closed/);
 for (const amount of [null, true, [], {}, -1, 0.001, 100000001]) {
   await assert.rejects(demo({ method: 'POST', body: JSON.stringify({ openingCash: amount }) }), /opening_cash_required/);
 }
@@ -59,7 +60,7 @@ const management = {
   portalPermissions: new Set(['floor']),
   window: { setInterval: (callback, delay) => { timers.push({ callback, delay }); }, addEventListener: (type, callback) => { windowEvents[type] = callback; } },
   api: async (url, options) => {
-    assert.equal(url, '/api/shifts'); assert.ok(options.signal);
+    assert.equal(url, '/api/shifts'); assert.equal(options, undefined, 'shift status read does not pass an invalid fetch signal');
     reads++;
     if (responseGate) await new Promise((resolve) => { responseGate = resolve; });
     if (failed) throw Error('unavailable');

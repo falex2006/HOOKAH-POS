@@ -111,7 +111,9 @@ async function init(port) {
   finally { await client.end(); }
 }
 (async () => {
-  ensureContainer(config.container, config.dbPort, true);
+  const regressionOnly = process.argv.includes('--regression-only');
+  if (!regressionOnly) ensureContainer(config.container, config.dbPort, true);
   ensureContainer(config.regressionContainer, config.regressionPort, false);
-  await init(config.dbPort); await init(config.regressionPort);
+  if (!regressionOnly) await init(config.dbPort);
+  await init(config.regressionPort);
 })().catch(e => { console.error(e.message); process.exitCode = 1; });

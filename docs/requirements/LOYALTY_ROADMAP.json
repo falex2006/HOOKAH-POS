@@ -1,7 +1,8 @@
 {
   "title": "Система скидок, бонусов и денег гостей",
-  "version": 1,
+  "version": 2,
   "scope": "Локальное внедрение HOOKAH POS. Публикация на GitHub и сервер — отдельный этап после приёмки.",
+  "completionNote": "100% означает завершение 52 локальных критериев этого roadmap и интеграции скидки/возврата по строкам; это не означает готовность официального Payroll run, production-релиза или неподтверждённых будущих функций.",
   "stages": [
     {
       "id": "L01",
@@ -326,7 +327,7 @@
     {
       "id": "L12",
       "title": "Отчёты и административная сверка",
-      "status": "in_progress",
+      "status": "complete",
       "steps": [
         {
           "id": "L12.1",
@@ -357,8 +358,8 @@
         {
           "id": "L12.3",
           "title": "Разобрать исторические брони без подтверждённых квитанций",
-          "status": "in_progress",
-          "detail": "Локальная БД проверена: найдена 1 бронь с legacy deposit_paid общей суммой 1 500 ₽; старое поле не изменяется и не превращается в квитанцию. Положительные legacy значения получают append-only baseline документационной сверки. GET отчёта возвращает последнюю отметку и историю только владельцу/администратору; POST /api/reservations/:id/legacy-deposit-reviews записывает documents_found/documents_not_found/disputed с основанием, actor/time, optimistic head и idempotency, атомарным audit event и повторным чтением в UI. Это только результат поиска документов: не утверждает оплату, не меняет суммы, баланс, квитанции, кассу и не снимает защиту нового приёма предоплаты. Tenant/RBAC, stale version, audit rollback, идемпотентный replay, append-only защита, сохранность финансовых полей и source/dist contract покрыты PostgreSQL/контрактными QA. Документальное решение по реальной записи 1 500 ₽ и авторизованный сквозной визуальный просмотр ещё не выполнены; старое значение безопасно остаётся нерешённым.",
+          "status": "complete",
+          "detail": "На основной локальной PostgreSQL БД найдена единственная бронь с legacy deposit_paid 1 500 ₽, требование 1 500 ₽, подтверждённая сумма 0 ₽, квитанций/возвратов/зачётов нет. Выполнен поиск по доступным материалам проекта и архиву исходников: ID записи обнаружен только в предыдущем журнале аудита, совпадений по гостю нет, архив содержит код и не содержит финансовых документов. Первичный документ оплаты в этих источниках не найден; банковские и внешние кассовые источники недоступны и не проверялись. Через owner UI /finance/report добавлена append-only запись documents_not_found с этим ограничением; после перезагрузки UI/API показывают историю из двух записей. Независимый read-only SQL после записи подтверждает legacy=1 500 ₽, verified=0 ₽, receipts=0, refunds=0, allocations=0. Отметка фиксирует только пределы локального поиска и не подтверждает оплату либо её отсутствие; сумма остаётся неподтверждённой. Денежные поля, баланс, квитанции и касса не менялись. PostgreSQL QA покрывает RBAC/tenant, stale version, replay, rollback, append-only запрет UPDATE/DELETE и отказ нового приёма предоплаты без квитанции.",
           "acceptance": [
             "Legacy deposit_paid не изменяется и не считается подтверждённым поступлением автоматически",
             "Финансовый API возвращает список legacy броней только в активном venue scope, с receipt totals/count и ограничением списка",
@@ -371,34 +372,100 @@
         {
           "id": "L12.4",
           "title": "Проверить разрешения и аудит финансовых действий",
-          "status": "pending"
+          "status": "complete",
+          "detail": "Проверено локально на PostgreSQL и memory: операционные роли получают 403; finance_read предоставляет агрегированный просмотр без персональных legacy-данных и без права записи; ограниченный admin без явного finance запрещён на write; manager сохраняет read-only сводку; owner/admin с finance записывают только документальный результат сверки. PostgreSQL QA проверяет stale head, replay/idempotency, audit rollback, неизменность финансовых полей и venue scope. Runtime finance RBAC, role API matrix и loyalty reconciliation contract проходят.",
+          "acceptance": [
+            "GET reconciliation требует финансовое право; операционные роли не видят гостевые финансовые детали",
+            "finance_read открывает только агрегаты; legacy guest rows и POST сверки требуют owner/admin с явным finance",
+            "Финансовая сверка не меняет сумму, receipt, баланс или кассу; запись аудируется атомарно и остаётся append-only",
+            "Stale version, повторный ключ, подмена venue и сбой audit транзакции покрыты PostgreSQL QA",
+            "Finance RBAC runtime, role API matrix, reconciliation contract и reservation prepayment PostgreSQL QA проходят"
+          ]
         }
       ]
     },
     {
       "id": "L13",
       "title": "Полная локальная приёмка системы",
-      "status": "pending",
+      "status": "complete",
       "steps": [
         {
           "id": "L13.1",
           "title": "Сквозные сценарии владельца, менеджера и кассира",
-          "status": "pending"
+          "status": "complete",
+          "detail": "Сквозной browser/API проход прошёл в memory и в отдельной одноразовой PostgreSQL базе: владелец создаёт tenant через настоящий экран первого запуска, создаёт и редактирует группу через UI, редактирует акцию и перечитывает гостевой ledger; менеджер видит акцию и получает запрет на изменение; кассир применяет лучшее предложение, принимает синтетическую предоплату брони и смешанно оплачивает заказ наличными, бонусами и деньгами гостя. Подтверждённую бронь владелец переводит в визит кнопкой из UI; активная скидка группы фиксируется в заказе и побеждает менее выгодную акцию. Менеджер POS распределяет квитанцию частично, перечитывает остаток заказа, закрывает его наличными; API и независимый SQL подтверждают платёж, allocation, остаток квитанции и балансы/ledger. Все записи синтетические; внешние платежи, постоянная локальная БД, GitHub и сервер не затрагивались. Независимое прохождение сохранено; L12.3 впоследствии закрыт append-only отметкой documents_not_found с явной границей поиска, а L13.4 прошёл финальную локальную приёмку."
         },
         {
           "id": "L13.2",
           "title": "Проверить ошибки, повторы, частичные платежи и конкуренцию",
-          "status": "pending"
+          "status": "complete",
+          "detail": "Локально пройдены disposable PostgreSQL QA для гостевого loyalty API, акций, оплаты заказов и предоплат броней. Покрыты повтор ключа и конфликт payload, частичная/полная оплата и возврат, параллельное списание бонусов и выдача предоплаты, audit rollback, tenant scope и защитные ограничения. В memory дополнительно прошли повторы/ошибки предоплаты, guest ledger и retry настроек программы.",
+          "acceptance": [
+            "Гостевой loyalty API и акции проходят изолированный PostgreSQL regression с проверкой RBAC и tenant isolation",
+            "Заказные платежи проверяют replay/idempotency, конфликт ключа, partial/full payment и конкурентное списание баланса",
+            "Предоплата брони проверяет параллельный повтор, изменённый payload, частичный/полный возврат, зачёт, отмену и tenant isolation",
+            "Ошибка обязательного audit откатывает ledger/баланс; memory retry/error QA завершает сценарии"
+          ]
         },
         {
           "id": "L13.3",
           "title": "Проверить desktop/mobile loyalty UI, POS, экран гостя и отчёты",
-          "status": "pending"
+          "status": "complete",
+          "detail": "Локальная browser/UI приёмка прошла в memory и PostgreSQL для owner/manager/cashier: группа создаётся и редактируется через UI, акция редактируется через UI, гостевой ledger и история перечитываются, квитанция принимается на экране бронирований, начало визита идёт кнопкой брони, POS применяет квитанцию к связанному заказу и принимает остаток наличными, отчёт loyalty перечитывается. Исправлены: снимок активной скидочной группы при создании заказа из брони и отображение скрытых способов оплаты в POS; кнопка предоплаты исчезает из визуального потока после полного распределения. UI-сценарий ручной скидки остаётся в отдельной L03 проверке. На отдельной синтетической брони PostgreSQL owner UI принимает карточную квитанцию 100 ₽ и возвращает 40 ₽ через экран бронирований; browser test имитирует потерю ответа после commit, перезагружает страницу, повторяет тот же запрос с сохранённым idempotency key и получает idempotent replay. UI и независимый SQL join подтверждают одну reversal-запись на 40 ₽, неизменную исходную квитанцию 100 ₽, verified balance 60 ₽, карточный метод и смену; оставшиеся 60 ₽ доступны для возврата. Ключ намерения сохраняется в localStorage до подтверждения ответа и переживает закрытие вкладки/браузера; если browser storage недоступно или сохранённое значение не читается обратно, запрос не отправляется. Memory-сервер не поддерживает refund endpoint; остальные refund edge cases остаются в PostgreSQL API QA. Проверены 320/390/768/1440 px и Fold cover/inner, клавиатурная достижимость пояснения цены и submit, сохранение через повторное чтение UI/API/SQL. Денежные сценарии синтетические; внешний платёж не вызывался. Независимый review пройден; L12.3 завершён записью documents_not_found с явной оговоркой о недоступных банковских/кассовых источниках, без подтверждения или изменения денег."
         },
         {
           "id": "L13.4",
           "title": "Итоговая миграционная, финансовая и code-health проверка",
-          "status": "pending"
+          "status": "complete",
+          "detail": "Финальная локальная приёмка пройдена: migrations contract (83 replay-safe migrations), изолированные PostgreSQL upgrade/runtime migrations, loyalty browser UI/API journey с частичным возвратом и replay, promotions, reservation prepayment, paid-order balance, reconciliation, finance RBAC, guest ledger, memory QA и progress contract — PASS. Reservation form QA, local design/source-dist contracts (portal rev450, CSS rev394), syntax и scoped diff — PASS; source/dist portal byte-identical; code-health reviewer — PASS. Реальная legacy бронь проверена только отдельным owner UI audit flow: зафиксированы пределы поиска, UI/API reload подтвердили историю; независимый read-only SQL подтвердил unchanged legacy=1 500 ₽, verified=0 ₽, receipts/refunds/allocations=0. Автоматические regression тесты запускались на disposable PostgreSQL и не использовали основную БД; после audit action никакие денежные данные не менялись. GitHub, production и внешний сервер не затрагивались. L12.3 отражает documents_not_found только по доступным локальным источникам, без утверждения о факте платежа или его отсутствии.",
+          "acceptance": [
+            "Migration contract, PostgreSQL upgrade/runtime migrations и изолированные loyalty UI/API/financial regressions проходят",
+            "Loyalty reconciliation, finance RBAC, progress contract и memory QA проходят",
+            "Code-health reviewer подтверждает scoped diff без блокеров; source/dist contract проходит",
+            "Автоматические QA используют только disposable/in-memory среды и не подключаются к основной БД; единственное основное локальное изменение — предусмотренная owner UI append-only запись документального результата. После неё денежные поля проверены read-only SQL; GitHub/server не затронуты.",
+            "Результат старой legacy-строки описан в L12.3 как documents_not_found в пределах проверенных локальных материалов; сумма 1 500 ₽ остаётся неподтверждённой оплатой и не считается поступлением."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L14",
+      "title": "Сквозной снимок скидки и возврата по строкам POS",
+      "status": "complete",
+      "detail": "Интеграционный этап фиксирует уже реализованный стык loyalty evaluator → POS price snapshot → Finance item-return facts. Он не объявляет готовность официального Payroll run и не реконструирует legacy строки без снимка.",
+      "steps": [
+        {
+          "id": "L14.1",
+          "title": "Рассчитать best-only скидку и копейки по стабильным строкам",
+          "status": "complete",
+          "detail": "loyalty-pricing.js отдаёт winner, eligibleItemIds и gross/discount/net cents; promo ограничена eligible строками, group/manual — всеми товарными строками. Дробный aggregate gross согласуется в minor units, largest remainder tie-break — order_item_id.",
+          "acceptance": [
+            "Две строки 0.5 × 0.01 ₽ при subtotal 0.01 ₽ дают ровно один gross/discount cent при 100% promotion",
+            "Выбор, исключения, одинаковый результат при перемене порядка строк и отклонение duplicate IDs/subtotal mismatch проверяются loyalty-pricing QA",
+            "Существующие winner precedence, promotion scope и POS explanation contracts проходят"
+          ]
+        },
+        {
+          "id": "L14.2",
+          "title": "Неизменно сохранить результат при первой оплате или прямом закрытии",
+          "status": "complete",
+          "detail": "POS migration 090 и общий transaction writer сохраняют выбранные terms, eligible IDs, seller/time и line gross/discount/net в RUB minor units под блокировкой заказа. Повторное чтение использует этот снимок; legacy locked orders остаются unknown.",
+          "acceptance": [
+            "First tender, direct close, retry и конкурентный close/tender сохраняют только один полный snapshot",
+            "PostgreSQL/browser QA подтверждает fractional-penny promotion round trip и source/dist, tenant, legacy и immutability gates",
+            "Снимок не меняется после правок каталога/акции и не пересоздаётся для исторических заказов"
+          ]
+        },
+        {
+          "id": "L14.3",
+          "title": "Связать возврат товара с исходной чистой строкой, отдельно от выплаты",
+          "status": "complete",
+          "detail": "Finance migrations 091–092 связывают возврат количества и накопительную стоимость с неизменяемой строкой 090. Migration 092 фиксирует post-migration порядок по producer_sequence и immutable previous/cumulative facts; прежние 091 события остаются unsequenced без восстановления порядка. 088 tender payout остаётся отдельным фактом. Bonus, guest deposit и reservation prepayment продолжают использовать собственные ledgers.",
+          "acceptance": [
+            "Частичный/полный возврат ограничен исходными quantity/net cents, включая replay, конфликт, гонку и rollback",
+            "Legacy без pricing snapshot остаётся unattributed; возврат товара не меняет внешний payout total и не создаёт stock movement",
+            "PostgreSQL/browser QA подтверждает UI/API/DB/readback и tenant/RBAC для item returns; sequence 092 переживает совпадающие timestamps, legacy baseline остаётся явно unsequenced"
+          ]
         }
       ]
     }

@@ -25,10 +25,11 @@ const isObject = (value) => Boolean(value && typeof value === 'object' && !Array
 const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json }) => {
   const pathname = url?.pathname || '';
   const schemeIdPath = pathname.match(/^\/api\/payroll\/schemes\/([^/]+)\/versions$/);
-  const versionActionPath = pathname.match(/^\/api\/payroll\/versions\/([^/]+)(?:\/(revisions|activate|preview))?$/);
+  const versionActionPath = pathname.match(/^\/api\/payroll\/versions\/([^/]+)(?:\/(revisions|activate|preview|preview\/approved-attendance|preview\/venue-turnover|source-readiness))?$/);
   const isCollection = pathname === '/api/payroll/schemes';
   const isCompare = pathname === '/api/payroll/compare';
-  if (!isCollection && !schemeIdPath && !versionActionPath && !isCompare) return false;
+  const isAttendanceCollection = pathname === '/api/payroll/attendance/approvals';
+  if (!isCollection && !schemeIdPath && !versionActionPath && !isCompare && !isAttendanceCollection) return false;
 
   if (!req.user) { json(res, 401, { error: 'authentication_required' }); return true; }
   const principal = { userId: req.user.id, venueId: req.user.venueId };
@@ -64,6 +65,15 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
   };
 
   try {
+    if (versionActionPath && versionActionPath[2] === 'source-readiness' && req.method === 'GET') {
+      const keys = [...url.searchParams.keys()];
+      if (keys.length !== 2 || keys.filter(key => key === 'from').length !== 1 || keys.filter(key => key === 'to').length !== 1) {
+        json(res, 400, { error: 'invalid_payroll_source_readiness_period' }); return true;
+      }
+      json(res, 200, await service.getSourceReadiness(principal, id, {
+        from: url.searchParams.get('from'), to: url.searchParams.get('to')
+      })); return true;
+    }
     if (isCollection && req.method === 'GET') {
       json(res, 200, { items: await service.listSchemes(principal) }); return true;
     }
@@ -80,11 +90,20 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
     }
     if (schemeIdPath && req.method === 'POST') {
       const input = await inputForWrite();
-      json(res, 201, await service.createVersion(principal, id, input.definition)); return true;
+      json(res, 201, await service.createVersion(principal, id, input.definition, input.payoutRiskAcknowledgement)); return true;
     }
     if (isCompare && req.method === 'POST') {
       const input = await inputForWrite();
       json(res, 200, await service.compare(principal, input.versionIds, input.previewInput, input.baselineVersionId)); return true;
+    }
+    if (isAttendanceCollection && req.method === 'GET') {
+      json(res, 200, await service.readAttendanceCoverage(principal, {
+        periodFrom: url.searchParams.get('from'), periodTo: url.searchParams.get('to')
+      })); return true;
+    }
+    if (isAttendanceCollection && req.method === 'POST') {
+      const input = await inputForWrite();
+      json(res, 201, await service.approveAttendanceCoverage(principal, input)); return true;
     }
     if (versionActionPath && !versionActionPath[2] && req.method === 'GET') {
       json(res, 200, await service.getVersion(principal, id)); return true;
@@ -94,7 +113,7 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
     }
     if (versionActionPath && !versionActionPath[2] && req.method === 'PUT') {
       const input = await inputForWrite();
-      json(res, 200, await service.replaceDraftVersion(principal, id, input.definition)); return true;
+      json(res, 200, await service.replaceDraftVersion(principal, id, input.definition, input.payoutRiskAcknowledgement)); return true;
     }
     if (versionActionPath && versionActionPath[2] === 'activate' && req.method === 'POST') {
       json(res, 200, await service.activateVersion(principal, id)); return true;
@@ -103,12 +122,21 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
       const input = await inputForWrite();
       json(res, 200, await service.preview(principal, id, input.previewInput)); return true;
     }
+    if (versionActionPath && versionActionPath[2] === 'preview/approved-attendance' && req.method === 'POST') {
+      const input = await inputForWrite();
+      json(res, 200, await service.previewWithApprovedAttendance(principal, id, input.previewInput)); return true;
+    }
+    if (versionActionPath && versionActionPath[2] === 'preview/venue-turnover' && req.method === 'POST') {
+      const input = await inputForWrite();
+      json(res, 200, await service.previewWithVenueDailyTurnover(principal, id, input.previewInput)); return true;
+    }
     return false;
   } catch (error) {
-    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 499 ? error.status : 503;
+    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 499 ? error.status
+      : versionActionPath?.[2] === 'source-readiness' ? 500 : 503;
     const code = error?.code && /^[a-z0-9_]{1,100}$/.test(error.code)
       ? error.code
-      : status === 503 ? 'payroll_scheme_unavailable' : 'invalid_payroll_scheme_request';
+      : status >= 500 ? 'payroll_scheme_unavailable' : 'invalid_payroll_scheme_request';
     json(res, status, { error: code });
     return true;
   }

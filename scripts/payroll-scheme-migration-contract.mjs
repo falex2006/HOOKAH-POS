@@ -13,6 +13,24 @@ const revisionsPath = path.join(root, 'migrations', '079_payroll_scheme_revision
 const revisionsMigration = fs.readFileSync(revisionsPath, 'utf8');
 const runMetadataPath = path.join(root, 'migrations', '081_payroll_run_metadata.sql');
 const runMetadataMigration = fs.readFileSync(runMetadataPath, 'utf8');
+const attendanceMigrationPath = path.join(root, 'migrations', '082_payroll_attendance_approvals.sql');
+const attendanceMigration = fs.readFileSync(attendanceMigrationPath, 'utf8');
+const personalTargetMigrationPath = path.join(root, 'migrations', '083_payroll_personal_target.sql');
+const personalTargetMigration = fs.readFileSync(personalTargetMigrationPath, 'utf8');
+const teamFundMigrationPath = path.join(root, 'migrations', '085_payroll_team_fund.sql');
+const teamFundMigration = fs.readFileSync(teamFundMigrationPath, 'utf8');
+const marginMigrationPath = path.join(root, 'migrations', '086_payroll_margin_target.sql');
+const marginMigration = fs.readFileSync(marginMigrationPath, 'utf8');
+assert.match(marginMigration, /personal_target','team_fund','margin_target/);
+assert.match(marginMigration, /teamWeight\|lossPolicy\|itemRuleBasis/);
+assert.doesNotMatch(marginMigration, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i);
+assert.match(teamFundMigration, /personal_target','team_fund/);
+assert.match(teamFundMigration, /excessRatePolicy\|teamWeight/);
+assert.doesNotMatch(teamFundMigration, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i);
+assert.match(personalTargetMigration, /DROP CONSTRAINT IF EXISTS payroll_scheme_versions_mode_check/);
+assert.match(personalTargetMigration, /personal_target/);
+assert.match(personalTargetMigration, /targetCents\|baseRateBps\|bonusRateBps\|excessRatePolicy/);
+assert.doesNotMatch(personalTargetMigration, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i, '083 changes configuration checks without rewriting any facts or history');
 
 for (const table of [
   'payroll_schemes', 'payroll_scheme_versions', 'payroll_role_assignments',
@@ -58,6 +76,17 @@ assert.match(runMetadataMigration, /NEW\.currency IS DISTINCT FROM configured_cu
   '081 binds the run currency snapshot to the exact scheme version');
 assert.doesNotMatch(runMetadataMigration, /\b(UPDATE\s+payroll_calculation_runs|DELETE\s+FROM\s+payroll_calculation_runs|INSERT\s+INTO\s+payroll_entries|INSERT\s+INTO\s+expenses)\b/i,
   '081 does not backfill run metadata or enter the payroll payout lifecycle');
+for (const table of ['payroll_attendance_approvals', 'payroll_attendance_approval_shifts', 'payroll_attendance_approval_intervals']) {
+  assert.match(attendanceMigration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`), `${table} is additive and replay-safe`);
+  assert.match(attendanceMigration, new RegExp(`BEFORE UPDATE OR DELETE ON %I`), `${table} is append-only`);
+}
+assert.match(attendanceMigration, /BEFORE TRUNCATE ON %I/, 'attendance snapshots reject truncate');
+assert.match(attendanceMigration, /FOREIGN KEY \(venue_id, approved_by\) REFERENCES users \(venue_id, id\)/,
+  'approval author is tenant-bound');
+assert.match(attendanceMigration, /date_trunc\('month', period_from::timestamp\) = date_trunc\('month', period_to::timestamp\)/,
+  'attendance approval periods cannot cross calendar months');
+assert.doesNotMatch(attendanceMigration, /\b(INSERT\s+INTO\s+payroll_entries|INSERT\s+INTO\s+expenses|UPDATE\s+staff_schedules|UPDATE\s+staff_work_logs)\b/i,
+  'attendance approval never changes HR facts or creates a financial posting');
 
 if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
   console.log('PAYROLL SCHEME MIGRATION CONTRACT: STATIC PASS (PostgreSQL runtime explicitly skipped)');
@@ -72,6 +101,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
   const { Client } = require('pg');
   const { makeService, PayrollSchemeServiceError } = require(path.join(root, 'payroll-scheme-service.js'));
   const { makePayrollCalculationRunService, PayrollCalculationRunError } = require(path.join(root, 'payroll-calculation-run-service.js'));
+  const { makePayrollAttendanceManifestService, PayrollAttendanceError } = require(path.join(root, 'payroll-attendance-manifest.js'));
   const client = new Client({ connectionString: databaseUrl });
   const schema = `payroll_migration_qa_${process.pid}_${Date.now()}`;
   const quotedSchema = `"${schema}"`;
@@ -104,6 +134,8 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     await runSql(path.join('migrations', '077_payroll_scheme_snapshots.sql'));
     await runSql(path.join('migrations', '078_payroll_draft_configuration_edits.sql'));
     await runSql(path.join('migrations', '079_payroll_scheme_revision_audit.sql'));
+    await runSql(path.join('migrations', '083_payroll_personal_target.sql'));
+    await runSql(path.join('migrations', '083_payroll_personal_target.sql'));
 
     const venueA = (await client.query("INSERT INTO venues (name) VALUES ('Payroll QA A') RETURNING id")).rows[0].id;
     const venueB = (await client.query("INSERT INTO venues (name) VALUES ('Payroll QA B') RETURNING id")).rows[0].id;
@@ -168,6 +200,8 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     [venueA, versionA, ownerA])).rows[0].id;
     await runSql(path.join('migrations', '081_payroll_run_metadata.sql'));
     await runSql(path.join('migrations', '081_payroll_run_metadata.sql'));
+    await runSql(path.join('migrations', '082_payroll_attendance_approvals.sql'));
+    await runSql(path.join('migrations', '082_payroll_attendance_approvals.sql'));
     assert.deepEqual((await client.query('SELECT venue_timezone,currency FROM payroll_calculation_runs WHERE venue_id=$1 AND id=$2', [venueA, legacyRun])).rows[0],
       { venue_timezone: null, currency: null }, 'legacy run metadata stays explicitly unknown without a guessed backfill');
     const venueTimezone = (await client.query('SELECT timezone FROM venues WHERE id=$1', [venueA])).rows[0].timezone;
@@ -377,6 +411,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       employeeOverrides: [{ employeeId: staffOtherA, path: 'perShiftCents', mode: 'override', value: 0, effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }],
       itemRules: [{ menuItemId: productA, roleId: 'bartender', mode: 'additive', rateBps: 100, priority: 5 }]
     };
+    const payoutRiskAcknowledgement = { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' };
     await assert.rejects(payrollService.listSchemes({ venueId: venueA, userId: staffA }),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 403 && error.code === 'payroll_scheme_owner_only',
       'staff cannot read payroll configuration');
@@ -386,12 +421,120 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     await assert.rejects(payrollService.createScheme({ venueId: venueA, userId: staffA }, { name: 'Forbidden', definition: draftDefinition }),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 403,
       'staff cannot create or mutate payroll configuration');
+    const schemeCountBeforeMissingRiskAcknowledgement = Number((await client.query('SELECT count(*) FROM payroll_schemes WHERE venue_id=$1', [venueA])).rows[0].count);
+    await assert.rejects(payrollService.createScheme(principalA, { name: 'Missing acknowledgement', definition: draftDefinition }),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 400 && error.code === 'payroll_risk_acknowledgement_required',
+      'owner must explicitly acknowledge the non-waivable payout ceiling before saving any scheme version');
+    assert.equal(Number((await client.query('SELECT count(*) FROM payroll_schemes WHERE venue_id=$1', [venueA])).rows[0].count), schemeCountBeforeMissingRiskAcknowledgement,
+      'missing acknowledgement rolls back scheme parent creation atomically');
+    const targetDefinition = {
+      ...draftDefinition, mode: 'personal_target', applyMilestones: false, itemRules: [],
+      roleParameters: { bartender: { perShiftCents: 0, targetCents: 10000, baseRateBps: 1600, bonusRateBps: 6500, excessRatePolicy: 'replace_base' } },
+      employeeOverrides: [{ employeeId: staffOtherA, path: 'targetCents', mode: 'override', value: 0, effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }]
+    };
+    await client.query(`ALTER TABLE payroll_scheme_versions DROP CONSTRAINT payroll_scheme_versions_mode_check;
+      ALTER TABLE payroll_scheme_versions ADD CONSTRAINT payroll_scheme_versions_mode_check
+      CHECK (mode IN ('progressive_daily','stable_percent','percent_only','final_month_threshold'))`);
+    await assert.rejects(payrollService.createScheme(principalA, { name: 'Old schema personal target QA', definition: targetDefinition, payoutRiskAcknowledgement }),
+      (error) => error.code === 'payroll_personal_target_schema_required' && error.status === 409);
+    assert.equal(Number((await client.query('SELECT count(*) FROM payroll_schemes WHERE venue_id=$1', [venueA])).rows[0].count), schemeCountBeforeMissingRiskAcknowledgement,
+      'old schema rejection rolls back target scheme parent and acknowledgement together');
+    await runSql(path.join('migrations', '083_payroll_personal_target.sql'));
+    const targetScheme = await payrollService.createScheme(principalA, { name: 'Daily personal target QA', definition: targetDefinition, payoutRiskAcknowledgement });
+    const targetVersionId = targetScheme.versions[0].versionId;
+    assert.equal((await payrollService.getVersion(principalA, targetVersionId)).roleParameters.bartender.targetCents, 10000);
+    assert.equal((await payrollService.getVersion(principalA, targetVersionId)).employeeOverrides[0].value, 0);
+    const targetInput = {
+      periodFrom: '2026-11-01', periodTo: '2026-11-01', employees: [{ id: staffA }, { id: staffOtherA }], attendance: [],
+      coverage: { kind: 'month_to_date_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'target-scenario' },
+      attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'target-attendance-scenario' },
+      sales: [{ id: 'target-line', employeeId: staffA, date: '2026-11-01', department: 'bar', turnoverCents: 15000, commissionBaseCents: 15000 }]
+    };
+    const targetPreview = await payrollService.preview(principalA, targetVersionId, targetInput);
+    assert.equal(targetPreview.result.status, 'ready');
+    assert.equal(targetPreview.result.employees.find((row) => row.employeeId === staffA).commissionCents, 4850);
+    assert.equal(targetPreview.result.daily[0].employees[0].targetIncentive.roundingPolicy, 'component_half_up_v1');
+    assert.equal(targetPreview.result.daily[0].lines[0].appliedRateBps, null);
+    const editedTarget = await payrollService.replaceDraftVersion(principalA, targetVersionId,
+      { ...targetDefinition, roleParameters: { bartender: { ...targetDefinition.roleParameters.bartender, targetCents: 0 } } }, payoutRiskAcknowledgement);
+    assert.notEqual(editedTarget.payoutRiskAcknowledgement.configDigest, targetScheme.versions[0].payoutRiskAcknowledgement.configDigest);
+    assert.equal((await payrollService.preview(principalA, targetVersionId, targetInput)).result.employees.find((row) => row.employeeId === staffA).commissionCents, 9750);
+    const targetHistory = await payrollService.listVersionRevisions(principalA, targetVersionId);
+    assert.equal(targetHistory[1].snapshot.roleParameters.bartender.targetCents, 0, 'target edit survives immutable audit readback');
+    assert.equal((await payrollService.activateVersion(principalA, targetVersionId)).status, 'active');
+    await assert.rejects(payrollService.replaceDraftVersion(principalA, targetVersionId, targetDefinition, payoutRiskAcknowledgement),
+      (error) => error.code === 'payroll_scheme_version_immutable');
+    await assert.rejects(payrollService.getVersion(principalB, targetVersionId), (error) => error.status === 404);
+    const teamFund = { poolId: 'bar-hookah', targetCents: 10000, baseRateBps: 1600, bonusRateBps: 4000,
+      excessRatePolicy: 'replace_base', departments: ['bar', 'hookah'], distributionPolicy: 'configured_weights' };
+    const teamDefinition = { ...targetDefinition, mode: 'team_fund',
+      roleParameters: { bartender: { perShiftCents: 0, teamFund, teamWeight: 1 } },
+      employeeOverrides: [{ employeeId: staffOtherA, path: 'teamWeight', mode: 'override', value: 2, effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }] };
+    const schemeCountBeforeTeamUpgrade = Number((await client.query('SELECT count(*) FROM payroll_schemes WHERE venue_id=$1', [venueA])).rows[0].count);
+    await assert.rejects(payrollService.createScheme(principalA, { name: 'Old schema team fund QA', definition: teamDefinition, payoutRiskAcknowledgement }),
+      (error) => error.code === 'payroll_personal_target_schema_required' && error.status === 409);
+    assert.equal(Number((await client.query('SELECT count(*) FROM payroll_schemes WHERE venue_id=$1', [venueA])).rows[0].count), schemeCountBeforeTeamUpgrade);
+    await runSql(path.join('migrations', '085_payroll_team_fund.sql'));
+    await runSql(path.join('migrations', '085_payroll_team_fund.sql'));
+    const teamScheme = await payrollService.createScheme(principalA, { name: 'Daily team fund QA', definition: teamDefinition, payoutRiskAcknowledgement });
+    const teamVersionId = teamScheme.versions[0].versionId;
+    const teamReadback = await payrollService.getVersion(principalA, teamVersionId);
+    assert.deepEqual(teamReadback.roleParameters.bartender.teamFund, teamFund);
+    assert.equal(teamReadback.employeeOverrides[0].value, 2);
+    const teamPreview = await payrollService.preview(principalA, teamVersionId, targetInput);
+    assert.equal(teamPreview.result.status, 'ready');
+    assert.equal(teamPreview.result.daily[0].teamFunds[0].fundCents, 3600);
+    assert.equal(teamPreview.result.employees.find((row) => row.employeeId === staffA).teamFundCents, 1200);
+    assert.equal(teamPreview.result.employees.find((row) => row.employeeId === staffOtherA).teamFundCents, 2400);
+    assert.equal(teamPreview.result.payoutEligible, false, 'attendance-independent share to zero-sale member preserves own-revenue conflict');
+    assert.equal(teamPreview.result.employees.find((row) => row.employeeId === staffA).commissionCents, 0, 'pooled payout is not mislabelled as author commission');
+    const teamEdited = await payrollService.replaceDraftVersion(principalA, teamVersionId,
+      { ...teamDefinition, employeeOverrides: [{ ...teamDefinition.employeeOverrides[0], value: 0 }] }, payoutRiskAcknowledgement);
+    assert.notEqual(teamEdited.payoutRiskAcknowledgement.configDigest, teamReadback.payoutRiskAcknowledgement.configDigest);
+    assert.equal((await payrollService.preview(principalA, teamVersionId, targetInput)).result.employees.find((row) => row.employeeId === staffA).teamFundCents, 3600);
+    assert.equal((await payrollService.listVersionRevisions(principalA, teamVersionId))[1].snapshot.employeeOverrides[0].value, 0);
+    assert.equal((await payrollService.activateVersion(principalA, teamVersionId)).status, 'active');
+    await assert.rejects(payrollService.getVersion(principalB, teamVersionId), (error) => error.status === 404);
+    const marginDefinition = { ...targetDefinition, mode: 'margin_target',
+      roleParameters: { bartender: { perShiftCents: 0, targetCents: 5000, baseRateBps: 1600, bonusRateBps: 4800,
+        excessRatePolicy: 'replace_base', lossPolicy: 'offset_daily_losses', itemRuleBasis: 'net_revenue' } },
+      employeeOverrides: ['lossPolicy', 'itemRuleBasis', 'excessRatePolicy'].map((path) => ({ employeeId: staffOtherA, path, mode: 'override',
+        value: { lossPolicy: 'offset_daily_losses', itemRuleBasis: 'net_revenue', excessRatePolicy: 'replace_base' }[path], effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' })) };
+    await assert.rejects(payrollService.createScheme(principalA, { name: 'Old schema margin QA', definition: marginDefinition, payoutRiskAcknowledgement }),
+      (error) => error.code === 'payroll_personal_target_schema_required' && error.status === 409);
+    await runSql(path.join('migrations', '086_payroll_margin_target.sql'));
+    await runSql(path.join('migrations', '086_payroll_margin_target.sql'));
+    const marginScheme = await payrollService.createScheme(principalA, { name: 'Daily margin QA', definition: marginDefinition, payoutRiskAcknowledgement });
+    const marginVersionId = marginScheme.versions[0].versionId;
+    const marginReadback = await payrollService.getVersion(principalA, marginVersionId);
+    assert.equal(marginReadback.roleParameters.bartender.lossPolicy, 'offset_daily_losses');
+    assert.equal(marginReadback.employeeOverrides.find((row) => row.path === 'lossPolicy').value, 'offset_daily_losses');
+    assert.equal(marginReadback.employeeOverrides.find((row) => row.path === 'itemRuleBasis').value, 'net_revenue');
+    assert.equal(marginReadback.employeeOverrides.find((row) => row.path === 'excessRatePolicy').value, 'replace_base');
+    const marginInput = { ...targetInput, sales: [{ ...targetInput.sales[0], costSnapshot: { id: 'net-line-cost', version: 'cost-v1', currency: 'RUB', costCents: 5000 } }] };
+    const marginPreview = await payrollService.preview(principalA, marginVersionId, marginInput);
+    assert.equal(marginPreview.result.status, 'ready');
+    assert.equal(marginPreview.result.employees.find((row) => row.employeeId === staffA).commissionCents, 3200);
+    assert.equal(marginPreview.result.daily[0].employees[0].marginIncentive.payableMarginCents, 10000);
+    assert.equal(marginPreview.result.daily[0].lines[0].costSnapshot.version, 'cost-v1');
+    assert.equal((await payrollService.preview(principalA, marginVersionId, targetInput)).result.status, 'blocked', 'missing cost never falls back to current menu or zero');
+    const marginEdited = await payrollService.replaceDraftVersion(principalA, marginVersionId,
+      { ...marginDefinition, roleParameters: { bartender: { ...marginDefinition.roleParameters.bartender, targetCents: 0 } } }, payoutRiskAcknowledgement);
+    assert.notEqual(marginEdited.payoutRiskAcknowledgement.configDigest, marginReadback.payoutRiskAcknowledgement.configDigest);
+    assert.equal((await payrollService.preview(principalA, marginVersionId, marginInput)).result.employees.find((row) => row.employeeId === staffA).commissionCents, 4800);
+    assert.equal((await payrollService.listVersionRevisions(principalA, marginVersionId))[1].snapshot.roleParameters.bartender.targetCents, 0);
+    assert.equal((await payrollService.activateVersion(principalA, marginVersionId)).status, 'active');
+    await assert.rejects(payrollService.getVersion(principalB, marginVersionId), (error) => error.status === 404);
     const createdScheme = await payrollService.createScheme(principalA, {
       name: 'Owner QA scheme', description: 'owner-only service contract', definition: draftDefinition,
+      payoutRiskAcknowledgement,
       createdBy: ownerB, createdByName: 'Forged actor'
     });
     const createdVersion = createdScheme.versions[0];
     assert.equal(createdVersion.status, 'draft');
+    assert.equal(createdVersion.payoutRiskAcknowledgement.policyCode, payoutRiskAcknowledgement.policyCode);
+    assert.equal(createdVersion.payoutRiskAcknowledgement.acknowledgedBy, ownerA, 'acknowledgement actor is taken from owner session');
+    assert.equal(createdVersion.payoutRiskAcknowledgement.configDigest.length, 64, 'acknowledgement binds a normalized configuration SHA-256 digest');
     assert.equal(createdVersion.roleParameters.bartender.perShiftCents, 10000);
     assert.equal(createdVersion.employeeOverrides[0].value, 0, 'explicit zero override survives readback');
     assert.ok(createdVersion.roleAssignments.some((row) => row.employeeId === staffA));
@@ -403,6 +546,8 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     assert.equal(createdHistory[0].changeKind, 'created');
     assert.equal(createdHistory[0].changedBy, ownerA);
     assert.equal(createdHistory[0].changedByName, 'owner-a', 'revision author name comes from the active owner row');
+    assert.equal(createdHistory[0].snapshot.payoutRiskAcknowledgement.configDigest, createdVersion.payoutRiskAcknowledgement.configDigest,
+      'append-only version revision preserves the exact acknowledgement and digest');
     await expectSqlFailure(`INSERT INTO payroll_scheme_version_revisions
       (venue_id,scheme_version_id,revision_no,change_kind,config_snapshot_json,changed_by,changed_by_name)
       VALUES ($1,$2,2,'edited','{}'::jsonb,$3,'Forged actor')`, [venueA, createdVersion.versionId, staffA], '42501',
@@ -421,7 +566,10 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     };
     editedDefinition.roleAssignments = draftDefinition.roleAssignments.map((row) => ({ ...row, effectiveTo: '2026-11-15' }));
     editedDefinition.employeeOverrides = draftDefinition.employeeOverrides.map((row) => ({ ...row, effectiveTo: '2026-11-15' }));
-    const replaced = await payrollService.replaceDraftVersion(principalA, createdVersion.versionId, editedDefinition);
+    const oldRiskAcknowledgementDigest = createdVersion.payoutRiskAcknowledgement.configDigest;
+    const replaced = await payrollService.replaceDraftVersion(principalA, createdVersion.versionId, editedDefinition, payoutRiskAcknowledgement);
+    assert.notEqual(replaced.payoutRiskAcknowledgement.configDigest, oldRiskAcknowledgementDigest,
+      'editing draft config requires and records acknowledgement against its new canonical digest');
     assert.equal(replaced.roleParameters.bartender.perShiftCents, 12000);
     assert.equal(replaced.effectiveTo, '2026-11-15');
     assert.equal(replaced.itemRules.length, 1, 'draft child configuration is atomically replaced');
@@ -463,8 +611,32 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     const retriedBlockedServiceRun = await runService.createBlockedRun(principalA, blockedRequest);
     assert.equal(retriedBlockedServiceRun.id, blockedServiceRun.id, 'same venue and idempotency key returns the original immutable blocked run');
     assert.deepEqual(retriedBlockedServiceRun, blockedServiceRun, 'idempotent retry returns the full original persisted metadata');
+    // Same request identity must not replay a different writer's result.
+    for (const [label, state, coverage, basis, checksum, engine, counter] of [
+      ['ready', 'ready', 'complete', 'net_after_discounts_refunds', 'a'.repeat(64), 'payroll-schemes-v1', 0],
+      ['engine', 'blocked', 'unknown', 'unknown', null, 'other-engine', 0],
+      ['counter', 'blocked', 'unknown', 'unknown', null, 'payroll-schemes-v1', 1],
+      ['checksum', 'blocked', 'unknown', 'unknown', 'b'.repeat(64), 'payroll-schemes-v1', 0],
+      ['watermark', 'blocked', 'unknown', 'unknown', null, 'payroll-schemes-v1', 0]
+    ]) {
+      await client.query('SAVEPOINT incompatible_blocked_replay');
+      const key = `blocked-replay-other-${label}`;
+      const watermark = label === 'watermark' ? 'foreign-source-watermark' : `blocked-source-attempt-v1:${activeVersion.versionId}:${blockedRequest.periodFrom}:${blockedRequest.periodTo}:${key}`;
+      await client.query(`INSERT INTO payroll_calculation_runs
+        (venue_id,scheme_version_id,venue_timezone,currency,period_from,period_to,status,source_coverage,commission_basis,
+         eligible_line_count,unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,engine_version,
+         blocked_reason,idempotency_key,created_by,created_by_name)
+        VALUES ($1,$2,$3,'RUB',$4,$5,$6,$7,$8,$9,0,0,$10,$11,$12,$13,$14,$15,'Owner A')`,
+      [venueA, activeVersion.versionId, blockedServiceRun.venue_timezone, blockedRequest.periodFrom, blockedRequest.periodTo,
+        state, coverage, basis, counter, watermark, checksum, engine, state === 'blocked' ? 'Different writer' : null, key, ownerA]);
+      await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, idempotencyKey: key }),
+        (error) => error instanceof PayrollCalculationRunError && error.code === 'payroll_run_idempotency_conflict' && error.status === 409,
+        `blocked operation rejects incompatible ${label} identity`);
+      await client.query('ROLLBACK TO SAVEPOINT incompatible_blocked_replay');
+      await client.query('RELEASE SAVEPOINT incompatible_blocked_replay');
+    }
     const alternateScheme = await payrollService.createScheme(principalA, {
-      name: 'Alternate QA scheme', description: 'same period, different scheme identity', definition: draftDefinition
+      name: 'Alternate QA scheme', description: 'same period, different scheme identity', definition: draftDefinition, payoutRiskAcknowledgement
     });
     const alternateVersion = await payrollService.activateVersion(principalA, alternateScheme.versions[0].versionId);
     await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, schemeVersionId: alternateVersion.versionId }),
@@ -527,10 +699,22 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     await assert.rejects(payrollService.replaceDraftVersion(principalA, createdVersion.versionId, draftDefinition),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 409 && error.code === 'payroll_scheme_version_immutable',
       'active scheme configuration cannot be rewritten');
-    const overlappingVersion = await payrollService.createVersion(principalA, createdScheme.id, draftDefinition);
-    const foreignCurrencyVersion = await payrollService.createVersion(principalA, createdScheme.id, { ...draftDefinition, currency: 'USD' });
+    const overlappingVersion = await payrollService.createVersion(principalA, createdScheme.id, draftDefinition, payoutRiskAcknowledgement);
+    await client.query(`UPDATE payroll_scheme_versions SET config_json=jsonb_set(config_json,
+      '{payoutRiskAcknowledgement,configDigest}',to_jsonb($3::text)) WHERE venue_id=$1 AND id=$2`,
+    [venueA, overlappingVersion.versionId, '0'.repeat(64)]);
+    await assert.rejects(payrollService.activateVersion(principalA, overlappingVersion.versionId),
+      (error) => error instanceof PayrollSchemeServiceError && error.status === 409 && error.code === 'payroll_risk_acknowledgement_required',
+      'activation refuses acknowledgement whose digest does not match the locked current configuration');
+    assert.equal((await payrollService.getVersion(principalA, overlappingVersion.versionId)).status, 'draft',
+      'stale acknowledgement never activates a version');
+    await client.query(`UPDATE payroll_scheme_versions SET config_json=jsonb_set(config_json,
+      '{payoutRiskAcknowledgement,configDigest}',to_jsonb($3::text)) WHERE venue_id=$1 AND id=$2`,
+    [venueA, overlappingVersion.versionId, overlappingVersion.payoutRiskAcknowledgement.configDigest]);
+    const foreignCurrencyVersion = await payrollService.createVersion(principalA, createdScheme.id, { ...draftDefinition, currency: 'USD' }, payoutRiskAcknowledgement);
     const foreignTenantScheme = await payrollService.createScheme(principalB, {
       name: 'Foreign tenant QA scheme',
+      payoutRiskAcknowledgement,
       definition: { ...draftDefinition, roleAssignments: [], employeeOverrides: [], itemRules: [] }
     });
     await assert.rejects(runService.createBlockedRun(principalA, { ...blockedRequest, schemeVersionId: overlappingVersion.versionId, idempotencyKey: 'blocked-run-draft-version-001' }),
@@ -543,6 +727,8 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       ],
       periodFrom: '2026-11-01', periodTo: '2026-11-01',
       coverage: { kind: 'month_to_date_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'owner-scenario-v1' },
+      attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'owner-attendance-scenario-v1' },
+      attendance: [{ id: 'scenario-shift', employeeId: staffA, date: '2026-11-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
       sales: [{ id: 'scenario-line', date: '2026-11-01', employeeId: staffA, menuItemId: productA,
         department: 'bar', turnoverCents: 10000, commissionBaseCents: 10000 }]
     };
@@ -576,6 +762,10 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       { ...previewInput, sales: Array(20001).fill(previewInput.sales[0]) }, createdVersion.versionId),
     (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
     'oversized sales comparisons are rejected by the service before calculation');
+    await assert.rejects(payrollService.preview(principalA, createdVersion.versionId,
+      { ...previewInput, attendance: Array(20001).fill({ id: 'too-many', employeeId: staffA, date: '2026-11-01', approved: true, workedMinutes: 1, plannedMinutes: 1 }) }),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'preview_input_too_large',
+    'oversized attendance scenarios are rejected before calculation');
     await assert.rejects(payrollService.preview(principalA, createdVersion.versionId, {
       ...previewInput, venueDailyTurnover: Array(32).fill({ date: '2026-11-01', turnoverCents: 0 })
     }),
@@ -596,7 +786,7 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     (error) => error instanceof PayrollSchemeServiceError && error.status === 404 && error.code === 'payroll_scheme_version_not_found',
     'cross-tenant comparison IDs are indistinguishable from absent IDs');
     const tooManyAssignments = { ...draftDefinition, roleAssignments: Array(15001).fill(draftDefinition.roleAssignments[0]) };
-    await assert.rejects(payrollService.createVersion(principalA, createdScheme.id, tooManyAssignments),
+    await assert.rejects(payrollService.createVersion(principalA, createdScheme.id, tooManyAssignments, payoutRiskAcknowledgement),
       (error) => error instanceof PayrollSchemeServiceError && error.status === 413 && error.code === 'scheme_definition_too_large',
       'oversized combined scheme child rows are rejected before writes');
     const comparison = await payrollService.compare(principalA, [overlappingVersion.versionId, createdVersion.versionId], previewInput, createdVersion.versionId);
@@ -619,11 +809,13 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
       roleParameters: { bartender: { perShiftCents: 0, bracketRatesBps: { 0: 0 }, milestoneBonusesCents: { 5000000: 0 } } },
       employeeOverrides: []
     };
-    const overflowScheme = await payrollService.createScheme(principalA, { name: 'Aggregate overflow QA', definition: overflowDefinition });
-    const zeroScheme = await payrollService.createScheme(principalA, { name: 'Aggregate zero QA', definition: zeroDefinition });
+    const overflowScheme = await payrollService.createScheme(principalA, { name: 'Aggregate overflow QA', definition: overflowDefinition, payoutRiskAcknowledgement });
+    const zeroScheme = await payrollService.createScheme(principalA, { name: 'Aggregate zero QA', definition: zeroDefinition, payoutRiskAcknowledgement });
     const overflowInput = {
       ...previewInput,
       venueDailyTurnover: [{ date: '2026-11-01', turnoverCents: 0 }],
+      attendance: [...previewInput.attendance,
+        { id: 'overflow-shift', employeeId: staffOtherA, date: '2026-11-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
       sales: [
         { id: 'overflow-a', date: '2026-11-01', employeeId: staffA, menuItemId: productA, department: 'bar', turnoverCents: 0, commissionBaseCents: 0 },
         { id: 'overflow-b', date: '2026-11-01', employeeId: staffOtherA, menuItemId: productA, department: 'bar', turnoverCents: 0, commissionBaseCents: 0 }
@@ -654,6 +846,195 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     transaction = false;
     schemaCommitted = true;
     await client.query(`SET search_path TO ${quotedSchema}, public`);
+
+    const addSchedule = async (userId, date, start, end) => client.query(`INSERT INTO staff_schedules
+      (venue_id,user_id,work_date,planned_start,planned_end) VALUES ($1,$2,$3::date,$4::timestamptz,$5::timestamptz)` ,
+    [venueA, userId, date, start, end]);
+    await addSchedule(staffA, '2026-09-10', '2026-09-10T10:00:00Z', '2026-09-10T18:00:00Z');
+    await addSchedule(staffOtherA, '2026-09-11', '2026-09-11T10:00:00Z', '2026-09-11T18:00:00Z');
+    await client.query('UPDATE users SET deleted_at=now() WHERE venue_id=$1 AND id=$2', [venueA, staffOtherA]);
+    const scheduleIds = (await client.query('SELECT id,user_id FROM staff_schedules WHERE venue_id=$1 ORDER BY work_date', [venueA])).rows;
+    const scheduleIdA = scheduleIds.find((row) => row.user_id === staffA).id;
+    const scheduleIdArchived = scheduleIds.find((row) => row.user_id === staffOtherA).id;
+    await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source)
+      VALUES ($1,$2,'2026-09-10T10:00:00Z','2026-09-10T12:00:00Z','manual'),
+             ($1,$2,'2026-09-10T11:00:00Z','2026-09-10T13:00:00Z','shift'),
+             ($1,$3,'2026-09-11T10:00:00Z','2026-09-11T12:30:00Z','device')`, [venueA, staffA, staffOtherA]);
+    await client.query(`INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end)
+      VALUES ($1,$2,'2026-09-10','2026-09-10T10:00:00Z','2026-09-10T18:00:00Z')`, [venueB, ownerB]);
+    await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source)
+      VALUES ($1,$2,'2026-09-10T10:00:00Z','2026-09-10T16:00:00Z','manual')`, [venueB, ownerB]);
+    const sideEffectCounts = async () => (await client.query(`SELECT
+      (SELECT count(*)::int FROM payroll_entries WHERE venue_id=$1) AS payroll_entries,
+      (SELECT count(*)::int FROM expenses WHERE venue_id=$1) AS expenses,
+      (SELECT count(*)::int FROM shifts WHERE venue_id=$1) AS shifts,
+      (SELECT count(*)::int FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1) AS payments,
+      (SELECT count(*)::int FROM orders WHERE venue_id=$1) AS orders,
+      (SELECT count(*)::int FROM guest_account_entries WHERE venue_id=$1) AS loyalty_entries`, [venueA])).rows[0];
+    const attendanceSideEffectsBefore = await sideEffectCounts();
+    const attendancePool = {
+      async query(...args) {
+        const connection = new Client({ connectionString: databaseUrl });
+        await connection.connect();
+        try {
+          await connection.query(`SET search_path TO ${quotedSchema}, public`);
+          return await connection.query(...args);
+        } finally { await connection.end().catch(() => {}); }
+      },
+      async connect() {
+        const connection = new Client({ connectionString: databaseUrl });
+        await connection.connect();
+        await connection.query(`SET search_path TO ${quotedSchema}, public`);
+        return { query: (...args) => connection.query(...args), release: () => connection.end().catch(() => {}) };
+      }
+    };
+    const attendanceService = makePayrollAttendanceManifestService(attendancePool);
+    const attendancePrincipal = { userId: ownerA, venueId: venueA };
+    const attendancePeriod = { periodFrom: '2026-09-01', periodTo: '2026-09-30' };
+    const coverage = await attendanceService.readCoverage(attendancePrincipal, attendancePeriod);
+    assert.equal(coverage.complete, true, 'valid scheduled work intervals produce complete attendance coverage');
+    assert.equal(coverage.scheduleCount, 2, 'coverage includes historical shifts for archived staff');
+    assert.equal(coverage.shifts.some((shift) => shift.employeeId === ownerB), false,
+      'coverage excludes schedule and log rows owned by a different venue in the same database');
+    assert.equal(coverage.shifts.find((shift) => shift.scheduleId === scheduleIdA).workedMinutes, 180,
+      'overlapping work intervals merge deterministically without double-counting minutes');
+    assert.equal(coverage.shifts.find((shift) => shift.scheduleId === scheduleIdArchived).workedMinutes, 150,
+      'archived employees remain in historical attendance manifests');
+    assert.equal(Object.hasOwn(coverage, 'source'), false, 'coverage response exposes the watermark, not a duplicate raw source manifest');
+    const emptyCoverage = await attendanceService.readCoverage(attendancePrincipal, { periodFrom: '2026-08-01', periodTo: '2026-08-31' });
+    assert.equal(emptyCoverage.complete, false, 'an empty schedule period cannot be silently approved as complete');
+    assert.ok(emptyCoverage.reasons.includes('payroll_attendance_no_planned_shifts'), 'empty coverage has an explicit blocker');
+    const approvalInput = { ...attendancePeriod, sourceWatermark: coverage.sourceWatermark, reason: 'QA timesheet reconciliation', idempotencyKey: 'payroll-attendance:qa-approval-01' };
+    const approval = await attendanceService.approveCoverage(attendancePrincipal, approvalInput);
+    assert.equal(approval.revision, 1, 'owner can persist first immutable attendance approval');
+    const retriedApproval = await attendanceService.approveCoverage(attendancePrincipal, approvalInput);
+    assert.equal(retriedApproval.approvalId, approval.approvalId, 'same idempotency key returns the original approval');
+    const concurrentInput = { ...approvalInput, reason: 'Concurrent QA approval', idempotencyKey: 'payroll-attendance:qa-concurrent-01' };
+    const concurrentApprovals = await Promise.all([
+      attendanceService.approveCoverage(attendancePrincipal, concurrentInput),
+      attendanceService.approveCoverage(attendancePrincipal, concurrentInput)
+    ]);
+    assert.equal(concurrentApprovals[0].approvalId, concurrentApprovals[1].approvalId,
+      'concurrent same-key approval requests serialize to the same immutable revision');
+    assert.equal(concurrentApprovals[0].revision, 2, 'a distinct explicit approval reason creates one new revision');
+    const distinctConcurrent = await Promise.all([
+      attendanceService.approveCoverage(attendancePrincipal, { ...approvalInput, reason: 'Concurrent QA approval A', idempotencyKey: 'payroll-attendance:qa-concurrent-A' }),
+      attendanceService.approveCoverage(attendancePrincipal, { ...approvalInput, reason: 'Concurrent QA approval B', idempotencyKey: 'payroll-attendance:qa-concurrent-B' })
+    ]);
+    assert.deepEqual(distinctConcurrent.map((row) => row.revision).sort((a, b) => a - b), [3, 4],
+      'concurrent distinct approvals for one period receive unique sequential revisions');
+    const latestAttendanceApprovalId = distinctConcurrent.find((row) => row.revision === 4).approvalId;
+    const attendancePreviewDefinition = {
+      mode: 'progressive_daily', currency: 'RUB', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30',
+      roleParameters: { bartender: { perShiftCents: 8000, bracketRatesBps: { 0: 0 } } },
+      roleAssignments: [
+        { employeeId: staffA, roleId: 'bartender', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' },
+        { employeeId: staffOtherA, roleId: 'bartender', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' }
+      ], employeeOverrides: [], itemRules: []
+    };
+    const attendancePreviewService = makeService(attendancePool);
+    const attendanceScenarioScheme = await attendancePreviewService.createScheme(attendancePrincipal, {
+      name: 'Approved attendance preview QA', definition: attendancePreviewDefinition, payoutRiskAcknowledgement
+    });
+    const attendanceScenarioVersionId = attendanceScenarioScheme.versions[0].versionId;
+    const attendancePreviewInput = {
+      periodFrom: '2026-09-01', periodTo: '2026-09-30',
+      coverage: { kind: 'month_to_date_complete', from: '2026-09-01', through: '2026-09-30', complete: true, watermark: 'scenario-only' },
+      attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-09-01', through: '2026-09-30', complete: true, watermark: 'forged-caller-value' },
+      employees: [
+        { id: staffA, name: 'Staff A', activeFrom: '2026-01-01' },
+        { id: staffOtherA, name: 'Archived Staff A', activeFrom: '2026-01-01' }
+      ],
+      attendance: [{ id: 'caller-forged-shift', employeeId: staffA, date: '2026-09-10', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
+      sales: []
+    };
+    await assert.rejects(attendancePreviewService.previewWithApprovedAttendance(attendancePrincipal,
+      attendanceScenarioVersionId, { ...attendancePreviewInput, periodFrom: '2026-09-31' }),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 400
+      && error.code === 'invalid_single_month_period',
+    'approved-attendance preview rejects an impossible period start before reading sources');
+    await assert.rejects(attendancePreviewService.previewWithApprovedAttendance(attendancePrincipal,
+      attendanceScenarioVersionId, { ...attendancePreviewInput, periodFrom: '2026-09-20', periodTo: '2026-09-01' }),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 400
+      && error.code === 'invalid_single_month_period',
+    'approved-attendance preview rejects a reversed calculation period');
+    const attendanceSideEffectsForPreviewBefore = await sideEffectCounts();
+    const approvedAttendancePreview = await attendancePreviewService.previewWithApprovedAttendance(
+      attendancePrincipal, attendanceScenarioVersionId, attendancePreviewInput);
+    assert.equal(approvedAttendancePreview.official, false, 'approved-attendance preview remains explicitly non-official');
+    assert.equal(approvedAttendancePreview.persistence, 'none', 'approved-attendance preview never persists payroll');
+    assert.equal(approvedAttendancePreview.sourceAttendanceApproval.approvalId, latestAttendanceApprovalId);
+    assert.equal(approvedAttendancePreview.sourceAttendanceApproval.revision, 4);
+    assert.equal(approvedAttendancePreview.result.status, 'ready', 'complete sales scenario plus current approved attendance calculates');
+    assert.deepEqual(approvedAttendancePreview.result.employees.map((row) => row.employeeId).sort(), [staffA, staffOtherA].sort(),
+      'approved snapshot includes both active and archived historical employees');
+    const approvedShiftDetails = approvedAttendancePreview.result.daily.flatMap((day) => day.employees || [])
+      .flatMap((employee) => employee.shiftDetails || []);
+    assert.equal(approvedShiftDetails.length, 2, 'caller-supplied attendance is overwritten by both approved snapshot shifts');
+    assert.deepEqual(approvedShiftDetails.map((shift) => shift.amountCents).sort((a, b) => a - b), [2500, 3000],
+      'approved factual minutes, not caller attendance, determine prorated shift pay');
+    assert.deepEqual(await sideEffectCounts(), attendanceSideEffectsForPreviewBefore,
+      'approved-attendance preview creates no payroll, expense, shift, payment, order or loyalty side effects');
+    await assert.rejects(attendanceService.approveCoverage({ userId: ownerB, venueId: venueB }, approvalInput),
+      (error) => error instanceof PayrollAttendanceError && error.status === 409,
+      'an owner from another venue cannot approve another venue snapshot');
+    await assert.rejects(attendanceService.approveCoverage({ userId: staffA, venueId: venueA }, approvalInput),
+      (error) => error instanceof PayrollAttendanceError && error.status === 403,
+      'a non-owner cannot approve attendance even inside the correct venue');
+    await assert.rejects(client.query('UPDATE payroll_attendance_approvals SET reason=reason WHERE venue_id=$1 AND id=$2', [venueA, approval.approvalId]),
+      (error) => error.code === '55000', 'approval header rejects update');
+    await assert.rejects(client.query('DELETE FROM payroll_attendance_approval_shifts WHERE venue_id=$1 AND approval_id=$2', [venueA, approval.approvalId]),
+      (error) => error.code === '55000', 'approval shifts reject delete');
+    await assert.rejects(client.query('TRUNCATE payroll_attendance_approval_intervals'),
+      (error) => error.code === '55000', 'approval intervals reject truncate');
+    await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source)
+      VALUES ($1,$2,'2026-09-20T10:00:00Z','2026-09-20T11:00:00Z','manual')`, [venueA, staffA]);
+    const unmatchedCoverage = await attendanceService.readCoverage(attendancePrincipal, attendancePeriod);
+    assert.equal(unmatchedCoverage.complete, false, 'a work interval without a planned shift blocks coverage');
+    assert.ok(unmatchedCoverage.reasons.includes('payroll_attendance_work_interval_without_schedule'));
+    await client.query("DELETE FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at='2026-09-20T10:00:00Z'", [venueA, staffA]);
+    await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,source)
+      VALUES ($1,$2,'2026-09-21T10:00:00Z','manual')`, [venueA, staffA]);
+    const openCoverage = await attendanceService.readCoverage(attendancePrincipal, attendancePeriod);
+    assert.equal(openCoverage.complete, false, 'an open work interval blocks coverage');
+    assert.ok(openCoverage.reasons.includes('payroll_attendance_open_or_invalid_work_interval'));
+    await client.query("DELETE FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at='2026-09-21T10:00:00Z'", [venueA, staffA]);
+    await client.query(`INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end)
+      VALUES ($1,$2,'2026-09-12','2026-09-12T10:00:00Z','2026-09-12T14:00:00Z'),
+             ($1,$2,'2026-09-13','2026-09-13T11:00:00Z','2026-09-13T15:00:00Z')`, [venueA, staffA]);
+    await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source)
+      VALUES ($1,$2,'2026-09-12T12:00:00Z','2026-09-13T12:00:00Z','manual')`, [venueA, staffA]);
+    const ambiguousCoverage = await attendanceService.readCoverage(attendancePrincipal, attendancePeriod);
+    assert.equal(ambiguousCoverage.complete, false, 'a work interval crossing multiple planned shifts blocks coverage');
+    assert.ok(ambiguousCoverage.reasons.includes('payroll_attendance_work_interval_shift_ambiguous'));
+    await client.query("DELETE FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at='2026-09-12T12:00:00Z'", [venueA, staffA]);
+    await client.query("DELETE FROM staff_schedules WHERE venue_id=$1 AND user_id=$2 AND work_date IN ('2026-09-12','2026-09-13')", [venueA, staffA]);
+    await client.query("UPDATE staff_work_logs SET ended_at='2026-09-10T14:00:00Z' WHERE venue_id=$1 AND user_id=$2 AND started_at='2026-09-10T10:00:00Z'", [venueA, staffA]);
+    const staleCoverage = await attendanceService.readCoverage(attendancePrincipal, attendancePeriod);
+    assert.equal(staleCoverage.stale, true, 'source edits mark the current approval stale without editing its immutable snapshot');
+    assert.equal(staleCoverage.currentApproval.approvalId, latestAttendanceApprovalId, 'old approved snapshot remains available after source change');
+    const frozenShift = staleCoverage.currentApproval.shifts.find((shift) => shift.scheduleSourceId === scheduleIdA);
+    assert.equal(frozenShift.workedMinutes, 180, 'previous approval retains its original worked minutes after HR source edits');
+    assert.equal(frozenShift.intervals.length, 2, 'previous approval retains both original source interval snapshots after HR source edits');
+    await assert.rejects(attendancePreviewService.previewWithApprovedAttendance(attendancePrincipal,
+      attendanceScenarioVersionId, attendancePreviewInput),
+    (error) => error instanceof PayrollSchemeServiceError && error.status === 409
+      && error.code === 'payroll_preview_attendance_approval_stale',
+    'source-backed scenario refuses a stale approval until a fresh approval is made');
+    await assert.rejects(attendanceService.approveCoverage(attendancePrincipal, {
+      ...concurrentInput, idempotencyKey: 'payroll-attendance:qa-stale-01'
+    }), (error) => error instanceof PayrollAttendanceError && error.code === 'payroll_attendance_source_changed',
+    'approval with an old watermark is rejected after source changes');
+    const revisedApproval = await attendanceService.approveCoverage(attendancePrincipal, {
+      ...attendancePeriod, sourceWatermark: staleCoverage.sourceWatermark, reason: 'QA corrected attendance', idempotencyKey: 'payroll-attendance:qa-revision-03'
+    });
+    assert.equal(revisedApproval.revision, 5, 'owner can append a fresh revision after correcting stale source data');
+    const revisedPreview = await attendancePreviewService.previewWithApprovedAttendance(attendancePrincipal,
+      attendanceScenarioVersionId, attendancePreviewInput);
+    assert.equal(revisedPreview.sourceAttendanceApproval.revision, 5,
+      'source-backed scenario accepts the newly approved current revision');
+    assert.deepEqual(await sideEffectCounts(), attendanceSideEffectsBefore,
+      'attendance reads/approvals leave payroll entries, every expense, shifts/cash, payments, orders and loyalty ledger unchanged');
 
     let insertWaiters = 0;
     const insertBarrier = new Promise((resolve) => { releaseConcurrentInsertBarrier = resolve; });

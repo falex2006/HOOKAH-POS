@@ -82,6 +82,18 @@ try {
       const summary = await page.request.get(`${base}/api/finance/summary?date=2026-09-30`, { headers: authHeaders });
       assert.equal(summary.status(), 200, `${role} retains finance_read summary`);
       if (role === 'bartender') assert.deepEqual(Object.keys(await summary.json()).sort(), ['date', 'employeeView', 'revenue'], 'employee summary omits venue financial details');
+      const report = await page.request.get(`${base}/api/finance/report?date=2026-09-30&type=waiter`, { headers: authHeaders });
+      assert.equal(report.status(), 200, `${role} can read the finance report according to its view permission`);
+      const reportData = await report.json();
+      if (role === 'bartender') {
+        assert.equal(reportData.employeeView, true, 'operational employee receives the restricted personal report');
+        assert.equal(reportData.type, 'x', 'operational employee cannot request the staff breakdown report');
+        assert.deepEqual(Object.keys(reportData).sort(), ['checksCount', 'date', 'employeeView', 'generatedAt', 'reportNumber', 'revenue', 'type'].sort(), 'employee report omits venue ledger details and staff breakdown');
+      } else {
+        assert.equal(reportData.type, 'waiter', 'finance_read manager can request the attributed staff report');
+        assert.ok(reportData.sales && reportData.receipts && reportData.payouts, 'manager report exposes separated financial ledgers');
+        assert.equal(reportData.staffAttribution, 'order_opener', 'manager response discloses current report attribution');
+      }
       for (const [path, method, data] of [
         ['/api/payroll/entries', 'GET'],
         ['/api/payroll/entries', 'POST', { userId: 'x', ruleId: 'x', periodFrom: '2026-09-01', periodTo: '2026-09-30' }],
@@ -93,7 +105,10 @@ try {
         const response = await page.request.fetch(`${base}${path}`, { method, data, headers: authHeaders });
         assert.equal(response.status(), 403, `${role} ${method} ${path} is denied`);
       }
-      if (role === 'bartender') assert.equal((await page.request.get(`${base}/api/finance/purchase-payables`, { headers: authHeaders })).status(), 403, 'employee cannot read supplier balances');
+      if (role === 'bartender') {
+        assert.equal((await page.request.get(`${base}/api/finance/purchase-payables`, { headers: authHeaders })).status(), 403, 'employee cannot read supplier balances');
+        assert.equal((await page.request.get(`${base}/api/finance/purchase-payables?documentDateFrom=2026-09-01&paymentStatus=unpaid`, { headers: authHeaders })).status(), 403, 'employee cannot use filtered supplier-balance endpoint');
+      }
       for (const width of [320, 768, 1440]) {
         await page.setViewportSize({ width, height: 800 });
         assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1; }), false, `${role} finance overflow at ${width}px`);

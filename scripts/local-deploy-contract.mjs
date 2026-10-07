@@ -61,9 +61,17 @@ assert.match(server, /DEMO_STAFF_PASSWORD \|\| \(process\.env\.AUTH_REQUIRED ===
 assert.match(compose, /com\.hookahpos\.release-id:/, 'Compose container must expose the release id label');
 assert.match(dockerfile, /LABEL com\.hookahpos\.release-id=\$CRM_RELEASE_ID/, 'built image must identify its release');
 const dockerFiles = new Set([...dockerfile.matchAll(/^COPY (.+) \.\/$/gm)].flatMap(match => match[1].split(/\s+/)));
-for (const [, moduleName] of server.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)) {
+const runtimeModules = new Set();
+const visitRuntimeModule = moduleName => {
   const moduleFile = moduleName.endsWith('.js') ? moduleName : `${moduleName}.js`;
-  assert.ok(dockerFiles.has(moduleFile), `server runtime module ${moduleFile} must be copied into the CRM image`);
+  if (runtimeModules.has(moduleFile)) return;
+  const source = read(moduleFile);
+  runtimeModules.add(moduleFile);
+  for (const [, dependency] of source.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)) visitRuntimeModule(dependency);
+};
+visitRuntimeModule('server');
+for (const moduleFile of runtimeModules) {
+  assert.ok(dockerFiles.has(moduleFile), `reachable server runtime module ${moduleFile} must be copied into the CRM image`);
 }
 assert.match(deploy, /state_dir="\/var\/lib\/territory-crm\/\$project_name"/, 'release state must be shared across checkouts');
 assert.match(deploy, /backup_dir="\/var\/backups\/territory-crm\/\$project_name"/, 'release backups must be shared across checkouts');

@@ -4,17 +4,24 @@
 // build the principal from authenticated server session state. Scenario preview
 // uses caller-supplied data; the separate venue-turnover preview reads a
 // source-backed venue total. Neither path attests payroll data or persists it.
-const { randomUUID } = require('node:crypto');
-const { calculatePayrollScheme, validateScheme } = require('./payroll-schemes');
+const { createHash, randomUUID } = require('node:crypto');
+const { calculatePayrollScheme, validateScheme, validatePersonalThresholdAssignments, validatePersonalScalarAssignments } = require('./payroll-schemes');
 const { makePayrollVenueTurnoverSource } = require('./payroll-venue-turnover-source');
+const { makePayrollAttendanceManifestService } = require('./payroll-attendance-manifest');
+const { normalizePayrollSourcePolicies, requiredPayrollSourceFacts } = require('./payroll-source-policies');
+const { collectPersonalCapIncreases } = require('./payroll-personal-cap-policy');
+const { parsePayrollReadinessPeriod, readPayrollSourceReadinessInTransaction } = require('./payroll-source-readiness');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PAYOUT_RISK_ACK_POLICY = 'payroll-own-revenue-ceiling-v1';
+const PERSONAL_CAP_ACK_POLICY = 'payroll-personal-cap-above-role-v1';
 
 // Preview is owner-only and scenario-only, but a privileged caller can still
 // submit oversized collections. Bound work before entering the calculator's
 // employee × day and sales-line loops.
 const MAX_PREVIEW_EMPLOYEES = 500;
 const MAX_PREVIEW_SALES_LINES = 20000;
+const MAX_PREVIEW_ATTENDANCE_ROWS = 20000;
 const MAX_PREVIEW_VENUE_DAYS = 31;
 const MAX_SCHEME_CHILD_ROWS = 15000;
 const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
@@ -30,6 +37,56 @@ class PayrollSchemeServiceError extends Error {
 }
 
 const fail = (code, status) => { throw new PayrollSchemeServiceError(code, status); };
+const canonicalJson = (value) => {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().filter((key) => value[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) fail('invalid_scheme_definition');
+  return serialized;
+};
+const payoutConfigurationDigest = (definition) => {
+  const sorted = (rows) => rows.map(canonicalJson).sort().map((row) => JSON.parse(row));
+  const config = {
+    mode: definition.mode, currency: definition.currency, effectiveFrom: definition.effectiveFrom,
+    effectiveTo: definition.effectiveTo, roleParameters: definition.roleParameters,
+    applyMilestones: definition.applyMilestones, milestoneCapPolicy: definition.milestoneCapPolicy,
+    milestoneEligibility: definition.milestoneEligibility,
+    sourcePolicies: definition.sourcePolicies,
+    roleAssignments: sorted(definition.roleAssignments.map((row) => ({ employeeId: String(row.employeeId).toLowerCase(), roleId: row.roleId,
+      effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo || null }))),
+    employeeOverrides: sorted(definition.employeeOverrides.map((row) => ({ employeeId: String(row.employeeId).toLowerCase(), path: row.path,
+      mode: row.mode, value: row.mode === 'override' ? row.value : undefined,
+      effectiveFrom: row.effectiveFrom ?? definition.effectiveFrom, effectiveTo: row.effectiveTo ?? definition.effectiveTo }))),
+    itemRules: sorted(definition.itemRules.map((row) => ({ menuItemId: String(row.menuItemId).toLowerCase(), roleId: row.roleId || null,
+      employeeId: row.employeeId ? String(row.employeeId).toLowerCase() : null, mode: row.mode, rateBps: row.rateBps, priority: row.priority ?? 0 })))
+  };
+  return createHash('sha256').update(canonicalJson(config)).digest('hex');
+};
+const personalCapExceptions = (definition, status = 400) => {
+  try { return collectPersonalCapIncreases(definition); }
+  catch (error) { if (error instanceof TypeError && String(error.code || '').startsWith('payroll_personal_cap_')) fail(error.code, status); throw error; }
+};
+const recordPayoutRiskAcknowledgement = async (db, actor, definition, acknowledgement) => {
+  if (!acknowledgement || acknowledgement.confirmed !== true || acknowledgement.policyCode !== PAYOUT_RISK_ACK_POLICY) {
+    fail('payroll_risk_acknowledgement_required', 400);
+  }
+  const configDigest = payoutConfigurationDigest(definition);
+  const exceptions = personalCapExceptions(definition);
+  if (exceptions.length && (acknowledgement.personalCapIncrease?.confirmed !== true
+    || acknowledgement.personalCapIncrease.policyCode !== PERSONAL_CAP_ACK_POLICY)) {
+    fail('payroll_personal_cap_increase_acknowledgement_required', 400);
+  }
+  const timestamp = await db.query('SELECT now() AS acknowledged_at');
+  const audit = {
+    policyCode: PAYOUT_RISK_ACK_POLICY, configDigest,
+    acknowledgedBy: actor.userId, acknowledgedByName: actor.name,
+    acknowledgedAt: timestamp.rows[0].acknowledged_at
+  };
+  if (exceptions.length) audit.personalCapIncrease = { policyCode: PERSONAL_CAP_ACK_POLICY, configDigest,
+    acknowledgedBy: actor.userId, acknowledgedByName: actor.name, acknowledgedAt: timestamp.rows[0].acknowledged_at, exceptions };
+  return audit;
+};
 const cleanText = (value, max, code) => {
   if (typeof value !== 'string') fail(code);
   const result = value.trim();
@@ -43,6 +100,10 @@ const nullableDate = (value, code) => {
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) fail(code);
   return value;
 };
+const sourcePoliciesForDefinition = (value) => {
+  try { return normalizePayrollSourcePolicies(value); }
+  catch (error) { fail(error.code || 'invalid_payroll_source_policies'); }
+};
 const ensureDefinition = (definition, schemeId, versionId) => {
   if (!definition || typeof definition !== 'object' || Array.isArray(definition)) fail('scheme_definition_required');
   if (definition.employeeOverrides !== undefined && !Array.isArray(definition.employeeOverrides)) fail('invalid_employee_overrides');
@@ -55,6 +116,7 @@ const ensureDefinition = (definition, schemeId, versionId) => {
   if (effectiveTo && effectiveTo < effectiveFrom) fail('invalid_effective_window');
   const currency = definition.currency === undefined ? 'RUB' : String(definition.currency).toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) fail('invalid_currency');
+  const sourcePolicies = sourcePoliciesForDefinition(definition.sourcePolicies);
   const engineScheme = {
     id: schemeId,
     versionId,
@@ -62,7 +124,9 @@ const ensureDefinition = (definition, schemeId, versionId) => {
     currency,
     roleParameters: definition.roleParameters,
     applyMilestones: definition.applyMilestones,
+    ...(definition.milestoneEligibility === undefined ? {} : { milestoneEligibility: definition.milestoneEligibility }),
     milestoneCapPolicy: definition.milestoneCapPolicy,
+    sourcePolicies,
     employeeOverrides: Array.isArray(definition.employeeOverrides) ? definition.employeeOverrides : [],
     itemRules: Array.isArray(definition.itemRules) ? definition.itemRules : []
   };
@@ -85,7 +149,32 @@ const ensureDefinition = (definition, schemeId, versionId) => {
     if (!item || typeof item !== 'object' || !item.menuItemId || (item.roleId && !Object.hasOwn(engineScheme.roleParameters, item.roleId))) fail('invalid_item_rule');
     if (item.priority !== undefined && (!Number.isSafeInteger(item.priority) || item.priority < -2147483648 || item.priority > 2147483647)) fail('invalid_item_rule_priority');
   }
+  // PostgreSQL UUID identity is case-insensitive. Match validation windows by
+  // that same identity before storage; leave caller data and allocation IDs intact.
+  const validationId = value => typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : value;
+  const validationScheme = { ...engineScheme, employeeOverrides: engineScheme.employeeOverrides.map(row => ({ ...row, employeeId: validationId(row.employeeId) })) };
+  const validationAssignments = assignments.map(row => ({ ...row, employeeId: validationId(row.employeeId) }));
+  const personalThresholdErrors = validatePersonalThresholdAssignments(validationScheme, validationAssignments);
+  if (personalThresholdErrors.length) fail(personalThresholdErrors.includes('milestone_cap_policy_required')
+    ? 'milestone_cap_policy_required' : 'invalid_personal_threshold');
+  const personalParameterErrors = validatePersonalScalarAssignments(validationScheme, validationAssignments);
+  if (personalParameterErrors.length) fail(personalParameterErrors.includes('milestone_cap_policy_required')
+    ? 'milestone_cap_policy_required' : personalParameterErrors.includes('invalid_personal_cap') || personalParameterErrors.includes('cap_department_required')
+      ? 'invalid_personal_cap' : 'invalid_personal_parameters');
   return { ...engineScheme, effectiveFrom, effectiveTo, roleAssignments: assignments };
+};
+
+const requireMilestoneConfigurationSchema = async (db, definition) => {
+  if (definition.milestoneEligibility === undefined
+      && !Object.values(definition.roleParameters).some(params => params.milestoneEligibility !== undefined)
+      && !definition.employeeOverrides.some(row => row.path === 'milestoneEligibility')) return;
+  // Config capability only, never source attestation or permission to create a
+  // ready run. Preserve atomic rejection on installations still before 089.
+  const result = await db.query(`SELECT to_regclass('payroll_milestone_day_snapshots') IS NOT NULL
+      AND to_regclass('payroll_milestone_decision_snapshots') IS NOT NULL
+      AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('payroll_calculation_runs')
+        AND attname='milestone_evidence_version' AND NOT attisdropped) AS ready`);
+  if (result.rows[0]?.ready !== true) fail('payroll_milestone_eligibility_schema_required', 409);
 };
 
 const assertOwner = async (db, principal, lock = false) => {
@@ -149,11 +238,16 @@ const loadVersion = async (db, venueId, versionId) => {
     effectiveFrom: version.effective_from instanceof Date ? version.effective_from.toISOString().slice(0, 10) : String(version.effective_from).slice(0, 10),
     effectiveTo: version.effective_to ? (version.effective_to instanceof Date ? version.effective_to.toISOString().slice(0, 10) : String(version.effective_to).slice(0, 10)) : null,
     status: version.status,
+    payoutRiskAcknowledgement: config.payoutRiskAcknowledgement || null,
     roleParameters: config.roleParameters || {},
     applyMilestones: config.applyMilestones,
+    ...(config.milestoneEligibility === undefined ? {} : { milestoneEligibility: config.milestoneEligibility }),
     milestoneCapPolicy: config.milestoneCapPolicy,
+    sourcePolicies: sourcePoliciesForDefinition(config.sourcePolicies),
     roleAssignments: assignments.rows,
-    employeeOverrides: overrides.rows.map((row) => ({ ...row, value: row.mode === 'override' ? (typeof row.value === 'string' ? JSON.parse(row.value) : row.value) : undefined })),
+    // pg already decodes jsonb, including scalar strings such as a mode or
+    // loss policy. Parsing those a second time corrupts valid string overrides.
+    employeeOverrides: overrides.rows.map((row) => ({ ...row, value: row.mode === 'override' ? row.value : undefined })),
     itemRules: itemRules.rows
   };
   return scheme;
@@ -184,6 +278,9 @@ const withOwnerTransaction = async (pool, principal, callback) => {
     if (error?.code === '23505') fail('payroll_scheme_conflict', 409);
     if (error?.code === '23P01') fail('payroll_scheme_effective_window_conflict', 409);
     if (error?.code === '23503') fail('payroll_scheme_reference_invalid', 400);
+    if (error?.code === '23514' && ['payroll_scheme_versions_mode_check', 'payroll_employee_overrides_parameter_path_check'].includes(error.constraint)) {
+      fail('payroll_personal_target_schema_required', 409);
+    }
     if (error?.code === '23514') fail('payroll_scheme_configuration_rejected', 400);
     if (error?.code === '22P02' || error?.code === '22003') fail('payroll_scheme_reference_invalid', 400);
     throw error;
@@ -208,7 +305,8 @@ const withOwnerRead = async (pool, principal, callback) => {
   }
 };
 
-const calculateScenario = (scheme, previewInput) => calculatePayrollScheme({
+const calculateScenario = (scheme, previewInput) => {
+  const result = calculatePayrollScheme({
   ...previewInput,
   roleAssignments: scheme.roleAssignments,
   scheme: {
@@ -218,15 +316,21 @@ const calculateScenario = (scheme, previewInput) => calculatePayrollScheme({
     currency: scheme.currency,
     roleParameters: scheme.roleParameters,
     applyMilestones: scheme.applyMilestones,
+    ...(scheme.milestoneEligibility === undefined ? {} : { milestoneEligibility: scheme.milestoneEligibility }),
     milestoneCapPolicy: scheme.milestoneCapPolicy,
     employeeOverrides: scheme.employeeOverrides,
     itemRules: scheme.itemRules
   }
-});
+  });
+  if (scheme.sourcePolicies === undefined) return result;
+  return { ...result, sourcePolicyEvaluation: { state: 'selected_not_applied', officialReady: false,
+    requiredFacts: requiredPayrollSourceFacts(scheme.sourcePolicies) } };
+};
 
 const assertPreviewSize = (input, scheme) => {
   if ((Array.isArray(input.employees) && input.employees.length > MAX_PREVIEW_EMPLOYEES)
       || (Array.isArray(input.sales) && input.sales.length > MAX_PREVIEW_SALES_LINES)
+      || (Array.isArray(input.attendance) && input.attendance.length > MAX_PREVIEW_ATTENDANCE_ROWS)
       || (Array.isArray(input.venueDailyTurnover) && input.venueDailyTurnover.length > MAX_PREVIEW_VENUE_DAYS)) {
     fail('preview_input_too_large', 413);
   }
@@ -241,11 +345,20 @@ const sumCentsSafely = (values) => {
 
 const makeService = (pool) => {
   if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') throw new TypeError('payroll_scheme_pool_required');
+  const attendanceManifest = makePayrollAttendanceManifestService(pool);
+  const getSourceReadiness = async (principal, versionId, input) => {
+    const period = parsePayrollReadinessPeriod(input);
+    return withOwnerRead(pool, principal, async (db, actor) => {
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      return readPayrollSourceReadinessInTransaction(db, actor, scheme, period, attendanceManifest);
+    });
+  };
 
   const listSchemes = async (principal) => {
     return withOwnerRead(pool, principal, async (db, actor) => {
       const result = await db.query(`SELECT s.id,s.name,s.description,s.created_at AS "createdAt",
         COALESCE(jsonb_agg(jsonb_build_object('id',v.id,'versionNo',v.version_no,'mode',v.mode,'status',v.status,
+          'payoutRiskAcknowledgement',v.config_json->'payoutRiskAcknowledgement',
           'effectiveFrom',v.effective_from,'effectiveTo',v.effective_to) ORDER BY v.version_no DESC)
           FILTER (WHERE v.id IS NOT NULL),'[]'::jsonb) AS versions
       FROM payroll_schemes s LEFT JOIN payroll_scheme_versions v ON v.venue_id=s.venue_id AND v.scheme_id=s.id
@@ -274,6 +387,52 @@ const makeService = (pool) => {
       assertPreviewSize(previewInput, scheme);
       const result = calculateScenario(scheme, previewInput);
       return { official: false, persistence: 'none', scenario: true, scheme, result };
+    });
+  };
+
+  const previewWithApprovedAttendance = async (principal, versionId, previewInput = {}) => {
+    if (!previewInput || typeof previewInput !== 'object' || Array.isArray(previewInput)) fail('preview_input_required');
+    const periodFrom = String(previewInput.periodFrom || '');
+    const periodTo = String(previewInput.periodTo || '');
+    const month = periodFrom.slice(0, 7);
+    const isDate = (value) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const parsed = new Date(`${value}T00:00:00.000Z`);
+      return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+    };
+    if (!isDate(periodFrom) || !isDate(periodTo) || periodFrom > periodTo || periodTo.slice(0, 7) !== month) {
+      fail('invalid_single_month_period');
+    }
+    const attendancePeriod = { periodFrom: `${month}-01`, periodTo };
+    return withOwnerRead(pool, principal, async (db, actor) => {
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      let attendanceSource;
+      try {
+        attendanceSource = await attendanceManifest.loadVerifiedApprovedAttendanceSourceInTransaction(db, principal, attendancePeriod);
+      } catch (error) {
+        const codes = {
+          payroll_attendance_source_incomplete: 'payroll_preview_attendance_source_incomplete',
+          payroll_attendance_approval_required: 'payroll_preview_attendance_approval_required',
+          payroll_attendance_approval_stale: 'payroll_preview_attendance_approval_stale'
+        };
+        if (Object.hasOwn(codes, error?.code)) fail(codes[error.code], 409);
+        throw error;
+      }
+      const scenarioInput = {
+        ...previewInput,
+        attendance: attendanceSource.attendance,
+        attendanceCoverage: attendanceSource.attendanceCoverage
+      };
+      assertPreviewSize(scenarioInput, scheme);
+      const result = calculateScenario(scheme, scenarioInput);
+      return {
+        official: false,
+        persistence: 'none',
+        scenario: true,
+        sourceAttendanceApproval: attendanceSource.sourceAttendanceApproval,
+        scheme,
+        result
+      };
     });
   };
 
@@ -340,10 +499,13 @@ const makeService = (pool) => {
     });
   };
 
-  const insertVersion = async (db, actor, schemeId, versionNo, rawDefinition) => {
+  const insertVersion = async (db, actor, schemeId, versionNo, rawDefinition, acknowledgement) => {
     const versionId = randomUUID();
     const definition = ensureDefinition(rawDefinition, schemeId, versionId);
-    const configJson = JSON.stringify({ roleParameters: definition.roleParameters, applyMilestones: definition.applyMilestones, milestoneCapPolicy: definition.milestoneCapPolicy });
+    await requireMilestoneConfigurationSchema(db, definition);
+    const payoutRiskAcknowledgement = await recordPayoutRiskAcknowledgement(db, actor, definition, acknowledgement);
+    const configJson = JSON.stringify({ roleParameters: definition.roleParameters, applyMilestones: definition.applyMilestones,
+      milestoneEligibility: definition.milestoneEligibility, milestoneCapPolicy: definition.milestoneCapPolicy, sourcePolicies: definition.sourcePolicies, payoutRiskAcknowledgement });
     await db.query(`INSERT INTO payroll_scheme_versions
       (id,venue_id,scheme_id,version_no,mode,currency,effective_from,effective_to,config_json,created_by,created_by_name)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)`,
@@ -362,28 +524,31 @@ const makeService = (pool) => {
     const schemeId = randomUUID();
     await db.query(`INSERT INTO payroll_schemes (id,venue_id,name,description,created_by,created_by_name)
       VALUES ($1,$2,$3,$4,$5,$6)`, [schemeId, actor.venueId, name, description, actor.userId, actor.name]);
-    const version = await insertVersion(db, actor, schemeId, 1, input.definition);
+    const version = await insertVersion(db, actor, schemeId, 1, input.definition, input.payoutRiskAcknowledgement);
     return { id: schemeId, name, description, versions: [version] };
   });
 
-  const createVersion = async (principal, schemeId, definitionInput) => withOwnerTransaction(pool, principal, async (db, actor) => {
+  const createVersion = async (principal, schemeId, definitionInput, acknowledgement) => withOwnerTransaction(pool, principal, async (db, actor) => {
     const scheme = await db.query('SELECT id FROM payroll_schemes WHERE venue_id=$1 AND id=$2 FOR UPDATE', [actor.venueId, schemeId]);
     if (!scheme.rows[0]) fail('payroll_scheme_not_found', 404);
     const version = await db.query('SELECT COALESCE(MAX(version_no),0)::int+1 AS next_no FROM payroll_scheme_versions WHERE venue_id=$1 AND scheme_id=$2', [actor.venueId, schemeId]);
-    return insertVersion(db, actor, schemeId, version.rows[0].next_no, definitionInput);
+    return insertVersion(db, actor, schemeId, version.rows[0].next_no, definitionInput, acknowledgement);
   });
 
-  const replaceDraftVersion = async (principal, versionId, definitionInput) => withOwnerTransaction(pool, principal, async (db, actor) => {
+  const replaceDraftVersion = async (principal, versionId, definitionInput, acknowledgement) => withOwnerTransaction(pool, principal, async (db, actor) => {
     const current = await db.query('SELECT id,scheme_id,status FROM payroll_scheme_versions WHERE venue_id=$1 AND id=$2 FOR UPDATE', [actor.venueId, versionId]);
     if (!current.rows[0]) fail('payroll_scheme_version_not_found', 404);
     if (current.rows[0].status !== 'draft') fail('payroll_scheme_version_immutable', 409);
     const definition = ensureDefinition(definitionInput, current.rows[0].scheme_id, versionId);
+    await requireMilestoneConfigurationSchema(db, definition);
+    const payoutRiskAcknowledgement = await recordPayoutRiskAcknowledgement(db, actor, definition, acknowledgement);
     for (const table of ['payroll_role_assignments', 'payroll_employee_overrides', 'payroll_item_commission_rules']) {
       await db.query(`DELETE FROM ${table} WHERE venue_id=$1 AND scheme_version_id=$2`, [actor.venueId, versionId]);
     }
     await db.query(`UPDATE payroll_scheme_versions SET mode=$3,currency=$4,effective_from=$5,effective_to=$6,
       config_json=$7::jsonb WHERE venue_id=$1 AND id=$2`, [actor.venueId, versionId, definition.mode, definition.currency,
-      definition.effectiveFrom, definition.effectiveTo, JSON.stringify({ roleParameters: definition.roleParameters, applyMilestones: definition.applyMilestones, milestoneCapPolicy: definition.milestoneCapPolicy })]);
+      definition.effectiveFrom, definition.effectiveTo, JSON.stringify({ roleParameters: definition.roleParameters, applyMilestones: definition.applyMilestones,
+      milestoneEligibility: definition.milestoneEligibility, milestoneCapPolicy: definition.milestoneCapPolicy, sourcePolicies: definition.sourcePolicies, payoutRiskAcknowledgement })]);
     await persistChildren(db, actor, versionId, definition);
     const scheme = await loadVersion(db, actor.venueId, versionId);
     await recordRevision(db, actor, scheme, 'edited');
@@ -391,9 +556,29 @@ const makeService = (pool) => {
   });
 
   const activateVersion = async (principal, versionId) => withOwnerTransaction(pool, principal, async (db, actor) => {
+    await db.query('SELECT id FROM payroll_scheme_versions WHERE venue_id=$1 AND id=$2 FOR UPDATE', [actor.venueId, versionId]);
     const current = await loadVersion(db, actor.venueId, versionId);
     if (current.status !== 'draft') fail('payroll_scheme_version_not_draft', 409);
-    ensureDefinition(current, current.id, current.versionId);
+    if (!current.payoutRiskAcknowledgement?.configDigest) fail('payroll_risk_acknowledgement_required', 409);
+    const definition = ensureDefinition(current, current.id, current.versionId);
+    await requireMilestoneConfigurationSchema(db, definition);
+    if (current.payoutRiskAcknowledgement.policyCode !== PAYOUT_RISK_ACK_POLICY
+        || current.payoutRiskAcknowledgement.configDigest !== payoutConfigurationDigest(definition)) {
+      fail('payroll_risk_acknowledgement_required', 409);
+    }
+    const exceptions = personalCapExceptions(definition, 409);
+    if (exceptions.length) {
+      const parent = current.payoutRiskAcknowledgement, child = parent.personalCapIncrease;
+      if (!child || child.policyCode !== PERSONAL_CAP_ACK_POLICY || child.configDigest !== payoutConfigurationDigest(definition)
+        || !Array.isArray(child.exceptions) || canonicalJson(child.exceptions) !== canonicalJson(exceptions)
+        || typeof child.acknowledgedBy !== 'string' || !UUID.test(child.acknowledgedBy)
+        || child.acknowledgedBy !== parent.acknowledgedBy || typeof child.acknowledgedByName !== 'string'
+        || !child.acknowledgedByName.trim() || child.acknowledgedByName !== parent.acknowledgedByName
+        || typeof child.acknowledgedAt !== 'string' || !Number.isFinite(Date.parse(child.acknowledgedAt))
+        || child.acknowledgedAt !== parent.acknowledgedAt) {
+        fail('payroll_personal_cap_increase_acknowledgement_required', 409);
+      }
+    }
     const result = await db.query(`UPDATE payroll_scheme_versions SET status='active',status_changed_by=$3,
       status_changed_by_name=$4,status_changed_at=now() WHERE venue_id=$1 AND id=$2 AND status='draft' RETURNING id`,
     [actor.venueId, versionId, actor.userId, actor.name]);
@@ -404,7 +589,9 @@ const makeService = (pool) => {
   });
 
   return { listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion,
-    preview, previewWithVenueDailyTurnover, compare };
+    preview, previewWithApprovedAttendance, previewWithVenueDailyTurnover, compare, getSourceReadiness,
+    readAttendanceCoverage: attendanceManifest.readCoverage,
+    approveAttendanceCoverage: attendanceManifest.approveCoverage };
 };
 
 module.exports = { PayrollSchemeServiceError, makeService };

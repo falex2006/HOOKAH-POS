@@ -165,7 +165,7 @@ async function checkTrustedPinReturn() {
     if (!response.ok) return;
     const session = await response.json();
     const user = session?.user;
-    if (!user?.pinConfigured || !adminPinRoles.has(user.role)) return;
+    if (!session?.trustedDevice || !user?.pinConfigured || !adminPinRoles.has(user.role)) return;
     trustedSessionUser = user;
     const name = String(user.name || 'Администратор').trim() || 'Администратор';
     const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'A';

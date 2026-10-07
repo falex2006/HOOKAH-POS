@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PurchaseDocumentRepository } from '../db.js';
+import { assertQaDatabaseIdentity, validateQaDatabaseUrl } from './postgres-qa-safety.mjs';
 
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 if (!databaseUrl) throw new Error('Set MIGRATIONS_PG_TEST_DATABASE_URL to an isolated PostgreSQL test database');
-const parsed = new URL(databaseUrl);
-assert.match(parsed.pathname, /(?:test|qa|scratch)/i,
-  'refusing test writes unless the database name clearly identifies a test/QA/scratch database');
+const target = validateQaDatabaseUrl(databaseUrl, 'MIGRATIONS_PG_TEST_DATABASE_URL');
+assert.match(target.database, /^orders_qa_[a-f0-9]{16}$/i, 'purchase-payment API QA requires a runner-created disposable orders database');
+assert.equal(target.database, process.env.LOCAL_FULL_PG_OWNED_DATABASE, 'only the local regression runner may own the disposable database');
+assert.equal(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'hookah-full-regression-qa-20261001');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const lock = JSON.parse(fs.readFileSync(path.join(root, 'tmp', 'full-local-qa', 'pg-regression-runner.lock'), 'utf8'));
+assert.equal(Number(lock.pid), process.ppid, 'the local regression runner owns the database lock');
+assert.match(lock.id || '', /^[0-9a-f-]{36}$/i);
 
 const require = createRequire(import.meta.url);
 const { Client, Pool } = require('pg');
@@ -70,8 +78,12 @@ const callVoidApi = async (id, permissions = ['inventory']) => {
 
 try {
   await setup.connect();
-  venueId = (await setup.query("INSERT INTO venues (name) VALUES ('Isolated purchase-payment API QA') RETURNING id")).rows[0].id;
-  otherVenueId = (await setup.query("INSERT INTO venues (name) VALUES ('Isolated purchase-payment tenant QA') RETURNING id")).rows[0].id;
+  const identity = (await setup.query('SELECT current_database() AS database,inet_server_addr()::text AS address,inet_server_port() AS port,COALESCE((SELECT rolsuper FROM pg_roles WHERE rolname=current_user),false) AS superuser')).rows[0];
+  assertQaDatabaseIdentity(identity, target.database, Number(target.url.port || 5432), 'purchase-payment API disposable PostgreSQL');
+  const organizationId = (await setup.query("INSERT INTO organizations (name,slug,timezone) VALUES ('Purchase-payment API QA','purchase-payment-api-qa-' || gen_random_uuid()::text,'Asia/Yekaterinburg') RETURNING id")).rows[0].id;
+  await setup.query("INSERT INTO organization_subscriptions (organization_id,status) VALUES ($1,'trialing')", [organizationId]);
+  venueId = (await setup.query("INSERT INTO venues (organization_id,name) VALUES ($1,'Isolated purchase-payment API QA') RETURNING id", [organizationId])).rows[0].id;
+  otherVenueId = (await setup.query("INSERT INTO venues (organization_id,name) VALUES ($1,'Isolated purchase-payment tenant QA') RETURNING id", [organizationId])).rows[0].id;
   const ingredientId = (await setup.query(`INSERT INTO ingredients (venue_id,name,unit,cost,is_marked,purchase_unit,pack_multiplier)
     VALUES ($1,'QA syrup','ml',0,true,'bottle',1000) RETURNING id`, [venueId])).rows[0].id;
 

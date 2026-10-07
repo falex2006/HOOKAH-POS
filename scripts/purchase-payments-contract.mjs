@@ -21,7 +21,7 @@ const checks = [
   ['database enforces same-venue posted-document relation and payment source', /d\.venue_id = NEW\.venue_id[\s\S]*?d\.status = 'posted'/.test(migration) && /NEW\.source <> 'purchase'/.test(migration)],
   ['legacy unlinked purchase expenses are not rewritten', /Existing manual purchase expenses remain intact and unlinked/.test(migration)],
   ['free-form purchase expenses must use receipt-linked finance workflow', /input\.source === 'purchase'\) return json\(res, 400, \{ error: 'purchase_payment_requires_receipt_link' \}\)/.test(server)],
-  ['purchase outflow stays out of operating expense and COGS remains separate', /source NOT IN \('payroll','purchase'\)/.test(analytics) && /e\.source <> 'payroll' OR EXISTS/.test(analytics) && /costOfGoods = costsByDate/.test(server)],
+  ['purchase outflow stays out of operating expense and COGS remains separate', /e\.source <> 'purchase'/.test(analytics) && /e\.source <> 'payroll' OR EXISTS/.test(analytics) && /costOfGoods = costsByDate/.test(server)],
   ['supplier-payment panel is finance-only page UI and not inventory UI', /finance-payables-panel/.test(financeUi) && !/finance-payables-panel/.test(portal.slice(portal.indexOf('function renderInventory()'), portal.indexOf('function renderFinance()')))],
   ['finance_read gets view-only status and stock UI contains no payment CTA', /data-payable-id/.test(financeUi) && /canDecideFinance && item\.balanceDue/.test(financeUi)],
   ['UI refreshes payable balance, expense list and selected finance date after payment', /loadPayables\(\)[\s\S]*?loadExpenses\(\); document\.querySelector\('#finance-date'\)/.test(financeUi)],

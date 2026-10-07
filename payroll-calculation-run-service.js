@@ -101,7 +101,11 @@ const makeService = (pool) => {
         run = existing.rows[0];
         if (!run) fail('payroll_run_idempotency_conflict', 409);
         if (run.scheme_version_id !== request.schemeVersionId
-            || run.period_from !== request.periodFrom || run.period_to !== request.periodTo) {
+            || run.period_from !== request.periodFrom || run.period_to !== request.periodTo
+            || run.status !== 'blocked' || run.source_coverage !== 'unknown' || run.commission_basis !== 'unknown'
+            || run.input_watermark !== inputWatermark || run.input_checksum !== null
+            || run.engine_version !== 'payroll-schemes-v1' || run.currency !== sourceMetadata.currency
+            || run.eligible_line_count !== 0 || run.unattributed_line_count !== 0 || run.missing_net_line_count !== 0) {
           fail('payroll_run_idempotency_conflict', 409);
         }
       }

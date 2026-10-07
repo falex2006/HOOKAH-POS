@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const {validateCanonicalPayrollPricingOrder:verify}=createRequire(import.meta.url)('../payroll-canonical-pricing-source.js');
+const id=n=>`aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12,'0')}`;
+const fixture=()=>({order:{id:id(1),venue_id:id(2),closed_at:'2026-10-02T12:00:00Z',pricing_locked_at:'2026-10-01T12:00:00Z'},header:{id:id(3),venue_id:id(2),order_id:id(1),schema_version:1,policy_version:1,currency_code:'RUB',currency_scale:2,transaction_at:'2026-10-01T12:00:00Z',subtotal_minor:'1',discount_minor:'1',minimum_adjustment_minor:'0',final_total_minor:'0',discount_source:'promotion',eligible_item_ids:[id(4),id(5)],winner_terms:{source:'promotion',reasonCode:'selected',amountCents:1,eligibleBasisCents:1,eligibleItemIds:[id(4),id(5)]},frozen_terms:{allocationPolicy:'largest-remainder-item-id-v1'}},itemIds:[id(4),id(5)],lines:[4,5].map(n=>({id:id(n+10),venue_id:id(2),order_id:id(1),snapshot_id:id(3),order_item_id:id(n),quantity:'0.500',unit_price:'0.01',gross_minor:n===4?'1':'0',discount_minor:n===4?'1':'0',net_minor:'0',eligible:true,seller_id:id(6),sold_at:'2026-10-01T11:00:00Z',seller_in_venue:true,product_facts:{productId:id(8),category:'bar',station:'bar'}}))});
+
+const options={venueId:id(2),currency:'RUB'};
+const reject=(mutate,code)=>{const d=fixture();mutate(d);assert.throws(()=>verify(d,options),e=>e.code===`payroll_canonical_pricing_${code}`);};
+reject(d=>d.lines[0].sold_at='2026-10-01T12:00:00.000001Z','line_time_invalid');
+reject(d=>d.header.transaction_at='2026-10-01T12:00:00.000001Z','chronology_invalid');
+reject(d=>{d.order.closed_at='2026-10-01T12:00:00.000000Z';d.order.pricing_locked_at=d.header.transaction_at='2026-10-01T12:00:00.000001Z';},'chronology_invalid');
+for(const t of ['2026-02-30T12:00:00Z','2025-02-29T12:00:00Z','2026-10-01T24:00:00Z','2026-10-01T12:00:60Z','2026-10-01T12:00:00.0000001Z','2026-10-01','2026-10-01T12:00:00','2026-10-01T12:00:00+25:00','2026-10-01T12:00:00+05:60'])reject(d=>d.lines[0].sold_at=t,'timestamp_invalid');
+for(const lock of ['2026-10-01T12:00:00.123456Z','2026-10-01 17:00:00.123456+05','2026-10-01 17:30:00.123456+05:30','2026-10-01T07:00:00.123456-05:00']){const d=fixture();d.order.pricing_locked_at=lock;d.header.transaction_at='2026-10-01T12:00:00.123456Z';d.order.closed_at='2026-10-01T12:00:00.123457Z';d.lines[0].sold_at='2026-10-01T12:00:00.123456Z';const before=structuredClone(d),r=verify(d,options);assert.deepEqual(d,before);assert.equal(r.order.pricingLockedAt,lock);assert.equal(r.order.lineSnapshots[0].soldAt,d.lines[0].sold_at);}
+const leap=fixture();leap.order.pricing_locked_at=leap.header.transaction_at='2024-02-29T23:59:59.999999Z';leap.order.closed_at='2024-03-01T00:00:00Z';leap.lines.forEach(l=>l.sold_at='2024-02-29T23:59:59.999998Z');assert.equal(verify(leap,options).unknownSellerLineCount,0);
+console.log('PAYROLL CANONICAL TIMESTAMP: PASS (microsecond identity/order, calendar/precision, PostgreSQL/ISO offset equivalence and untouched DTO)');

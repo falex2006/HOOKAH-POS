@@ -52,7 +52,7 @@ const paymentAt = (pattern, label) => {
   return match.index;
 };
 const paymentBegin = paymentAt(/await client\.query\('BEGIN'\)/, 'payment transaction begins');
-const paymentLock = paymentAt(/SELECT id,status,table_id AS "tableId",guest_id AS "guestId",reservation_id AS "reservationId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'payment locks the order row');
+const paymentLock = paymentAt(/SELECT id,status,(?=[^\n]*table_id AS "tableId")(?=[^\n]*guest_id AS "guestId")(?=[^\n]*vip_minimum AS "minimumOrderTotal")[^\n]+ FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'payment locks the order row and reads the fields required by the transaction');
 const activeShift = paymentAt(/requireOpenShift|SELECT id FROM shifts WHERE venue_id=\$1 AND closed_at IS NULL[\s\S]*?FOR UPDATE/, 'active shift is required inside the payment transaction');
 const paymentInsert = paymentAt(/INSERT INTO payments \(order_id,method,amount,status,shift_id,idempotency_key\)/, 'payment insert records the tender, shift attribution and idempotency key transactionally');
 const paymentDepletion = paymentAt(/depleteRecipeForOrder\(repositories\.pool, paymentPath\[1\], venueDbId, req\.user\?\.id, client\)/, 'final payment depletion uses transaction client');
@@ -88,11 +88,11 @@ assert.ok(statusLock >= 0 && statusLock < statusUpdate && statusUpdate < statusC
 assert.doesNotMatch(statusRoute, /repositories\.pool\.query\(/, 'status transition never escapes its transaction');
 const transferRoute = actionRoute.slice(transferStart);
 assert.match(transferRoute, /FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'transfer locks the order shared with payment/close');
-assert.match(transferRoute, /JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' FOR UPDATE OF t/, 'transfer target must be an available table in this venue');
+assert.match(transferRoute, /JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' AND t\.archived_at IS NULL FOR UPDATE OF t/, 'transfer target must be an active, unblocked table in this venue');
 assert.match(transferRoute, /AND status=\$4 RETURNING id,status,table_id/, 'transfer uses a compare-and-set status guard');
 
 const orderRepository = readFileSync(new URL('../db.js', import.meta.url), 'utf8');
-assert.match(orderRepository, /SELECT t\.id,t\.min_order_total FROM tables t JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' FOR UPDATE OF t/, 'order creation validates/locks its table and reads the server-owned minimum in the order venue');
+assert.match(orderRepository, /SELECT t\.id,t\.min_order_total FROM tables t JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' AND t\.archived_at IS NULL FOR UPDATE OF t/, 'order creation validates/locks an active table and reads the server-owned minimum in the order venue');
 assert.match(orderRepository, /const vipMinimum = Math\.max\(Number\(input\.vipMinimum \|\| 0\), tableMinimum\)/, 'client input cannot lower the table minimum');
 
 console.log('ORDER/PAYMENT TRANSACTION QA: assertions passed');

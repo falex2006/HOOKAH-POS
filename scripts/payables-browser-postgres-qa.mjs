@@ -1,15 +1,23 @@
 import assert from 'node:assert/strict';
+import { randomBytes, scryptSync } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-safety.mjs';
 
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 const target = validateQaDatabaseUrl(databaseUrl, 'MIGRATIONS_PG_TEST_DATABASE_URL');
-assert.equal(target.database, 'territory_qa');
+const ownedDatabase = process.env.LOCAL_FULL_PG_OWNED_DATABASE;
+assert.match(ownedDatabase || '', /^payables_qa_[a-f0-9]{16}$/i, 'Payables browser QA requires a random runner-owned database marker');
+assert.equal(target.database, ownedDatabase, 'Payables browser QA URL must match its runner-owned database marker');
+assert.equal(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'hookah-full-regression-qa-20261001', 'Payables browser QA requires the owned disposable PostgreSQL container');
+const runnerLockPath = path.resolve('tmp/full-local-qa/pg-regression-runner.lock');
+const runnerLock = JSON.parse(await readFile(runnerLockPath, 'utf8'));
+assert.equal(Number(runnerLock.pid), process.ppid, 'the regression runner must own the disposable database lock');
+assert.match(runnerLock.id || '', /^[0-9a-f-]{36}$/i, 'the regression runner lock must carry a valid ownership ID');
 const playwrightPath = process.env.PLAYWRIGHT_PACKAGE_PATH;
 if (!playwrightPath) throw new Error('Set PLAYWRIGHT_PACKAGE_PATH');
 const require = createRequire(import.meta.url);
@@ -18,20 +26,45 @@ const { PurchaseDocumentRepository } = require('../db.js');
 const { chromium } = require(playwrightPath);
 const db = new Client({ connectionString: databaseUrl });
 const pool = new Pool({ connectionString: databaseUrl, max: 3 });
+let organizationId;
 let venueId;
 let browser;
 let child;
+const login = `payables-browser-${process.pid}`;
+const password = `payables-${process.pid}-qa-password`;
+const passwordHash = () => {
+  const salt = randomBytes(16).toString('hex');
+  return `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
+};
+const isoVenueDate = (value) => {
+  if (value === null || value === undefined) return null;
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Yekaterinburg', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(value)).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
 try {
   await db.connect();
   const identity = (await db.query('SELECT current_database() AS database, inet_server_addr() AS address, inet_server_port() AS port, (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser')).rows[0];
   assertQaDatabaseIdentity(identity, target.database, Number(target.url.port), 'Payables browser QA database');
-  venueId = (await db.query("INSERT INTO venues (name,timezone) VALUES ('Isolated payables browser QA','Asia/Yekaterinburg') RETURNING id")).rows[0].id;
-  await db.query("INSERT INTO users (venue_id,full_name,login,role) VALUES ($1,'Payables browser admin',$2,'admin')", [venueId, `payables-browser-${process.pid}`]);
+  organizationId = (await db.query("INSERT INTO organizations (name,slug,timezone) VALUES ('Isolated payables browser QA',$1,'Asia/Yekaterinburg') RETURNING id", [`payables-browser-${process.pid}`])).rows[0].id;
+  await db.query("INSERT INTO organization_subscriptions (organization_id,status) VALUES ($1,'trialing')", [organizationId]);
+  venueId = (await db.query("INSERT INTO venues (organization_id,name,timezone) VALUES ($1,'Isolated payables browser QA','Asia/Yekaterinburg') RETURNING id", [organizationId])).rows[0].id;
+  const userId = (await db.query("INSERT INTO users (organization_id,venue_id,full_name,login,password_hash,role) VALUES ($1,$2,'Payables browser admin',$3,$4,'admin') RETURNING id", [organizationId, venueId, login, passwordHash()])).rows[0].id;
+  await db.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'admin','active')", [organizationId, userId]);
   const ingredientId = (await db.query("INSERT INTO ingredients (venue_id,name,unit,cost,is_marked,purchase_unit,pack_multiplier) VALUES ($1,'QA syrup','ml',0,true,'bottle',1000) RETURNING id", [venueId])).rows[0].id;
   const repo = new PurchaseDocumentRepository(pool);
   const today = new Date().toISOString().slice(0, 10);
-  const draft = await repo.saveDraft({ venueId, supplierName: 'QA browser supplier', documentNumber: `B-${process.pid}`, documentDate: today, lines: [{ ingredientId, quantity: 2, unit: 'bottle', unitCost: 100 }] });
+  const latestDocumentDate = '2026-09-28';
+  const olderDocumentDate = '2026-09-05';
+  const draft = await repo.saveDraft({ venueId, supplierName: 'QA browser supplier', documentNumber: `B-${process.pid}`, documentDate: latestDocumentDate, lines: [{ ingredientId, quantity: 2, unit: 'bottle', unitCost: 100 }] });
   await repo.post(venueId, draft.id, null);
+  const olderDraft = await repo.saveDraft({ venueId, supplierName: 'QA older dated supplier', documentNumber: `O-${process.pid}`, documentDate: olderDocumentDate, lines: [{ ingredientId, quantity: 1, unit: 'bottle', unitCost: 100 }] });
+  await repo.post(venueId, olderDraft.id, null);
+  const undatedDraft = await repo.saveDraft({ venueId, supplierName: 'QA undated supplier', documentNumber: `N-${process.pid}`, documentDate: null, lines: [{ ingredientId, quantity: 1, unit: 'bottle', unitCost: 100 }] });
+  await repo.post(venueId, undatedDraft.id, null);
   child = spawn(process.execPath, ['server.js'], {
     cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true,
     env: { ...process.env, DATABASE_URL: databaseUrl, VENUE_ID: venueId, AUTH_REQUIRED: 'false', DEMO_MODE: 'false', NODE_ENV: 'test', HOST: '127.0.0.1', PORT: '0' },
@@ -46,20 +79,70 @@ try {
     child.stdout.on('data', () => { const match = output.match(/CRM running on http:\/\/localhost:(\d+)/); if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`); } });
   });
   assert.equal((await (await fetch(`${base}/api/health`)).json()).database, 'postgres');
-  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
+  const browserExecutable = process.env.CHROME_PATH || process.env.PLAYWRIGHT_EXECUTABLE_PATH;
+  browser = await chromium.launch({ headless: true, ...(browserExecutable ? { executablePath: browserExecutable } : {}) });
   const page = await browser.newPage({ viewport: { width: 375, height: 812 }, locale: 'ru-RU' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
-  await page.locator('#login-username').fill('admin');
-  await page.locator('#login-password').fill('admin');
+  await page.locator('#login-username').fill(login);
+  await page.locator('#login-password').fill(password);
   await page.locator('#login-form button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.includes('/login'));
   await page.goto(`${base}/finance`, { waitUntil: 'networkidle' });
   const row = page.locator('.payable-row').filter({ hasText: 'QA browser supplier' });
   await row.waitFor();
+  const expectedSupplierOrder = ['QA browser supplier', 'QA older dated supplier', 'QA undated supplier'];
+  const payablesApi = await page.evaluate(async () => {
+    const response = await fetch('/api/finance/purchase-payables');
+    return { status: response.status, body: await response.json() };
+  });
+  assert.equal(payablesApi.status, 200, 'finance payables list is readable in the authenticated browser session');
+  assert.deepEqual(payablesApi.body.items.map((item) => item.supplierName), expectedSupplierOrder, 'payables API orders document dates descending and NULL last');
+  assert.deepEqual(payablesApi.body.items.map((item) => isoVenueDate(item.documentDate)), [latestDocumentDate, olderDocumentDate, null], 'payables API preserves both invoice dates and NULL in the venue timezone');
+  const boundedPayables = await page.evaluate(async () => { const response = await fetch('/api/finance/purchase-payables?documentDateFrom=2026-09-05&documentDateTo=2026-09-28&paymentStatus=unpaid'); return { status: response.status, body: await response.json() }; });
+  assert.equal(boundedPayables.status, 200, 'payables API accepts independent inclusive invoice-date and payment-status filters');
+  assert.deepEqual(boundedPayables.body.items.map((item) => item.supplierName), expectedSupplierOrder.slice(0, 2), 'payables date range includes both endpoints and excludes undated docs by default');
+  assert.ok(boundedPayables.body.items.every((item) => item.paymentStatus === 'unpaid'), 'derived payment status filter is applied server-side');
+  const boundedIncludingUndated = await page.evaluate(async () => { const response = await fetch('/api/finance/purchase-payables?documentDateFrom=2026-09-05&documentDateTo=2026-09-28&includeUndated=true'); return { status: response.status, body: await response.json() }; });
+  assert.equal(boundedIncludingUndated.status, 200);
+  assert.deepEqual(boundedIncludingUndated.body.items.map((item) => item.supplierName), expectedSupplierOrder, 'explicit undated option unions NULL invoice dates with the inclusive payable range');
+  for (const query of ['?documentDateFrom=2026-02-30', '?documentDateFrom=2026-09-28&documentDateTo=2026-09-05', '?paymentStatus=unknown', '?includeUndated=1']) {
+    const rejected = await page.evaluate(async (value) => { const response = await fetch(`/api/finance/purchase-payables${value}`); return { status: response.status, body: await response.json() }; }, query);
+    assert.equal(rejected.status, 400, `invalid payables filter is rejected: ${query}`);
+    assert.equal(rejected.body.error, 'invalid_payables_filter');
+  }
+  const databaseOrder = await db.query(`SELECT supplier_name AS "supplierName",document_date AS "documentDate"
+    FROM inventory_purchase_documents WHERE venue_id=$1 AND status='posted'
+    ORDER BY document_date DESC NULLS LAST,recorded_at DESC`, [venueId]);
+  assert.deepEqual(databaseOrder.rows.map((item) => item.supplierName), expectedSupplierOrder, 'independent PostgreSQL ordering matches the payables contract');
+  assert.equal(databaseOrder.rows[2].documentDate, null, 'undated posted payable remains NULL in PostgreSQL');
+  const visibleSupplierOrder = await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim()));
+  assert.deepEqual(visibleSupplierOrder, expectedSupplierOrder, 'finance UI shows dated payables newest-first and the undated row last');
+  const undatedRow = page.locator('.payable-row').filter({ hasText: 'QA undated supplier' });
+  assert.match(await undatedRow.textContent(), /Дата накладной не указана/, 'finance UI labels the missing invoice date without inventing one');
+  await page.reload({ waitUntil: 'networkidle' });
+  await row.waitFor();
+  assert.deepEqual(await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim())), expectedSupplierOrder, 'payables order survives browser reload');
   assert.match(await row.textContent(), /Не оплачена/);
   assert.match(await row.textContent(), /200\s*₽/);
+  await page.locator('#payables-date-from').fill('2026-09-05');
+  await page.locator('#payables-date-to').fill('2026-09-28');
+  const boundedUiResponse = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/finance/purchase-payables' && new URL(response.url()).searchParams.has('documentDateFrom'));
+  await page.locator('#payables-filter-apply').click(); await boundedUiResponse;
+  assert.deepEqual(await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim())), expectedSupplierOrder.slice(0, 2), 'payables UI applies inclusive invoice date range');
+  assert.equal(await page.locator('#payables-count').textContent(), '2', 'payables summary count matches filtered results');
+  await page.locator('#payables-include-undated').check();
+  const includeUndatedUiResponse = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/finance/purchase-payables' && new URL(response.url()).searchParams.get('includeUndated') === 'true');
+  await page.locator('#payables-filter-apply').click(); await includeUndatedUiResponse;
+  assert.equal(await page.locator('.payable-row').count(), 3, 'payables UI includes undated invoice only after explicit selection');
+  await page.reload({ waitUntil: 'networkidle' });
+  assert.equal(await page.locator('#payables-date-from').inputValue(), '2026-09-05', 'payables date range persists through reload');
+  assert.equal(await page.locator('#payables-include-undated').isChecked(), true, 'payables undated selection persists through reload');
+  assert.equal(await page.locator('.payable-row').count(), 3, 'reloaded payables repeat the filtered result');
+  await page.locator('#payables-filter-reset').click();
+  await row.waitFor();
+  assert.equal(await page.locator('.payable-row').count(), 3, 'payables reset restores all posted documents');
   let releaseFirstPayment;
   const firstPaymentGate = new Promise((resolve) => { releaseFirstPayment = resolve; });
   let firstPaymentSeen;
@@ -159,21 +242,27 @@ try {
   await page.locator('#payables-status').selectOption('paid');
   assert.equal(await page.locator('.payable-row').count(), 1);
   assert.deepEqual(errors.filter((message) => !message.includes('ViewTransition opt-in disabled')), []);
-  console.log('PAYABLES BROWSER POSTGRES QA: PASS (file validation/persistence, 320px open form, partial/full UI payments with failed request retry → SQL/history/reload, 3 widths)');
+  console.log('PAYABLES BROWSER POSTGRES QA: PASS (inclusive invoice-date/payment-status filters, explicit undated inclusion and reload/reset; file validation/persistence; partial/full UI payments with failed request retry; responsive widths)');
 } finally {
   await browser?.close();
   if (child) { child.kill(); if (child.exitCode === null) await Promise.race([once(child, 'exit'), new Promise((resolve) => setTimeout(resolve, 3000))]); }
   await pool.end();
   if (db._connected) {
     try {
-      if (venueId) {
+      if (organizationId) {
         await db.query('BEGIN');
         try {
           await db.query('SET LOCAL session_replication_role = replica');
-          for (const table of ['expenses', 'stock_movements', 'inventory_purchase_document_lines', 'inventory_purchase_documents', 'ingredients', 'audit_events', 'users']) await db.query(`DELETE FROM ${table} WHERE venue_id=$1`, [venueId]);
-          await db.query("DELETE FROM venues WHERE id=$1 AND name='Isolated payables browser QA'", [venueId]);
+          if (venueId) {
+            for (const table of ['expenses', 'stock_movements', 'inventory_purchase_document_lines', 'inventory_purchase_documents', 'ingredients', 'audit_events', 'users']) await db.query(`DELETE FROM ${table} WHERE venue_id=$1`, [venueId]);
+            await db.query("DELETE FROM venues WHERE id=$1 AND organization_id=$2 AND name='Isolated payables browser QA'", [venueId, organizationId]);
+          }
+          await db.query("DELETE FROM organization_memberships WHERE organization_id=$1", [organizationId]);
+          await db.query("DELETE FROM organization_subscriptions WHERE organization_id=$1", [organizationId]);
+          await db.query("DELETE FROM organizations WHERE id=$1 AND slug=$2", [organizationId, `payables-browser-${process.pid}`]);
           await db.query('COMMIT');
-          assert.equal((await db.query('SELECT count(*)::int AS count FROM venues WHERE id=$1', [venueId])).rows[0].count, 0, 'QA venue removed');
+          if (venueId) assert.equal((await db.query('SELECT count(*)::int AS count FROM venues WHERE id=$1', [venueId])).rows[0].count, 0, 'QA venue removed');
+          assert.equal((await db.query('SELECT count(*)::int AS count FROM organizations WHERE id=$1', [organizationId])).rows[0].count, 0, 'QA organization removed');
         } catch (error) { await db.query('ROLLBACK').catch(() => {}); throw error; }
       }
     } finally { await db.end(); }

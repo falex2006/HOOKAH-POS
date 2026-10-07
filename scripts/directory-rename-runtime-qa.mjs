@@ -24,10 +24,10 @@ function createDatabase({ categoryConflict = false, subdepartmentConflict = fals
     category: { id: '11111111-1111-4111-8111-111111111111', name: 'Сиропы', department: 'bar', subdepartmentId: null, active: true },
     subdepartment: { id: 'sub-1', name: 'Холодный цех', departmentCode: 'kitchen', active: true },
     ingredients: [
-      { venueId: 'venue-a', name: 'Сироп маракуйя', category: 'Сиропы', department: 'bar', subdepartment: 'Барная зона', isMarked: true },
-      { venueId: 'venue-a', name: 'Сироп старого цеха', category: 'Сиропы', department: 'kitchen', subdepartment: 'Холодный цех', isMarked: true },
-      { venueId: 'venue-b', name: 'Другой филиал', category: 'Сиропы', department: 'bar', subdepartment: 'Холодный цех', isMarked: true },
-      { venueId: 'venue-a', name: 'Архивная позиция', category: 'Сиропы', department: 'bar', subdepartment: 'Холодный цех', isMarked: false },
+      { venueId: 'venue-a', name: 'Сироп маракуйя', categoryId: '11111111-1111-4111-8111-111111111111', category: 'Сиропы', department: 'bar', subdepartment: 'Барная зона', isMarked: true },
+      { venueId: 'venue-a', name: 'Сироп старого цеха', categoryId: 'cat-kitchen', category: 'Сиропы', department: 'kitchen', subdepartment: 'Холодный цех', isMarked: true },
+      { venueId: 'venue-b', name: 'Другой филиал', categoryId: 'cat-venue-b', category: 'Сиропы', department: 'bar', subdepartment: 'Холодный цех', isMarked: true },
+      { venueId: 'venue-a', name: 'Архивная позиция', categoryId: '11111111-1111-4111-8111-111111111111', category: 'Сиропы', department: 'bar', subdepartment: 'Холодный цех', isMarked: false },
     ],
     calls: [],
     audits: [],
@@ -55,7 +55,7 @@ function createDatabase({ categoryConflict = false, subdepartmentConflict = fals
       return { rows: [{ ...state.category }] };
     }
     if (normalized.startsWith('UPDATE ingredients SET category=')) {
-      for (const item of state.ingredients) if (item.venueId === params[2] && item.category === params[3] && item.department === params[4] && item.isMarked) {
+      for (const item of state.ingredients) if (item.venueId === params[5] && item.categoryId === params[6] && item.isMarked) {
         item.category = params[0]; item.department = params[1];
       }
       return { rows: [] };

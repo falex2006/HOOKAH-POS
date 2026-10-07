@@ -40,7 +40,7 @@ if ($shiftState.current) {
 } else {
   $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
   if (-not $shift.id) { throw 'shift open failed' }
-  $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200,"checklistConfirmed":true}'
+  $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200,"checklist":{"version":1,"items":{"ordersReviewed":true,"cashCounted":true,"inventoryReviewed":true,"externalFiscalReportsHandled":true}}}'
   if (-not $closedShift.closedAt -or [decimal]$closedShift.closingCash -ne 1200) { throw 'shift close failed' }
   $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
   if (-not $shift.id) { throw 'operational shift reopen failed' }

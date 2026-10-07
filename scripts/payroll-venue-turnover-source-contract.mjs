@@ -10,6 +10,9 @@ assert.match(sourceSql, /u\.role='owner' AND u\.is_active=true AND u\.deleted_at
 assert.match(sourceSql, /o\.venue_id=c\.venue_id AND o\.status='closed'/);
 assert.match(sourceSql, /o\.closed_at AT TIME ZONE c\.timezone/);
 assert.match(sourceSql, /o\.final_total_snapshot/);
+assert.match(sourceSql, /approved_manual_discounts/);
+assert.match(sourceSql, /finance_legacy_fallback/);
+assert.match(sourceSql, /item_fingerprint/);
 assert.match(sourceSql, /generate_series\(\$3::date,\$4::date,interval '1 day'\)/);
 assert.match(sourceSql, /missing_closed_at_count/);
 assert.match(sourceSql, /md5\(/);
@@ -42,7 +45,11 @@ if (process.env.PAYROLL_TURNOVER_SOURCE_STATIC_ONLY === '1') {
     await client.query(`SET LOCAL search_path TO ${quoteSchema},public`);
     await client.query(`CREATE TABLE venues(id uuid PRIMARY KEY,timezone text NOT NULL);
       CREATE TABLE users(id uuid PRIMARY KEY,venue_id uuid NOT NULL,role text NOT NULL,is_active boolean NOT NULL,deleted_at timestamptz);
-      CREATE TABLE orders(id uuid PRIMARY KEY,venue_id uuid NOT NULL,status text NOT NULL,closed_at timestamptz,final_total_snapshot numeric(12,2));`);
+      CREATE TABLE orders(id uuid PRIMARY KEY,venue_id uuid NOT NULL,status text NOT NULL,closed_at timestamptz,
+        final_total_snapshot numeric(12,2),pricing_locked_at timestamptz,pricing_version smallint,
+        discount_total_snapshot numeric(12,2),vip_minimum numeric(12,2) NOT NULL DEFAULT 0,group_discount_percent numeric(5,2));
+      CREATE TABLE order_items(id uuid PRIMARY KEY,order_id uuid NOT NULL,quantity numeric(12,3) NOT NULL,unit_price numeric(12,2) NOT NULL);
+      CREATE TABLE discounts(id uuid PRIMARY KEY,order_id uuid NOT NULL,type text NOT NULL,value numeric(12,2) NOT NULL,status text NOT NULL);`);
     await client.query('INSERT INTO venues(id,timezone) VALUES ($1,$3),($2,$4)', [venueA, venueB, 'Asia/Yekaterinburg', 'Europe/Moscow']);
     await client.query(`INSERT INTO users(id,venue_id,role,is_active) VALUES
       ($1,$3,'owner',true),($2,$4,'owner',true),($5,$3,'bartender',true)`, [ownerA, ownerB, venueA, venueB, staffA]);
@@ -69,7 +76,8 @@ if (process.env.PAYROLL_TURNOVER_SOURCE_STATIC_ONLY === '1') {
     assert.equal(result.official, false);
     assert.equal(result.persistence, 'none');
     assert.equal(result.previewOnly, true);
-    assert.equal(result.source, 'closed_order_final_total_snapshot_preview');
+    assert.equal(result.source, 'finance_closed_order_total_preview');
+    assert.equal(result.financeFallbackOrderCount, 0);
     assert.equal(result.sourceWatermarkPurpose, 'preview_change_detection_only');
     assert.equal(result.venueDailyTurnover.length, 3, 'calendar includes each day and explicit zeros');
     assert.deepEqual(result.venueDailyTurnover, [
@@ -98,10 +106,19 @@ if (process.env.PAYROLL_TURNOVER_SOURCE_STATIC_ONLY === '1') {
     await client.query("DELETE FROM orders WHERE id='a0000000-0000-4000-8000-000000000015'");
     await client.query(`INSERT INTO orders(id,venue_id,status,closed_at,final_total_snapshot) VALUES
       ('a0000000-0000-4000-8000-000000000014',$1,'closed','2026-09-02T20:00:00Z',NULL)`, [venueA]);
-    await assert.rejects(service.getVenueDailyTurnover(principalA, { from: '2026-09-01', through: '2026-09-03' }),
-      (error) => error instanceof PayrollVenueTurnoverSourceError && error.code === 'payroll_venue_turnover_snapshot_missing'
-        && error.status === 409 && error.details.missingSnapshotCount === 1,
-      'legacy closed orders without final snapshots block the series instead of using a payroll-specific fallback');
+    const legacyOrder = 'a0000000-0000-4000-8000-000000000014';
+    const lineId = 'a0000000-0000-4000-8000-000000000020';
+    const discountId = 'a0000000-0000-4000-8000-000000000021';
+    await client.query('INSERT INTO order_items(id,order_id,quantity,unit_price) VALUES ($1,$2,2,100)', [lineId, legacyOrder]);
+    await client.query("INSERT INTO discounts(id,order_id,type,value,status) VALUES ($1,$2,'percent',10,'approved')", [discountId, legacyOrder]);
+    const legacy = await service.getVenueDailyTurnover(principalA, { from: '2026-09-01', through: '2026-09-03' });
+    assert.equal(legacy.financeFallbackOrderCount, 1, 'legacy use is explicitly marked');
+    assert.equal(legacy.venueDailyTurnover[2].turnoverCents, 18000, 'Finance fallback uses stored items less approved discount on the venue-local close date');
+    const legacyWatermark = legacy.sourceWatermark;
+    await client.query('UPDATE order_items SET quantity=3 WHERE id=$1', [lineId]);
+    const changedLegacy = await service.getVenueDailyTurnover(principalA, { from: '2026-09-01', through: '2026-09-03' });
+    assert.equal(changedLegacy.venueDailyTurnover[2].turnoverCents, 27000);
+    assert.notEqual(changedLegacy.sourceWatermark, legacyWatermark, 'changed legacy item inputs change the preview watermark');
     for (const invalidPeriod of [
       { from: '2026-09-02', through: '2026-09-03' },
       { from: '2026-09-01', through: '2026-10-01' },

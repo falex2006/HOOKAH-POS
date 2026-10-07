@@ -11,7 +11,7 @@ const end = portal.indexOf('\n  load();', start);
 assert.ok(start > 0 && end > start, 'inventory item editor block exists');
 
 const fields = new Map();
-for (const key of ['name', 'department', 'subdepartment', 'category', 'type', 'unit', 'purchase-unit', 'pack', 'cost', 'min', 'supplier', 'barcode', 'note']) fields.set(`#inventory-item-${key}`, { value: '', disabled: false });
+for (const key of ['name', 'department', 'subdepartment', 'category', 'type', 'unit', 'purchase-unit', 'pack', 'cost', 'min', 'supplier', 'barcode', 'alcohol-catalog', 'tobacco-catalog', 'note']) fields.set(`#inventory-item-${key}`, { value: '', disabled: false, addEventListener() {} });
 fields.get('#inventory-item-name').value = 'QA позиция';
 fields.get('#inventory-item-department').value = 'bar';
 fields.get('#inventory-item-unit').value = 'шт';
@@ -42,6 +42,9 @@ vm.runInNewContext(portal.slice(start, end), {
   document,
   inventoryItemEditor,
   inventorySubdepartments: [],
+  productCategoryItems: [],
+  syncAlcoholLinkSelector() {},
+  syncTobaccoLinkSelector() {},
   allItems: [],
   api: () => new Promise((resolve, reject) => requests.push({ resolve, reject })),
   portalNotice: (text, kind) => notices.push({ text, kind }),

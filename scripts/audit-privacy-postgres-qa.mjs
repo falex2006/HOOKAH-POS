@@ -24,7 +24,7 @@ const orgs = [randomUUID(),randomUUID()];
 const venues = [randomUUID(),randomUUID()];
 const suffix = randomUUID().slice(0,8);
 const users = ['owner','manager','developer','hookah_master','owner'].map((role,index) => ({ id: randomUUID(), role, login: `audit_${suffix}_${index}`, venue: index === 4 ? venues[1] : venues[0], org: index === 4 ? orgs[1] : orgs[0] }));
-const events = [randomUUID(),randomUUID()];
+const events = [randomUUID(),randomUUID(),randomUUID()];
 const credentials = { passportData: { number: marker }, PIN: marker, pin_hash: marker, passwordHash: marker, newPassword: marker, old_password: marker, OwnerPassword: marker, token: marker, apiToken: marker, session_token: marker, Cookie: marker, authorization: marker, 'Proxy-Authorization': marker, credentials: { login: marker }, nested: [{ passport_data_encrypted: marker, password: marker, amount: 12 }] };
 function privateDataAbsent(value, label) {
   assert.equal(JSON.stringify(value).includes(marker), false, `${label} must never contain secret values`);
@@ -38,11 +38,27 @@ function privateDataAbsent(value, label) {
   };
   visit(value);
 }
+function guestPiiAbsent(value, label) {
+  assert.equal(JSON.stringify(value).includes(marker), false, `${label} must not contain guest profile values`);
+  const blocked = new Set(['name','fullname','nickname','phone','phonenumbers','email','telegram','avatar','avatarurl','allergies','tobacco','tobaccopreferences','bowlpreferences','barpreferences','preferences','notes','guestname','guestphone']);
+  const visit = object => {
+    if (!object || typeof object !== 'object') return;
+    for (const [key, entry] of Object.entries(object)) {
+      const normalized = key.replace(/[^a-z0-9]/gi,'').toLowerCase();
+      assert.ok(!blocked.has(normalized), `${label} must remove guest PII field ${key}`);
+      visit(entry);
+    }
+  };
+  visit(value);
+}
 const redacted = redactAuditData({ ...credentials, amount: 123.45, pinConfigured: true, pinUpdatedAt: '2026-10-01T10:00:00Z' });
 privateDataAbsent(redacted, 'recursive redactor');
 assert.equal(redacted.amount, 123.45); assert.equal(redacted.pinConfigured, true); assert.equal(redacted.pinUpdatedAt, '2026-10-01T10:00:00Z');
 const safeEvent = sanitizeAuditEvent({ id: events[0], action: 'qa.audit', entityType: 'staff', beforeData: credentials, afterData: { ...credentials, amount: 55 } });
 privateDataAbsent(safeEvent, 'event redactor'); assert.equal(safeEvent.action,'qa.audit'); assert.equal(safeEvent.afterData.amount,55);
+const safeGuestEvent = sanitizeAuditEvent({ id: events[2], action: 'client.updated', entityType: 'client', beforeData: { name: marker, phone: marker, allergies: marker }, afterData: { name: marker, notes: marker, amount: 55, sourceKey: 'loyalty-adjustment:qa' } });
+guestPiiAbsent(safeGuestEvent, 'guest event sanitizer');
+assert.deepEqual(safeGuestEvent.afterData, { amount: 55, sourceKey: 'loyalty-adjustment:qa' }, 'guest audit retains required financial facts while stripping profile PII');
 
 let child;
 let base;
@@ -92,9 +108,13 @@ try {
   const repository=new AuditRepository(pool);
   await repository.record({venueId:venues[0],actorId:users[0].id,action:'qa.audit_direct',entityType:'staff',entityId:users[3].id,beforeData:credentials,afterData:{...credentials,amount:123.45,pinConfigured:true}});
   const storedDirect=(await pool.query("SELECT before_data,after_data FROM audit_events WHERE venue_id=$1 AND action='qa.audit_direct'",[venues[0]])).rows[0];privateDataAbsent(storedDirect,'direct repository write'); assert.equal(storedDirect.after_data.amount,123.45);
+  await repository.record({venueId:venues[0],actorId:users[0].id,action:'qa.guest_direct',entityType:'client',entityId:randomUUID(),beforeData:{name:marker,phone:marker,allergies:marker},afterData:{name:marker,email:marker,amount:55,sourceKey:'loyalty-adjustment:qa'}});
+  const storedGuest=(await pool.query("SELECT before_data,after_data FROM audit_events WHERE venue_id=$1 AND action='qa.guest_direct'",[venues[0]])).rows[0];guestPiiAbsent(storedGuest,'direct guest audit write');assert.deepEqual(storedGuest.after_data,{amount:55,sourceKey:'loyalty-adjustment:qa'});
   for(let index=0;index<2;index++)await pool.query("INSERT INTO audit_events(id,venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES($1,$2,$3,'qa.audit_legacy','staff',$3,$4,$5)",[events[index],venues[index],users[index?4:0].id,credentials,{...credentials,amount:index?987:321}]);
+  await pool.query("INSERT INTO audit_events(id,venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES($1,$2,$3,'qa.guest_legacy','client',$4,$5,$6)",[events[2],venues[0],users[0].id,randomUUID(),{name:marker,phone:marker,allergies:marker},{name:marker,notes:marker,amount:55,sourceKey:'legacy:guest'}]);
   const legacyRaw=(await pool.query('SELECT after_data FROM audit_events WHERE id=$1',[events[0]])).rows[0];assert.equal(JSON.stringify(legacyRaw).includes(marker),true,'historical fixture proves read redaction without rewriting stored history');
   const directRows=await repository.list(venues[0],{action:'qa.audit_legacy'});privateDataAbsent(directRows,'repository historical read');assert.equal(directRows[0].afterData.amount,321);
+  const legacyGuestRows=await repository.list(venues[0],{action:'qa.guest_legacy'});guestPiiAbsent(legacyGuestRows,'repository historical guest read');assert.deepEqual(legacyGuestRows[0].afterData,{amount:55,sourceKey:'legacy:guest'});
   for(const user of users){
     const token=await login(user.login);
     if(user.role==='hookah_master')await request('/api/audit',token,'GET',undefined,403);
@@ -118,9 +138,23 @@ try {
   for(let index=0;index<2;index++){
     const ownerLogin=`audit-memory-${suffix}-${index}@example.test`;
     await request('/api/platform/organizations',platformToken,'POST',{name:`Audit memory ${index}`,slug:`audit-memory-${suffix}-${index}`,ownerName:'QA Owner',ownerLogin,ownerPassword:password,plan:'enterprise'},201);
-    const token=await login(ownerLogin);const guest=await request('/api/clients',token,'POST',{name:`QA isolated guest ${index}`},201);memoryOwners.push({token,guest});
+    const token=await login(ownerLogin);const guest=await request('/api/clients',token,'POST',{name:`QA isolated guest ${index}`,phone:marker,email:marker,notes:marker},201);memoryOwners.push({token,guest});
   }
-  for(const owner of memoryOwners){const audit=await request('/api/audit?action=client.created',owner.token);assert.equal(audit.items.length,1,'memory audit excludes events of the other venue');assert.equal(audit.items[0].entityId,owner.guest.id);await request('/api/logout',owner.token,'POST',{});}
+  const foreignGuest=memoryOwners[1].guest;
+  const ownerOneGuestList=await request('/api/clients',memoryOwners[0].token);
+  assert.equal(ownerOneGuestList.items.some(item=>item.id===foreignGuest.id),false,'memory guest listing cannot expose another venue profile');
+  for(const [method,path,input] of [
+    ['GET',`/api/clients/${foreignGuest.id}/history`],
+    ['PATCH',`/api/clients/${foreignGuest.id}`,{name:'Cross-tenant overwrite'}],
+    ['POST',`/api/clients/${foreignGuest.id}/archive`,{}],
+    ['DELETE',`/api/clients/${foreignGuest.id}`],
+    ['POST',`/api/clients/${foreignGuest.id}/loyalty`,{delta:10,reason:'Cross-tenant QA',idempotencyKey:'qa-foreign-tenant'}],
+    ['GET',`/api/clients/${foreignGuest.id}/account-entries`]
+  ]) await request(path,memoryOwners[0].token,method,input,404);
+  const foreignGuestAfter=await request('/api/clients',memoryOwners[1].token);
+  assert.equal(foreignGuestAfter.items.some(item=>item.id===foreignGuest.id),true,'cross-venue delete attempt leaves the owner venue guest intact');
+  assert.equal(foreignGuestAfter.items.find(item=>item.id===foreignGuest.id).name,'QA isolated guest 1','cross-venue profile/archive attempts leave guest data unchanged');
+  for(const owner of memoryOwners){const audit=await request('/api/audit?action=client.created',owner.token);assert.equal(audit.items.length,1,'memory audit excludes events of the other venue');assert.equal(audit.items[0].entityId,owner.guest.id);guestPiiAbsent(audit,'memory guest audit read');await request('/api/logout',owner.token,'POST',{});}
   console.log('AUDIT PRIVACY POSTGRES QA: PASS (encrypted profile, recursive write/read redaction, historical data, owner/manager/developer RBAC, PostgreSQL and memory tenant isolation, unavailable database503)');
 }finally{
   await stopServer();

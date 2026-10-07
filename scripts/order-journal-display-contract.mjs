@@ -10,5 +10,5 @@ assert.match(portal, /slice\(-8\)\.toUpperCase\(\)/, 'UUID order references are 
 assert.match(portal, /order\.tableName \|\| \(order\.tableId \? 'Стол не найден' : 'Без стола'\)/, 'missing table relations have understandable fallbacks');
 assert.match(portal, /displayOrderId\(order\.id\).*order\.tableName/, 'order search includes displayed number and table name');
 assert.match(portal, /reservations = \(data\.items \|\| \[\]\)\.map\(\(item\) => \(\{ \.\.\.item, date:/, 'reservation list normalizes SQL date values before rendering');
-assert.ok(portal.includes('${esc(formatRuDate(item.date))} · ${esc(item.time)}'), 'reservation date display is localized without changing its ISO filter value');
+assert.ok(portal.includes("esc(formatRuDate(item.date)) + ' · ' + esc(item.time)"), 'reservation date display is localized without changing its ISO filter value');
 console.log('ORDER JOURNAL DISPLAY CONTRACT: PASS (human-readable IDs/tables, tenant join, fallbacks, search, localized reservation dates)');

@@ -12,7 +12,7 @@ for (const file of migrations) {
 }
 if (!portal.includes("id=\"inventory-item-subdepartment\"")) throw new Error('inventory item form has no subdepartment selector');
 if (!portal.includes("querySelector('#inventory-item-subdepartment')") || !portal.includes('String(item.departmentCode) === department')) throw new Error('subdepartment options are not populated for the selected department');
-if (!portal.includes('Подцех — участок внутри цеха') || !portal.includes('Категории — группы похожих позиций')) throw new Error('inventory directory is missing plain-language hierarchy explanations');
+if (!portal.includes('Подцех — где именно хранится?') || !portal.includes('Категория — что за похожие позиции?') || !portal.includes('Бар → Сиропы → Фруктовые сиропы')) throw new Error('inventory directory must explain the hierarchy and show a complete example');
 if (!portal.includes('Без подцеха') || !portal.includes('Выберите созданный подцех')) throw new Error('inventory item form does not clarify that subdepartment is optional and directory-backed');
 if (!portal.includes('id="inventory-subdepartment-section"')) throw new Error('subdepartment directory section is missing from the hierarchy view');
 if (!portal.includes("document.querySelector('#inventory-subdepartment-list'); subdepartmentList.after(subdepartmentTools)")) throw new Error('subdepartment editor is not placed beside its directory');
@@ -27,6 +27,11 @@ for (const contract of ["portalUser.role === 'owner'", "portalUser.role === 'man
 }
 if (!portal.includes('data-archive-type') || !portal.includes('data-restore-type') || !portal.includes('product-category-edit')) throw new Error('directory archive/restore actions are missing for authorized staff');
 if (!portal.includes('syncInventoryHierarchyOptions')) throw new Error('inventory hierarchy option sync is missing');
+for (const contract of ["'inventory_categories'", "inventory_categories: ['inventory_categories', 'inventory_read']", "inventory_categories: 'Справочник категорий склада'", "entityType === 'category' && canManageCategoryLifecycle", "archive && !(entityType === 'category' && canManageCategoryLifecycle)"]) {
+  if (!server.includes(contract) && !portal.includes(contract)) throw new Error(`owner-configurable category lifecycle permission is missing ${contract}`);
+}
+if (!server.includes("&& entityType !== 'category') return json(res, 403, { error: 'inventory_category_permission_only' });")) throw new Error('category-only scope must not authorize department/subdepartment deletion requests');
+if (!server.includes("if (req.user?.role !== 'owner') return json(res, 403, { error: 'inventory_deletion_owner_required' })")) throw new Error('final category deletion must remain owner-only');
 if (!portal.includes("const subdepartmentSelect = document.querySelector('#inventory-subdepartment-department')") || !portal.includes('subdepartmentSelect.innerHTML = options')) throw new Error('subdepartment department options do not refresh when the department directory changes');
 if (!portal.includes('if (departmentSelect && selectedDepartment && [...departmentSelect.options].some((option) => option.value === selectedDepartment)) departmentSelect.value = selectedDepartment')) throw new Error('new category form does not inherit the currently selected department');
 if (!portal.includes('Выберите подцех из справочника выбранного цеха')) throw new Error('inventory hierarchy UX validation is missing');

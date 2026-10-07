@@ -64,10 +64,10 @@ try {
   expectStatus(ownerLogin, 200, 'owner login');
   ownerToken = ownerLogin.data.token;
 
-  const createAccount = async (role, login) => {
+  const createAccount = async (role, login, permissionScopes) => {
     const created = await request('/api/staff', {
       method: 'POST', token: ownerToken,
-      body: { name: `Role matrix ${role}`, login, password: 'qa-pass-123', role, birthDate: '1990-01-01' },
+      body: { name: `Role matrix ${role}`, login, password: 'qa-pass-123', role, birthDate: '1990-01-01', ...(permissionScopes ? { permissionScopes } : {}) },
     });
     expectStatus(created, 201, `admin creates ${role}`);
     createdStaffIds.push(created.data.id);
@@ -109,7 +109,7 @@ try {
 
   const oldShift = await request('/api/shifts', { method: 'POST', token: adminToken, body: { openingCash: 50 } });
   expectStatus(oldShift, 201, 'admin opens historical test shift');
-  expectStatus(await request(`/api/shifts/${encodeURIComponent(oldShift.data.id)}/close`, { method: 'POST', token: adminToken, body: { closingCash: 60, checklistConfirmed: true } }), 200, 'admin closes historical test shift');
+  expectStatus(await request(`/api/shifts/${encodeURIComponent(oldShift.data.id)}/close`, { method: 'POST', token: adminToken, body: { closingCash: 60, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } } }), 200, 'admin closes historical test shift');
   const currentShift = await request('/api/shifts', { method: 'POST', token: adminToken, body: { openingCash: 25 } });
   expectStatus(currentShift, 201, 'admin opens current test shift');
   const employeeShifts = await request('/api/shifts', { token: bartender.token });
@@ -122,6 +122,28 @@ try {
   assert.ok(managerSession.data.permissions.includes('finance_read'));
   assert.ok(!managerSession.data.permissions.includes('inventory'));
   assert.ok(!managerSession.data.permissions.includes('finance'));
+
+  const categoryManager = await createAccount('manager', `qa_cat_mgr_${suffix}`, ['inventory_categories']);
+  const categoryManagerSession = await request('/api/session', { token: categoryManager.token });
+  assert.ok(categoryManagerSession.data.permissions.includes('inventory_categories'), 'owner assigned the narrow category lifecycle permission');
+  assert.ok(categoryManagerSession.data.permissions.includes('inventory_read'), 'category lifecycle scope retains the manager directory read access');
+  assert.ok(!categoryManagerSession.data.permissions.includes('inventory'), 'category lifecycle scope does not grant broad inventory writes');
+  const lifecycleCategory = await request('/api/product-categories', { method: 'POST', token: adminToken, body: { name: `QA category lifecycle ${suffix}`, department: 'inventory' } });
+  expectStatus(lifecycleCategory, 201, 'admin creates category lifecycle fixture');
+  expectStatus(await request(`/api/product-categories/${encodeURIComponent(lifecycleCategory.data.id)}`, { method: 'DELETE', token: manager.token }), 403, 'manager without the configured scope cannot archive a category');
+  expectStatus(await request(`/api/product-categories/${encodeURIComponent(lifecycleCategory.data.id)}`, { method: 'DELETE', token: categoryManager.token }), 200, 'category manager archives without broad inventory access');
+  expectStatus(await request(`/api/product-categories/${encodeURIComponent(lifecycleCategory.data.id)}/restore`, { method: 'POST', token: categoryManager.token }), 200, 'category manager restores an archived category');
+  expectStatus(await request(`/api/product-categories/${encodeURIComponent(lifecycleCategory.data.id)}`, { method: 'DELETE', token: categoryManager.token }), 200, 'category manager re-archives the category');
+  expectStatus(await request('/api/inventory/deletion-requests', { method: 'POST', token: categoryManager.token, body: { entityType: 'category', entityId: lifecycleCategory.data.id } }), 201, 'category manager requests owner approval');
+  expectStatus(await request('/api/inventory/deletion-requests', { method: 'POST', token: categoryManager.token, body: { entityType: 'department', entityId: 'inventory' } }), 403, 'category-only scope cannot request department deletion');
+  expectStatus(await request('/api/product-categories', { method: 'POST', token: categoryManager.token, body: { name: `QA forbidden category ${suffix}`, department: 'inventory' } }), 403, 'category-only scope cannot create or edit categories');
+  expectStatus(await request(`/api/product-categories/${encodeURIComponent(lifecycleCategory.data.id)}`, { method: 'PATCH', token: categoryManager.token, body: { name: `QA forbidden rename ${suffix}`, department: 'inventory' } }), 403, 'category-only scope cannot rename or move categories');
+  expectStatus(await request('/api/inventory/items', { method: 'POST', token: categoryManager.token, body: { name: `QA forbidden stock ${suffix}`, unit: 'шт', itemType: 'ingredient', cost: 1 } }), 403, 'category-only scope cannot mutate stock');
+  const pendingCategoryRequest = await request('/api/inventory/deletion-requests', { token: ownerToken });
+  const categoryRequest = pendingCategoryRequest.data.items.find((item) => item.entityId === lifecycleCategory.data.id);
+  assert.ok(categoryRequest, 'owner sees the category deletion request');
+  expectStatus(await request(`/api/inventory/deletion-requests/${encodeURIComponent(categoryRequest.id)}/approve`, { method: 'POST', token: categoryManager.token }), 403, 'category manager cannot approve final deletion');
+  expectStatus(await request(`/api/inventory/deletion-requests/${encodeURIComponent(categoryRequest.id)}/approve`, { method: 'POST', token: ownerToken }), 200, 'owner confirms final deletion');
 
   const premixSource = await request('/api/inventory/items', { method: 'POST', token: adminToken, body: { name: `QA role premix source ${suffix}`, unit: 'мл', itemType: 'ingredient', cost: 0.1 } });
   const premixOutput = await request('/api/inventory/items', { method: 'POST', token: adminToken, body: { name: `QA role premix output ${suffix}`, unit: 'мл', itemType: 'ingredient', cost: 0 } });
@@ -177,9 +199,21 @@ try {
     body: { name: `QA free check ${suffix}`, category: 'bar', price: 500, inventoryMode: 'non_stock' },
   });
   expectStatus(freeProduct, 201, 'admin creates zero-total regression product');
+  const venue = await request('/api/venue', { token: adminToken });
+  expectStatus(venue, 200, 'admin reads venue for zero-total regression floor fixture');
+  const freeZone = await request('/api/floor/zones', {
+    method: 'POST', token: adminToken,
+    body: { expectedVenueId: venue.data.id, name: `QA zero-total ${suffix}` },
+  });
+  expectStatus(freeZone, 201, 'admin creates zero-total regression zone');
+  const freeTable = await request('/api/floor/tables', {
+    method: 'POST', token: adminToken,
+    body: { expectedVenueId: venue.data.id, zoneId: freeZone.data.id, name: `QA free table ${suffix}`, capacity: 2 },
+  });
+  expectStatus(freeTable, 201, 'admin creates zero-total regression table');
   const freeOrder = await request('/api/orders', {
     method: 'POST', token: adminToken,
-    body: { tableId: `qa-free-${suffix}` },
+    body: { tableId: freeTable.data.id },
   });
   expectStatus(freeOrder, 201, 'admin opens zero-total regression order');
   expectStatus(await request(`/api/orders/${encodeURIComponent(freeOrder.data.id)}/items`, {
@@ -205,7 +239,7 @@ try {
   assert.equal(freeReport.data.revenue, 0, 'memory finance report does not replace zero with gross order total');
   assert.equal(freeReport.data.byStaff.Administrator || 0, 0, 'waiter report does not attribute gross revenue to zero-total order');
 
-  console.log('ROLE API MATRIX RUNTIME QA: PASS (unauthenticated denial; 10 read routes × bartender/manager; redacted employee metrics and shift history; 5 forbidden writes; employee finance payload; task assignment, constrained update and reread; zero-total finance regression)');
+  console.log('ROLE API MATRIX RUNTIME QA: PASS (manager category scope, archive/restore/request/owner-approval lifecycle, scope isolation, unauthenticated denial, role route matrix, employee finance, task lifecycle and zero-total finance regression)');
 } finally {
   if (baseUrl && adminToken) {
     for (const id of createdStaffIds) {

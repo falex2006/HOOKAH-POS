@@ -11,6 +11,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const id = '00000000-0000-4000-8000-000000000001';
 const venueId = '00000000-0000-4000-8000-000000000002';
 const versionId = '00000000-0000-4000-8000-000000000003';
+const payoutRiskAcknowledgement = { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' };
 
 const responseFor = () => {
   const response = { status: null, body: null };
@@ -31,12 +32,21 @@ const service = {
   listSchemes: async (principal) => { calls.push(['listSchemes', principal]); return [scheme]; },
   getVersion: async (principal, target) => { calls.push(['getVersion', principal, target]); return { ...scheme, versionId: target, status: 'draft' }; },
   listVersionRevisions: async (principal, target) => { calls.push(['listVersionRevisions', principal, target]); return []; },
+  getSourceReadiness: async (principal, target, period) => { calls.push(['getSourceReadiness', principal, target, period]); return { officialReady: false }; },
   createScheme: async (principal, input) => { calls.push(['createScheme', principal, input]); return { ...scheme, ...input }; },
-  createVersion: async (principal, target, definition) => { calls.push(['createVersion', principal, target, definition]); return { ...scheme, schemeId: target, versionId, ...definition }; },
-  replaceDraftVersion: async (principal, target, definition) => { calls.push(['replaceDraftVersion', principal, target, definition]); return { ...scheme, versionId: target, ...definition }; },
+  createVersion: async (principal, target, definition, acknowledgement) => { calls.push(['createVersion', principal, target, definition, acknowledgement]); return { ...scheme, schemeId: target, versionId, ...definition }; },
+  replaceDraftVersion: async (principal, target, definition, acknowledgement) => { calls.push(['replaceDraftVersion', principal, target, definition, acknowledgement]); return { ...scheme, versionId: target, ...definition }; },
   activateVersion: async (principal, target) => { calls.push(['activateVersion', principal, target]); return { ...scheme, versionId: target, status: 'active' }; },
   preview: async (principal, target, input) => { calls.push(['preview', principal, target, input]); return { official: false, persistence: 'none', scenario: true, result: { status: 'ready' } }; },
-  compare: async (principal, ids, input, baseline) => { calls.push(['compare', principal, ids, input, baseline]); return { official: false, persistence: 'none', scenario: true, comparisons: [] }; }
+  previewWithApprovedAttendance: async (principal, target, input) => { calls.push(['previewWithApprovedAttendance', principal, target, input]); return { official: false, persistence: 'none', scenario: true, sourceAttendanceApproval: { revision: 4 }, result: { status: 'ready' } }; },
+  previewWithVenueDailyTurnover: async (principal, target, input) => {
+    calls.push(['previewWithVenueDailyTurnover', principal, target, input]);
+    return { official: false, persistence: 'none', scenario: true,
+      sourceVenueTurnover: { official: false, persistence: 'none', previewOnly: true }, result: { status: 'blocked' } };
+  },
+  compare: async (principal, ids, input, baseline) => { calls.push(['compare', principal, ids, input, baseline]); return { official: false, persistence: 'none', scenario: true, comparisons: [] }; },
+  readAttendanceCoverage: async (principal, period) => { calls.push(['readAttendanceCoverage', principal, period]); return { complete: true, sourceWatermark: 'a'.repeat(64) }; },
+  approveAttendanceCoverage: async (principal, input) => { calls.push(['approveAttendanceCoverage', principal, input]); return { revision: 1 }; }
 };
 const dispatch = async (req, { selectedService = service, body = bodyReader } = {}) => {
   const { response, json } = responseFor();
@@ -50,7 +60,19 @@ assert.equal(result.status, 200);
 assert.deepEqual(result.body.items, [scheme]);
 assert.deepEqual(calls.at(-1), ['listSchemes', { userId: id, venueId }]);
 
-const spoofed = { name: 'Draft', venueId: 'forged-venue', userId: 'forged-user', definition: { mode: 'progressive_daily' } };
+result = await dispatch(requestFor('GET', '/api/payroll/attendance/approvals?from=2026-10-01&to=2026-10-31'));
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['readAttendanceCoverage', { userId: id, venueId }, { periodFrom: '2026-10-01', periodTo: '2026-10-31' }]);
+const attendanceInput = { periodFrom: '2026-10-01', periodTo: '2026-10-31', sourceWatermark: 'a'.repeat(64), reason: 'Сверка завершена', idempotencyKey: 'payroll-attendance:qa-key' };
+result = await dispatch({ ...requestFor('POST', '/api/payroll/attendance/approvals'), body: attendanceInput });
+assert.equal(result.status, 201);
+assert.deepEqual(calls.at(-1), ['approveAttendanceCoverage', { userId: id, venueId }, attendanceInput]);
+const attendanceCallsBeforeDenied = calls.length;
+result = await dispatch({ ...requestFor('POST', '/api/payroll/attendance/approvals'), user: { id, venueId, role: 'manager' }, body: attendanceInput });
+assert.equal(result.status, 403);
+assert.equal(calls.length, attendanceCallsBeforeDenied, 'non-owner cannot reach attendance manifest service');
+
+const spoofed = { name: 'Draft', venueId: 'forged-venue', userId: 'forged-user', definition: { mode: 'progressive_daily' }, payoutRiskAcknowledgement };
 result = await dispatch({ ...requestFor('POST', '/api/payroll/schemes'), body: spoofed });
 assert.equal(result.status, 201);
 assert.deepEqual(calls.at(-1), ['createScheme', { userId: id, venueId }, spoofed]);
@@ -62,6 +84,16 @@ assert.deepEqual(result.body.items, scheme.versions);
 result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}`));
 assert.equal(result.status, 200);
 assert.deepEqual(calls.at(-1), ['getVersion', { userId: id, venueId }, versionId]);
+result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}/source-readiness?from=2026-10-01&to=2026-10-31`));
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['getSourceReadiness', { userId: id, venueId }, versionId, { from: '2026-10-01', to: '2026-10-31' }]);
+for (const query of ['from=2026-10-01', 'from=2026-10-01&from=2026-10-01&to=2026-10-31', 'from=2026-10-01&to=2026-10-31&coverage=complete']) {
+  const before = calls.length;
+  result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}/source-readiness?${query}`));
+  assert.equal(result.status, 400); assert.equal(calls.length, before);
+}
+result = await dispatch({ ...requestFor('GET', `/api/payroll/versions/${versionId}/source-readiness?from=2026-10-01&to=2026-10-31`), user: { id, venueId, role: 'bartender' } });
+assert.equal(result.status, 403);
 
 result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}/revisions`));
 assert.equal(result.status, 200);
@@ -75,13 +107,13 @@ for (const path of ['/api/payroll/schemes', `/api/payroll/versions/${versionId}`
 }
 
 const definition = { effectiveFrom: '2026-10-01', roleParameters: { bartender: {} } };
-result = await dispatch({ ...requestFor('POST', `/api/payroll/schemes/${id}/versions`), body: { definition } });
+result = await dispatch({ ...requestFor('POST', `/api/payroll/schemes/${id}/versions`), body: { definition, payoutRiskAcknowledgement } });
 assert.equal(result.status, 201);
-assert.deepEqual(calls.at(-1), ['createVersion', { userId: id, venueId }, id, definition]);
+assert.deepEqual(calls.at(-1), ['createVersion', { userId: id, venueId }, id, definition, payoutRiskAcknowledgement]);
 
-result = await dispatch({ ...requestFor('PUT', `/api/payroll/versions/${versionId}`), body: { definition } });
+result = await dispatch({ ...requestFor('PUT', `/api/payroll/versions/${versionId}`), body: { definition, payoutRiskAcknowledgement } });
 assert.equal(result.status, 200);
-assert.deepEqual(calls.at(-1), ['replaceDraftVersion', { userId: id, venueId }, versionId, definition]);
+assert.deepEqual(calls.at(-1), ['replaceDraftVersion', { userId: id, venueId }, versionId, definition, payoutRiskAcknowledgement]);
 
 result = await dispatch(requestFor('POST', `/api/payroll/versions/${versionId}/activate`));
 assert.equal(result.status, 200);
@@ -93,6 +125,51 @@ assert.equal(result.status, 200);
 assert.deepEqual(calls.at(-1), ['preview', { userId: id, venueId }, versionId, previewInput]);
 assert.equal(result.body.official, false);
 assert.equal(result.body.persistence, 'none');
+
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/approved-attendance`), body: { previewInput } });
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['previewWithApprovedAttendance', { userId: id, venueId }, versionId, previewInput]);
+assert.equal(result.body.official, false);
+assert.equal(result.body.persistence, 'none');
+assert.equal(result.body.sourceAttendanceApproval.revision, 4);
+const callsBeforeNonOwnerAttendancePreview = calls.length;
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/approved-attendance`), user: { id, venueId, role: 'manager' }, body: { previewInput } });
+assert.equal(result.status, 403, 'only owner may request an approved-attendance preview');
+assert.equal(calls.length, callsBeforeNonOwnerAttendancePreview, 'non-owner is rejected before the approved-attendance preview service is called');
+result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}/preview/approved-attendance`));
+assert.equal(result.handled, false);
+assert.equal(result.status, null, 'approved-attendance preview is POST-only');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/approved-attendance`), body: { previewInput } }, {
+  selectedService: { ...service, previewWithApprovedAttendance: async () => {
+    throw Object.assign(new Error('attendance changed'), { status: 409, code: 'payroll_preview_attendance_approval_stale' });
+  } }
+});
+assert.equal(result.status, 409, 'stale approval blockers map to their safe domain status');
+assert.deepEqual(result.body, { error: 'payroll_preview_attendance_approval_stale' });
+
+const sourcedPreviewInput = { ...previewInput, venueId: 'forged-tenant', coverage: { kind: 'month_to_date_complete', from: '2026-10-01', through: '2026-10-01', complete: true, watermark: 'scenario-v1' } };
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/venue-turnover`), body: { previewInput: sourcedPreviewInput } });
+assert.equal(result.status, 200);
+assert.equal(calls.at(-1)[0], 'previewWithVenueDailyTurnover');
+assert.deepEqual(calls.at(-1).slice(1), [{ userId: id, venueId }, versionId, sourcedPreviewInput],
+  'sourced preview takes principal only from authenticated owner session and forwards scenario input unchanged');
+assert.equal(result.body.official, false);
+assert.equal(result.body.persistence, 'none');
+assert.equal(result.body.sourceVenueTurnover.previewOnly, true);
+
+const callsBeforeNonOwnerSourcedPreview = calls.length;
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/venue-turnover`), user: { id, venueId, role: 'manager' }, body: { previewInput } });
+assert.equal(result.status, 403, 'only owner may request source-backed turnover previews');
+assert.equal(calls.length, callsBeforeNonOwnerSourcedPreview, 'non-owner is rejected before the sourced-preview service is called');
+result = await dispatch({ ...requestFor('GET', `/api/payroll/versions/${versionId}/preview/venue-turnover`) });
+assert.equal(result.handled, false);
+assert.equal(result.status, null, 'sourced preview is a POST-only action');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/venue-turnover`), body: { previewInput },
+  }, { selectedService: { ...service, previewWithVenueDailyTurnover: async () => {
+    throw Object.assign(new Error('closed snapshot missing'), { status: 409, code: 'payroll_venue_turnover_snapshot_missing' });
+  } } });
+assert.equal(result.status, 409, 'source blockers map to their safe domain status');
+assert.deepEqual(result.body, { error: 'payroll_venue_turnover_snapshot_missing' });
 
 result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: { versionIds: [versionId, id], baselineVersionId: versionId, previewInput } });
 assert.equal(result.status, 200);
@@ -168,4 +245,4 @@ assert.match(routeSource, /sameOriginMutation\(req\)/, 'scheme writes include CS
 assert.match(routeSource, /req\.user\.role !== 'owner'/, 'scheme API rejects non-owners before calling the service');
 assert.doesNotMatch(routeSource, /payroll_entries|expenses/, 'scheme routes never create payroll entries or expenses');
 
-console.log('PAYROLL SCHEME ROUTES CONTRACT: PASS (owner session boundary, CSRF, CRUD, revisions, scenario, compare and legacy isolation)');
+console.log('PAYROLL SCHEME ROUTES CONTRACT: PASS (owner session boundary, CSRF, CRUD, revisions, scenario/source preview, compare and legacy isolation)');

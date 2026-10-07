@@ -1,3 +1,10 @@
+## 2026-10-02 — безопасный контракт управления акциями L11.5
+
+- Кампания — отдельная сущность от группы гостя, с version history, tenant scope, явным периодом, IANA timezone, выбранными товарами/категориями, размером выгоды и приоритетом. Интервалы храним как UTC instants; ценовой evaluator должен трактовать их как `[start,end)`.
+- Любая новая кампания создаётся как черновик. До готовности L11.6 нельзя активировать кампанию через API, потому что пока нет серверного применения к цене и POS объяснения. Конфигурация не создаёт скидку, оплату, бонусное/денежное движение, кассовую запись или выручку.
+- Изменение/архивация добавляет новую неизменяемую версию; ожидаемая площадка и версия обязательны; PostgreSQL audit event сохраняется в той же транзакции. Owner/admin — единственные управляющие роли.
+- Включение требует хотя бы одного товара или категории; выбранные записи должны быть активными и принадлежать площадке. Exclusion wins при пересечении категорий/товаров. Не вводить бизнес-значения и бюджеты без отдельного решения.
+- Финансовый review выявил конфликт tie-break; единая развязка зафиксирована решением L11.6 ниже и покрыта pure QA.
 ## 2026-10-02 — фиксировать скидку группы при привязке гостя к заказу
 
 - Политика: групповая и одобренная ручная скидки взаимоисключающие; применяется скидка с большей денежной выгодой, равенство отдаёт предпочтение группе.
@@ -8,9 +15,25 @@
 
 # Журнал решений команды
 
+## 2026-10-02 — базовые границы payroll-расчёта
+
+- Для каждой строки чека комиссионный сотрудник — тот, кто пробил позицию; исполнитель услуги и открывший заказ не подменяют строкового оператора. Комиссионная база — net конкретной строки после скидок и возвратов, полученный из POS/finance allocation; payroll не реконструирует его и блокирует неподтверждённый источник.
+- Закрытый payroll run и выплаченная запись неизменяемы. Поздний возврат учитывается append-only корректировкой следующего открытого run с исходной строкой, refund reference и idempotency; не создаём отрицательную выплату и не удерживаем фиксированную оплату автоматически. Не покрытый будущими переменными начислениями остаток остаётся явно перенесённой корректировкой до отдельного разрешённого финансового процесса.
+- Refund adjustment разрешён только после сверки с настоящим line-level refund allocation; в текущем POS такого источника ещё нет, поэтому будущий API до его появления обязан блокировать такие корректировки. SQL дополнительно требует совпадение сотрудника исходной продажи и суммарно ограничивает возврат/void размером комиссии по исходной строке, но эти барьеры не доказывают фактический возврат.
+- Milestone bonus — отдельное фиксированное начисление по событию порога вне sales-based дневного cap. Иначе нельзя одновременно соблюдать ТЗ «каждому сотруднику, независимо от продаж» и кэпировать выплаты личной выручкой; dashboard обязан явно показывать бонус и итоговую долю ФОТ/cap breach.
+- Основание: явное указание владельца не задавать ему рутинные продуктовые вопросы; выбрать логически/финансово наиболее последовательные правила. Источник: ТЗ зарплатного модуля, ответы владельца о line-net базе и owner-only настройке. Финансовую report/expense интеграцию сверить с MASTER до API/DB интеграции.
+## 2026-10-02 — временный профиль бонусов для L11.1
+
+- До отдельного бизнес-решения не менять денежное поведение: курс 1 бонус = 1 ₽, списание до 100% остатка заказа, минимальное списание 1 бонус, бонусы без автоматического срока сгорания; начисление определяется ставкой группы, discounted товарной базой до VIP и округлением вниз.
+- Групповые ставки сохраняются без изменений. Будущая глобальная конфигурация должна быть площадочной, версионируемой и аудируемой; изменение действует только на новые заказы. Сгорание нельзя включать одним полем срока без раздельных начислений/сроков и проверяемых обратных движений.
+- Это временная техническая совместимость, а не утверждённая коммерческая политика. Владелец должен подтвердить курс, долю оплаты, срок/уведомление и исключения до изменения расчёта. Акции/конфликты скидок рассматриваются в L11.2.
+
+
 | Дата | Решение | Основание | Кто согласовал | Commit |
+| 2026-10-02 | Возвраты и сторно — отдельные неизменяемые записи со ссылкой на исходную операцию, частью суммы, причиной, idempotency key и фактической сменой выплаты. Валютные возвраты считаются в чистую выручку/кассовый отток по дате выплаты; wallet restore не является внешней выплатой. Списанные/начисленные бонусы возвращаются ledger-движением; доступные начисленные бонусы сторнируются, а уже потраченная часть образует удержание из будущих начислений без отрицательного баланса. Закрытый чек не открывается задним числом; броневая allocation сторнируется до возврата исходной квитанции. Выплату может провести только владелец/администратор с finance. | Статус refunded исходного платежа уничтожил бы сумму частичного возврата и портил исторический отчёт. Иммутабельный журнал, остаточный лимит и отдельные payout/refund flows сохраняют аудит и правильную наличность. Уже использованные бонусы требуют удержания, иначе законный денежный возврат создаст несверяемое обязательство либо отрицательный баланс. | Координатор после финансового, системно-архитектурного и code-health аудита | политика этапа 10.1, реализация локальная впереди |
+| 2026-10-02 | Предоплату брони разрешено вернуть после полного сторно её активных зачётов; зачёт можно сторнировать целиком только до закрытия заказа. Частичный или полный фактический возврат проходит отдельной квитанцией возврата через открытую смену и роли owner/admin+finance; отмена не запускает выплату автоматически. | Сохранить исходные суммы и аудит; не допустить одновременного зачёта и внешнего возврата одного остатка; отражать наличную выплату в смене, где она реально произошла. Скидка/отмена остаётся финансово прозрачной без автоматического объявления предоплаты невозвратной. | Координатор после finance, system-architect и code-health review | L10.3 локально, migration 069 |
 | 2026-10-02 | Зачёт полученной предоплаты брони в заказ — это отдельный тендер `reservation`, связанный с исходной неизменяемой квитанцией и бронью. В зачёте нет нового движения денег и новой кассовой наличности; продажа учитывается один раз при закрытии заказа. Один заказ на бронь, tenant-consistent FK, venue-wide idempotency и аудит в одной транзакции защищают связь и повторы. Отмена блокируется после зачёта; возврат/перенос остаются отдельным этапом. | Повторная запись приёма в кассу или выручку завысила бы денежные итоги; изменяемая/неограниченная связь позволила бы повторное использование предоплаты. | Координатор после системно-архитектурного, финансового и code-health review; PostgreSQL QA | применено на локальной CRM, migration 065 |
-| 2026-10-02 | Зачёт полученной предоплаты брони в заказ — это отдельный тендер `reservation`, связанный с исходной неизменяемой квитанцией и бронью. В зачёте нет нового движения денег и новой кассовой наличности; продажа учитывается один раз при закрытии заказа. Один заказ на бронь, tenant-consistent FK, venue-wide idempotency и аудит в одной транзакции защищают связь и повторы. Отмена блокируется после зачёта; возврат/перенос остаются отдельным этапом. | Повторная запись приёма в кассу или выручку завысила бы денежные итоги; изменяемая/неограниченная связь позволила бы повторное использование предоплаты. | Координатор после системно-архитектурного, финансового и code-health review; PostgreSQL QA | применено на локальной CRM, migration 065 |
+
 |---|---|---|---|---|
 | 2026-10-02 | Предоплата брони принимается отдельной квитанцией, привязанной к заведению, подтверждённой брони, открытой смене и сотруднику; максимум до остатка требуемого депозита. Старая `deposit_paid` сумма остаётся неподтверждённой и блокирует новые поступления до сверки. Приём не создаёт выручку заказа и не пополняет денежный счёт гостя; только наличная часть входит в физическую кассу. Отмена не инициирует возврат/зачёт автоматически; квитанция остаётся открытым обязательством до утверждения правил следующего этапа. | Разделить факт денег от старого поля, обязательства и выручки; избежать фиктивной истории, повторного приёма и необоснованного возврата/переноса. | Координатор после архитектурного и финансового review; локальный технический контракт | локально, не опубликовано |
 | 2026-10-02 | Пополнение денежного счёта гостя оформляется отдельной квитанцией со способом оплаты и сменой, плюс положительным движением обязательства в журнале. Оно не становится продажей/платежом заказа. При оплате заказа со счёта отдельный `deposit` тендер и отрицательное движение списывают доступный остаток атомарно; наличная сверка включает только пополнения cash. | Деньги, внесённые заранее, принадлежат гостю до зачёта в заказ. Объединение пополнения с выручкой и обычными платежами завысило бы продажи; единый idempotency key защищает от повторного приёма денег. | Координатор после финансового и системно-архитектурного review; временная локальная политика | локально, не опубликовано |
@@ -27,4 +50,197 @@
 | 2026-09-30 | Направление `orders` ограниченного администратора включает `floor` и право управлять кассовой сменой, включая стартовый остаток. История и сверка смен требуют `finance_read`; направление `finance` читает их, но не открывает и не закрывает смену. | POS уже позволяет операционному сотруднику с `orders/floor` открывать и закрывать смену. Отделение истории и сверки от текущего состояния сохраняет этот рабочий сценарий и не раскрывает его другим направлениям администратора. | Системный архитектор, security review, координатор | локальная правка, ещё не закоммичена |
 | 2026-10-01 | Новые списания отслеживаемых заготовок распределяются по партиям FEFO (ближайший срок годности, затем дата выпуска). Старый агрегированный остаток без прослеживаемой партии расходуется первым как legacy pool; прошлые движения задним числом к партиям не привязываются. Отмена возможна только до любых дальнейших движений по позиции и восстанавливает сырьё обратными движениями. | Исходный ledger хранит движения только по складской позиции, поэтому историческую партию восстановить достоверно нельзя. Legacy-first сохраняет равенство общего остатка и партийного, а строгая отмена исключает переписывание уже использованного выпуска. | Системный архитектор, складской домен, инженер данных | локальная правка, ещё не закоммичена |
 
+| 2026-10-02 | Настройки программы и версии акций/областей остаются неизменяемой историей: UPDATE и прямой DELETE запрещены. Удаление истории допускается только как FK-каскад после удаления родительского venue; обычный lifecycle venue — обратимая архивация. Ссылки scope→товар остаются tenant-scoped и запрещают отдельное удаление товара, но deferred NO ACTION позволяет обслуживающей транзакции удалить зависимый товар и затем venue. Снимок заказа продолжает удерживать точную версию акции через RESTRICT. created_by ссылается на пользователя через RESTRICT, поскольку пользователи архивируются мягко, а SET NULL переписал бы immutable историю. | Триггер 073 раньше блокировал и прямые удаления, и заявленный venue cascade; settings вовсе не были защищены. Для QA обход триггеров неприемлем. Архитектурный lifecycle подтверждает soft archive для venue/user и отсутствие штатного hard-delete маршрута. | Системный архитектор, data engineer, security reviewer | миграция 076 и isolated PostgreSQL acceptance |
+
 | 2026-10-02 | Архив цехов, подцехов и категорий — единая обратимая операция; окончательное удаление отделено и доступно владельцу, управляющий отправляет запрос на подтверждение. | До правки API сохранял `is_active=false`, но не давал увидеть или восстановить записи; кнопки были несогласованы, а подтверждение в браузере не является проверкой личности владельца. Текстовые ссылки складских позиций и история не должны удаляться автоматически. | Возвращать архив через статус-фильтр и отдельный POST restore. Удалять физически только архивную запись без зависимостей; manager request записывается в tenant-scoped очередь и владелец решает запрос после повторной проверки ссылок и аудита. Любой конфликт оставляет запись в архиве. | Применено локально к UI, API и миграции; проверить PostgreSQL QA после завершения реализации. |
+# 2026-10-02 — L11.6: порядок выбора скидки и безопасная активация
+
+- Округлённая фактическая скидка выбирается по максимальному денежному эффекту; меньшее предложение не выигрывает только из-за priority. При равной скидке promotions упорядочиваются по большему priority, затем по promotionId. Между классами равенство разрешается promotion > guest_group > manual; существующее group > manual сохранено.
+- Eligibility промо считается по снимку позиций заказа и их сохранённым unit price; включение — объединение товарных/категорийных условий, исключение товара/категории перекрывает включение. Процент/фикс ограничен суммой подходящих строк; VIP minimum применяется после скидки.
+- Единый pure evaluator отдаёт расчёт и причины предложения для POS; закрытый чек фиксирует промо-версию/условия/базу/сумму и перечень offers. Сервер продолжает запрещать активацию до завершения price/report reconciliation и безопасного поведения для открытых заказов с частичной оплатой.
+- Bonus, guest deposit и reservation prepayment не являются скидками: их tender-пути не менялись.
+
+## 2026-10-02 — L11.6 first-tender price lock
+
+The first accepted payment fixes the total and complete discount explanation snapshot for that order. This prevents subsequent promotion versions or guest/discount edits from changing an already partially paid balance. Price-affecting edits, guest reassignment, split, and manual discount approval return `409 order_pricing_locked`; note-only edits remain allowed. Refunds do not unlock historical pricing. Migration 075 backfills legacy partially paid active orders. Promotion activation stays disabled until active-campaign PostgreSQL and report reconciliation pass.
+
+## 2026-10-02 — сохранять неподтверждённую legacy-предоплату до сверки
+
+- Найденная старая сумма 1 500 ₽ остаётся исходной записью брони и помечается как неподтверждённая. Не удалять, не менять баланс и не создавать квитанцию без платёжного документа.
+- API/история показывают отдельно legacy-сумму, квитанции и возвраты. Погашение или корректировка legacy-суммы допускается только после документированной сверки и отдельного решения владельца.
+
+## 2026-10-02 — статус поиска документов не является платёжным статусом
+
+- Старая сумма брони `deposit_paid` остаётся источником неподтверждённых данных. Результаты `documents_found`, `documents_not_found` и `disputed` описывают только поиск/проверку первичных документов; они не утверждают факт оплаты либо её отсутствия.
+- Результат хранится append-only со снимком исходной суммы, последовательностью, actor/time, заметкой, ссылкой на документ, ожидаемой версией и idempotency key. Запись аудита атомарна с событием. Ни статус, ни ссылка сами по себе не меняют денежные поля/кассу и не разрешают новую квитанцию; финансовое разрешение требует отдельного доказательства и решения.
+- Основание: в старой записи нет платёжной квитанции/метода/даты/ссылки на возврат. Автоматическое удаление или признание оплаты создало бы неподтверждённую финансовую историю.
+- `finance_read` и `finance` — разные grants: finance_read открывает агрегаты отчёта, а не гостевые суммы брони и не право записывать финансовые сверки. Guest-level legacy history и POST сверки требуют owner/admin плюс явный finance scope.
+
+## 2026-10-03 — локальная memory-сверка не подменяет отсутствующие журналы
+
+- Memory-preview считает только показатели, для которых источник данных существует и позволяет подтвердить сумму. Отсутствующие журналы выплат, внешних возвратов и удержаний бонусов возвращают неизвестное значение (`null`), а UI явно показывает недоступность.
+- Период продажи определяется только валидным `closedAt`; `createdAt` заказа не используется как замена. Закрытый заказ без даты закрытия отражается как ограничение полноты отчёта и исключается из датированной выручки. Явный `selectedPromotionSnapshot: null` означает «акции не было», а отсутствие снимка остаётся неизвестным.
+## 2026-10-03 — payroll owner-approved attendance manifests
+
+- Решение payroll slice: отдельная additive payroll migration 082 сохраняет append-only snapshots/coverage manifest утверждённой посещаемости из закрытых `staff_work_logs` и соответствующих `staff_schedules`. Источник читается tenant-scoped; исходные HR таблицы и routes не меняются.
+- Утверждение — отдельное owner-only действие с actor только из live server session, временем, причиной, периодом/venue timezone, revision, idempotency key, source watermark и checksum. Клиент не может передать `approved=true` или присвоить actor. Неполная/неоднозначная coverage блокирует approval; редактирование исходника не переписывает snapshot и требует новой revision.
+- Migration 082 ранее была зарезервирована для run→entry. Формально переставлен порядок: attendance идёт до официального расчёта как первичный источник; run→entry номер получит только после появления ready runs и сверки файлов/миграций. Миграции 001–081 не меняются; перед server release сверить реально применённую историю.
+- Approval manifest не создаёт calculation run, `payroll_entry`, expense и не меняет POS, payment/refund/loyalty ledgers или сменную кассу. Комиссионное авторство, line discount/refund allocation и Finance turnover остаются отдельными блокерами ready run.
+- Основание: миграционный/data и system-architecture read-only reviews; источник требований — payroll architecture/source contracts, migration 021/077/081 и FINANCE_MODEL. MASTER получил синхронизацию, но на технический вопрос ответил только подтверждением локального режима.
+
+## 2026-10-03 — payroll: owner payout ceiling and scenario-only evidence
+
+- Сохранять суммы оклада за смену и milestone без скрытого уменьшения. Если дневной итог выше личной выручки, отмечать critical error и запрещать официальный расчет/снимок; конфликт безусловной премии с абсолютным ограничением ТЗ не считать разрешённым.
+- Пока нет авторитетной Finance-семантики полного личного net revenue, pure preview сверяет сумму только с attributed turnover как ориентир. Отдельные `turnoverCents` и `commissionBaseCents` нельзя взаимозаменять; UI обязан называть результат сценарным и не писать «готово к фиксации». Serializer остаётся чистым mapper, его успех сам по себе не является аттестацией источников.
+- Для официального run нужны: подтверждённая полная личная выручка после скидок/возвратов, проверенная авторизация строки, распределение скидок, line refund lineage, сменный/цеховой turnover согласно ТЗ и одновременная полнота Finance/POS/approved attendance manifests. Owner acknowledgement для опасной версии схемы остаётся отдельным незавершённым требованием.
+- Основание: исходное ТЗ из `C:\Users\ADMIN\Downloads\Telegram Desktop\ТЗ_Гибкий_модуль_расчёта_зарплаты_CRM.md`; финансовая сверка и system-architecture/code-health reviews.
+
+## 2026-10-03 — payroll configuration policy acknowledgement
+
+- Каждая новая или изменённая версия требует явного owner подтверждения политики дневного ограничения. Оно означает понимание риска блокировки расчёта, не разрешение выплатить сумму выше личной выручки и не доказательство безопасности сценария.
+- Подтверждение связывается сервером с нормализованной конфигурацией SHA-256, действующим owner и временем PostgreSQL. Metadata хранится в config_json и append-only ревизии 079; повторное сохранение требует нового подтверждения. Активация блокирует строку и сверяет текущий digest, защищая от устаревшего подтверждения.
+- Выбран общий обязательный gate для всех сохранений, поскольку без authoritative revenue source нельзя достоверно классифицировать только опасные настройки. Сценарный preview остаётся без сохранения; источник POS/Finance и официальный run не изменены.
+
+## 2026-10-03 — Target/excess and team allocation primitives
+
+- Для режимов ТЗ 5–7 выбран явный параметр `excessRatePolicy`: `replace_base` = round(min(B,T) × baseRate) + round(max(B−T,0) × bonusRate); `add_to_base` = round(B × baseRate) + round(max(B−T,0) × bonusRate). Рекомендуемый исходный вариант — replace_base; ставки/планы задаются владельцем в версии, историческое среднее не выводится из неполного preview.
+- Координатор выбрал рекомендованное finance-domain раздельное half-up округление двух компонент. Альтернатива архитектора — одно округление общего числителя — даёт другой результат на долях копейки; она не применяется молча. Отдельный контракт фиксирует различие: 1 копейка до плана и 1 копейка сверх при 50%/50% дают две отдельно округлённые копейки. Эту политику необходимо сохранить в объяснении будущего snapshot.
+- Общий фонд распределяется один раз методом наибольших остатков: целые веса, floor долей, остаток по убыванию дробной части и стабильному code-unit ID без localeCompare. Положительный фонд с нулевыми весами запрещён. Индивидуальный cap применяется после распределения без скрытого перераспределения удержанного остатка.
+- Реализованные pure helpers не включают режимы в API/UI и не открывают official run. Следующие этапы обязаны сохранить дневную/построчную lineage, отдельную маржу и cost evidence, полный состав командного фонда, версии config и согласованную additive migration; commissionBaseCents не переименовывается в личную Finance-net выручку или маржу.
+
+## 2026-10-03 — Personal target daily interpretation
+
+- Из вариантов личного плана выбран явно дневной ориентир employee/day, поскольку исторические режимы 5–7 сравнивают день/обычный день. Месячный план не подразумевается и требует отдельного scope в будущем. Source label разделяет commission-base scenario и личную Finance-net выручку.
+- Позиционная replacement ставка независима от плана: строка исключается из target attainment; additive ставка остаётся в общем target basis. Largest remainder даёт порядок-независимую построчную lineage вместо произвольной очереди строк, оплаченных по повышенной ставке.
+- 083 зарезервирована и согласована как payroll-owned migration; POS-команда владеет 084. Official scalar snapshot schema не расширяется фиктивным effective rate: typed target snapshot требует отдельной реализации, текущий serializer явно отказывает.
+
+## 2026-10-03 — Team fund allocation semantics
+
+- Shared pool rates/target/scope are role-level consistent parameters; employee overrides may adjust teamWeight/ordinary wages/caps, never silently define a different common fund. Scope uses explicit department IDs and active roster, not product-name inference.
+- Configured weights deliberately apply independently of attendance for flexible owner policy; approved_minutes is the attendance-based alternative. UI spells out this distinction. Zero-weight authors retain fund contribution. Any payout above personal revenue remains critical, not silently capped/waived.
+- Team fund payout is separate teamFundCents, with typed day pool/source/recipient evidence. Post-cap remainder never redistributes. Migration085 belongs to payroll, while084 remains POS-owned. Main DB untouched; official typed schema still pending.
+
+## 2026-10-03 — Margin target cost/loss policy
+
+- Margin means net sale revenue minus normalized net total line cost. It excludes payroll/overhead; signed losses offset eligible positive margins within employee/day before rates. Only combined payable basis is clamped at zero. Per-line losses remain visible and reduce positive allocations.
+- Item percentages explicitly remain net-revenue based: replacement line excluded from margin target, additive retained and separately paid even for negative-margin day. Both require cost evidence in margin mode to avoid hiding lineage.
+- Migration086 is payroll-owned and config-only. Historical cost/refund source and typed snapshots remain required for official payout; caller cost metadata cannot attest that source. JSONB string policy reload bug fixed by accepting node-postgres decoded scalar instead of parsing twice.
+
+| 2026-10-03 | Finance summary and manager reports define revenue as recognized closed sales on the venue-local close date; monetary receipts (cash/card/QR, guest-account top-ups and reservation prepayments) and supported refunds are separate event-date ledgers. Payout coverage is explicit and the UI shows unknown/memory coverage as unavailable. | Reconcile dashboard and X/Z reports without classifying bonus tender or deposit/prepayment liabilities as new sale revenue. Migration 088 now provides the canonical order-level POS payout journal; line-level employee/refund attribution remains explicitly unknown until the immutable line-net contract is implemented. Legacy `payments.status='refunded'` remains unknown coverage. | Координатор после finance-domain, architecture, QA и code-health review | локально, не опубликовано |
+
+| 2026-10-03 | Исходное ТЗ требует фиксировать продавца, пробившего каждую строковую порцию; это обязательный source fact для official payroll. Owner-selected варианты `line_seller`, `order_responsible` и explicit allocation допустимы только как сценарные/будущие policy modes до отдельного утверждённого product decision и не заменяют обязательного line seller. | Исторические конфиги/начисления не переписываются. Сценарный preview может сравнивать варианты с явной provenance; official run остаётся fail-closed при отсутствии line seller, immutable discount allocation или refund lineage. | Координатор после уточнения источников POS/Loyalty/Finance | локально, не опубликовано |
+
+## 2026-10-03 — POS refund and loyalty ledger ownership boundary
+
+- The Finance/Master domain records cash-flow facts: receipts, POS refund payouts, event-date reports and shift-cash impact. Loyalty owns the value rules and liability ledgers for discounts, bonuses, guest balances and reservation prepayments. A POS-order refund payout is not a bonus/deposit reversal and must not be counted twice across those ledgers.
+- POS owns order and line facts (product, quantity, seller/time, sale-price snapshot); Loyalty owns the discount decision and its immutable rule/source; Finance owns the external refund payout event. The coordinator selected the line-allocation and cumulative partial-return value contract in `LOYALTY_POLICY_CONTRACT.md` after finance/domain and system-architecture review, under the owner's standing authorization to choose ordinary financial rules. Until that contract is implemented and end-to-end verified, new order refunds stay `unattributed`, old status flags stay unknown, and payroll remains fail-closed for periods with incomplete line facts.
+- Payroll owns calculation policy and snapshots; it consumes approved immutable source facts and may not infer missing discount, refund, department, or net revenue values. Payroll migration work can proceed only in payroll-owned files/numbers after the 088 handoff; it does not take ownership of shared POS/Finance routes or ledgers.
+- Basis: `FINANCE_MODEL.md`, `POS_SALE_ATTRIBUTION_CONTRACT.md`, current migration/API boundaries and final 088 integration review. No new menu, chat, or duplicate ledger is required.
+
+## 2026-10-03 — Selected line discount allocation and partial item-return value
+
+- The selected best-only group/manual discount is allocated over all merchandise lines; a selected promotion is allocated only over its actual eligible item set. Gross cents reconcile exactly to the stored order subtotal using PostgreSQL `numeric`, then discount cents use proportional largest-remainder allocation with stable `order_item_id` ties. The accepted winner, version, source, eligible item IDs, and each line's gross/discount/net cents are captured atomically with the existing pricing snapshot at the first accepted tender. Later catalog, promotion, or category edits never reconstruct the historical set.
+- Partial returns derive item value from that immutable line-net snapshot: `round_half_up(original_line_net_cents * cumulative_returned_qty / original_qty) - previously_returned_item_value_cents`, calculated with PostgreSQL numeric arithmetic at the existing `numeric(12,3)` quantity scale. Full quantity returns exactly the original line net; returned quantity/value are cumulative and capped. External cash/card/QR payout remains a separate Finance fact. Bonus/deposit/reservation reversals remain in their own liability ledgers. Historical rows without line snapshots remain unattributed.
+- VIP minimum adjustment is order-level and excluded from seller/item lines. A Finance refund does not automatically create inventory stock. Payroll seller coverage is a separate gate: any unknown seller leaves the order unavailable for employee-attributed source coverage, while Finance can still record fully proven item/quantity/value facts. No code/source adapter is enabled by this decision; local implementation and isolated UI/API/PostgreSQL QA remain required.
+- Owners for the future source chain remain POS (seller/line and sale snapshots), Loyalty (discount decision and eligible-set snapshot), Finance (payout and returned item facts), and Payroll (consume verified facts under versioned payroll rules). Existing order-level migration 088 remains unchanged; after its verified final QA handoff, migration 089 is allocated only to payroll-owned milestone-evidence persistence.
+
+## 2026-10-04 — POS item-return source ordering boundary
+
+- Migration 092 adds an authoritative `producer_sequence` scoped to `(venue_id,snapshot_id,order_id,order_item_id)`. It increments only while the existing per-source balance row is locked, in the same transaction as quantity/value update and immutable `previous_*`/`cumulative_*` facts. `created_at` remains business/display time and is not ordering evidence; neither UUID nor insertion ID is chronology.
+- Existing 091 events stay `producer_sequence=NULL` with all predecessor/cumulative fields NULL. No sequence is backfilled. The first 092 event starts at sequence 1 and its `previous*` facts may be a known aggregate baseline containing 091 deltas whose internal order is unattested; therefore the post-092 sequence does not establish complete historical chronology. Any official payroll consumer must preserve the legacy boundary and remain fail-closed until coverage and correction policy are independently accepted.
+- SQL/API producer DTO fields: `producer_sequence`, `previous_returned_quantity`, `cumulative_returned_quantity`, `previous_returned_item_value_minor`, `cumulative_returned_item_value_minor`; existing `returned_quantity`/`returned_item_value_minor` remain the event deltas. Quantities use scale 3, values are integer minor units, and payout/tender rows remain separate.
+- Basis: code-health baseline, data-engineer, system-architect and finance-domain review; disposable PostgreSQL concurrency/replay/rollback acceptance. No payroll-owned reader or official readiness policy is changed by this decision.
+
+## 2026-10-03 — критерий внимания в журнале заказов
+
+- Заказ требует операционного внимания в статусах `open`, `in_progress`, `ready`. Независимо от статуса положительный остаток оплаты определяется только по сохранённому `final_total_snapshot` минус связанные с заказом платежи в состояниях `paid`/`partially_paid`; reservation prepayment учитывается после явного применения как payment.
+- Отменённый заказ не помечается как требующий оплаты по устаревшему снимку. Независимый баланс гостевого кошелька не является долгом этого заказа. Закрытый заказ с подтверждённым остатком остаётся видимым как финансовое исключение для сверки, а не утверждением, что нужно повторно списать сумму.
+- Основание: `docs/requirements/FINANCE_MODEL.md` §§1, 4, 8; проверки `scripts/order-attention-qa.mjs` и `scripts/orders-attention-postgres-browser-qa.mjs`. Это критерий локального интерфейса; он не меняет бухгалтерские проводки и не означает production-приёмку.
+
+## 2026-10-03 — согласование копеек по строкам в расчёте скидки
+
+- Устранено расхождение, при котором две позиции по 0,5 × 0,01 ₽ отдельно округлялись до двух копеек, хотя subtotal заказа равнялся одной копейке: сумма строки теперь согласуется с subtotal в целых minor units, остаток распределяется по largest remainder с tie-break по `order_item_id`; discount пропорционально раскладывается только на eligible lines выбранного предложения.
+- Промежуточный расчёт проверяет ID строк на дубли и fail-closed при материальном расхождении суммы заказа и строк. Все старые правила выбора winner сохранены; evaluator возвращает eligibility IDs и line allocations для следующего source-writer этапа.
+- Это исправляет только общий расчёт и его контракт. Денежная точность сейчас остаётся двухзнаковой, как в POS, но `currency` ещё не объявлена в источнике. Код не создаёт durable snapshot и не снимает блокировки official payroll: migration/header/line writer, first-payment+close atomicity, финансовый SQL reader, item returns и явная валюта остаются следующими согласованными этапами.
+- Основание: подтверждённый Finance/code review контрпример; `LOYALTY_POLICY_CONTRACT.md` и `FINANCE_MODEL.md`. Проверки: `scripts/loyalty-pricing-qa.mjs`, `scripts/loyalty-pos-explanation-contract.mjs`, payroll pricing evidence/alignment contracts и POS PostgreSQL/browser regression.
+
+## 2026-10-03 — canonical POS pricing snapshot producer
+
+Approved source v1 is explicit `RUB`, scale 2. At first successful tender or direct close, one transaction under the existing venue-scoped order lock writes immutable header and lines; line allocations are the evaluator's stable-ID integer-cent result, while VIP minimum remains header-level. The header is unique per venue/order and line set reconciles to the order's source item count and totals at commit. Post-snapshot order-item update/delete and snapshot update/delete/truncate are rejected. Historical locked/closed orders without the new producer remain unknown and are not backfilled. Finance ledgers prefer canonical values and may use a pre-existing frozen order-level header for historical totals while preserving line evidence as unknown; they do not rebuild old lines from current catalog facts. Payroll remains gated until separate consumer readiness approval.
+
+Basis: read-only system_architect, data_engineer, Finance, and code_health_engineer baseline reviews. This decision does not approve returns, payroll schema/routes, publication, or production changes.
+
+## 2026-10-04 — завершённый локальный стык loyalty pricing → POS → Finance
+
+- Обновление статуса: ценовой evaluator возвращает детерминированные eligible IDs и line gross/discount/net minor units; миграция 090 фиксирует результат при первой принятой оплате или прямом закрытии; миграция 091 добавляет отдельную доказуемую стоимость возврата товара по снимку строки. Устаревшие формулировки ниже по истории о том, что этот producer/return mapping ещё отсутствует, относятся к состоянию до сквозной локальной приёмки и больше не являются текущим статусом.
+- Подтверждение в рабочем дереве: `scripts/loyalty-pricing-qa.mjs`, `scripts/pos-order-pricing-snapshot-contract.mjs`, `scripts/pos-role-payment-postgres-browser-qa.mjs`, `scripts/pos-order-refunds-postgres-qa.mjs`; подробные PostgreSQL/browser результаты и изолированная среда отражены в `docs/ai-team/WORK_LOG.md` за 2026-10-03/04. В текущем аудите повторно прошли evaluator, explanation, static snapshot и loyalty progress contracts; PostgreSQL/browser full suites здесь заново не запускались.
+- Владение сохраняется: Loyalty — выбор скидки и eligibility; POS — immutable source line/price/seller facts; Finance — payout и товарные возвраты; Payroll — независимый потребитель с fail-closed readiness. 088 payout не равен item value, бонусы/депозиты/предоплаты не дублируются, исторические строки без 090 не восстанавливаются. Ни official payroll run, ни публикация этим статусом не одобрены.
+
+## Складские категории и табачный профиль, 04.10.2026
+
+Для локального inventory-пакета изменена policy пустой точки: существующие и новые заведения получают минимальные редактируемые категории только для имеющихся цехов «Бар» и «Кальяны». Seed запускается миграцией/provisioning один раз по устойчивым ключам; повтор не восстанавливает архивные/удалённые defaults, не переименовывает пользовательские строки и не затрагивает custom категории. Legacy ingredient category backfill выполняется только при единственном совпадении в том же tenant и department; остальные значения остаются в тексте с `category_id=NULL`. Складской tobacco profile ссылается на существующий каталог; упаковка в граммах использует `purchase_unit`/`pack_multiplier`. Alcohol profile остаётся в migration 094. Production и реальные tenant базы не использовались.
+
+## 2026-10-05 — точность сумм приходных строк (#22)
+
+- Выбрана точная десятичная арифметика; сумма каждой строки округляется до копейки HALF_UP, итог документа суммирует округлённые строки. Quantity ограничен хранимой точностью 6 знаков, закупочная цена — 4 знаками; лишняя точность отклоняется без частичной записи.
+- Основание: масштабы `inventory_purchase_document_lines` (migration 055 и 038) и финансовая консистентность сохранённой цены с суммой. `Number(...).toFixed(2)` неправильно обрабатывал половину копейки из-за бинарного float; сохранённая `numeric(14,4)` цена также могла расходиться с рассчитанной из исходного значения суммой.
+- Реализовано локально в `db.js`, добавлен authenticated API/PostgreSQL acceptance на все поддерживаемые складские единицы, zero/fractional prices, half-cent boundary, over-precision rejection, API→PG→fresh detail/list и отсутствие складского/обязательственного эффекта draft; #22 suite прошёл 130 checks на случайной disposable `inventory_qa_*` базе. Дополнительно исправлена изоляция соседнего payment suite на disposable `orders_qa_*` и его synthetic organization fixture. Production/публикация не затрагивались.
+
+## 2026-10-05 — безопасная политика v1 для сторно прихода (#27)
+
+- По делегированному пользователем выбору утверждён консервативный контракт: при настройке заведения предлагается только полный строгий режим v1; выбранная версия policy фиксируется вместе с приходом при его проведении, а изменение настройки действует перспективно. Проведённый документ остаётся неизменяемым; исправление — отдельная идемпотентная compensating operation с причиной, актором, временем и audit.
+- V1 допускает сторно только при доказуемом неиспользованном остатке, отсутствии последующих движений затронутых ингредиентов, полных valuation snapshots, точном обратимом совпадении стоимости, отсутствии оплаты по связанному supplier-payables ledger и атомарной согласованности связанного автозаказа. Фактическую оплату вносят через связанную накладную; общий ручной расход нельзя надёжно отнести к конкретному поставщику. Старые расходы `source='purchase'` без ссылки на накладную блокируют сторно до сверки; новые несвязанные записи блокируют БД и API. Только полный документ; использованное/частичное количество, variance и legacy-приходы без доказательств отклоняются fail-closed. Операция привязана к фактической venue-local дате и ровно одной открытой смене; отсутствие открытой смены и backdating запрещены. Отдельного календарного финансового-period lock в текущей модели нет.
+- Для оплаченного/частично оплаченного прихода сторно остаётся выключенным до отдельного supplier-credit/refund ledger; существующие expenses неизменяемы, supplier refund — отдельный фактический cash event. Исторические COGS/order-cost snapshots и текущая weighted-average цена задним числом не корректируются; valuation variance потребует отдельного журнала. Нужны совмещённые inventory+finance права и транзакционные venue locks/audit/idempotency.
+- Основание: решение пользователя делегировать выбор координатору; сверка с `FINANCE_MODEL.md`, system-architect, finance-domain и payroll владельцами. MASTER подтвердил отсутствие конфликта с финансовым контрактом и необходимость смены/policy-version gate. Контракт локально реализован в миграции 097 и UI/API/репозитории; authenticated API/PostgreSQL acceptance и отдельный authenticated browser путь `settings → draft → post → reverse → reload` прошли на runner-owned disposable БД. Доработка fail-closed по legacy unlinked purchase expenses отдельно проверяет API и DB guards; физический Fold и production не проверялись. Это не правовое/налоговое заключение.
+
+## 2026-10-05 — контракт количества POS-порций техкарты (#16)
+
+- Для карты продажи ингредиенты задаются на полную партию, `portionCount` задаёт число POS-порций этой партии; заказ количества `q` потребляет `q / portionCount` нормы и получает соответствующую долю COGS. `yieldQuantity`/`yieldUnit` описывают выход партии и сами по себе не меняют количество, продаваемое одной POS-позицией.
+- Для premix `yieldQuantity`/`yieldUnit` задают планируемый выход производства; `portionCount` не масштабирует приготовление. Продажа premix-позиции расходует настроенную норму техкарты этой позиции.
+- Основание — существующие `recipe-depletion.js`, API стоимости и закрытия заказа, unit contract, а также новый authenticated API→PostgreSQL сценарий: карта 400 мл/4 порции, продажи 1 и 2 порций, остаток 300 и 100 мл, COGS 10 и 20 ₽. Исторические карточки и snapshots не переписываются.
+- Дополнительный сценарий прошёл в runner-owned disposable `inventory_qa_*`; runner удалил базу, lock отсутствует, дочерних QA/server процессов не осталось. Это локальное продуктовое правило приложения, не утверждение о бухгалтерской или налоговой норме.
+
+## 2026-10-05 — фильтры даты и статуса накладных (#33)
+
+- Согласованный локальный контракт: диапазон `documentDateFrom`/`documentDateTo` относится только к `document_date` накладной; даты включительны и валидируются как реальные ISO-календарные даты. Изменённый статусный фильтр применяется независимо. При заданном диапазоне `NULL`-даты исключены, пока пользователь явно не включит `includeUndated=true`; без диапазона список сохраняет все документы. Сортировка: `document_date DESC NULLS LAST, recorded_at DESC, id DESC`.
+- В реестре расчётов с поставщиками выдаются только `posted`-документы; `paymentStatus=unpaid|partially_paid|paid` фильтрует вычисленный статус оплаты независимо от даты накладной. Дата оплаты не подменяет дату документа и не участвует в фильтре накладных. Поиск поставщика/номера остаётся UI-фильтром.
+- Основание — system_architect и finance_domain read-only review, существующее разделение `document_date`/`recorded_at`/`expenses.expense_date`, локальная потребность в работе со старой и недатированной накладкой. Контракт не задаёт налоговые или бухгалтерские правила.
+- Authenticated browser/API/PostgreSQL acceptance покрывает сортировку, status+date combinations, inclusive bounds, explicit NULL inclusion, invalid input, tenant-scoped SQL, persistence через reload, reset и mobile layout. Локальные показатели списка пересчитываются по видимому результату. SaaS/production не затрагивались.
+
+## 2026-10-06 — календарная граница финансовых операций (#27)
+
+- Для локальной POS v1 отдельный календарный period-lock не вводится. Финансовая защита обеспечивается неизменяемыми event/snapshot фактами, запретом backdating и выполнением сторно только по текущей venue-local дате при одной открытой смене.
+- Любая будущая операция, которая должна корректировать закрытый период, обязана стать отдельным корректирующим событием с lineage; молчаливое изменение исторической записи запрещено. Supplier credit/refund и официальный payroll adjustment остаются отдельными будущими контрактами.
+- Это решение закрывает неопределённость о механизме v1 без расширения текущей схемы и не меняет уже подтверждённый fail-closed scope.
+
+## 2026-10-06 — источник официального payroll lifecycle (#21)
+
+- Официальным источником начислений для локальной POS считается PostgreSQL-контур `payroll_entries`: draft → approved → paid/cancelled, с блокировкой пересекающихся утверждённых периодов, аудиторским следом и привязкой выплаченной записи к расходу.
+- Demo/memory режим остаётся preview-only и fail-closed: без постоянного реестра он возвращает `null`/`unsupported`, не создаёт фиктивные расходы и не объявляет прибыль подтверждённой.
+- Это не ограничивает локальную рабочую систему: рабочая финансовая и зарплатная модель использует PostgreSQL; preview не является вторым источником истины.
+
+## 2026-10-06 — нативный календарь прихода (#30)
+
+- Popup системного `input[type=date]` не является частью DOM-дизайна приложения и зависит от ОС/браузера. Для локальной приёмки проверяются поле, формат, реальная дата, серверная валидация, focus/error/retry и отсутствие overflow.
+- Отдельный screenshot нативного popup не является обязательным критерием готовности.
+
+## 2026-10-06 — финансовый scope фильтров документов (#33)
+
+- Обязательный date/status/payment filtering применяется к приходам и расчётам с поставщиками, поскольку эти реестры формируют закупочную стоимость и обязательства.
+- Справочные и операционные списки без финансового эффекта не блокируют готовность финансового модуля; их фильтры могут развиваться отдельно.
+
+## 2026-10-06 — локальный набор складских единиц (#17/#23)
+
+- В локальном scope поддерживаются базовые `шт/г/кг/мл/л` и явный коэффициент упаковки/бутылки. Произвольный каталог единиц и универсальные пользовательские конвертации не входят в обязательный контракт POS v1.
+- Некорректные или неподдержанные единицы отклоняются fail-closed; текущие recipe/purchase PG проверки подтверждают поддерживаемые преобразования и упаковочные коэффициенты.
+
+## 2026-10-06 — товарные атрибуты POS v1 (#42/#43)
+
+- Атрибуты зависят от товарного профиля: алкоголь и табак используют собственные структурированные карточки, связанные со складской позицией.
+- Универсальный runtime-конструктор произвольных полей для всех категорий не входит в обязательный POS v1 scope; неизвестные поля не должны молча влиять на цену, остаток или COGS.
+
+## 2026-10-06 — границы завершения POS v1 (#16/#27/#48)
+
+- #16 считается готовым в поддержанном scope: batch/portion semantics, unit conversion, duplicate ingredient aggregation, atomic shortage rejection, concurrent sale/manual movement guard и premix waste покрыты тестами; новые бизнес-типы потерь без отдельного контракта не блокируют v1.
+- #27 считается готовым в консервативном fail-closed scope: сторно разрешено только при доказуемом полном неоплаченном неиспользованном приходе, а оплаченные/legacy/variance/supplier-refund случаи явно отклоняются.
+- #48 считается готовым для core inventory маршрутов, которые покрыты authenticated API/UI/PG проверками и tenant/role границами; новые несогласованные inventory-подмаршруты не являются скрытым требованием текущей матрицы.

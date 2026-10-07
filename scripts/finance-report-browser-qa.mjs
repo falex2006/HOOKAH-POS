@@ -34,6 +34,8 @@ try {
   await page.locator('#login-form button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.includes('/login'));
   let fail = false;
+  let unavailablePayouts = false;
+  let unknownPayoutCoverage = false;
   let releaseOldRead;
   const oldReadGate = new Promise((resolve) => { releaseOldRead = resolve; });
   let oldReadSeen;
@@ -45,12 +47,24 @@ try {
     if (date === '2026-09-27') { oldReadSeen(); await oldReadGate; }
     if (fail) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'temporary_unavailable' }) });
     const revenue = date === '2026-09-27' ? 99 : 1286459.73;
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ reportNumber: 'QA-REPORT', generatedAt: '2026-09-30T09:30:00Z', revenue, checksCount: 12, paymentCount: 16, cash: 500000, card: 700000, qr: 86459.73, byPaymentMethod: { cash: 500000, card: 700000, qr: 86459.73 }, byStation: { 'Очень длинное название зоны с несколькими словами': revenue }, byStaff: type === 'waiter' ? { 'Сотрудник с очень длинным именем и фамилией': revenue } : {} }) });
+    const payouts = unavailablePayouts ? { total: 0, count: 0, bySource: {}, dateBasis: 'created_at', coverage: unknownPayoutCoverage ? 'future_unknown_source' : 'memory_sources_unavailable' } : { total: 400, count: 1, bySource: { guest_account_refund: 400 }, dateBasis: 'created_at', coverage: 'guest_account_and_reservation_prepayment_refund_ledgers_only' };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ reportNumber: 'QA-REPORT', generatedAt: '2026-09-30T09:30:00Z', revenue: 111, sales: { net: revenue, orders: 12, unsnapshottedOrders: 0, dateBasis: 'closed_at' }, receipts: { total: 1286459.73, count: 16, byMethod: { cash: 500000, card: 700000, qr: 86459.73 }, bySource: { order_payment: 1286459.73 }, dateBasis: 'created_at', coverage: 'postgres_order_payments_and_guest_receipts' }, payouts, checksCount: 12, paymentCount: 16, cash: 500000, card: 700000, qr: 86459.73, byPaymentMethod: { cash: 500000, card: 700000, qr: 86459.73 }, byStation: { 'Очень длинное название зоны с несколькими словами': revenue }, byStaff: type === 'waiter' ? { 'Сотрудник с очень длинным именем и фамилией': revenue } : {} }) });
   });
   await page.goto(`${base}/finance/report`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => /1\s*286\s*459/.test(document.querySelector('#report-revenue')?.textContent || ''));
+  assert.match((await page.locator('#report-cash').textContent()).replace(/\u00a0/g, ' '), /500 000 ₽/, 'cash KPI uses the event-date receipt ledger');
+  assert.match((await page.locator('#report-payouts').textContent()).replace(/\u00a0/g, ' '), /400 ₽/, 'refund KPI uses the separate payout ledger');
+  assert.equal(await page.locator('#report-payments').getByText('Пополнение счёта гостя').count(), 0, 'receipt source labels only render reported source rows');
   assert.match(await page.locator('#report-number').textContent(), /QA-REPORT/);
-  assert.equal(await page.locator('.report-row').count(), 4, 'payment and station rows render');
+  assert.equal(await page.locator('#report-payments .report-row, #report-secondary .report-row').count(), 6, 'receipt methods, sources, payouts, and sales breakdown render separately');
+  unavailablePayouts = true;
+  await page.locator('#report-refresh').click();
+  await page.waitForFunction(() => document.querySelector('#report-payouts')?.textContent === 'Недоступно');
+  unknownPayoutCoverage = true;
+  await page.locator('#report-refresh').click();
+  await page.waitForFunction(() => document.querySelector('#report-payouts')?.textContent === 'Недоступно');
+  unknownPayoutCoverage = false;
+  unavailablePayouts = false;
   await page.locator('#report-date').fill('2026-09-29');
   assert.equal(await page.locator('#report-revenue').textContent(), '—', 'date edit clears previous KPI before submit');
   assert.equal(await page.locator('#report-number').textContent(), 'Отчёт ещё не сформирован');
@@ -58,13 +72,13 @@ try {
   await page.locator('#report-refresh').click();
   await page.locator('#report-message').getByText('Не удалось сформировать отчёт. Повторите попытку.').waitFor();
   assert.equal(await page.locator('#report-revenue').textContent(), '—', 'failed request cannot show stale revenue');
-  assert.equal(await page.locator('.report-row').count(), 0, 'failed request clears old breakdown');
+  assert.equal(await page.locator('#report-payments .report-row, #report-secondary .report-row').count(), 0, 'failed request clears old breakdown');
   fail = false;
   await page.locator('#report-refresh').click();
   await page.waitForFunction(() => /1\s*286\s*459/.test(document.querySelector('#report-revenue')?.textContent || ''));
   await page.locator('#report-type').selectOption('waiter');
   await page.locator('#report-secondary').getByText('Сотрудник с очень длинным именем и фамилией').waitFor();
-  assert.equal(await page.locator('#report-secondary-title').textContent(), 'Выручка по сотрудникам');
+  assert.equal(await page.locator('#report-secondary-title').textContent(), 'Продажи по ответственному за заказ');
   await page.locator('#report-date').fill('2026-09-27');
   await page.locator('#report-refresh').click();
   await oldReadRequest;
@@ -78,12 +92,13 @@ try {
   await mkdir(outputDir, { recursive: true });
   for (const width of [320, 768, 1440]) {
     await page.setViewportSize({ width, height: 800 });
-    assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); const controls = document.querySelector('.report-controls'); const grid = document.querySelector('.report-grid'); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1 || controls.scrollWidth > controls.clientWidth + 1 || grid.scrollWidth > grid.clientWidth + 1; }), false, `filled report overflow at ${width}px`);
+    const overflow = await page.evaluate(() => { const main = document.querySelector('.portal-main'); const controls = document.querySelector('.report-controls'); const toolbar = document.querySelector('.report-controls .toolbar-row'); const grid = document.querySelector('.report-grid'); const metrics = (node) => ({ scrollWidth: node.scrollWidth, clientWidth: node.clientWidth }); const offenders = [...main.querySelectorAll('*')].filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => ({ tag: node.tagName, id: node.id, className: String(node.className || '').slice(0,100), ...metrics(node), text: node.innerText?.slice(0,80) })).slice(0,20); const kpis=[...document.querySelectorAll('#report-kpis .kpi')].map((card)=>({card:metrics(card),children:[...card.children].map((child)=>({tag:child.tagName,className:String(child.className||''),...metrics(child),text:child.innerText?.slice(0,80)}))})); return { overflow: document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1 || controls.scrollWidth > controls.clientWidth + 1 || grid.scrollWidth > grid.clientWidth + 1, viewport: innerWidth, mobileMedia: matchMedia('(max-width:760px)').matches, toolbarStyle: { display: getComputedStyle(toolbar).display, columns: getComputedStyle(toolbar).gridTemplateColumns }, document: metrics(document.documentElement), main: metrics(main), controls: metrics(controls), grid: metrics(grid), offenders, kpis, longRows: [...document.querySelectorAll('.report-row-long')].map((row) => ({ row: metrics(row), strong: metrics(row.querySelector('strong')), text: row.querySelector('strong')?.textContent?.slice(0, 100) })) }; });
+    assert.equal(overflow.overflow, false, `filled report overflow at ${width}px: ${JSON.stringify(overflow)}`);
     if (width === 320) {
       assert.equal(await page.locator('#report-refresh').evaluate((button) => Math.abs(button.getBoundingClientRect().width - button.parentElement.getBoundingClientRect().width) <= 2), true, 'mobile report action fills control column');
       await page.locator('#portal-notice').waitFor({ state: 'detached' });
       await page.screenshot({ path: path.join(outputDir, 'finance-report-filled-320.png'), fullPage: true });
-      await page.locator('.report-grid').screenshot({ path: path.join(outputDir, 'finance-report-breakdown-320.png') });
+      await page.locator('.report-grid').first().screenshot({ path: path.join(outputDir, 'finance-report-breakdown-320.png') });
     }
   }
   assert.deepEqual(exceptions.filter((message) => !message.includes('ViewTransition opt-in disabled')), []);

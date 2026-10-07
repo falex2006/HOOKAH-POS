@@ -68,7 +68,7 @@ const feed = async (token) => expect(await request('/api/notifications?limit=100
 const events = (payload) => payload.items.filter((item) => ['shift_opened', 'shift_closed'].includes(item.type));
 const open = (token, openingCash = 100.25) => request('/api/shifts', { token, method: 'POST', body: { openingCash } });
 const close = (token, id, closingCash = 100.25) => request(`/api/shifts/${encodeURIComponent(id)}/close`, {
-  token, method: 'POST', body: { closingCash, checklistConfirmed: true }
+  token, method: 'POST', body: { closingCash, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } }
 });
 const select = async (token, venueId) => expect(await request(`/api/network/venues/${encodeURIComponent(venueId)}/select`, { token, method: 'POST' }), 200, 'select venue');
 const installAuditFailure = async () => {
@@ -219,11 +219,8 @@ try {
       await removeAuditFailure();
       await database.query('DELETE FROM notification_reads WHERE venue_id=ANY($1::uuid[])', [[venueA, venueB]]);
       await database.query('DELETE FROM audit_events WHERE venue_id=ANY($1::uuid[])', [[venueA, venueB]]);
-      await database.query('DELETE FROM shifts WHERE venue_id=ANY($1::uuid[])', [[venueA, venueB]]);
-      await database.query('DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM users WHERE organization_id=$1)', [organizationId]);
-      await database.query('DELETE FROM users WHERE organization_id=$1', [organizationId]);
-      await database.query('DELETE FROM venues WHERE organization_id=$1', [organizationId]);
-      await database.query('DELETE FROM organizations WHERE id=$1', [organizationId]);
+      // Closed shifts and their snapshots are retained and immutable. The
+      // local full-PG runner owns and drops this per-suite database after exit.
     } finally { await database.end(); }
   }
 }

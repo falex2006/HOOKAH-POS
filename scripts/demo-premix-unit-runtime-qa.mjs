@@ -19,9 +19,13 @@ const itemRouteStart = portal.indexOf("if (path === '/api/inventory/items' && me
 const itemRouteEnd = portal.indexOf('\n', itemRouteStart);
 assert.ok(itemRouteStart >= 0 && itemRouteEnd > itemRouteStart, 'demo inventory create route must be discoverable');
 class FrozenDate extends Date { static now() { return 1234567890; } }
-const createDemoItem = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'Date', `return (async () => { ${portal.slice(itemRouteStart, itemRouteEnd)} })();`);
+const demoVisibleAlcoholLink = (value) => {
+  assert.ok(value === undefined || value === null || value === '', 'this fixture does not exercise alcohol catalog links');
+  return null;
+};
+const createDemoItem = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'Date', 'demoVisibleAlcoholLink', `return (async () => { ${portal.slice(itemRouteStart, itemRouteEnd)} })();`);
 const demoItems = { inventory: [], audit: [] };
-const demoItemArgs = ['/api/inventory/items', 'POST', { name: 'QA premix source', unit: 'мл' }, new Set(['inventory']), demoItems, () => {}, { name: 'QA' }, FrozenDate];
+const demoItemArgs = ['/api/inventory/items', 'POST', { name: 'QA premix source', unit: 'мл' }, new Set(['inventory']), demoItems, () => {}, { name: 'QA' }, FrozenDate, demoVisibleAlcoholLink];
 const firstDemoItem = await createDemoItem(...demoItemArgs);
 const secondDemoItem = await createDemoItem(...demoItemArgs);
 assert.notEqual(firstDemoItem.id, secondDemoItem.id, 'rapid demo inventory creates retain distinct IDs in one millisecond');

@@ -71,7 +71,7 @@ assert.deepEqual(updatedCategory.calls.filter((call) => call.params.length).map(
   ['venue-qa', customDepartment],
   ['11111111-1111-4111-8111-111111111111', 'venue-qa'],
   ['QA custom category updated', customDepartment, null, '11111111-1111-4111-8111-111111111111', 'venue-qa'],
-  ['QA custom category updated', customDepartment, 'venue-qa', 'Старая категория', 'inventory', null, null],
+  ['QA custom category updated', customDepartment, null, null, 'inventory', 'venue-qa', '11111111-1111-4111-8111-111111111111'],
 ]);
 assert.ok(updatedCategory.calls.findIndex((call) => call.sql === 'BEGIN') < updatedCategory.calls.findIndex((call) => call.sql.startsWith('UPDATE ingredients SET category=')), 'category rename and stock reference propagation use the same transaction');
 assert.ok(updatedCategory.calls.findIndex((call) => call.sql === 'COMMIT') > updatedCategory.calls.findIndex((call) => call.sql.startsWith('UPDATE ingredients SET category=')), 'transaction commits after stock reference propagation');

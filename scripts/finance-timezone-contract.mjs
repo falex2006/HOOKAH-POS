@@ -17,7 +17,11 @@ function route(startMarker, endMarker) {
 const summary = route("if (pathname === '/api/finance/summary'", "if (pathname === '/api/finance/report'");
 assert.match(summary, /venueBusinessDateContext\(repositories\.pool, venueDbId\)/, 'summary uses the active venue date context');
 assert.match(summary, /if \(employeeFinanceView \|\| !requestedDate\) date = context\.date/, 'default/employee summary date cannot use the server process timezone');
-assert.match(summary, /closed_at >= \(\$[23]::date::timestamp AT TIME ZONE \$[34]\) AND o\.closed_at < \(\(\$[23]::date \+ 1\)::timestamp AT TIME ZONE \$[34]\)/, 'summary filters a half-open interval in venue local time');
+assert.match(summary, /financeDateLedger\(client, venueDbId, date, timezone\)/, 'summary delegates its manager close-date interval to the shared ledger');
+const ledgerStart = source.indexOf('const financeDateLedger = async'); const ledgerEnd = source.indexOf('async function accrueGuestOrderBonus', ledgerStart);
+assert.ok(ledgerStart >= 0 && ledgerEnd > ledgerStart, 'shared finance ledger exists');
+const ledger = source.slice(ledgerStart, ledgerEnd);
+assert.match(ledger, /o\.closed_at>=b\.starts_at AND o\.closed_at<b\.ends_at/, 'shared sales ledger uses a venue-local half-open close-date interval');
 const report = route("if (pathname === '/api/finance/report'", "if (pathname === '/api/deliveries'");
 assert.match(report, /venueBusinessDateContext\(repositories\.pool, venueDbId\)/, 'reports use the active venue date context');
 assert.match(report, /if \(employeeFinanceView \|\| !requestedDate\) date = context\.date/, 'default/employee report date cannot use the server process timezone');

@@ -19,6 +19,9 @@ const { database } = validateQaDatabaseUrl(databaseUrl, 'MIGRATIONS_PG_TEST_DATA
 const client = new Client({ connectionString: databaseUrl });
 const venueId = randomUUID();
 const ownerId = randomUUID();
+const guestId = randomUUID();
+const reservationId = randomUUID();
+const depositSourceEntryId = randomUUID();
 const productOrderAmounts = [100, 100, 900];
 const splitOrderId = randomUUID();
 const productIds = [];
@@ -43,6 +46,8 @@ try {
     'Finance shift/analytics QA database');
   await client.query("INSERT INTO venues (id,name,timezone) VALUES ($1,'Finance shift/median QA','Asia/Yekaterinburg')", [venueId]);
   await client.query("INSERT INTO users (id,venue_id,full_name,login,role) VALUES ($1::uuid,$2::uuid,'Finance QA','finance-shift-qa-' || $1::text,'owner')", [ownerId, venueId]);
+  await client.query("INSERT INTO guests (id,venue_id,phone,full_name) VALUES ($1,$2,'+79990000001','Finance ledger QA guest')", [guestId, venueId]);
+  await client.query("INSERT INTO reservations (id,venue_id,guest_id,starts_at,ends_at,status) VALUES ($1,$2,$3,now()+INTERVAL '1 day',now()+INTERVAL '2 days','new')", [reservationId, venueId, guestId]);
   const shiftA = (await client.query(`INSERT INTO shifts (venue_id,opened_by,opened_at,closed_at,opening_cash)
     VALUES ($1,$2,now()-INTERVAL '2 hours',now()-INTERVAL '30 minutes',0) RETURNING id`, [venueId, ownerId])).rows[0].id;
   const shiftB = (await client.query(`INSERT INTO shifts (venue_id,opened_by,opened_at,opening_cash)
@@ -114,11 +119,31 @@ try {
   assert.equal(staff.revenue, 1400, 'staff total equals actual collected revenue for the period');
   assert.equal(staff.items.reduce((sum, row) => sum + row.revenue, 0), 1400,
     'employee product lines allocate the discounted amount and reconcile to collected revenue');
+  const mixedTenderOrderId = randomUUID();
+  await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id,pricing_version,subtotal_snapshot,discount_total_snapshot,minimum_adjustment_snapshot,final_total_snapshot)
+    VALUES ($1,$2,$3,'closed',now(),$4,1,900,0,0,900)`, [mixedTenderOrderId, venueId, ownerId, shiftB]);
+  await client.query(`INSERT INTO payments (order_id,method,amount,status,created_at)
+    VALUES ($1,'cash',300,'paid',now()-INTERVAL '1 day'),($1,'bonus',600,'paid',now())`, [mixedTenderOrderId]);
+  await client.query(`INSERT INTO order_items (order_id,product_id,quantity,unit_price,station)
+    VALUES ($1,$2,1,900,'bar')`, [mixedTenderOrderId, barProductId]);
   const report = await request('/api/finance/report?type=waiter');
-  assert.equal(report.revenue, 1400, 'daily report uses collected payments as its revenue total');
-  assert.equal(report.byStation.bar, 1220);
+  assert.equal(report.revenue, 2300, 'daily report revenue is the recognized value of closed sales');
+  assert.equal(report.sales.net, 2300, 'recognized sales are derived from order snapshots or the persisted legacy fallback');
+  assert.equal(report.sales.orders, 5, 'sales count is based on closed orders');
+  assert.equal(report.receipts.total, 1400, 'receipt ledger excludes non-cash loyalty tender and uses payment event time');
+  assert.equal(report.receipts.byMethod.cash, 1400, 'receipt methods contain actual monetary payments');
+  assert.equal(report.receipts.bySource.order_payment, 1400, 'receipt sources identify order payments');
+  assert.equal(report.staffAttribution, 'order_opener', 'the report names its current employee attribution source explicitly');
+  assert.equal(report.byStation.bar, 2120);
   assert.equal(report.byStation.hookah, 180);
-  assert.equal(report.byStaff['Finance QA'], 1400, 'waiter breakdown matches the report total');
+  assert.equal(report.byStaff['Finance QA'], 2300, 'waiter breakdown matches recognized sales');
+
+  const priorDate = new Date(`${new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Yekaterinburg',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}T00:00:00Z`);
+  priorDate.setUTCDate(priorDate.getUTCDate()-1);
+  const priorDateKey = priorDate.toISOString().slice(0,10);
+  const priorDayReport = await request(`/api/finance/report?date=${priorDateKey}&type=x`);
+  assert.equal(priorDayReport.sales.net, 0, 'a payment from the prior day does not move the sale away from its close date');
+  assert.equal(priorDayReport.receipts.total, 300, 'cash receipt is reported on its actual event date independently from sale date');
 
   // A 100%-discounted closed check has no payment row. The report must derive
   // its zero total from persisted order items and the approved discount rather
@@ -133,17 +158,63 @@ try {
   await client.query(`INSERT INTO discounts (order_id,requested_by,approved_by,type,value,reason,status)
     VALUES ($1,$2,$2,'percent',100,'Finance zero-total regression QA','approved')`, [zeroOrderId, ownerId]);
   const zeroTotalReport = await request('/api/finance/report?type=waiter');
-  assert.equal(zeroTotalReport.revenue, 1400, 'an unpaid 100%-discounted order contributes zero report revenue');
-  assert.equal(zeroTotalReport.byStaff['Finance QA'], 1400, 'zero-total order does not inflate waiter revenue');
+  assert.equal(zeroTotalReport.revenue, 2300, 'the fully discounted zero-total order contributes no recognized sales');
+  assert.equal(zeroTotalReport.sales.net, 2300, 'recognized sales include the snapshot-backed order exactly once');
+  assert.equal(zeroTotalReport.receipts.total, 1400, 'zero-total and loyalty tender do not create cash receipts');
+  assert.equal(zeroTotalReport.byStaff['Finance QA'], 2300, 'the sales breakdown reconciles to recognized sales');
+  assert.equal(zeroTotalReport.byStation.bar, 2120, 'station sales allocate the snapshot-backed order while excluding bonus tender');
+  assert.equal(zeroTotalReport.byStation.hookah, 180);
   const zeroTotalSummary = await request('/api/finance/summary');
-  assert.equal(zeroTotalSummary.revenue, 1400, 'summary remains based on collected payments');
+  assert.equal(zeroTotalSummary.revenue, 2300, 'finance summary total uses recognized closed sales like the detailed report');
+  assert.equal(zeroTotalSummary.sales.net, zeroTotalReport.sales.net, 'summary and report reconcile their close-date sales on the same fixture');
+  assert.equal(zeroTotalSummary.receipts.total, zeroTotalReport.receipts.total, 'summary and report reconcile event-date cash receipts on the same fixture');
+  assert.equal(zeroTotalSummary.receipts.coverage, 'postgres_order_payments_and_guest_receipts', 'summary discloses receipt source coverage');
 
-  console.log('FINANCE SHIFT/ANALYTICS POSTGRES QA: PASS (split shift attribution, true check median, fixed-discount allocation reconciles station/product/staff breakdowns, 100%-discounted zero-paid order stays at zero)');
+  await client.query(`INSERT INTO guest_deposit_receipts (venue_id,guest_id,shift_id,amount,payment_method,reason,idempotency_key,actor_id)
+    VALUES ($1,$2,$3,100,'qr','Finance QA guest top-up','finance-ledger-topup-001',$4)`, [venueId, guestId, shiftB, ownerId]);
+  await client.query(`INSERT INTO guest_account_entries (id,venue_id,guest_id,account_type,amount,reason,source_type,source_key,actor_id)
+    VALUES ($1,$2,$3,'deposit',100,'Finance QA guest top-up','deposit_top_up','finance-ledger-topup-entry-001',$4)`, [depositSourceEntryId, venueId, guestId, ownerId]);
+  await client.query(`INSERT INTO guest_account_reversals (venue_id,guest_id,source_entry_id,shift_id,account_type,amount,payout_method,reason,idempotency_key,actor_id)
+    VALUES ($1,$2,$3,$4,'deposit',30,'cash','Finance QA deposit refund','finance-ledger-deposit-refund-001',$5)`, [venueId, guestId, depositSourceEntryId, shiftB, ownerId]);
+  await client.query(`INSERT INTO reservation_pre_payment_receipts (venue_id,reservation_id,shift_id,amount,payment_method,reason,idempotency_key,actor_id,created_at)
+    VALUES ($1,$2,$3,200,'card','Finance QA reservation prepayment','finance-ledger-prepay-001',$4,((timezone('Asia/Yekaterinburg',now())::date-1)::timestamp+time '12:00') AT TIME ZONE 'Asia/Yekaterinburg') RETURNING id`, [venueId, reservationId, shiftA, ownerId]).then(async ({ rows }) => {
+      await client.query(`INSERT INTO reservation_pre_payment_receipt_reversals (venue_id,reservation_id,receipt_id,shift_id,amount,payout_method,reason,idempotency_key,actor_id)
+        VALUES ($1,$2,$3,$4,50,'card','Finance QA prepayment refund','finance-ledger-prepay-refund-001',$5)`, [venueId, reservationId, rows[0].id, shiftB, ownerId]);
+    });
+  const ledgerToday = await request('/api/finance/report?type=x');
+  assert.equal(ledgerToday.receipts.total, 1500, 'event-date receipts include POS cash plus actual guest-account top-ups');
+  assert.equal(ledgerToday.receipts.bySource.guest_account_top_up, 100);
+  assert.equal(ledgerToday.receipts.byMethod.qr, 100);
+  assert.equal(ledgerToday.payouts.total, 80, 'event-date payouts include guest deposit and reservation prepayment refunds');
+  assert.equal(ledgerToday.payouts.bySource.guest_account_refund, 30);
+  assert.equal(ledgerToday.payouts.bySource.reservation_prepayment_refund, 50);
+  assert.equal(ledgerToday.payouts.byMethod.cash, 30);
+  assert.equal(ledgerToday.payouts.byMethod.card, 50);
+  const ledgerSummary = await request('/api/finance/summary');
+  assert.equal(ledgerSummary.revenue, ledgerToday.sales.net, 'summary sales stay aligned after liability receipts and refunds are added');
+  assert.equal(ledgerSummary.receipts.total, ledgerToday.receipts.total, 'summary receipt total matches all event-date sources');
+  assert.equal(ledgerSummary.receipts.bySource.guest_account_top_up, 100);
+  assert.equal(ledgerSummary.receipts.bySource.reservation_prepayment, undefined, 'prior-date reservation prepayment does not leak into today\'s summary');
+  assert.equal(ledgerSummary.payouts.total, ledgerToday.payouts.total, 'summary payouts match both supported refund journals');
+  const priorLedgerDay = await request(`/api/finance/report?date=${priorDateKey}&type=x`);
+  assert.equal(priorLedgerDay.receipts.bySource.reservation_prepayment, 200, 'reservation prepayment uses its own event date');
+
+  console.log('FINANCE SHIFT/ANALYTICS POSTGRES QA: PASS (sale snapshots vs event-date cash receipts, bonus tender exclusion, legacy fallbacks, shift attribution, medians, station allocation, zero-total discount)');
+} catch (error) {
+  console.error('FINANCE SHIFT/ANALYTICS POSTGRES QA failed before cleanup:', error);
+  throw error;
 } finally {
   if (server && server.exitCode === null && server.signalCode === null) server.kill();
   if (serverExitPromise && server?.exitCode === null && server?.signalCode === null) await serverExitPromise;
   if (client._connected) {
     try {
+      await client.query('DELETE FROM reservation_pre_payment_receipt_reversals WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM reservation_pre_payment_receipts WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM guest_account_reversals WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM guest_account_entries WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM guest_deposit_receipts WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM reservations WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM guests WHERE venue_id=$1', [venueId]);
       await client.query('DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);
       await client.query('DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);
       await client.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);

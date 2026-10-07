@@ -94,9 +94,9 @@ try {
   assert.equal(afterSale.items.find((item) => item.id === stockItem.id).onHand, 0, 'sale depletes linked inventory after valid conversion'); checks++;
   const analytics = await req('/api/analytics?days=7');
   assert.equal(analytics.totalCostOfGoods, 10, 'memory analytics preserve the stored cost of goods after sale');
-  assert.equal(analytics.netProfit, 90, 'memory analytics subtract cost of goods from revenue');
+  assert.equal(analytics.netProfit, null, 'memory analytics do not assert full profit without a payroll ledger');
   assert.equal(analytics.days.reduce((sum, day) => sum + day.costOfGoods, 0), 10, 'daily cost of goods matches the aggregate');
-  assert.equal(analytics.days.reduce((sum, day) => sum + day.netProfit, 0), 90, 'daily profit matches the aggregate'); checks += 4;
+  assert.ok(analytics.days.every((day) => day.netProfit === null && day.payroll === null), 'daily payroll and full profit remain unknown without the ledger'); checks += 4;
 
   const rejectedOrderId = await createOrder();
   const rejectedClose = await req(`/api/orders/${rejectedOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
@@ -130,7 +130,7 @@ try {
   assert.equal(blockedReviewClose.error, 'product_inventory_mode_required', 'unclassified legacy product cannot close as a zero-cost sale'); checks++;
   assert.equal((await req('/api/inventory')).items.find((item) => item.id === stockItem.id).onHand, 0, 'review/missing-recipe attempts do not change stock'); checks++;
 
-  const shiftClose = await req(`/api/shifts/${openedShift.id}/close`, 'POST', { closingCash: 250, checklistConfirmed: true });
+  const shiftClose = await req(`/api/shifts/${openedShift.id}/close`, 'POST', { closingCash: 250, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } });
   assert.equal(shiftClose.expectedCash, 250, 'expected cash includes cash payments recorded in the open shift');
   assert.equal(shiftClose.cashVariance, 0, 'cash reconciliation matches opening float plus attributed cash sales'); checks += 2;
 

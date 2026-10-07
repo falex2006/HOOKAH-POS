@@ -24,7 +24,21 @@ async function call(path, method = 'GET', body, expected = 200) {
 }
 try {
   assert.equal((await call('/api/health')).database, 'memory');
+  const defaultPolicy = await call('/api/loyalty/settings');
+  assert.deepEqual([defaultPolicy.version, defaultPolicy.bonusRublesPerPoint, defaultPolicy.maxRedemptionPercent, defaultPolicy.minimumRedemptionPoints, defaultPolicy.source], [0, 1, 100, 1, 'legacy_default']);
   await call('/api/shifts', 'POST', { openingCash: 0 }, 201);
+  const prePolicyOrder = await call('/api/orders', 'POST', { tableId: 'paid-order-policy-old-qa' }, 201);
+
+  const policyV1 = await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 0, bonusRublesPerPoint: 1, maxRedemptionPercent: 5, minimumRedemptionPoints: 2 }, 201);
+  assert.equal(policyV1.version, 1);
+  assert.equal((await call('/api/loyalty/settings')).maxRedemptionPercent, 5, 'policy version is returned on a fresh read');
+  const prePolicyQuote = await call(`/api/orders/${prePolicyOrder.id}/payments`);
+  assert.equal(prePolicyQuote.bonusRedemptionPolicy.version, 0, 'an order opened under legacy defaults keeps that policy after a settings change');
+  assert.equal(prePolicyQuote.bonusRedemptionPolicy.maxRedemptionPercent, 100);
+  assert.equal((await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 0, bonusRublesPerPoint: 1, maxRedemptionPercent: 100, minimumRedemptionPoints: 1 }, 409)).error, 'loyalty_settings_version_conflict');
+  assert.equal((await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: 'stale-venue', expectedVersion: 1, bonusRublesPerPoint: 1, maxRedemptionPercent: 5, minimumRedemptionPoints: 2 }, 409)).error, 'venue_context_changed');
+  assert.equal((await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 1, bonusRublesPerPoint: 2, maxRedemptionPercent: 5, minimumRedemptionPoints: 2 }, 400)).error, 'invalid_loyalty_settings', 'conversion rate stays fixed until bonus tender units are separated');
+  assert.equal((await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 1, bonusRublesPerPoint: 1, maxRedemptionPercent: 5, minimumRedemptionPoints: 2, bonusExpirationDays: 30 }, 400)).error, 'unknown_loyalty_setting', 'expiry stays disabled until accrual lots exist');
   const product = await call('/api/products', 'POST', { name: 'QA paid order service', category: 'Услуги', price: 100, inventoryMode: 'non_stock' }, 201);
   const order = await call('/api/orders', 'POST', { tableId: 'paid-order-balance-qa' }, 201);
   const item = await call(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 2 }, 201);
@@ -35,16 +49,16 @@ try {
   const initial = await call(`/api/orders/${order.id}/payments`);
   assert.equal(initial.remaining, 50);
   const edit = await call(`/api/orders/${order.id}/items/${item.id}`, 'PATCH', { quantity: 1 }, 409);
-  assert.equal(edit.error, 'paid_order_total_conflict');
-  assert.equal(edit.paid, 150);
-  assert.equal(edit.due, 100);
+  assert.equal(edit.error, 'order_pricing_locked');
+  assert.equal(initial.paid, 150);
+  assert.equal(initial.due, 200);
   assert.equal((await call(`/api/orders/${order.id}/payments`)).due, 200, 'rejected edit preserves total');
-  assert.equal((await call(`/api/orders/${order.id}/items/${item.id}`, 'DELETE', undefined, 409)).error, 'paid_order_total_conflict');
-  assert.equal((await call(`/api/orders/${order.id}/split`, 'POST', { itemIds: [item.id] }, 409)).error, 'paid_order_total_conflict');
+  assert.equal((await call(`/api/orders/${order.id}/items/${item.id}`, 'DELETE', undefined, 409)).error, 'order_pricing_locked');
+  assert.equal((await call(`/api/orders/${order.id}/split`, 'POST', { itemIds: [item.id] }, 409)).error, 'order_pricing_locked');
   assert.equal((await call(`/api/orders/${order.id}/status`, 'POST', { status: 'cancelled' }, 409)).error, 'paid_order_cannot_cancel');
   assert.equal((await call(`/api/orders/${order.id}`, 'DELETE', { comment: 'QA', writeoff: false }, 409)).error, 'paid_order_cannot_cancel');
   const discount = await call(`/api/orders/${order.id}/discount-requests`, 'POST', { type: 'percent', value: 50, reason: 'QA' }, 201);
-  assert.equal((await call(`/api/discount-requests/${discount.id}/approve`, 'POST', {}, 409)).error, 'paid_order_total_conflict');
+  assert.equal((await call(`/api/discount-requests/${discount.id}/approve`, 'POST', {}, 409)).error, 'order_pricing_locked');
   assert.equal((await call(`/api/orders/${order.id}/payments`)).due, 200, 'rejected discount preserves total');
   assert.equal((await call(`/api/orders/${order.id}/payments`, 'POST', { amount: 50.01, method: 'card' }, 409)).error, 'payment_exceeds_due');
   assert.equal((await call(`/api/orders/${order.id}/payments`, 'POST', { amount: 0.001, method: 'card' }, 400)).error, 'valid_method_and_amount_required');
@@ -69,7 +83,7 @@ try {
   assert.equal((await call(`/api/orders/${loyaltyOrder.id}/payments`)).due, 180, 'an open order keeps the group rate captured when its guest was attached');
   const loyaltyPartial = await call(`/api/orders/${loyaltyOrder.id}/payments`, 'POST', { amount: 150, method: 'cash' }, 201);
   assert.equal(loyaltyPartial.closed, false);
-  assert.equal((await call(`/api/orders/${loyaltyOrder.id}`, 'PATCH', { clientId: null }, 409)).error, 'guest_change_after_payment', 'guest cannot be transferred after a partial payment');
+  assert.equal((await call(`/api/orders/${loyaltyOrder.id}`, 'PATCH', { clientId: null }, 409)).error, 'order_pricing_locked', 'guest cannot be transferred after a partial payment');
   assert.equal(guest.loyaltyPoints, 0, 'partial payment never earns points');
   assert.equal((await call(`/api/clients/${guest.id}/account-entries`)).items.length, 0, 'partial payment leaves the loyalty ledger unchanged');
   const loyaltyFinal = await call(`/api/orders/${loyaltyOrder.id}/payments`, 'POST', { amount: 30, method: 'card' }, 201);
@@ -81,7 +95,9 @@ try {
   assert.equal(loyaltyFinal.loyaltyBonusPercent, 5);
   assert.equal(loyaltyFinal.loyaltyBonusEarned, 9);
   assert.equal(loyaltyFinal.loyaltyBonusBalance, 9);
-  assert.equal((await call(`/api/orders/${loyaltyOrder.id}/payments`)).loyaltyBonusEarned, 9, 'the earned amount survives a fresh order read');
+  const loyaltyReadback = await call(`/api/orders/${loyaltyOrder.id}/payments`);
+  assert.equal(loyaltyReadback.closed, true, 'payment readback identifies a closed order');
+  assert.deepEqual([loyaltyReadback.loyaltyBonusBase, loyaltyReadback.loyaltyBonusPercent, loyaltyReadback.loyaltyBonusEarned], [180, 5, 9], 'the closed-order UI fields use the saved bonus snapshot after a fresh read');
   const updatedGuest = (await call('/api/clients')).items.find((item) => item.id === guest.id);
   assert.equal(updatedGuest.loyaltyPoints, 9);
   const guestLedger = await call(`/api/clients/${guest.id}/account-entries`);
@@ -92,6 +108,9 @@ try {
   await call(`/api/orders/${redeemOrder.id}`, 'PATCH', { clientId: guest.id }, 200);
   const redeemQuote = await call(`/api/orders/${redeemOrder.id}/payments`);
   assert.equal(redeemQuote.guestAccount.bonusBalance, 9);
+  assert.equal(redeemQuote.guestAccount.bonusPercent, 5, 'POS can preview the linked guest earning rate');
+  assert.equal(redeemQuote.bonusRedemptionRemaining, 6, 'redemption cap uses 20% of the captured 120 ₽ order total');
+  assert.equal(redeemQuote.bonusRedemptionPolicy.version, 1);
   const topUp = await call(`/api/clients/${guest.id}/deposit-top-ups`, 'POST', { amount: 35, method: 'cash', reason: 'Memory wallet funding', idempotencyKey: 'qa-memory-wallet-01' }, 201);
   assert.equal(topUp.depositBalance, 35);
   assert.equal((await call(`/api/clients/${guest.id}/deposit-top-ups`, 'POST', { amount: 35, method: 'cash', reason: 'Memory wallet funding', idempotencyKey: 'qa-memory-wallet-01' }, 200)).idempotentReplay, true);
@@ -99,15 +118,21 @@ try {
   assert.equal(redeemQuote.due, 120);
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 1.5, method: 'bonus', idempotencyKey: 'qa-bonus-invalid' }, 400)).error, 'valid_method_and_amount_required');
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 10, method: 'bonus' }, 400)).error, 'valid_method_and_amount_required');
+  assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 1, method: 'bonus', idempotencyKey: 'qa-bonus-below-minimum' }, 409)).error, 'bonus_redemption_below_minimum');
+  assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 7, method: 'bonus', idempotencyKey: 'qa-bonus-over-cap' }, 409)).error, 'bonus_redemption_limit_exceeded');
   const depositTender = await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 25.5, method: 'deposit', idempotencyKey: 'qa-memory-deposit-tender-01' }, 201);
   assert.equal(depositTender.guestAccount.depositBalance, 9.5);
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 10, method: 'deposit', idempotencyKey: 'qa-memory-deposit-insufficient' }, 409)).error, 'insufficient_deposit_balance');
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 25.5, method: 'deposit', idempotencyKey: 'qa-memory-deposit-tender-01' }, 200)).idempotentReplay, true);
   const debit = await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 5, method: 'bonus', idempotencyKey: 'qa-bonus-redeem-0001' }, 201);
+  const policyV2 = await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 1, bonusRublesPerPoint: 1, maxRedemptionPercent: 50, minimumRedemptionPoints: 1 }, 201);
+  assert.equal(policyV2.version, 2);
+  assert.equal((await call('/api/orders/' + redeemOrder.id + '/payments')).bonusRedemptionRemaining, 1, 'the first bonus tender freezes the 5% policy despite a later policy version');
   assert.equal(debit.guestAccount.bonusBalance, 4);
   const replay = await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 5, method: 'bonus', idempotencyKey: 'qa-bonus-redeem-0001' }, 200);
   assert.equal(replay.idempotentReplay, true);
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`)).items.filter((entry) => entry.method === 'bonus').length, 1);
+  assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`)).bonusRedemptionPolicy.version, 1, 'frozen redemption policy survives reread');
   const redeemedClose = await call(`/api/orders/${redeemOrder.id}/payments`, 'POST', { amount: 89.5, method: 'cash', idempotencyKey: 'qa-bonus-redeem-cash-01' }, 201);
   assert.equal(redeemedClose.closed, true);
   assert.equal(redeemedClose.loyaltyBonusBase, 115, 'bonuses are not earned on the 5 ₽ redeemed tender');
@@ -137,7 +162,7 @@ try {
   const topupCash = (await call('/api/clients')).items.flatMap((entry) => entry.depositTopUps || []).filter((entry) => entry.shiftId === shift.id && entry.method === 'cash').reduce((sum, entry) => sum + Number(entry.amount), 0);
   const shiftReport = await call(`/api/dashboard/shift-kpis?date=${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yekaterinburg' }).format(new Date())}&shiftId=${shift.id}`);
   assert.deepEqual(shiftReport.totals.depositTopUps, { total: topupCash, cash: topupCash, cashless: 0, count: 1 }, 'cash wallet top-ups are visible separately from sales revenue');
-  const shiftCash = await call(`/api/shifts/${shift.id}/close`, 'POST', { checklistConfirmed: true, closingCash: cashPayments + topupCash }, 200);
+  const shiftCash = await call(`/api/shifts/${shift.id}/close`, 'POST', { checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } }, closingCash: cashPayments + topupCash }, 200);
   assert.equal(shiftCash.expectedCash, cashPayments + topupCash, 'cash deposit top-ups enter shift cash while remaining outside order payments');
 
   const discountOrder = await call('/api/orders', 'POST', { tableId: 'paid-order-discount-policy-qa' }, 201);

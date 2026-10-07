@@ -7,16 +7,69 @@ const publishedHtml = readFileSync(new URL('../dist/platform.html', import.meta.
 const publishedAlias = readFileSync(new URL('../dist/platform/index.html', import.meta.url), 'utf8');
 const js = readFileSync(new URL('../platform.js', import.meta.url), 'utf8');
 const publishedJs = readFileSync(new URL('../dist/platform.js', import.meta.url), 'utf8');
+const platformCss = readFileSync(new URL('../platform.css', import.meta.url), 'utf8');
+const publishedCss = readFileSync(new URL('../dist/platform.css', import.meta.url), 'utf8');
 const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 
 const normalize = (value) => value.replace(/\r\n/g, '\n');
 assert.equal(normalize(publishedHtml), normalize(html), 'published flat SaaS page must match the source');
 assert.equal(normalize(publishedAlias), normalize(html), 'published /platform/ alias must match the source');
 assert.equal(publishedJs, js, 'published SaaS behavior must match the source');
+assert.equal(publishedCss, platformCss, 'published SaaS-only styles must match the source');
+const platformCssRevision = Number(readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8').match(/platformCssRevision = '(\d+)'/)?.[1]);
+assert.ok(Number.isInteger(platformCssRevision) && platformCssRevision > 0, 'SaaS CSS must have a managed cache revision');
+assert.match(html, new RegExp(`platform\\.css\\?rev=${platformCssRevision}`), 'SaaS stylesheet must use the managed cache revision');
+assert.match(html, /<textarea id="owner-access-link"[^>]*readonly/, 'recovery URLs must be readable and wrap on narrow screens');
+assert.match(html, /class="platform-start-card" hidden/, 'onboarding must be hidden until the company list is confirmed empty');
+assert.match(js, /const renderOnboarding = \(\) => \{ \$\('\.platform-start-card'\)\.hidden = !state\.companiesLoaded \|\| state\.companies\.length > 0; \}/, 'onboarding must only show for a successfully loaded empty organization list');
+assert.match(platformCss, /\.platform-start-card\[hidden\]\s*\{\s*display:\s*none;/, 'hidden onboarding must stay hidden despite page layout styles');
 for (const id of ['companies', 'billing', 'health', 'settings']) assert.match(html, new RegExp(`id="${id}"`), `navigation target #${id} must exist`);
 for (const id of ['open-company', 'platform-logout', 'company-search', 'organization-form', 'save-company-detail']) {
   assert.ok(html.includes(`id="${id}"`), `visible control ${id} must exist`);
 }
+assert.ok(html.includes('id="start-create-company"'), 'first-run create action must have a dedicated button');
+assert.match(html, /href="\/platform#billing"[^>]*>[\s\S]*?Посмотреть тарифы/, 'tariff guide must link to the informational tariff section');
+assert.match(html, /href="\/platform#billing"[^>]*>[\s\S]*?<span>Тарифы<\/span>/, 'tariffs must have a direct sidebar destination');
+assert.match(html, /доступность приложения и базы; доступ к данным организаций проверяется отдельно/i, 'health description must not claim it verifies tenant isolation');
+for (const id of ['owner-modal', 'owner-password-modal', 'owner-access-modal', 'owner-access-link']) {
+  assert.ok(html.includes(`id="${id}"`), `SaaS owner control ${id} must exist`);
+}
+assert.match(js, /session\.user\?\.role === 'platform_owner'/, 'SaaS page must reject non-platform roles after session lookup');
+assert.match(js, /\/owners\/\$\{encodeURIComponent\(owner\.id\)\}\/reset/, 'recovery action must use the current reset-token endpoint');
+assert.match(js, /#reset=\$\{encodeURIComponent\(token\)\}/, 'recovery token must be shared as a login fragment');
+assert.match(js, /const closeAccess = \(\) => \{ setModal\(accessModal, false\); \$\('#owner-access-link'\)\.value = '';/, 'closing the recovery dialog must clear its one-time token');
+assert.match(js, /document\.querySelectorAll\('\[data-close-owner-access\]'\)/, 'both recovery dialog close controls must work');
+assert.match(js, /owner-password-form/, 'password entry must use a dedicated dialog');
+assert.match(js, /password !== passwordForm\.elements\.passwordConfirm\.value/, 'password change must verify its confirmation');
+assert.match(js, /finally \{ setBusy\(submit, false\); \} if \(saved\) \{ closePassword\(\);/, 'password submit control must be restored before a successful close');
+assert.match(js, /detailModal\.inert = nestedOwnerDialogOpen/, 'underlying organization dialog must be removed from interaction while a nested owner dialog is active');
+assert.match(js, /detailModal\.setAttribute\('aria-hidden', 'true'\)/, 'nested owner dialogs must be the only active modal for assistive technology');
+assert.match(js, /const modalOpeners = new WeakMap\(\)/, 'each SaaS dialog must remember its opener for focus restoration');
+assert.match(js, /shell\.inert = anyModalOpen/, 'the platform page must be inert while a modal is active');
+assert.match(js, /event\.key !== 'Tab' \|\| !currentModal/, 'keyboard focus must remain within the active SaaS dialog');
+assert.match(js, /modalOpeners\.delete\(element\)[\s\S]*?opener\.focus\(\)/, 'closing a SaaS dialog must return focus to its opener');
+assert.match(js, /data-retry-load/, 'company list load errors must offer a retry action');
+assert.match(js, /retryButton\.disabled = true; retryButton\.textContent = 'Загрузка…'; await load\(\)/, 'retry must prevent duplicate refresh requests and reload the list');
+assert.match(js, /owner_login_already_exists: 'Эта рабочая почта уже используется\.'/);
+assert.match(js, /owner_create_failed: 'Не удалось создать владельца/);
+assert.match(js, /owner_transfer_failed: 'Не удалось передать статус главного владельца/);
+assert.match(js, /Изменение сохранено, но список не обновился/);
+assert.doesNotMatch(js, /\bprompt\s*\(/, 'SaaS owner flows must not request secrets through browser prompts');
+assert.doesNotMatch(js, /Сервис CRM|доступ к CRM|CRM и API/, 'SaaS user-facing copy must use Hookah POS naming');
+assert.doesNotMatch(html, /\bCRM\b/i, 'SaaS page must not expose CRM wording');
+assert.match(platformCss, /\.platform-page \.owner-row/);
+assert.match(platformCss, /\.platform-page \.owner-actions/);
+assert.match(platformCss, /overflow-wrap:\s*anywhere/);
+assert.match(platformCss, /\.owner-status\.is-blocked[\s\S]*?background:\s*#342126/);
+assert.match(platformCss, /\.owner-actions \.table-action\s*\{[^}]*min-height:\s*44px/);
+assert.match(js, /owner-status \$\{active \? 'is-active' : 'is-blocked'\}/);
+assert.match(js, /owner_login_already_exists: 'Эта рабочая почта уже используется\.'/);
+assert.match(js, /Доступ к данным организаций проверяется отдельно/, 'live health text must distinguish app health from tenant isolation');
+assert.match(js, /window\.addEventListener\('hashchange', syncPlatformNav\)/, 'current SaaS section must follow hash navigation and browser history');
+assert.match(js, /links\.find\(\(link\) => link\.hash === location\.hash\)/, 'current SaaS section must initialize from the URL hash');
+assert.match(js, /#start-create-company'\)\.addEventListener\('click', \(\) => setModal\(modal, true\)\)/, 'onboarding create action must open the organization form');
+assert.match(js, /ownerForm\.dataset\.submitting === 'true'/, 'owner form must reject duplicate submits');
+assert.match(js, /button\.disabled = true;[\s\S]*?finally \{ button\.disabled = false; \}/, 'owner actions must reject duplicate in-flight requests');
 for (const action of ["addEventListener('click'", "addEventListener('change'", "addEventListener('input'", "addEventListener('submit'", '/api/platform/overview', '/api/platform/organizations', '/api/platform/plans', '/api/health']) {
   assert.ok(js.includes(action), `platform action/data contract missing ${action}`);
 }
@@ -28,6 +81,8 @@ assert.doesNotMatch(js, /99\.9%/);
 assert.doesNotMatch(html, /● Платформа работает|Control Center|гости Hookah POS/);
 assert.match(html, /лимиты сотрудников и заведений проверяются при добавлении и реактивации/i);
 const syncScript = readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
+assert.match(syncScript, /--saas-only[\s\S]*platform\.html', 'login\.html'/, 'SaaS-only publication mode must scope its output to platform/login routes');
+assert.match(syncScript, /SaaS-only work must not rewrite POS pages/);
 const platformRevision = Number(syncScript.match(/platformRevision = '(\d+)'/)?.[1]);
 assert.ok(Number.isInteger(platformRevision) && platformRevision >= 5, 'SaaS navigation fix must advance the published cache key');
 assert.match(html, new RegExp(`platform\\.js\\?rev=${platformRevision}`), 'SaaS bundle must use its exact current published cache key');
@@ -36,6 +91,7 @@ assert.match(server, /platform_overview_unavailable/);
 assert.match(server, /platform_organizations_unavailable/);
 assert.match(server, /invalid_subscription_status/);
 assert.match(server, /saas_account_unavailable/);
+assert.match(server, /input\.login!==undefined && error\.code==='23505'\) return json\(res,409,\{error:'owner_login_already_exists'\}\)/, 'duplicate owner login edits must return a specific client error');
 assert.match(server, /subscription_unavailable/);
 assert.match(server, /use_subscription_endpoint/);
 console.log('PLATFORM SAAS CONTRACT: PASS (controls, API links, truthful states, role/data contracts, published assets)');

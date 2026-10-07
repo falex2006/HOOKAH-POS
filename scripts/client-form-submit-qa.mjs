@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const capture = portal.slice(portal.indexOf("document.addEventListener('submit'"), portal.indexOf('\n', portal.indexOf("document.addEventListener('submit'")));
-assert.match(capture, /\['client-form'.*'expense-form'\]\s*\.includes\(form\.id\)/s, 'forms with local pending guards must opt out of six-second global submit lock');
+assert.match(capture, /\['client-form'[\s\S]*'expense-form'[\s\S]*\]\.includes\(form\.id\)/, 'forms with local pending guards must opt out of six-second global submit lock');
 
 const start = portal.indexOf("document.querySelector('#client-form').addEventListener('submit'");
 const end = portal.indexOf(' }); load();', start);

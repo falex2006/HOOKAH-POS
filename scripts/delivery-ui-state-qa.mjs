@@ -31,5 +31,5 @@ pending[6].resolve({items:[{id:'qa',status:'delivered'}]});await success;assert.
 select.value='confirmed';const savedButReadFailed=change();pending[7].resolve({id:'qa',status:'confirmed'});await Promise.resolve();await Promise.resolve();pending[8].reject(Error('read failed'));await savedButReadFailed;
 assert.match(field('#delivery-list').innerHTML,/Повторить/);assert.equal(notices.length,1,'successful save with failed GET reports load error rather than mutation rollback');
 assert.match(section,/if \(creating\) return/);assert.match(section,/creating = true; controls\.forEach/);assert.match(section,/finally \{ creating = false; controls\.forEach/);
-assert.match(readFileSync(new URL('../style.css',import.meta.url),'utf8'),/\.delivery-actions \.badge\{flex-shrink:0;white-space:nowrap\}/);
+assert.match(readFileSync(new URL('../style.css',import.meta.url),'utf8'),/\.delivery-actions \.badge\{[^}]*max-width:[^;}]+;[^}]*overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/);
 console.log('DELIVERY UI ERROR, RETRY, STALE LOAD AND PATCH QA: PASS');

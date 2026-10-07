@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '387';
-const portalRevision = '438';
+const cssRevision = '395';
+const portalRevision = '454';
 const lockRevision = '22';
-const appRevision = '181';
-const platformRevision = '6';
+const appRevision = '183';
+const platformRevision = '7';
 const platformCssRevision = '2';
 const staffProfileRevision = '6';
 const loginRevision = '98';
@@ -18,6 +18,7 @@ const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '11';
 const payrollSchemeUiRevision = '1';
 const purchaseDocumentValidationRevision = '1';
+const payrollSchemeUiRevision = '17';
 const brandRevision = '2';
 const brandHead = `<!-- Hookah POS brand icons -->
 <link rel="icon" href="/assets/brand/icons/favicon.ico?rev=${brandRevision}" sizes="any">
@@ -99,9 +100,10 @@ for (const path of htmlFiles) {
     .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`)
     .replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
   const versionedHtml = html.replace(/purchase-document-validation\.js\?rev=\d+/g, `purchase-document-validation.js?rev=${purchaseDocumentValidationRevision}`);
-  writeFileSync(path, versionedHtml);
+  writeFileSync(path, versionedHtml.replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`));
 }
 cpSync(resolve(root, 'notification-center.js'), resolve(root, 'dist', 'notification-center.js'));
+cpSync(resolve(root, 'shift-close-contract.js'), resolve(root, 'dist', 'shift-close-contract.js'));
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
@@ -117,6 +119,7 @@ for (const name of ['login-smoke-ambient.png', 'login-smoke-ambient.mp4']) cpSyn
 cpSync(resolve(root, 'staff-admin-card.js'), resolve(root, 'dist', 'staff-admin-card.js'));
 cpSync(resolve(root, 'payroll-scheme-ui.js'), resolve(root, 'dist', 'payroll-scheme-ui.js'));
 cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', 'purchase-document-validation.js'));
+cpSync(resolve(root, 'payroll-scheme-ui.js'), resolve(root, 'dist', 'payroll-scheme-ui.js'));
 cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));
 cpSync(resolve(root, 'assets', 'login-background.mp4'), resolve(root, 'dist', 'assets', 'login-background.mp4'));
 cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'), { recursive: true });

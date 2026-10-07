@@ -32,6 +32,7 @@ try {
 const fixturePool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 5000 });
 try {
   await fixturePool.query("INSERT INTO venues (id,name) VALUES ('00000000-0000-0000-0000-000000000001','QA auto-order venue') ON CONFLICT (id) DO NOTHING");
+  await fixturePool.query("UPDATE venues SET organization_id='00000000-0000-0000-0000-000000000010' WHERE id='00000000-0000-0000-0000-000000000001'");
   await fixturePool.query("INSERT INTO inventory_departments (venue_id,code,name) VALUES ('00000000-0000-0000-0000-000000000001','bar','Бар') ON CONFLICT (venue_id,code) DO NOTHING");
 } catch (error) {
   await fixturePool.end();
@@ -146,6 +147,152 @@ assert.equal(Number(fractionalSourceDraft.lines[0].stockQuantity), 0.6, 'fractio
 await request(`/api/inventory/purchase-documents/${fractionalSourceDraft.id}/post`, 'POST', undefined, 200);
 assert.equal(Number((await request('/api/inventory')).items.find((entry) => entry.id === fractionalSourceItem.id).onHand), 0.6,
   'posted receipt preserves fractional source quantity through conversion and ledger reread');
+
+const zeroPriceItem = await request('/api/inventory/items', 'POST', {
+  name: `QA zero-price receipt ${suffix}`, department: 'bar', itemType: 'ingredient', unit: 'мл',
+  purchaseUnit: 'бутылка', packMultiplier: 1000, cost: 0,
+}, 201);
+const zeroPriceDraft = await request('/api/inventory/purchase-documents', 'POST', {
+  supplierName: 'QA бесплатная поставка', documentNumber: `QA-ZERO-PRICE-${suffix}`,
+  lines: [{ ingredientId: zeroPriceItem.id, quantity: 1, unit: 'бутылка', unitCost: 0 }],
+}, 201);
+assert.equal(Number(zeroPriceDraft.lines[0].unitCost), 0, 'draft keeps an explicitly provided zero purchase price');
+assert.equal(Number(zeroPriceDraft.lines[0].receiptUnitCost), 0, 'zero purchase price normalizes to zero per base unit');
+assert.equal(Number(zeroPriceDraft.lines[0].lineTotal), 0, 'zero purchase price produces an exact zero line total');
+assert.equal(Number(zeroPriceDraft.lines[0].stockQuantity), 1000, 'zero price does not erase the converted receipt quantity');
+assert.equal(Number((await request('/api/inventory')).items.find((entry) => entry.id === zeroPriceItem.id).onHand), 0,
+  'zero-priced draft does not change stock before posting');
+const zeroPriceDraftPg = await fixturePool.query(`SELECT d.status,l.unit_cost,l.receipt_unit_cost,l.line_total,l.stock_quantity,l.source_movement_id,
+    (SELECT count(*)::int FROM stock_movements m WHERE m.venue_id=$2 AND m.ingredient_id=$3) AS movement_count
+  FROM inventory_purchase_documents d JOIN inventory_purchase_document_lines l ON l.document_id=d.id AND l.venue_id=d.venue_id
+  WHERE d.id=$1 AND d.venue_id=$2`, [zeroPriceDraft.id, '00000000-0000-0000-0000-000000000001', zeroPriceItem.id]);
+assert.equal(zeroPriceDraftPg.rowCount, 1, 'zero-priced draft and line persist for the synthetic venue');
+assert.equal(zeroPriceDraftPg.rows[0].status, 'draft');
+assert.equal(Number(zeroPriceDraftPg.rows[0].unit_cost), 0);
+assert.equal(Number(zeroPriceDraftPg.rows[0].receipt_unit_cost), 0);
+assert.equal(Number(zeroPriceDraftPg.rows[0].line_total), 0);
+assert.equal(Number(zeroPriceDraftPg.rows[0].stock_quantity), 1000);
+assert.equal(zeroPriceDraftPg.rows[0].source_movement_id, null);
+assert.equal(zeroPriceDraftPg.rows[0].movement_count, 0, 'zero-priced draft has not written a stock movement');
+const zeroPricePosted = await request(`/api/inventory/purchase-documents/${zeroPriceDraft.id}/post`, 'POST', undefined, 200);
+assert.equal(zeroPricePosted.document.status, 'posted');
+const zeroPriceInventory = (await request('/api/inventory')).items.find((entry) => entry.id === zeroPriceItem.id);
+assert.equal(Number(zeroPriceInventory.onHand), 1000, 'posting a zero-priced receipt adds its physical quantity');
+assert.equal(Number(zeroPriceInventory.cost), 0, 'posting a zero-priced receipt keeps an explicit zero stock cost');
+const zeroPricePostedPg = await fixturePool.query(`SELECT d.status,l.unit_cost,l.receipt_unit_cost,l.line_total,l.stock_quantity,l.source_movement_id,
+    m.ingredient_id,m.direction,m.quantity
+  FROM inventory_purchase_documents d JOIN inventory_purchase_document_lines l ON l.document_id=d.id AND l.venue_id=d.venue_id
+  JOIN stock_movements m ON m.id=l.source_movement_id AND m.venue_id=l.venue_id
+  WHERE d.id=$1 AND d.venue_id=$2`, [zeroPriceDraft.id, '00000000-0000-0000-0000-000000000001']);
+assert.equal(zeroPricePostedPg.rowCount, 1, 'posted zero-priced line has exactly one linked movement');
+assert.equal(zeroPricePostedPg.rows[0].status, 'posted');
+assert.equal(Number(zeroPricePostedPg.rows[0].unit_cost), 0);
+assert.equal(Number(zeroPricePostedPg.rows[0].receipt_unit_cost), 0);
+assert.equal(Number(zeroPricePostedPg.rows[0].line_total), 0);
+assert.equal(Number(zeroPricePostedPg.rows[0].stock_quantity), 1000);
+assert.ok(zeroPricePostedPg.rows[0].source_movement_id);
+assert.equal(zeroPricePostedPg.rows[0].ingredient_id, zeroPriceItem.id);
+assert.equal(zeroPricePostedPg.rows[0].direction, 'in');
+assert.equal(Number(zeroPricePostedPg.rows[0].quantity), 1000);
+
+const stalePackageItem = await request('/api/inventory/items', 'POST', {
+  name: `QA stale package receipt ${suffix}`, department: 'bar', itemType: 'ingredient', unit: 'мл',
+  purchaseUnit: 'бутылка', packMultiplier: 1000, cost: 0.5,
+}, 201);
+const stalePackageDraft = await request('/api/inventory/purchase-documents', 'POST', {
+  supplierName: 'QA stale package supplier', documentNumber: `QA-STALE-PACK-${suffix}`,
+  lines: [{ ingredientId: stalePackageItem.id, quantity: 1, unit: 'бутылка', unitCost: 250 }],
+}, 201);
+assert.equal(Number(stalePackageDraft.lines[0].packMultiplier), 1000, 'draft snapshots the original 1000 ml bottle factor');
+assert.equal(Number(stalePackageDraft.lines[0].stockQuantity), 1000, 'draft snapshots the corresponding stock quantity');
+const staleBaseline = await fixturePool.query(`SELECT i.cost,COUNT(sm.id)::int AS movements,
+    COALESCE((SELECT json_agg(json_build_object('orderId',c.order_id,'cost',c.cost) ORDER BY c.order_id)
+      FROM order_costs c WHERE c.venue_id=i.venue_id),'[]'::json) AS cogs
+  FROM ingredients i LEFT JOIN stock_movements sm ON sm.venue_id=i.venue_id AND sm.ingredient_id=i.id
+  WHERE i.id=$1 GROUP BY i.id`, [stalePackageItem.id]);
+assert.equal(staleBaseline.rows[0].movements, 0, 'stale package fixture starts without stock movements');
+const changedPackage = await request(`/api/inventory/items/${stalePackageItem.id}`, 'PATCH', { packMultiplier: 700 }, 200);
+assert.equal(Number(changedPackage.packMultiplier), 700, 'ingredient packaging can change after the draft was saved');
+const stalePost = await request(`/api/inventory/purchase-documents/${stalePackageDraft.id}/post`, 'POST', {}, 400);
+assert.deepEqual({ error: stalePost.error, detail: stalePost.detail }, {
+  error: 'purchase_document_post_failed', detail: 'purchase_item_unit_changed',
+}, 'posting a draft with a stale package factor returns the established API error contract');
+const staleInventory = (await request('/api/inventory')).items.find((entry) => entry.id === stalePackageItem.id);
+assert.equal(Number(staleInventory.onHand), 0, 'rejected stale package receipt does not change on-hand stock');
+assert.equal(Number(staleInventory.cost), Number(staleBaseline.rows[0].cost), 'rejected stale package receipt does not change ingredient cost');
+const staleFacts = await fixturePool.query(`SELECT d.status,l.source_movement_id,i.cost,COUNT(sm.id)::int AS movements,
+    COALESCE((SELECT json_agg(json_build_object('orderId',c.order_id,'cost',c.cost) ORDER BY c.order_id)
+      FROM order_costs c WHERE c.venue_id=i.venue_id),'[]'::json) AS cogs
+  FROM inventory_purchase_documents d
+  JOIN inventory_purchase_document_lines l ON l.document_id=d.id
+  JOIN ingredients i ON i.id=l.ingredient_id AND i.venue_id=l.venue_id
+  LEFT JOIN stock_movements sm ON sm.venue_id=i.venue_id AND sm.ingredient_id=i.id
+  WHERE d.id=$1 AND d.venue_id=$2 GROUP BY d.id,l.id,i.id`, [stalePackageDraft.id, '00000000-0000-0000-0000-000000000001']);
+assert.equal(staleFacts.rowCount, 1, 'stored stale draft and line can be re-read after the rejected post');
+assert.equal(staleFacts.rows[0].status, 'draft', 'failed posting leaves the purchase document editable as a draft');
+assert.equal(staleFacts.rows[0].source_movement_id, null, 'failed posting records no source movement on the draft line');
+assert.equal(staleFacts.rows[0].movements, staleBaseline.rows[0].movements, 'failed posting adds no stock movement');
+assert.equal(Number(staleFacts.rows[0].cost), Number(staleBaseline.rows[0].cost), 'failed posting preserves stored ingredient cost');
+assert.deepEqual(staleFacts.rows[0].cogs, staleBaseline.rows[0].cogs, 'failed posting does not add or change venue COGS snapshots');
+
+const archivedDraftItem = await request('/api/inventory/items', 'POST', {
+  name: `QA archived draft ingredient ${suffix}`, department: 'bar', itemType: 'ingredient', unit: 'мл',
+  purchaseUnit: 'бутылка', packMultiplier: 1000, cost: 0.5,
+}, 201);
+const archivedOrder = await request('/api/inventory/auto-orders', 'POST', { items: [{ itemId: archivedDraftItem.id, quantity: 1000 }] }, 201);
+const archivedDraft = await request('/api/inventory/purchase-documents', 'POST', {
+  supplierName: 'QA archive with open draft', documentNumber: `QA-ARCHIVE-DRAFT-${suffix}`, sourceAutoOrderId: archivedOrder.id,
+  lines: [{ ingredientId: archivedDraftItem.id, quantity: 1, unit: 'бутылка', unitCost: 250 }],
+}, 201);
+assert.equal(archivedDraft.status, 'draft', 'archive fixture has a saved open purchase draft');
+assert.equal(archivedDraft.lines[0].ingredientId, archivedDraftItem.id, 'open draft references the synthetic ingredient');
+const archivedDraftItemResponse = await request(`/api/inventory/items/${archivedDraftItem.id}`, 'DELETE', undefined, 200);
+assert.equal(archivedDraftItemResponse.id, archivedDraftItem.id, 'zero-stock ingredient can be archived while a draft references it');
+const inventoryAfterDraftItemArchive = await request('/api/inventory');
+assert.equal(inventoryAfterDraftItemArchive.items.some(entry => entry.id === archivedDraftItem.id), false, 'archived ingredient is omitted from active inventory');
+const retainedArchivedDraft = await request(`/api/inventory/purchase-documents/${archivedDraft.id}`);
+assert.equal(retainedArchivedDraft.status, 'draft', 'archiving the ingredient does not remove or change the open draft');
+assert.equal(retainedArchivedDraft.lines.length, 1, 'open draft line remains readable after ingredient archive');
+assert.equal(retainedArchivedDraft.lines[0].ingredientId, archivedDraftItem.id, 'retained draft line remains linked to archived ingredient');
+assert.equal(retainedArchivedDraft.lines[0].ingredientName, archivedDraftItem.name, 'retained draft preserves the ingredient name snapshot for editing');
+const archivedDraftFacts = await fixturePool.query(`SELECT i.is_marked,d.status,l.ingredient_id,l.source_movement_id,
+    (SELECT count(*)::int FROM stock_movements sm WHERE sm.venue_id=d.venue_id AND sm.ingredient_id=i.id) AS movement_count
+  FROM ingredients i JOIN inventory_purchase_documents d ON d.id=$2 AND d.venue_id=i.venue_id
+  JOIN inventory_purchase_document_lines l ON l.document_id=d.id AND l.venue_id=d.venue_id AND l.ingredient_id=i.id
+  WHERE i.id=$1 AND i.venue_id=$3`, [archivedDraftItem.id, archivedDraft.id, '00000000-0000-0000-0000-000000000001']);
+assert.equal(archivedDraftFacts.rowCount, 1, 'archived ingredient and its open draft line are venue-scoped and retained in PostgreSQL');
+assert.equal(archivedDraftFacts.rows[0].is_marked, false, 'ingredient archive is persisted');
+assert.equal(archivedDraftFacts.rows[0].status, 'draft', 'purchase document remains open in PostgreSQL');
+assert.equal(archivedDraftFacts.rows[0].ingredient_id, archivedDraftItem.id, 'draft line remains linked in PostgreSQL');
+assert.equal(archivedDraftFacts.rows[0].source_movement_id, null, 'unposted draft has no source movement');
+assert.equal(archivedDraftFacts.rows[0].movement_count, 0, 'archive and draft retention create no stock movements');
+const archivedPost = await request(`/api/inventory/purchase-documents/${archivedDraft.id}/post`, 'POST', undefined, 409);
+assert.deepEqual({ error: archivedPost.error, detail: archivedPost.detail, ingredientId: archivedPost.ingredientId }, {
+  error: 'purchase_ingredient_archived', detail: 'purchase_ingredient_archived', ingredientId: archivedDraftItem.id,
+}, 'archived ingredient cannot be posted from a retained draft');
+const archivedOrderAfterPost = (await request('/api/inventory/auto-orders')).requests.find((entry) => entry.id === archivedOrder.id);
+assert.ok(archivedOrderAfterPost, 'linked auto-order remains readable after rejected post');
+assert.equal(archivedOrderAfterPost.status, 'sent', 'rejected post does not advance linked auto-order');
+assert.equal(Number(archivedOrderAfterPost.lines[0].receivedQuantity), 0, 'rejected post does not record received auto-order quantity');
+const archivedAfterPost = await request(`/api/inventory/purchase-documents/${archivedDraft.id}`);
+assert.equal(archivedAfterPost.status, 'draft', 'rejected post leaves the archived draft open');
+const archivedPostFacts = await fixturePool.query(`SELECT d.status,l.source_movement_id,i.cost,
+    (SELECT count(*)::int FROM stock_movements sm WHERE sm.venue_id=d.venue_id AND sm.ingredient_id=i.id) AS movement_count
+  FROM inventory_purchase_documents d JOIN inventory_purchase_document_lines l ON l.document_id=d.id AND l.venue_id=d.venue_id
+  JOIN ingredients i ON i.id=l.ingredient_id AND i.venue_id=l.venue_id WHERE d.id=$1 AND d.venue_id=$2`, [archivedDraft.id, '00000000-0000-0000-0000-000000000001']);
+assert.equal(archivedPostFacts.rowCount, 1);
+assert.equal(archivedPostFacts.rows[0].status, 'draft');
+assert.equal(archivedPostFacts.rows[0].source_movement_id, null, 'rejected post records no line movement');
+assert.equal(Number(archivedPostFacts.rows[0].cost), Number(archivedDraftItem.cost), 'rejected post preserves the archived item cost');
+assert.equal(archivedPostFacts.rows[0].movement_count, 0, 'rejected post creates no hidden stock movement');
+const archivedVoidedDraft = await request(`/api/inventory/purchase-documents/${archivedDraft.id}/void`, 'POST');
+assert.equal(archivedVoidedDraft.status, 'voided', 'retained draft can still be voided after item archival');
+const archivedOrderAfterVoid = (await request('/api/inventory/auto-orders')).requests.find((entry) => entry.id === archivedOrder.id);
+assert.equal(archivedOrderAfterVoid.status, 'sent', 'void leaves the unreceived auto-order open');
+assert.equal(Number(archivedOrderAfterVoid.lines[0].receivedQuantity), 0, 'void still does not count archived draft quantity as received');
+assert.equal((await request(`/api/inventory/auto-orders/${archivedOrder.id}`, 'PATCH', { status: 'cancelled' }, 200)).status, 'cancelled',
+  'voided archived draft releases the auto-order cancellation lock');
+
 const cancellableOrder = await request('/api/inventory/auto-orders', 'POST', { items: [{ itemId: item.id, quantity: 1000 }] }, 201);
 const cancellableDraft = await createDraft('cancel', cancellableOrder.id);
 await request(`/api/inventory/auto-orders/${cancellableOrder.id}`, 'PATCH', { status: 'cancelled' }, 409);

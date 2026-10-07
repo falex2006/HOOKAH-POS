@@ -115,8 +115,11 @@ CREATE TABLE tables (
   status table_status NOT NULL DEFAULT 'free',
   min_deposit numeric(12,2) NOT NULL DEFAULT 0,
   min_order_total numeric(12,2) NOT NULL DEFAULT 0,
-  layout jsonb NOT NULL DEFAULT '{}'::jsonb
+  layout jsonb NOT NULL DEFAULT '{}'::jsonb,
+  archived_at timestamptz,
+  archive_version bigint NOT NULL DEFAULT 0
 );
+CREATE INDEX IF NOT EXISTS tables_active_zone_idx ON tables (zone_id) WHERE archived_at IS NULL;
 
 CREATE TABLE guest_discount_groups (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -258,6 +261,129 @@ CREATE TABLE ingredients (
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS pack_multiplier numeric(15,6) NOT NULL DEFAULT 1 CHECK (pack_multiplier > 0);
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'Ингредиенты';
 
+-- Alcohol is described in its own tenant-scoped catalog. Stock and recipe
+-- ownership remains on ingredients; this nullable link is metadata only.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='venues_id_organization_id_uq' AND conrelid='venues'::regclass) THEN
+    ALTER TABLE venues ADD CONSTRAINT venues_id_organization_id_uq UNIQUE (id,organization_id);
+  END IF;
+END $$;
+CREATE TABLE IF NOT EXISTS alcohol_catalog_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+  scope text NOT NULL DEFAULT 'organization' CHECK (scope IN ('organization','venue')),
+  venue_id uuid,
+  brand text NOT NULL,
+  product_line text,
+  name text NOT NULL,
+  spirit_type text NOT NULL,
+  spirit_subtype text,
+  country text,
+  abv numeric(5,2) CHECK (abv IS NULL OR (abv >= 0 AND abv <= 100)),
+  bottle_ml numeric(12,3) CHECK (bottle_ml IS NULL OR bottle_ml > 0),
+  age_years numeric(6,2) CHECK (age_years IS NULL OR age_years >= 0),
+  barcode text,
+  aliases text[] NOT NULL DEFAULT '{}',
+  description text NOT NULL DEFAULT '',
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  archived_at timestamptz,
+  UNIQUE (organization_id,id),
+  FOREIGN KEY (venue_id,organization_id) REFERENCES venues(id,organization_id) ON DELETE RESTRICT,
+  CHECK ((scope='organization' AND venue_id IS NULL) OR (scope='venue' AND venue_id IS NOT NULL)),
+  CHECK ((is_active AND archived_at IS NULL) OR (NOT is_active AND archived_at IS NOT NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS alcohol_catalog_items_org_barcode_uq
+  ON alcohol_catalog_items (organization_id,barcode) WHERE barcode IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS alcohol_catalog_items_variant_uq
+  ON alcohol_catalog_items (organization_id,scope,COALESCE(venue_id,'00000000-0000-0000-0000-000000000000'::uuid),lower(brand),lower(COALESCE(product_line,'')),lower(name),spirit_type,lower(COALESCE(spirit_subtype,'')),COALESCE(bottle_ml,0))
+  WHERE is_active;
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS alcohol_catalog_item_id uuid;
+UPDATE ingredients i SET organization_id=v.organization_id FROM venues v
+  WHERE v.id=i.venue_id AND i.organization_id IS DISTINCT FROM v.organization_id;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM ingredients WHERE organization_id IS NULL) THEN
+    RAISE EXCEPTION 'cannot add alcohol catalog: every ingredient venue must have an organization_id';
+  END IF;
+END $$;
+ALTER TABLE ingredients ALTER COLUMN organization_id SET NOT NULL;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ingredients_venue_organization_fk' AND conrelid='ingredients'::regclass) THEN
+    ALTER TABLE ingredients ADD CONSTRAINT ingredients_venue_organization_fk
+      FOREIGN KEY (venue_id,organization_id) REFERENCES venues(id,organization_id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ingredients_alcohol_catalog_org_fk' AND conrelid='ingredients'::regclass) THEN
+    ALTER TABLE ingredients ADD CONSTRAINT ingredients_alcohol_catalog_org_fk
+      FOREIGN KEY (organization_id,alcohol_catalog_item_id) REFERENCES alcohol_catalog_items(organization_id,id) ON DELETE RESTRICT;
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION guard_alcohol_catalog_item_identity() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='DELETE' THEN
+    RAISE EXCEPTION 'alcohol catalog items must be soft archived' USING ERRCODE='55000';
+  END IF;
+  IF NEW.organization_id IS DISTINCT FROM OLD.organization_id
+     OR NEW.scope IS DISTINCT FROM OLD.scope
+     OR NEW.venue_id IS DISTINCT FROM OLD.venue_id THEN
+    RAISE EXCEPTION 'alcohol catalog tenant scope is immutable' USING ERRCODE='23514';
+  END IF;
+  NEW.updated_at := now();
+  IF NEW.is_active THEN
+    NEW.archived_at := NULL;
+  ELSIF OLD.is_active THEN
+    NEW.archived_at := COALESCE(NEW.archived_at,now());
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS alcohol_catalog_items_identity_guard ON alcohol_catalog_items;
+CREATE TRIGGER alcohol_catalog_items_identity_guard
+  BEFORE UPDATE OR DELETE ON alcohol_catalog_items
+  FOR EACH ROW EXECUTE FUNCTION guard_alcohol_catalog_item_identity();
+
+CREATE OR REPLACE FUNCTION guard_ingredient_alcohol_catalog_link() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE venue_org uuid; item_org uuid; item_scope text; item_venue uuid; item_active boolean;
+BEGIN
+  SELECT organization_id INTO venue_org FROM venues WHERE id=NEW.venue_id FOR SHARE;
+  IF NOT FOUND OR venue_org IS NULL THEN
+    RAISE EXCEPTION 'ingredient venue must belong to an organization' USING ERRCODE='23514';
+  END IF;
+  NEW.organization_id := venue_org;
+  IF TG_OP='UPDATE' AND OLD.venue_id IS DISTINCT FROM NEW.venue_id
+     AND OLD.alcohol_catalog_item_id IS NOT NULL THEN
+    RAISE EXCEPTION 'linked ingredient cannot be reassigned to another venue' USING ERRCODE='23514';
+  END IF;
+  IF NEW.alcohol_catalog_item_id IS NOT NULL THEN
+    SELECT organization_id,scope,venue_id,is_active INTO item_org,item_scope,item_venue,item_active
+      FROM alcohol_catalog_items WHERE id=NEW.alcohol_catalog_item_id FOR SHARE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'alcohol catalog item does not exist' USING ERRCODE='23503';
+    END IF;
+    IF item_org IS DISTINCT FROM venue_org THEN
+      RAISE EXCEPTION 'alcohol catalog item belongs to another organization' USING ERRCODE='23514';
+    END IF;
+    IF item_scope='venue' AND item_venue IS DISTINCT FROM NEW.venue_id THEN
+      RAISE EXCEPTION 'venue-scoped alcohol item belongs to another venue' USING ERRCODE='23514';
+    END IF;
+    IF NOT item_active AND (TG_OP='INSERT' OR OLD.alcohol_catalog_item_id IS DISTINCT FROM NEW.alcohol_catalog_item_id) THEN
+      RAISE EXCEPTION 'inactive alcohol catalog items cannot be newly linked' USING ERRCODE='23514';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS ingredients_alcohol_catalog_link_guard ON ingredients;
+CREATE TRIGGER ingredients_alcohol_catalog_link_guard
+  BEFORE INSERT OR UPDATE OF venue_id,organization_id,alcohol_catalog_item_id ON ingredients
+  FOR EACH ROW EXECUTE FUNCTION guard_ingredient_alcohol_catalog_link();
+
 CREATE TABLE recipes (
   product_id uuid PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
   instructions text
@@ -386,8 +512,33 @@ CREATE TABLE order_items (
   unit_price numeric(12,2) NOT NULL CHECK (unit_price >= 0),
   station text,
   status text NOT NULL DEFAULT 'new',
-  guest_number int
+  guest_number int,
+  sales_employee_id uuid REFERENCES users(id) ON DELETE RESTRICT,
+  sold_at timestamptz,
+  CHECK ((sales_employee_id IS NULL AND sold_at IS NULL) OR (sales_employee_id IS NOT NULL AND sold_at IS NOT NULL))
 );
+
+CREATE OR REPLACE FUNCTION validate_order_item_sales_attribution() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE order_venue_id uuid; order_organization_id uuid; employee_venue_id uuid; employee_organization_id uuid;
+BEGIN
+  IF NEW.sales_employee_id IS NULL THEN RETURN NEW; END IF;
+  SELECT o.venue_id,v.organization_id INTO order_venue_id,order_organization_id
+    FROM orders o JOIN venues v ON v.id=o.venue_id WHERE o.id=NEW.order_id;
+  SELECT u.venue_id,u.organization_id INTO employee_venue_id,employee_organization_id
+    FROM users u WHERE u.id=NEW.sales_employee_id AND u.is_active=true AND u.deleted_at IS NULL;
+  IF order_venue_id IS NULL OR employee_venue_id IS NULL
+      OR (employee_venue_id IS DISTINCT FROM order_venue_id
+        AND (order_organization_id IS NULL OR (employee_organization_id IS DISTINCT FROM order_organization_id
+          AND NOT EXISTS (SELECT 1 FROM organization_memberships m WHERE m.organization_id=order_organization_id AND m.user_id=NEW.sales_employee_id AND m.status='active')))) THEN
+    RAISE EXCEPTION 'order_item_sales_employee_venue_mismatch' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS order_items_sales_attribution_validate ON order_items;
+CREATE TRIGGER order_items_sales_attribution_validate
+  BEFORE INSERT OR UPDATE OF order_id,sales_employee_id,sold_at ON order_items
+  FOR EACH ROW EXECUTE FUNCTION validate_order_item_sales_attribution();
 
 CREATE TABLE discounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -452,6 +603,37 @@ CREATE TABLE shifts (
   closing_cash numeric(12,2)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS shifts_venue_id_id_uq ON shifts (venue_id,id);
+
+CREATE TABLE IF NOT EXISTS shift_close_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE RESTRICT,
+  shift_id uuid NOT NULL,
+  schema_version smallint NOT NULL DEFAULT 1 CHECK (schema_version=1),
+  checklist_version smallint NOT NULL DEFAULT 1 CHECK (checklist_version=1),
+  snapshot_payload jsonb NOT NULL CHECK (jsonb_typeof(snapshot_payload)='object'),
+  snapshot_sha256 text NOT NULL CHECK (snapshot_sha256 ~ '^[0-9a-f]{64}$'),
+  closed_by uuid REFERENCES users(id) ON DELETE RESTRICT,
+  captured_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT shift_close_snapshots_one_per_shift UNIQUE (venue_id,shift_id),
+  CONSTRAINT shift_close_snapshots_shift_fk FOREIGN KEY (venue_id,shift_id)
+    REFERENCES shifts(venue_id,id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS shift_close_snapshots_venue_captured_idx
+  ON shift_close_snapshots (venue_id,captured_at DESC,id DESC);
+
+CREATE OR REPLACE FUNCTION guard_shift_close_snapshot_immutable() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'shift close snapshots are immutable' USING ERRCODE='55000';
+END;
+$$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='shift_close_snapshots_immutable' AND tgrelid='shift_close_snapshots'::regclass) THEN
+    CREATE TRIGGER shift_close_snapshots_immutable
+      BEFORE UPDATE OR DELETE ON shift_close_snapshots
+      FOR EACH ROW EXECUTE FUNCTION guard_shift_close_snapshot_immutable();
+  END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS reservations_venue_id_id_uq ON reservations (venue_id,id);
 
@@ -839,4 +1021,497 @@ DO $$ BEGIN
       OR (selected_promotion_id IS NOT NULL AND selected_promotion_version > 0 AND length(btrim(selected_promotion_name)) > 0 AND selected_promotion_benefit_kind IN ('percent','fixed') AND selected_promotion_benefit_value > 0 AND selected_promotion_basis >= 0 AND selected_promotion_amount >= 0 AND selected_promotion_amount <= selected_promotion_basis)
     );
   END IF;
+END $$;
+-- Canonical immutable line pricing evidence created by the first tender or direct close.
+CREATE TABLE IF NOT EXISTS pos_order_pricing_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE RESTRICT,
+  order_id uuid NOT NULL,
+  schema_version integer NOT NULL DEFAULT 1 CHECK (schema_version=1),
+  policy_version integer NOT NULL DEFAULT 1 CHECK (policy_version=1),
+  currency_code text NOT NULL DEFAULT 'RUB' CHECK (currency_code='RUB'),
+  currency_scale smallint NOT NULL DEFAULT 2 CHECK (currency_scale=2),
+  sold_at timestamptz NOT NULL,
+  transaction_at timestamptz NOT NULL DEFAULT now(),
+  subtotal_minor bigint NOT NULL CHECK (subtotal_minor>=0),
+  discount_minor bigint NOT NULL CHECK (discount_minor>=0 AND discount_minor<=subtotal_minor),
+  minimum_adjustment_minor bigint NOT NULL CHECK (minimum_adjustment_minor>=0),
+  final_total_minor bigint NOT NULL CHECK (final_total_minor=subtotal_minor-discount_minor+minimum_adjustment_minor),
+  discount_source text NOT NULL CHECK (discount_source IN ('none','manual','guest_group','promotion')),
+  winner_source_id text,
+  winner_source_ids uuid[] NOT NULL DEFAULT '{}',
+  winner_terms jsonb NOT NULL DEFAULT '{}'::jsonb,
+  eligible_item_ids uuid[] NOT NULL DEFAULT '{}',
+  frozen_terms jsonb NOT NULL DEFAULT '{}'::jsonb,
+  UNIQUE (venue_id,order_id),
+  UNIQUE (venue_id,id,order_id),
+  FOREIGN KEY (venue_id,order_id) REFERENCES orders(venue_id,id) ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS order_items_order_id_id_uq ON order_items(order_id,id);
+CREATE TABLE IF NOT EXISTS pos_order_pricing_snapshot_lines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL,
+  snapshot_id uuid NOT NULL,
+  order_id uuid NOT NULL,
+  order_item_id uuid NOT NULL,
+  seller_id uuid,
+  sold_at timestamptz,
+  quantity numeric(12,3) NOT NULL CHECK(quantity>0),
+  unit_price numeric(12,2) NOT NULL CHECK(unit_price>=0),
+  gross_minor bigint NOT NULL CHECK(gross_minor>=0),
+  discount_minor bigint NOT NULL CHECK(discount_minor>=0 AND discount_minor<=gross_minor),
+  net_minor bigint NOT NULL CHECK(net_minor=gross_minor-discount_minor),
+  eligible boolean NOT NULL DEFAULT false,
+  product_facts jsonb NOT NULL DEFAULT '{}'::jsonb,
+  UNIQUE(snapshot_id,order_item_id),
+  FOREIGN KEY(venue_id,snapshot_id,order_id) REFERENCES pos_order_pricing_snapshots(venue_id,id,order_id) ON DELETE RESTRICT,
+  FOREIGN KEY(order_id,order_item_id) REFERENCES order_items(order_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY(seller_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS pos_order_pricing_snapshot_lines_item_idx ON pos_order_pricing_snapshot_lines(order_id,order_item_id);
+
+CREATE OR REPLACE FUNCTION validate_pos_order_pricing_snapshot_line_source() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE source_item record; source_product record;
+BEGIN
+  SELECT oi.*,o.venue_id AS source_venue_id INTO source_item
+    FROM order_items oi JOIN orders o ON o.id=oi.order_id
+    WHERE oi.order_id=NEW.order_id AND oi.id=NEW.order_item_id;
+  IF NOT FOUND OR source_item.source_venue_id IS DISTINCT FROM NEW.venue_id THEN
+    RAISE EXCEPTION 'pos_order_pricing_snapshot_line_source_missing_or_tenant_mismatch' USING ERRCODE='23514';
+  END IF;
+  SELECT p.* INTO source_product FROM products p
+    WHERE p.id=source_item.product_id AND p.venue_id=NEW.venue_id;
+  IF NOT FOUND
+      OR NEW.quantity IS DISTINCT FROM source_item.quantity
+      OR NEW.unit_price IS DISTINCT FROM source_item.unit_price
+      OR NEW.seller_id IS DISTINCT FROM source_item.sales_employee_id
+      OR NEW.sold_at IS DISTINCT FROM source_item.sold_at
+      OR NEW.product_facts->>'productId' IS DISTINCT FROM source_item.product_id::text
+      OR NEW.product_facts->>'productName' IS DISTINCT FROM source_product.name
+      OR NEW.product_facts->>'category' IS DISTINCT FROM source_product.category
+      OR NEW.product_facts->'productActive' IS DISTINCT FROM to_jsonb(source_product.is_active)
+      OR NEW.product_facts->>'station' IS DISTINCT FROM source_item.station THEN
+    RAISE EXCEPTION 'pos_order_pricing_snapshot_line_source_mismatch' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_line_source_validate ON pos_order_pricing_snapshot_lines;
+CREATE TRIGGER pos_order_pricing_snapshot_line_source_validate BEFORE INSERT ON pos_order_pricing_snapshot_lines FOR EACH ROW EXECUTE FUNCTION validate_pos_order_pricing_snapshot_line_source();
+
+CREATE OR REPLACE FUNCTION guard_pos_order_pricing_snapshot_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'pos_order_pricing_snapshot_immutable' USING ERRCODE='55000'; END $$;
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_immutable ON pos_order_pricing_snapshots;
+CREATE TRIGGER pos_order_pricing_snapshot_immutable BEFORE UPDATE OR DELETE ON pos_order_pricing_snapshots FOR EACH ROW EXECUTE FUNCTION guard_pos_order_pricing_snapshot_immutable();
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_no_truncate ON pos_order_pricing_snapshots;
+CREATE TRIGGER pos_order_pricing_snapshot_no_truncate BEFORE TRUNCATE ON pos_order_pricing_snapshots FOR EACH STATEMENT EXECUTE FUNCTION guard_pos_order_pricing_snapshot_immutable();
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_lines_immutable ON pos_order_pricing_snapshot_lines;
+CREATE TRIGGER pos_order_pricing_snapshot_lines_immutable BEFORE UPDATE OR DELETE ON pos_order_pricing_snapshot_lines FOR EACH ROW EXECUTE FUNCTION guard_pos_order_pricing_snapshot_immutable();
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_lines_no_truncate ON pos_order_pricing_snapshot_lines;
+CREATE TRIGGER pos_order_pricing_snapshot_lines_no_truncate BEFORE TRUNCATE ON pos_order_pricing_snapshot_lines FOR EACH STATEMENT EXECUTE FUNCTION guard_pos_order_pricing_snapshot_immutable();
+
+CREATE OR REPLACE FUNCTION guard_pos_order_item_after_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (TG_OP='UPDATE' AND (EXISTS (SELECT 1 FROM pos_order_pricing_snapshots s WHERE s.order_id=OLD.order_id) OR EXISTS (SELECT 1 FROM pos_order_pricing_snapshots s WHERE s.order_id=NEW.order_id)))
+    OR (TG_OP='DELETE' AND EXISTS (SELECT 1 FROM pos_order_pricing_snapshots s WHERE s.order_id=OLD.order_id))
+    OR (TG_OP='INSERT' AND EXISTS (SELECT 1 FROM pos_order_pricing_snapshots s WHERE s.order_id=NEW.order_id)) THEN
+    RAISE EXCEPTION 'order_item_pricing_snapshot_locked' USING ERRCODE='55000';
+  END IF;
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS pos_order_item_after_snapshot ON order_items;
+CREATE TRIGGER pos_order_item_after_snapshot BEFORE INSERT OR UPDATE OR DELETE ON order_items FOR EACH ROW EXECUTE FUNCTION guard_pos_order_item_after_snapshot();
+
+CREATE OR REPLACE FUNCTION validate_pos_order_pricing_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE v_snapshot_id uuid; expected_count bigint; actual_count bigint; gross_sum bigint; discount_sum bigint; net_sum bigint; header pos_order_pricing_snapshots%ROWTYPE;
+BEGIN
+  v_snapshot_id := COALESCE(NEW.snapshot_id,OLD.snapshot_id);
+  SELECT * INTO header FROM pos_order_pricing_snapshots s WHERE s.id=v_snapshot_id;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  SELECT count(*) INTO expected_count FROM order_items WHERE order_id=header.order_id;
+  SELECT count(*),COALESCE(sum(gross_minor),0),COALESCE(sum(discount_minor),0),COALESCE(sum(net_minor),0)
+    INTO actual_count,gross_sum,discount_sum,net_sum FROM pos_order_pricing_snapshot_lines l WHERE l.snapshot_id=v_snapshot_id;
+  IF actual_count<>expected_count OR gross_sum<>header.subtotal_minor OR discount_sum<>header.discount_minor OR net_sum<>header.subtotal_minor-header.discount_minor THEN
+    RAISE EXCEPTION 'pos_order_pricing_snapshot_reconciliation_failed' USING ERRCODE='23514';
+  END IF;
+  RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_lines_validate ON pos_order_pricing_snapshot_lines;
+CREATE CONSTRAINT TRIGGER pos_order_pricing_snapshot_lines_validate AFTER INSERT ON pos_order_pricing_snapshot_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_pos_order_pricing_snapshot();
+CREATE OR REPLACE FUNCTION validate_pos_order_pricing_snapshot_header() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE expected_count bigint; actual_count bigint; gross_sum bigint; discount_sum bigint; net_sum bigint; eligible_ids uuid[];
+BEGIN
+  SELECT count(*) INTO expected_count FROM order_items WHERE order_id=NEW.order_id;
+  SELECT count(*),COALESCE(sum(gross_minor),0),COALESCE(sum(discount_minor),0),COALESCE(sum(net_minor),0)
+    INTO actual_count,gross_sum,discount_sum,net_sum FROM pos_order_pricing_snapshot_lines WHERE snapshot_id=NEW.id;
+  SELECT COALESCE(array_agg(l.order_item_id ORDER BY l.order_item_id) FILTER(WHERE l.eligible),'{}'::uuid[]) INTO eligible_ids FROM pos_order_pricing_snapshot_lines l WHERE l.snapshot_id=NEW.id;
+  IF actual_count<>expected_count OR gross_sum<>NEW.subtotal_minor OR discount_sum<>NEW.discount_minor OR net_sum<>NEW.subtotal_minor-NEW.discount_minor OR eligible_ids<>NEW.eligible_item_ids THEN
+    RAISE EXCEPTION 'pos_order_pricing_snapshot_reconciliation_failed' USING ERRCODE='23514';
+  END IF;
+  RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_header_validate ON pos_order_pricing_snapshots;
+CREATE CONSTRAINT TRIGGER pos_order_pricing_snapshot_header_validate AFTER INSERT ON pos_order_pricing_snapshots DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_pos_order_pricing_snapshot_header();
+
+-- Mirror of additive 088 Finance payout ledger for fresh-schema parity.
+-- Finance-owned append-only POS payout ledger.
+-- This migration records factual external refunds only; it does not infer
+-- employee attribution or rewrite payments/orders.
+CREATE TABLE IF NOT EXISTS order_refunds (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL,
+  order_id uuid NOT NULL,
+  shift_id uuid NOT NULL,
+  amount numeric(12,2) NOT NULL CHECK (amount > 0 AND amount = round(amount, 2)),
+  item_attribution_status text NOT NULL DEFAULT 'unattributed'
+    CHECK (item_attribution_status = 'unattributed'),
+  reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 500),
+  idempotency_key text NOT NULL CHECK (length(btrim(idempotency_key)) BETWEEN 8 AND 120),
+  actor_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id, id),
+  UNIQUE (venue_id, id, order_id),
+  UNIQUE (venue_id, idempotency_key),
+  FOREIGN KEY (venue_id, order_id) REFERENCES orders (venue_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id, shift_id) REFERENCES shifts (venue_id, id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS order_refund_tenders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL,
+  refund_id uuid NOT NULL,
+  order_id uuid NOT NULL,
+  source_payment_id uuid NOT NULL,
+  amount numeric(12,2) NOT NULL CHECK (amount > 0 AND amount = round(amount, 2)),
+  payout_method text NOT NULL CHECK (payout_method IN ('cash','card','qr')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id, id),
+  FOREIGN KEY (venue_id, refund_id, order_id) REFERENCES order_refunds (venue_id, id, order_id) ON DELETE RESTRICT,
+  FOREIGN KEY (order_id, source_payment_id) REFERENCES payments (order_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS order_refunds_order_idx
+  ON order_refunds (venue_id, order_id, created_at, id);
+CREATE INDEX IF NOT EXISTS order_refunds_shift_idx
+  ON order_refunds (venue_id, shift_id, created_at);
+CREATE INDEX IF NOT EXISTS order_refund_tenders_refund_idx
+  ON order_refund_tenders (venue_id, refund_id, created_at);
+CREATE INDEX IF NOT EXISTS order_refund_tenders_payment_cap_idx
+  ON order_refund_tenders (venue_id, order_id, source_payment_id, created_at);
+
+CREATE OR REPLACE FUNCTION reject_order_refund_mutation() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'order refunds are append-only' USING ERRCODE = '55000';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS order_refunds_immutable ON order_refunds;
+CREATE TRIGGER order_refunds_immutable
+  BEFORE UPDATE OR DELETE ON order_refunds
+  FOR EACH ROW EXECUTE FUNCTION reject_order_refund_mutation();
+
+DROP TRIGGER IF EXISTS order_refunds_no_truncate ON order_refunds;
+CREATE TRIGGER order_refunds_no_truncate
+  BEFORE TRUNCATE ON order_refunds
+  FOR EACH STATEMENT EXECUTE FUNCTION reject_order_refund_mutation();
+
+DROP TRIGGER IF EXISTS order_refund_tenders_immutable ON order_refund_tenders;
+CREATE TRIGGER order_refund_tenders_immutable
+  BEFORE UPDATE OR DELETE ON order_refund_tenders
+  FOR EACH ROW EXECUTE FUNCTION reject_order_refund_mutation();
+
+DROP TRIGGER IF EXISTS order_refund_tenders_no_truncate ON order_refund_tenders;
+CREATE TRIGGER order_refund_tenders_no_truncate
+  BEFORE TRUNCATE ON order_refund_tenders
+  FOR EACH STATEMENT EXECUTE FUNCTION reject_order_refund_mutation();
+
+-- Mirror of additive 091 POS item return facts and database guards.
+-- Immutable item-sale return facts. Actual cash/card/QR payout remains in 088.
+ALTER TABLE order_refunds DROP CONSTRAINT IF EXISTS order_refunds_item_attribution_status_check;
+ALTER TABLE order_refunds ADD CONSTRAINT order_refunds_item_attribution_status_check
+  CHECK (item_attribution_status IN ('unattributed','complete','not_applicable'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS pos_order_pricing_snapshot_lines_return_source_uq
+  ON pos_order_pricing_snapshot_lines (venue_id,snapshot_id,order_id,order_item_id);
+
+CREATE TABLE IF NOT EXISTS pos_order_item_return_balances (
+  venue_id uuid NOT NULL,
+  snapshot_id uuid NOT NULL,
+  order_id uuid NOT NULL,
+  order_item_id uuid NOT NULL,
+  returned_quantity numeric(12,3) NOT NULL DEFAULT 0 CHECK (returned_quantity>=0),
+  returned_item_value_minor bigint NOT NULL DEFAULT 0 CHECK (returned_item_value_minor>=0),
+  PRIMARY KEY (venue_id,snapshot_id,order_id,order_item_id),
+  FOREIGN KEY (venue_id,snapshot_id,order_id,order_item_id)
+    REFERENCES pos_order_pricing_snapshot_lines (venue_id,snapshot_id,order_id,order_item_id) ON DELETE RESTRICT
+);
+
+-- This mutable row is a serialization/cap guard only. Append-only return rows remain the evidence.
+INSERT INTO pos_order_item_return_balances (venue_id,snapshot_id,order_id,order_item_id)
+SELECT venue_id,snapshot_id,order_id,order_item_id FROM pos_order_pricing_snapshot_lines
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE FUNCTION guard_pos_order_item_return_balance() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='TRUNCATE' OR TG_OP='DELETE' OR pg_trigger_depth()<2 THEN
+    RAISE EXCEPTION 'pos_order_item_return_balance_internal_only' USING ERRCODE='55000';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS pos_order_item_return_balance_internal ON pos_order_item_return_balances;
+CREATE TRIGGER pos_order_item_return_balance_internal BEFORE INSERT OR UPDATE OR DELETE ON pos_order_item_return_balances
+  FOR EACH ROW EXECUTE FUNCTION guard_pos_order_item_return_balance();
+DROP TRIGGER IF EXISTS pos_order_item_return_balance_no_truncate ON pos_order_item_return_balances;
+CREATE TRIGGER pos_order_item_return_balance_no_truncate BEFORE TRUNCATE ON pos_order_item_return_balances
+  FOR EACH STATEMENT EXECUTE FUNCTION guard_pos_order_item_return_balance();
+
+CREATE OR REPLACE FUNCTION seed_pos_order_item_return_balance() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO pos_order_item_return_balances (venue_id,snapshot_id,order_id,order_item_id)
+  VALUES (NEW.venue_id,NEW.snapshot_id,NEW.order_id,NEW.order_item_id) ON CONFLICT DO NOTHING;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS pos_order_item_return_balance_seed ON pos_order_pricing_snapshot_lines;
+CREATE TRIGGER pos_order_item_return_balance_seed AFTER INSERT ON pos_order_pricing_snapshot_lines
+  FOR EACH ROW EXECUTE FUNCTION seed_pos_order_item_return_balance();
+
+CREATE TABLE IF NOT EXISTS order_refund_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL,
+  refund_id uuid NOT NULL,
+  order_id uuid NOT NULL,
+  snapshot_id uuid NOT NULL,
+  order_item_id uuid NOT NULL,
+  returned_quantity numeric(12,3) NOT NULL CHECK (returned_quantity>0),
+  returned_item_value_minor bigint NOT NULL CHECK (returned_item_value_minor>=0),
+  return_policy_version integer NOT NULL DEFAULT 1 CHECK (return_policy_version=1),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id,id),
+  UNIQUE (venue_id,refund_id,order_item_id),
+  FOREIGN KEY (venue_id,refund_id,order_id)
+    REFERENCES order_refunds (venue_id,id,order_id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,snapshot_id,order_id)
+    REFERENCES pos_order_pricing_snapshots (venue_id,id,order_id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,snapshot_id,order_id,order_item_id)
+    REFERENCES pos_order_pricing_snapshot_lines (venue_id,snapshot_id,order_id,order_item_id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS order_refund_items_source_idx
+  ON order_refund_items (venue_id,snapshot_id,order_item_id,created_at,id);
+CREATE INDEX IF NOT EXISTS order_refund_items_refund_idx
+  ON order_refund_items (venue_id,refund_id,created_at,id);
+
+CREATE OR REPLACE FUNCTION guard_order_refund_item_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'order refund items are append-only' USING ERRCODE='55000'; END $$;
+DROP TRIGGER IF EXISTS order_refund_items_immutable ON order_refund_items;
+CREATE TRIGGER order_refund_items_immutable BEFORE UPDATE OR DELETE ON order_refund_items
+  FOR EACH ROW EXECUTE FUNCTION guard_order_refund_item_mutation();
+DROP TRIGGER IF EXISTS order_refund_items_no_truncate ON order_refund_items;
+CREATE TRIGGER order_refund_items_no_truncate BEFORE TRUNCATE ON order_refund_items
+  FOR EACH STATEMENT EXECUTE FUNCTION guard_order_refund_item_mutation();
+
+CREATE OR REPLACE FUNCTION validate_order_refund_item_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE refund_status text; header_created_at timestamptz; line record; next_quantity numeric(12,3); next_value bigint;
+BEGIN
+  SELECT item_attribution_status,created_at INTO refund_status,header_created_at
+    FROM order_refunds WHERE venue_id=NEW.venue_id AND id=NEW.refund_id AND order_id=NEW.order_id;
+  IF refund_status IS DISTINCT FROM 'complete' THEN
+    RAISE EXCEPTION 'order_refund_item_requires_complete_attribution' USING ERRCODE='23514';
+  END IF;
+  SELECT quantity,net_minor INTO line FROM pos_order_pricing_snapshot_lines
+    WHERE venue_id=NEW.venue_id AND snapshot_id=NEW.snapshot_id AND order_id=NEW.order_id AND order_item_id=NEW.order_item_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'order_refund_item_source_unavailable' USING ERRCODE='23514'; END IF;
+  UPDATE pos_order_item_return_balances b
+    SET returned_quantity=b.returned_quantity+NEW.returned_quantity,
+        returned_item_value_minor=round(line.net_minor::numeric*(b.returned_quantity+NEW.returned_quantity)/line.quantity,0)::bigint
+    WHERE b.venue_id=NEW.venue_id AND b.snapshot_id=NEW.snapshot_id AND b.order_id=NEW.order_id AND b.order_item_id=NEW.order_item_id
+      AND b.returned_quantity+NEW.returned_quantity<=line.quantity
+    RETURNING b.returned_quantity,b.returned_item_value_minor INTO next_quantity,next_value;
+  IF NOT FOUND THEN RAISE EXCEPTION 'order_refund_item_quantity_exceeds_remaining' USING ERRCODE='23514'; END IF;
+  NEW.returned_item_value_minor:=next_value-round(line.net_minor::numeric*(next_quantity-NEW.returned_quantity)/line.quantity,0)::bigint;
+  NEW.created_at:=header_created_at;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS order_refund_items_validate_insert ON order_refund_items;
+CREATE TRIGGER order_refund_items_validate_insert BEFORE INSERT ON order_refund_items
+  FOR EACH ROW EXECUTE FUNCTION validate_order_refund_item_insert();
+
+CREATE OR REPLACE FUNCTION validate_order_refund_item_attribution() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE item_count bigint; has_snapshot boolean;
+BEGIN
+  SELECT count(*) INTO item_count FROM order_refund_items WHERE venue_id=NEW.venue_id AND refund_id=NEW.id;
+  SELECT EXISTS(SELECT 1 FROM pos_order_pricing_snapshots s WHERE s.venue_id=NEW.venue_id AND s.order_id=NEW.order_id) INTO has_snapshot;
+  IF (NEW.item_attribution_status='complete' AND item_count=0)
+      OR (NEW.item_attribution_status='unattributed' AND item_count>0)
+      OR (NEW.item_attribution_status='not_applicable' AND (item_count>0 OR NOT has_snapshot)) THEN
+    RAISE EXCEPTION 'order_refund_item_attribution_reconciliation_failed' USING ERRCODE='23514';
+  END IF;
+  RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS order_refund_item_attribution_validate ON order_refunds;
+CREATE CONSTRAINT TRIGGER order_refund_item_attribution_validate AFTER INSERT ON order_refunds
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_order_refund_item_attribution();
+
+-- Verify the 090 evaluator's deterministic largest-remainder allocation at the database boundary.
+CREATE OR REPLACE FUNCTION validate_pos_order_pricing_snapshot_allocations(p_snapshot_id uuid) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE header pos_order_pricing_snapshots%ROWTYPE; mismatch boolean;
+BEGIN
+  SELECT * INTO header FROM pos_order_pricing_snapshots WHERE id=p_snapshot_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  WITH raw AS (
+    SELECT l.order_item_id,l.gross_minor,l.discount_minor,l.eligible,
+      l.quantity*l.unit_price*100 AS exact_gross,
+      floor(l.quantity*l.unit_price*100)::bigint AS floor_gross
+    FROM pos_order_pricing_snapshot_lines l WHERE l.snapshot_id=p_snapshot_id
+  ), ranked AS (
+    SELECT r.*,row_number() OVER (ORDER BY (exact_gross-floor_gross) DESC,order_item_id) AS gross_rank,
+      sum(floor_gross) OVER () AS floor_total
+    FROM raw r
+  )
+  SELECT EXISTS(SELECT 1 FROM ranked r WHERE r.gross_minor<>r.floor_gross+CASE WHEN r.gross_rank<=header.subtotal_minor-r.floor_total THEN 1 ELSE 0 END)
+    INTO mismatch;
+  IF mismatch THEN RAISE EXCEPTION 'pos_order_pricing_snapshot_gross_allocation_mismatch' USING ERRCODE='23514'; END IF;
+  WITH raw AS (
+    SELECT l.order_item_id,l.discount_minor,l.eligible,l.gross_minor,
+      sum(l.gross_minor) FILTER (WHERE l.eligible) OVER () AS eligible_total
+    FROM pos_order_pricing_snapshot_lines l WHERE l.snapshot_id=p_snapshot_id
+  ), parts AS (
+    SELECT r.*,CASE WHEN eligible AND eligible_total>0 THEN floor(header.discount_minor::numeric*gross_minor/eligible_total)::bigint ELSE 0::bigint END AS floor_discount,
+      CASE WHEN eligible AND eligible_total>0 THEN mod(header.discount_minor::numeric*gross_minor,eligible_total)::bigint ELSE 0::bigint END AS discount_remainder
+    FROM raw r
+  ), ranked AS (
+    SELECT p.*,row_number() OVER (ORDER BY CASE WHEN eligible THEN discount_remainder END DESC NULLS LAST,order_item_id) AS discount_rank,
+      sum(floor_discount) OVER () AS floor_total
+    FROM parts p
+  )
+  SELECT EXISTS(SELECT 1 FROM ranked r WHERE r.discount_minor<>r.floor_discount+CASE WHEN r.eligible AND r.discount_rank<=header.discount_minor-r.floor_total THEN 1 ELSE 0 END)
+    INTO mismatch;
+  IF mismatch THEN RAISE EXCEPTION 'pos_order_pricing_snapshot_discount_allocation_mismatch' USING ERRCODE='23514'; END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION trigger_validate_pos_order_pricing_snapshot_allocations() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_TABLE_NAME='pos_order_pricing_snapshots' THEN
+    PERFORM validate_pos_order_pricing_snapshot_allocations(NEW.id);
+  ELSE
+    PERFORM validate_pos_order_pricing_snapshot_allocations(NEW.snapshot_id);
+  END IF;
+  RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_allocations_header_validate ON pos_order_pricing_snapshots;
+CREATE CONSTRAINT TRIGGER pos_order_pricing_snapshot_allocations_header_validate AFTER INSERT ON pos_order_pricing_snapshots
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION trigger_validate_pos_order_pricing_snapshot_allocations();
+DROP TRIGGER IF EXISTS pos_order_pricing_snapshot_allocations_lines_validate ON pos_order_pricing_snapshot_lines;
+CREATE CONSTRAINT TRIGGER pos_order_pricing_snapshot_allocations_lines_validate AFTER INSERT ON pos_order_pricing_snapshot_lines
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION trigger_validate_pos_order_pricing_snapshot_allocations();
+
+-- Mirror of additive 092 POS item return ordering facts for fresh-schema parity.
+-- Attested per-source ordering for POS item returns. Existing 091 rows remain unsequenced.
+ALTER TABLE pos_order_item_return_balances
+  ADD COLUMN IF NOT EXISTS return_sequence bigint NOT NULL DEFAULT 0;
+ALTER TABLE pos_order_item_return_balances
+  DROP CONSTRAINT IF EXISTS pos_order_item_return_balances_sequence_check;
+ALTER TABLE pos_order_item_return_balances
+  ADD CONSTRAINT pos_order_item_return_balances_sequence_check CHECK (return_sequence>=0);
+
+ALTER TABLE order_refund_items ADD COLUMN IF NOT EXISTS producer_sequence bigint;
+ALTER TABLE order_refund_items ADD COLUMN IF NOT EXISTS previous_returned_quantity numeric(12,3);
+ALTER TABLE order_refund_items ADD COLUMN IF NOT EXISTS cumulative_returned_quantity numeric(12,3);
+ALTER TABLE order_refund_items ADD COLUMN IF NOT EXISTS previous_returned_item_value_minor bigint;
+ALTER TABLE order_refund_items ADD COLUMN IF NOT EXISTS cumulative_returned_item_value_minor bigint;
+ALTER TABLE order_refund_items
+  DROP CONSTRAINT IF EXISTS order_refund_items_sequence_lineage_check;
+ALTER TABLE order_refund_items
+  ADD CONSTRAINT order_refund_items_sequence_lineage_check CHECK (
+    (producer_sequence IS NULL
+      AND previous_returned_quantity IS NULL
+      AND cumulative_returned_quantity IS NULL
+      AND previous_returned_item_value_minor IS NULL
+      AND cumulative_returned_item_value_minor IS NULL)
+    OR
+    (producer_sequence IS NOT NULL AND producer_sequence>0
+      AND previous_returned_quantity IS NOT NULL AND previous_returned_quantity>=0
+      AND cumulative_returned_quantity IS NOT NULL
+      AND previous_returned_item_value_minor IS NOT NULL AND previous_returned_item_value_minor>=0
+      AND cumulative_returned_item_value_minor IS NOT NULL
+      AND cumulative_returned_quantity=previous_returned_quantity+returned_quantity
+      AND cumulative_returned_item_value_minor=previous_returned_item_value_minor+returned_item_value_minor)
+  );
+CREATE UNIQUE INDEX IF NOT EXISTS order_refund_items_source_sequence_uq
+  ON order_refund_items (venue_id,snapshot_id,order_id,order_item_id,producer_sequence)
+  WHERE producer_sequence IS NOT NULL;
+
+-- Do not derive sequence from 091 created_at/id. Validate, but preserve, the existing aggregate baseline.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pos_order_pricing_snapshot_lines l
+    LEFT JOIN pos_order_item_return_balances b
+      ON b.venue_id=l.venue_id AND b.snapshot_id=l.snapshot_id AND b.order_id=l.order_id AND b.order_item_id=l.order_item_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(sum(ri.returned_quantity),0) AS quantity,
+        COALESCE(sum(ri.returned_item_value_minor),0) AS value_minor
+      FROM order_refund_items ri
+      WHERE ri.venue_id=l.venue_id AND ri.snapshot_id=l.snapshot_id AND ri.order_id=l.order_id AND ri.order_item_id=l.order_item_id
+    ) e ON true
+    WHERE b.order_item_id IS NULL
+      OR b.returned_quantity<>e.quantity
+      OR b.returned_item_value_minor<>e.value_minor
+  ) THEN
+    RAISE EXCEPTION 'pos_order_item_return_balance_legacy_reconciliation_failed' USING ERRCODE='23514';
+  END IF;
+END $$;
+
+-- Replace the 091 writer with an ordered append-only producer. The balance row lock assigns
+-- sequence and freezes both sides of the transition in the same transaction.
+CREATE OR REPLACE FUNCTION validate_order_refund_item_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  refund_status text;
+  header_created_at timestamptz;
+  line record;
+  previous_sequence bigint;
+  previous_quantity numeric(12,3);
+  previous_value bigint;
+  next_quantity numeric(12,3);
+  next_value bigint;
+BEGIN
+  SELECT item_attribution_status,created_at INTO refund_status,header_created_at
+    FROM order_refunds WHERE venue_id=NEW.venue_id AND id=NEW.refund_id AND order_id=NEW.order_id;
+  IF refund_status IS DISTINCT FROM 'complete' THEN
+    RAISE EXCEPTION 'order_refund_item_requires_complete_attribution' USING ERRCODE='23514';
+  END IF;
+  SELECT quantity,net_minor INTO line FROM pos_order_pricing_snapshot_lines
+    WHERE venue_id=NEW.venue_id AND snapshot_id=NEW.snapshot_id AND order_id=NEW.order_id AND order_item_id=NEW.order_item_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'order_refund_item_source_unavailable' USING ERRCODE='23514'; END IF;
+
+  SELECT return_sequence,returned_quantity,returned_item_value_minor
+    INTO previous_sequence,previous_quantity,previous_value
+    FROM pos_order_item_return_balances
+    WHERE venue_id=NEW.venue_id AND snapshot_id=NEW.snapshot_id AND order_id=NEW.order_id AND order_item_id=NEW.order_item_id
+    FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'order_refund_item_balance_unavailable' USING ERRCODE='23514'; END IF;
+  next_quantity:=previous_quantity+NEW.returned_quantity;
+  IF next_quantity>line.quantity THEN
+    RAISE EXCEPTION 'order_refund_item_quantity_exceeds_remaining' USING ERRCODE='23514';
+  END IF;
+  next_value:=round(line.net_minor::numeric*next_quantity/line.quantity,0)::bigint;
+  IF previous_value>next_value THEN
+    RAISE EXCEPTION 'order_refund_item_value_reconciliation_failed' USING ERRCODE='23514';
+  END IF;
+
+  UPDATE pos_order_item_return_balances
+    SET return_sequence=previous_sequence+1,
+        returned_quantity=next_quantity,
+        returned_item_value_minor=next_value
+    WHERE venue_id=NEW.venue_id AND snapshot_id=NEW.snapshot_id AND order_id=NEW.order_id AND order_item_id=NEW.order_item_id;
+
+  NEW.producer_sequence:=previous_sequence+1;
+  NEW.previous_returned_quantity:=previous_quantity;
+  NEW.cumulative_returned_quantity:=next_quantity;
+  NEW.previous_returned_item_value_minor:=previous_value;
+  NEW.cumulative_returned_item_value_minor:=next_value;
+  NEW.returned_item_value_minor:=next_value-previous_value;
+  NEW.created_at:=header_created_at;
+  RETURN NEW;
 END $$;

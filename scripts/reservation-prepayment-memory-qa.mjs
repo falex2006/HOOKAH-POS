@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const start = source.indexOf('const reservation = reservations.find((entry) => entry.id === reservationPrePaymentPath[1]');
-const end = source.indexOf("if (pathname.startsWith('/api/reservations/') && req.method === 'POST' && pathname.endsWith('/cancel'))", start);
+const end = source.indexOf('const reservationAllocationReversal = pathname.match', start);
 assert.ok(start >= 0 && end > start, 'memory prepayment handler exists');
 const route = source.slice(start, end).replace(/\}\s*$/, '');
 const venueId = 'venue-a';

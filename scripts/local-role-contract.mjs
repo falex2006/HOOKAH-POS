@@ -45,6 +45,6 @@ assert.ok(server.includes("const activeClause = includeArchived ? '' : ' AND r.i
 assert.ok(server.includes('custom_staff_roles WHERE id=$1 AND organization_id=$2 AND venue_id=$3 AND is_active=true'), 'staff assignment accepts only active roles in the same organization and venue');
 assert.ok(server.includes('input.customRoleId !== undefined && !repositories?.pool') && server.includes("error: 'custom_roles_requires_database'"), 'assignment requires persistent custom-role storage');
 const staffCard = readFileSync(new URL('../staff-admin-card.js', import.meta.url), 'utf8');
-assert.ok(staffCard.includes("api('/api/staff/roles')") && staffCard.includes('Профиль доступа для текущей точки'), 'staff card loads current-venue custom roles');
+assert.ok(staffCard.includes("api('/api/staff/roles')") && staffCard.includes('Роль доступа задаёт доступы к разделам текущей точки.'), 'staff card loads current-venue custom roles and explains their scope');
 assert.ok(staffCard.includes('Не удалось загрузить профили доступа') && staffCard.includes('customRoleOptionsLoaded'), 'role load failures stay visible and do not silently clear assignment');
 console.log(`LOCAL ROLE CONTRACT: PASS (${Object.keys(roles).length} role permission profiles; URL role override disabled)`);

@@ -27,8 +27,10 @@ assert.match(source, /recipeUnitFactors\[sourceUnit\]\[normalizedTarget\]/,
   'server parser must convert only compatible normalized units');
 assert.match(source, /const parsed = parseRecipeQuantity\(item\.quantity, stockItem\.unit, item\.unit \|\| null\);/,
   'recipe normalization must validate each line against its linked stock item');
-assert.match(source, /const quantity = Number\(\(parsed\.amount \* parsed\.factor\)\.toFixed\(6\)\);[\s\S]*cost: Math\.round\(quantity \* Number\(stockItem\.cost \|\| 0\) \* 100\) \/ 100/,
-  'recipe costing must convert the measured quantity before applying stock unit cost');
-checks += 5;
+assert.match(source, /const recipeQuantityHasFiniteCost = \(parsed, stockItem\) =>[\s\S]*Number\.isFinite\(lineCost \* 100\)/,
+  'recipe create/update must reject quantities outside the finite line-cost range');
+assert.match(source, /const quantity = Number\(\(parsed\.amount \* parsed\.factor\)\.toFixed\(6\)\);[\s\S]*const unitCost = Number\(stockItem\.cost \|\| 0\); const lineCost = quantity \* unitCost;[\s\S]*Number\.isFinite\(lineCost \* 100\)[\s\S]*cost: Math\.round\(lineCost \* 100\) \/ 100/,
+  'recipe costing must convert the measured quantity, validate finite cost, then round cents');
+checks += 6;
 
 console.log(`RECIPE CHAIN CONTRACT QA: ${checks} checks passed`);

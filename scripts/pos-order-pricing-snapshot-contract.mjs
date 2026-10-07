@@ -1,0 +1,49 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+const normalize = (value) => value.replace(/\r\n/g, '\n');
+const migration = normalize(read('migrations/090_pos_order_pricing_snapshots.sql'));
+const refundMigration = normalize(read('migrations/088_pos_order_refunds.sql'));
+const itemReturnMigration = normalize(read('migrations/091_pos_order_refund_items.sql'));
+const itemReturnSequenceMigration = normalize(read('migrations/092_pos_order_refund_item_sequence.sql'));
+const schema = normalize(read('schema.sql'));
+const server = read('server.js');
+const db = read('db.js');
+
+for (const sql of [migration, schema.slice(schema.lastIndexOf('-- Canonical immutable line pricing evidence'))]) {
+  assert.match(sql, /UNIQUE\s*\(venue_id,order_id\)/i);
+  assert.match(sql, /currency_code\s+text\s+NOT NULL DEFAULT 'RUB' CHECK \(currency_code='RUB'\)/i);
+  assert.match(sql, /currency_scale\s+smallint\s+NOT NULL DEFAULT 2 CHECK \(currency_scale=2\)/i);
+  assert.match(sql, /BEFORE INSERT OR UPDATE OR DELETE ON order_items/i);
+  assert.match(sql, /eligible_ids<>NEW\.eligible_item_ids/i);
+  assert.match(sql, /pos_order_pricing_snapshot_header_validate AFTER INSERT ON pos_order_pricing_snapshots DEFERRABLE INITIALLY DEFERRED/i);
+  assert.match(sql, /BEFORE TRUNCATE ON pos_order_pricing_snapshot_lines/i);
+}
+const snapshotStart=schema.lastIndexOf('-- Canonical immutable line pricing evidence');
+const refundMirror=schema.indexOf('-- Mirror of additive 088 Finance payout ledger',snapshotStart);
+const itemReturnMirror=schema.indexOf('-- Mirror of additive 091 POS item return facts and database guards',refundMirror);
+const itemReturnSequenceMirror=schema.indexOf('-- Mirror of additive 092 POS item return ordering facts for fresh-schema parity.',itemReturnMirror);
+assert.equal(migration.trim(),schema.slice(snapshotStart,refundMirror).trim(),'fresh schema snapshot DDL matches migration 090');
+assert.equal(refundMigration.trim(),schema.slice(refundMirror+'-- Mirror of additive 088 Finance payout ledger for fresh-schema parity.'.length,itemReturnMirror).trim(),'fresh schema Finance refund DDL matches migration 088');
+assert.equal(itemReturnMigration.trim(),schema.slice(itemReturnMirror+'-- Mirror of additive 091 POS item return facts and database guards.'.length,itemReturnSequenceMirror).trim(),'fresh schema item-return DDL matches migration 091');
+assert.equal(itemReturnSequenceMigration.trim(),schema.slice(itemReturnSequenceMirror+'-- Mirror of additive 092 POS item return ordering facts for fresh-schema parity.'.length).trim(),'fresh schema item-return sequence DDL matches migration 092');
+assert.match(itemReturnMigration,/round\(line\.net_minor::numeric\*\(b\.returned_quantity\+NEW\.returned_quantity\)\/line\.quantity,0\)/,'item return uses cumulative numeric half-up value');
+assert.match(itemReturnMigration,/pos_order_item_return_balance_internal_only/,'direct counter mutation is blocked outside the row trigger');
+assert.match(itemReturnMigration,/pos_order_pricing_snapshot_discount_allocation_mismatch/,'database verifies deterministic per-line discount cents');
+assert.match(itemReturnSequenceMigration,/FOR UPDATE;/,'sequence is assigned while holding the keyed balance row lock');
+assert.match(itemReturnSequenceMigration,/order_refund_items_source_sequence_uq/,'sequence is unique per source item');
+assert.match(itemReturnSequenceMigration,/producer_sequence IS NULL[\s\S]*previous_returned_quantity IS NULL/,'legacy 091 facts stay explicitly unsequenced');
+assert.match(itemReturnSequenceMigration,/pos_order_item_return_balance_legacy_reconciliation_failed/,'upgrade validates and preserves existing aggregate return baseline');
+assert.match(server,/producer_sequence AS "producerSequence"/,'GET and replay API expose persisted item return sequences');
+assert.match(server,/cumulative_returned_item_value_minor AS "cumulativeReturnedItemValueMinor"/,'POST API returns immutable before/after value lineage');
+assert.match(server,/per_source_post_092/,'API marks the sequencing boundary without claiming legacy chronology');
+assert.match(server,/order_refund_items/,'authorized order refund flow stores item return lineage');
+assert.equal((server.match(/writePosOrderPricingSnapshot\(client/g) || []).length, 3, 'first tender and direct close share the transaction writer');
+assert.match(server, /lineSnapshotStatus:'unknown'/);
+assert.match(server, /FROM pos_order_pricing_snapshots/);
+assert.match(server, /FROM\s+pos_order_pricing_snapshot_lines sl\s+JOIN pos_order_pricing_snapshots/);
+assert.match(db, /pos_order_pricing_snapshot_lines/);
+assert.match(db, /CASE WHEN sl\.id IS NULL THEN oi\.sales_employee_id ELSE sl\.seller_id END/);
+assert.match(db, /sales_employee\.id=CASE WHEN sl\.id IS NULL THEN oi\.sales_employee_id ELSE sl\.seller_id END/);
+console.log('POS immutable pricing snapshot contract: PASS');

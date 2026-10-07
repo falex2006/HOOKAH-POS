@@ -21,6 +21,7 @@ const capacity = fs.readFileSync(path.join(migrationDir, '024_table_capacity_ran
 const shifts = fs.readFileSync(path.join(migrationDir, '041_single_open_shift.sql'), 'utf8');
 const stockPrecision = fs.readFileSync(path.join(migrationDir, '055_stock_movement_precision.sql'), 'utf8');
 const premixLifecycle = fs.readFileSync(path.join(migrationDir, '056_premix_batch_lifecycle.sql'), 'utf8');
+const shiftCloseSnapshots = fs.readFileSync(path.join(migrationDir, '093_shift_close_snapshots.sql'), 'utf8');
 assert.match(expenses, /DO\s+\$\$[\s\S]*payroll_entries_expense_fk[\s\S]*END\s*\$\$;/, 'expense FK must be guarded');
 assert.match(capacity, /DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+tables_capacity_range_check[\s\S]*DO\s+\$\$[\s\S]*tables_capacity_range_check[\s\S]*END\s*\$\$;/, 'capacity constraint must be replay-safe');
 assert.doesNotMatch(expenses, /^ALTER\s+TABLE\s+payroll_entries\s+ADD\s+CONSTRAINT/m, 'expense FK must not be added unconditionally');
@@ -46,6 +47,11 @@ assert.match(premixLifecycle, /inventory_premix_batch_movements[\s\S]*quantity_d
   'per-lot stock allocations use append-only precise quantities');
 assert.match(premixLifecycle, /BEFORE UPDATE OR DELETE ON inventory_premix_batch_movements/,
   'lot movement history cannot be rewritten or deleted');
+assert.match(shiftCloseSnapshots, /UNIQUE\s*\(venue_id,shift_id\)/, 'each shift has at most one close snapshot');
+assert.match(shiftCloseSnapshots, /FOREIGN KEY\s*\(venue_id,shift_id\)\s*REFERENCES shifts\(venue_id,id\) ON DELETE RESTRICT/, 'snapshot is scoped to and retained with its venue shift');
+assert.match(shiftCloseSnapshots, /BEFORE UPDATE OR DELETE ON shift_close_snapshots/, 'close snapshots are immutable');
+const schema = fs.readFileSync(path.join(root, 'schema.sql'), 'utf8');
+assert.match(schema, /CREATE TABLE IF NOT EXISTS shift_close_snapshots[\s\S]*?BEFORE UPDATE OR DELETE ON shift_close_snapshots/, 'base schema includes the same immutable close snapshot contract');
 
 const migrationRunner = fs.readFileSync(path.join(root, 'migrate-vps.sh'), 'utf8');
 assert.match(migrationRunner, /migrations\/\*\.sql/);

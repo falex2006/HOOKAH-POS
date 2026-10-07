@@ -55,11 +55,15 @@ assert.match(styles, /dashboard-revenue-card \.dashboard-revenue-main>strong\{[^
   'received revenue must remain the dominant value');
 assert.match(styles, /\.dashboard-kpi-grid\{grid-template-columns:minmax\(0,1fr\);/,
   'mobile KPI layout must use one column');
-const revenueCompactRule = styles.lastIndexOf('@container crm-content (max-width:560px)');
-const revenuePhoneOverride = styles.lastIndexOf('@container crm-content (max-width:380px)');
+const inlineSizeContainerRules = styles.slice(
+  styles.indexOf('@supports (container-type:inline-size)'),
+  styles.indexOf('@supports not (container-type:inline-size)')
+);
+const revenueCompactRule = inlineSizeContainerRules.lastIndexOf('@container crm-content (max-width:560px)');
+const revenuePhoneOverride = inlineSizeContainerRules.lastIndexOf('@container crm-content (max-width:380px)');
 assert.ok(revenueCompactRule >= 0 && revenuePhoneOverride > revenueCompactRule,
   'the narrow-content revenue-card rule must follow the wider compact rule in the cascade');
-const narrowRevenueRules = styles.slice(revenuePhoneOverride, styles.indexOf('\n  }', revenuePhoneOverride));
+const narrowRevenueRules = inlineSizeContainerRules.slice(revenuePhoneOverride, inlineSizeContainerRules.indexOf('\n  }', revenuePhoneOverride));
 assert.match(narrowRevenueRules, /\.dashboard-kpi-grid>\.dashboard-revenue-card\{grid-template-columns:minmax\(0,1fr\);/,
   'revenue card must stack when the usable page content is 380px or narrower, including narrow phone shells');
 assert.match(narrowRevenueRules, /\.dashboard-kpi-grid \.dashboard-revenue-pending\{width:min\(100%,180px\);align-self:start/,

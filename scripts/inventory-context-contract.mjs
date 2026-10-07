@@ -24,7 +24,7 @@ assert.match(portal, /const addButton = document\.querySelector\('#new-product'\
 assert.match(portal, /addButton\.disabled = form\.dataset\.submitting === '1'; addButton\.innerHTML = `\$\{icon\('plus'\)\} Добавить товар`/,
   'closing or saving the product editor must restore the add-product action');
 assert.match(portal, /id="open-products"/, 'directory panel retains its catalog navigation action');
-assert.match(portal, /actions: \[\['department', 'Добавить цех', 'primary'\], \['subdepartment', 'Добавить подцех', ''\], \['category', 'Добавить категорию', ''\]\]/,
+assert.match(portal, /actions: \[\['department', 'Новый цех', 'primary'\], \['subdepartment', 'Новый подцех', ''\], \['category', 'Новая категория', ''\]\]/,
   'directory creation actions belong together in the page heading');
 const directoryPanelMarkup = portal.match(/const categoryPanel = document\.createElement\('section'\);[\s\S]*?target\.append\(categoryPanel\)/)?.[0] || '';
 assert.doesNotMatch(directoryPanelMarkup, /id="new-inventory-department"|id="new-inventory-subdepartment"|id="new-product-category"/,

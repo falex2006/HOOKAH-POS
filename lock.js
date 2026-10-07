@@ -149,6 +149,8 @@
         if (String(nextUser.id || '') !== String(user.id || '')) { redirectToLogin(); return; }
         user = { ...user, ...nextUser };
         autoLockEnabled = Boolean(user.pinConfigured);
+        timeoutMinutes = readTimeout();
+        syncSettings();
         settingsDialog.querySelector('#lock-pin-state').textContent = user.pinConfigured ? 'Настроен' : 'Не задан';
         clearTimeout(timer);
         schedule();

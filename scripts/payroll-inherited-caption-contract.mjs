@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source=fs.readFileSync(new URL('../payroll-scheme-ui.js',import.meta.url),'utf8');
+const start=source.indexOf('  const EDITOR_MODES ='),end=source.indexOf('  const venueLocalToday =',start);
+assert.ok(start>0&&end>start);const context=vm.createContext({structuredClone});
+vm.runInContext(source.slice(start,end)+'\nglobalThis.read=editorInheritedParameter;globalThis.caption=editorInheritedCaption;',context);
+const definition={mode:'progressive_daily',effectiveFrom:'2026-10-01',roleParameters:{bar:{perShiftCents:0},next:{mode:'stable_percent'}},
+ roleAssignments:[{employeeId:'a',roleId:'bar',effectiveFrom:'2026-10-01',effectiveTo:'2026-10-14'},
+  {employeeId:'a',roleId:'next',effectiveFrom:'2026-10-15'}],employeeOverrides:[{employeeId:'a',path:'mode',mode:'override',value:'stable_percent'}]};
+const item={employeeId:'a',path:'applyMilestones',effectiveFrom:'2026-10-01'};
+const before=structuredClone(definition);
+assert.equal(context.read(definition,item).value,true);
+assert.equal(context.read(definition,item).origin,'role_mode');
+assert.equal(context.read(definition,{...item,effectiveFrom:'2026-10-15'}).value,false);
+assert.match(context.caption(definition,item),/На 2026-10-01.*начислять.*режим роли/);
+assert.equal(context.read({...definition,applyMilestones:false},item).value,false);
+assert.equal(context.read({...definition,applyMilestones:false,roleParameters:{...definition.roleParameters,bar:{applyMilestones:true}}},item).value,true);
+assert.equal(context.read(definition,item,[{role:'bar',path:'mode',type:'select',text:'stable_percent'}]).value,false);
+assert.equal(context.read(definition,item,[{role:'bar',path:'applyMilestones',type:'boolean',text:'false'}]).value,false);
+assert.equal(context.read(definition,{...item,path:'perShiftCents'}).value,0);
+assert.equal(context.read(definition,item,[{role:'bar',path:'perShiftCents',type:'money',text:'bad'}]).value,true,'unrelated invalid money does not obscure premium inheritance');
+assert.equal(context.read(definition,{...item,path:'perShiftCents'},[{role:'bar',path:'applyMilestones',type:'boolean',text:'bad'}]).value,0);
+assert.equal(context.read({...definition,applyMilestones:false},item,[{role:'bar',path:'mode',type:'select',text:'bad'}]).value,false,'explicit scheme flag needs no mode fallback');
+assert.equal(context.read(definition,{...item,path:'mode'}).value,'progressive_daily');
+assert.equal(context.read(definition,{...item,effectiveFrom:'2026-09-30'}).origin,'unassigned');
+const ambiguous={...definition,roleAssignments:[...definition.roleAssignments,{employeeId:'a',roleId:'next',effectiveFrom:'2026-10-01'}]};
+assert.equal(context.read(ambiguous,item).origin,'ambiguous');
+assert.match(context.caption(ambiguous,item),/пересекаются/);
+assert.throws(()=>context.read(definition,{...item,effectiveFrom:'2026-02-30'}));
+assert.deepEqual(definition,before,'caption never mutates definition or personal values');
+assert.ok(source.includes('escapeHtml(inheritedCaption)'));
+assert.ok(source.includes("card.querySelector('[data-grid-inherited-caption]')"));
+assert.match(source,/label\.textContent=/);
+console.log('PAYROLL INHERITED CAPTION: PASS (role/scheme/default, dated role, live edits, gaps/ambiguity, zero and no mutation)');

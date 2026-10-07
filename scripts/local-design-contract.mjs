@@ -10,6 +10,7 @@ for (const file of readdirSync(root).filter(file => file.endsWith('.html'))) {
 }
 assert.ok(htmlFiles.length >= 14, 'all application HTML routes should be present');
 const syncScript = readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
+const shiftCloseContract = readFileSync(new URL('../shift-close-contract.js', import.meta.url), 'utf8');
 const cssRevision = Number(syncScript.match(/cssRevision = '(\d+)'/)?.[1]);
 const portalRevision = Number(syncScript.match(/portalRevision = '(\d+)'/)?.[1]);
 const appRevision = Number(syncScript.match(/appRevision = '(\d+)'/)?.[1]);
@@ -30,6 +31,12 @@ for (const file of htmlFiles) {
   if (file === 'platform.html') assert.match(html, new RegExp(`platform\\.js\\?rev=${platformRevision}`), 'platform.html must use current platform JS cache version');
 }
 const distRoot = new URL('../dist/', import.meta.url);
+assert.match(syncScript, /cpSync\(resolve\(root, 'shift-close-contract\.js'\), resolve\(root, 'dist', 'shift-close-contract\.js'\)\)/,
+  'the shared shift close contract is copied to the published static directory');
+assert.equal(readFileSync(new URL('../dist/shift-close-contract.js', import.meta.url), 'utf8'), shiftCloseContract,
+  'the published checklist contract matches its source');
+assert.match(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /shift-close-contract\.js\?rev=\d+/);
+assert.match(readFileSync(new URL('../admin.html', import.meta.url), 'utf8'), /shift-close-contract\.js\?rev=\d+/);
 const distHtmlFiles = [];
 const walk = (directory) => {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {

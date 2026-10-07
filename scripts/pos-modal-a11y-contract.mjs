@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 const app = fs.readFileSync('app.js', 'utf8');
 const start = app.indexOf('const requestStaffAction=');
-const end = app.indexOf('\n', start);
+const end = app.indexOf('\nconst deleteButton=', start);
 assert.notEqual(start, -1, 'shared POS action dialog helper exists');
 const helper = app.slice(start, end);
 

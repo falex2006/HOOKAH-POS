@@ -8,12 +8,17 @@ const baseInput = {
   periodFrom: '2026-09-01',
   periodTo: '2026-09-02',
   coverage: { kind: 'month_to_date_complete', from: '2026-09-01', through: '2026-09-02', complete: true, watermark: 'contract-fixture-v1' },
+  attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-09-01', through: '2026-09-02', complete: true, watermark: 'attendance-fixture-v1' },
   monthClosed: false,
   employees: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
   roleAssignments: [
     { employeeId: 'a', roleId: 'bartender', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' },
     { employeeId: 'b', roleId: 'hookah', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' },
     { employeeId: 'c', roleId: 'hookah', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' }
+  ],
+  attendance: [
+    { id: 'shift-a-1', employeeId: 'a', date: '2026-09-01', approved: true, workedMinutes: 480, plannedMinutes: 480 },
+    { id: 'shift-a-2', employeeId: 'a', date: '2026-09-02', approved: true, workedMinutes: 480, plannedMinutes: 480 }
   ],
   sales: [
     { id: 'line-1', date: '2026-09-01', employeeId: 'a', menuItemId: 'water', department: 'bar', turnoverCents: 15000, commissionBaseCents: 15000 },
@@ -44,6 +49,9 @@ const baseInput = {
 
 const progressive = calculatePayrollScheme(baseInput);
 assert.equal(progressive.status, 'ready');
+assert.equal(progressive.payoutEligible, false, 'independent milestone obligations can breach the strict personal daily revenue guard');
+assert.ok(progressive.criticalErrors.some((error) => error.employeeId === 'b' && error.date === '2026-09-02'
+  && error.payoutCents === 5000 && error.personalRevenueCents === 0), 'zero-sale milestone recipient is reported as a critical payout violation');
 assert.equal(progressive.monthTurnoverCents, 35000);
 assert.equal(progressive.daily[0].employees.find((row) => row.employeeId === 'a').commissionCents, 1500);
 const day2A = progressive.daily[1].employees.find((row) => row.employeeId === 'a');
@@ -57,6 +65,75 @@ assert.equal(progressive.daily[1].employees.find((row) => row.employeeId === 'b'
 assert.equal(progressive.daily[1].employees.find((row) => row.employeeId === 'b').amountCents, 5000); // milestone bonus despite no sale
 assert.equal(progressive.employees.find((row) => row.employeeId === 'c').milestoneBonusCents, 0); // explicit zero override
 assert.equal(progressive.venueTurnoverBasis, 'sales_line_sum_scenario', 'legacy scenario callers are explicitly marked as line-derived venue turnover');
+
+const attendanceOnlyShift = calculatePayrollScheme({
+  ...baseInput,
+  periodFrom: '2026-09-03', periodTo: '2026-09-03',
+  coverage: { ...baseInput.coverage, through: '2026-09-03' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-03' },
+  roleAssignments: [
+    { employeeId: 'a', roleId: 'bartender', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' },
+    { employeeId: 'b', roleId: 'hookah', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' },
+    { employeeId: 'c', roleId: 'hookah', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-30' }
+  ],
+  attendance: [
+    { id: 'zero-sales-shift', employeeId: 'a', date: '2026-09-03', approved: true, workedMinutes: 240, plannedMinutes: 480 },
+    { id: 'second-half', employeeId: 'a', date: '2026-09-03', approved: true, workedMinutes: 240, plannedMinutes: 480 }
+  ], sales: [],
+  scheme: { ...baseInput.scheme, roleParameters: { bartender: { perShiftCents: 10000, stableRateBps: 0, bracketRatesBps: { 0: 0 } }, hookah: { perShiftCents: 0, bracketRatesBps: { 0: 0 } } }, employeeOverrides: [], itemRules: [] }
+});
+assert.equal(attendanceOnlyShift.status, 'ready');
+assert.equal(attendanceOnlyShift.employees[0].shifts, 2, 'approved scheduled shifts, not sales, determine shift count');
+assert.equal(attendanceOnlyShift.employees[0].basePayCents, 10000, 'each shift is prorated and rounded half up independently');
+assert.deepEqual(attendanceOnlyShift.daily[0].employees[0].shiftDetails.map((shift) => [shift.workedMinutes, shift.plannedMinutes, shift.amountCents]), [[240, 480, 5000], [240, 480, 5000]], 'daily result preserves per-shift minute and amount lineage');
+const missingAttendance = calculatePayrollScheme({ ...baseInput, attendance: undefined });
+assert.ok(missingAttendance.blockers.includes('input_collections_required'), 'missing attendance manifest blocks shift-rate calculation');
+const invalidAttendance = calculatePayrollScheme({ ...baseInput, attendance: [{ id: 'bad', employeeId: 'a', date: '2026-09-01', approved: false, workedMinutes: 200, plannedMinutes: 480 }] });
+assert.ok(invalidAttendance.blockers.includes('invalid_attendance_row'));
+const inactiveSales = calculatePayrollScheme({ ...baseInput, employees: [{ id: 'a', activeTo: '2026-08-31' }, { id: 'b' }, { id: 'c' }] });
+assert.ok(inactiveSales.blockers.includes('sales_outside_employee_active_period'));
+const incompleteAttendanceCoverage = calculatePayrollScheme({ ...baseInput, attendanceCoverage: { ...baseInput.attendanceCoverage, complete: false } });
+assert.ok(incompleteAttendanceCoverage.blockers.includes('attendance_coverage_manifest_required'));
+const inactiveAttendance = calculatePayrollScheme({ ...baseInput, employees: [{ id: 'a', activeTo: '2026-09-01' }, { id: 'b' }, { id: 'c' }] });
+assert.ok(inactiveAttendance.blockers.includes('attendance_outside_employee_active_period'));
+
+const endedEmployee = calculatePayrollScheme({
+  ...baseInput,
+  periodFrom: '2026-09-01', periodTo: '2026-09-02',
+  employees: [{ id: 'b', activeTo: '2026-09-01' }], roleAssignments: [baseInput.roleAssignments[1]], attendance: [], sales: [],
+  scheme: { ...baseInput.scheme, employeeOverrides: baseInput.scheme.employeeOverrides.filter((item) => item.employeeId === 'b'), itemRules: [] },
+  venueDailyTurnover: [ { date: '2026-09-01', turnoverCents: 0 }, { date: '2026-09-02', turnoverCents: 20000 } ]
+});
+assert.equal(endedEmployee.status, 'ready', endedEmployee.blockers.join(','));
+assert.equal(endedEmployee.employees[0].milestoneBonusCents, 0, 'employee inactive on crossing date is ineligible for milestone');
+
+const unattributedTurnover = calculatePayrollScheme({ ...baseInput, sales: [...baseInput.sales, { id: 'unattributed-turnover', date: '2026-09-02', employeeId: null, department: 'bar', turnoverCents: 10000, commissionBaseCents: 0 }] });
+assert.ok(unattributedTurnover.blockers.includes('unattributed_sales_line'), 'positive turnover with zero commission base still needs attribution');
+
+assert.ok(validateScheme({ ...baseInput.scheme, itemRules: {} }).includes('invalid_item_rules'));
+assert.ok(validateScheme({ ...baseInput.scheme, employeeOverrides: {} }).includes('invalid_employee_overrides'));
+assert.ok(validateScheme({ ...baseInput.scheme, itemRules: [null] }).includes('invalid_item_rule'));
+assert.ok(validateScheme({ ...baseInput.scheme, employeeOverrides: [null] }).includes('invalid_employee_override'));
+const malformedCollections = calculatePayrollScheme({
+  ...baseInput,
+  scheme: { ...baseInput.scheme, employeeOverrides: {}, itemRules: {} }
+});
+assert.equal(malformedCollections.status, 'blocked', 'malformed scheme collections block safely instead of throwing during calculation');
+const malformedCollectionRows = calculatePayrollScheme({
+  ...baseInput,
+  scheme: { ...baseInput.scheme, employeeOverrides: [null], itemRules: [null] }
+});
+assert.equal(malformedCollectionRows.status, 'blocked', 'null rows inside scheme collections block safely');
+assert.ok(calculatePayrollScheme({ ...baseInput, roleAssignments: [null] }).blockers.includes('invalid_role_assignment'), 'malformed role assignment rows return a blocker safely');
+assert.ok(calculatePayrollScheme({ ...baseInput, employees: [null] }).blockers.includes('invalid_employee'), 'malformed employee rows return a blocker safely');
+assert.ok(!validateScheme({ ...baseInput.scheme, employeeOverrides: [
+  { employeeId: 'a', path: 'perShiftCents', mode: 'override', value: 100, effectiveFrom: '2026-09-01', effectiveTo: '2026-09-10' },
+  { employeeId: 'a', path: 'perShiftCents', mode: 'override', value: 200, effectiveFrom: '2026-09-11', effectiveTo: '2026-09-30' }
+] }).includes('overlapping_employee_override'), 'nonoverlapping effective overrides are valid');
+assert.ok(validateScheme({ ...baseInput.scheme, employeeOverrides: [
+  { employeeId: 'a', path: 'perShiftCents', mode: 'override', value: 100, effectiveFrom: '2026-09-01', effectiveTo: '2026-09-12' },
+  { employeeId: 'a', path: 'perShiftCents', mode: 'override', value: 200, effectiveFrom: '2026-09-12', effectiveTo: '2026-09-30' }
+] }).includes('overlapping_employee_override'), 'overlapping effective overrides are rejected');
 
 const venueDailyManifest = calculatePayrollScheme({
   ...baseInput,
@@ -93,6 +170,8 @@ const capped = calculatePayrollScheme({
   periodFrom: '2026-09-03',
   periodTo: '2026-09-03',
   coverage: { ...baseInput.coverage, through: '2026-09-03', watermark: 'cap-fixture-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-03' },
+  attendance: [{ id: 'cap-shift', employeeId: 'b', date: '2026-09-03', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
   venueDailyTurnover: [
     { date: '2026-09-01', turnoverCents: 0 },
     { date: '2026-09-02', turnoverCents: 0 },
@@ -105,6 +184,8 @@ assert.equal(capped.status, 'ready');
 assert.equal(capped.daily[0].lines[0].commissionCents, 4000, 'commission remains based on net commissionable line amount');
 assert.equal(capped.daily[0].employees[0].departmentSalesCents.hookah, 8000, 'existing commission-base diagnostic retains its prior meaning');
 assert.equal(capped.daily[0].employees[0].departmentTurnoverCents.hookah, 20000, 'cap diagnostics expose employee-attributed department turnover');
+assert.equal(capped.daily[0].employees[0].personalRevenueCents, 20000, 'scenario payout guard uses attributed turnover, independently of the 8000 commission base');
+assert.equal(capped.payoutEligible, true, 'scenario guard does not substitute the smaller commission base for the distinct turnover proxy');
 assert.equal(capped.daily[0].venueTurnoverCents, 50000, 'venue total is independent of employee-attributed line turnover');
 assert.equal(capped.daily[0].employees[0].capCents, 6000, 'cap is calculated from turnover rather than commission base');
 assert.equal(capped.employees.find((row) => row.employeeId === 'b').amountBeforeCapCents, 14000);
@@ -118,6 +199,8 @@ const venueDayCap = calculatePayrollScheme({
   periodFrom: '2026-09-03',
   periodTo: '2026-09-03',
   coverage: { ...baseInput.coverage, through: '2026-09-03', watermark: 'venue-cap-fixture-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-03' },
+  attendance: [{ id: 'venue-cap-shift', employeeId: 'b', date: '2026-09-03', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
   venueDailyTurnover: [
     { date: '2026-09-01', turnoverCents: 0 },
     { date: '2026-09-02', turnoverCents: 0 },
@@ -137,6 +220,11 @@ const scopedDepartmentCap = calculatePayrollScheme({
   periodFrom: '2026-09-03',
   periodTo: '2026-09-03',
   coverage: { ...baseInput.coverage, through: '2026-09-03', watermark: 'scoped-department-cap-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-03' },
+  attendance: [
+    { id: 'scoped-shift-b', employeeId: 'b', date: '2026-09-03', approved: true, workedMinutes: 480, plannedMinutes: 480 },
+    { id: 'scoped-shift-c', employeeId: 'c', date: '2026-09-03', approved: true, workedMinutes: 480, plannedMinutes: 480 }
+  ],
   venueDailyTurnover: [
     { date: '2026-09-01', turnoverCents: 0 },
     { date: '2026-09-02', turnoverCents: 0 },
@@ -172,11 +260,41 @@ const stable = calculatePayrollScheme({
   roleAssignments: [baseInput.roleAssignments[0]],
   periodTo: '2026-09-01',
   coverage: { ...baseInput.coverage, through: '2026-09-01', watermark: 'stable-fixture-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-01' },
+  attendance: [{ id: 'stable-shift', employeeId: 'a', date: '2026-09-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
   sales: [baseInput.sales[0]],
   scheme: { id: 'stable', versionId: 'stable-v1', mode: 'stable_percent', roleParameters: { bartender: { perShiftCents: 10000, stableRateBps: 1000 } } }
 });
 assert.equal(stable.status, 'ready');
+assert.equal(stable.payoutEligible, true, 'personal daily compensation below personal net revenue is eligible');
+assert.equal(stable.employees.find((row) => row.employeeId === 'a').personalRevenueCents, 15000);
 assert.equal(stable.employees.find((row) => row.employeeId === 'a').amountCents, 11500);
+
+const personalRevenueBoundary = calculatePayrollScheme({
+  ...baseInput,
+  employees: [{ id: 'a' }], roleAssignments: [baseInput.roleAssignments[0]], periodTo: '2026-09-01',
+  coverage: { ...baseInput.coverage, through: '2026-09-01', watermark: 'revenue-boundary-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-01' }, attendance: [], sales: [baseInput.sales[0]],
+  scheme: { id: 'revenue-boundary', versionId: 'revenue-boundary-v1', mode: 'percent_only', roleParameters: { bartender: { stableRateBps: 10000 } }, applyMilestones: false }
+});
+assert.equal(personalRevenueBoundary.employees.find((row) => row.employeeId === 'a').amountCents, 15000);
+assert.equal(personalRevenueBoundary.payoutEligible, true, 'exact equality with personal daily revenue passes the guard');
+assert.deepEqual(personalRevenueBoundary.criticalErrors, []);
+
+const personalRevenueExceeded = calculatePayrollScheme({
+  ...baseInput,
+  employees: [{ id: 'a' }], roleAssignments: [baseInput.roleAssignments[0]], periodTo: '2026-09-01',
+  coverage: { ...baseInput.coverage, through: '2026-09-01', watermark: 'revenue-exceeded-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-01' },
+  attendance: [{ id: 'guard-shift', employeeId: 'a', date: '2026-09-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
+  sales: [baseInput.sales[0]],
+  scheme: { id: 'revenue-exceeded', versionId: 'revenue-exceeded-v1', mode: 'progressive_daily', applyMilestones: false,
+    roleParameters: { bartender: { perShiftCents: 20000, bracketRatesBps: { 0: 1000 } } } }
+});
+assert.equal(personalRevenueExceeded.status, 'ready', 'scenario math stays available for comparison');
+assert.equal(personalRevenueExceeded.payoutEligible, false, 'critical guard disallows fixing a result that overpays own daily revenue');
+assert.deepEqual(personalRevenueExceeded.criticalErrors, [{ code: 'employee_daily_pay_exceeds_personal_revenue', employeeId: 'a',
+  date: '2026-09-01', payoutCents: 21500, personalRevenueCents: 15000, excessCents: 6500 }]);
 
 const personalMode = calculatePayrollScheme({
   ...baseInput,
@@ -184,6 +302,8 @@ const personalMode = calculatePayrollScheme({
   roleAssignments: [baseInput.roleAssignments[0]],
   periodTo: '2026-09-01',
   coverage: { ...baseInput.coverage, through: '2026-09-01', watermark: 'personal-fixture-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-01' },
+  attendance: [{ id: 'personal-shift', employeeId: 'a', date: '2026-09-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
   sales: [baseInput.sales[0]],
   scheme: {
     ...baseInput.scheme,
@@ -205,6 +325,8 @@ const percentOnly = calculatePayrollScheme({
   roleAssignments: [baseInput.roleAssignments[0]],
   periodTo: '2026-09-01',
   coverage: { ...baseInput.coverage, through: '2026-09-01', watermark: 'percent-fixture-v1' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-01' },
+  attendance: [],
   sales: [baseInput.sales[0]],
   scheme: { id: 'percent-only', versionId: 'percent-v1', mode: 'percent_only', roleParameters: { bartender: { stableRateBps: 1000 } } }
 });
@@ -219,10 +341,12 @@ const finalMonth = calculatePayrollScheme({
   periodFrom: '2026-09-01',
   periodTo: '2026-09-30',
   coverage: { kind: 'month_closed_complete', from: '2026-09-01', through: '2026-09-30', complete: true, watermark: 'closed-fixture-v1' },
+  attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-09-01', through: '2026-09-30', complete: true, watermark: 'closed-attendance-fixture-v1' },
   venueDailyTurnover: Array.from({ length: 30 }, (_, index) => ({
     date: `2026-09-${String(index + 1).padStart(2, '0')}`,
     turnoverCents: index === 0 ? 25000 : 0
   })),
+  attendance: [{ id: 'month-shift', employeeId: 'a', date: '2026-09-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }],
   monthClosed: true,
   scheme: { id: 'month-end', versionId: 'month-v1', mode: 'final_month_threshold', roleParameters: { bartender: { perShiftCents: 10000, bracketRatesBps: { 0: 500, 30000: 1500 } } } }
 });
@@ -318,6 +442,7 @@ const year9999VenueCoverage = calculatePayrollScheme({
   periodTo: '9999-12-31',
   monthClosed: true,
   coverage: { kind: 'month_closed_complete', from: '9999-12-01', through: '9999-12-31', complete: true, watermark: 'year-9999-boundary' },
+  attendanceCoverage: { kind: 'approved_attendance_complete', from: '9999-12-01', through: '9999-12-31', complete: true, watermark: 'year-9999-attendance' },
   employees: [{ id: 'a' }],
   roleAssignments: [{ employeeId: 'a', roleId: 'bartender', effectiveFrom: '9999-12-01', effectiveTo: '9999-12-31' }],
   scheme: { ...baseInput.scheme, employeeOverrides: baseInput.scheme.employeeOverrides.filter((override) => override.employeeId === 'a') },
@@ -333,6 +458,7 @@ const yearZeroLeapMonthCoverage = calculatePayrollScheme({
   periodTo: '0000-02-29',
   monthClosed: true,
   coverage: { kind: 'month_closed_complete', from: '0000-02-01', through: '0000-02-29', complete: true, watermark: 'year-zero-leap-month' },
+  attendanceCoverage: { kind: 'approved_attendance_complete', from: '0000-02-01', through: '0000-02-29', complete: true, watermark: 'year-zero-attendance' },
   employees: [{ id: 'a' }],
   roleAssignments: [{ employeeId: 'a', roleId: 'bartender', effectiveFrom: '0000-02-01', effectiveTo: '0000-02-29' }],
   scheme: { ...baseInput.scheme, employeeOverrides: baseInput.scheme.employeeOverrides.filter((override) => override.employeeId === 'a') },

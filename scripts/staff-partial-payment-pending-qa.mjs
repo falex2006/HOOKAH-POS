@@ -9,6 +9,7 @@ const listeners = new Map();
 const node = (id) => ({
   id, value: '0', textContent: '', disabled: false,
   addEventListener(type, callback) { listeners.set(`${id}:${type}`, callback); },
+  replaceChildren(...children) { this.children = children; this.textContent = children.map((child) => child.textContent || '').join(''); },
   focus() {},
 });
 const modalClasses = new Set();
@@ -22,7 +23,7 @@ const elements = Object.fromEntries([
   node('payment-due'), node('payment-remaining'), node('payment-message'),
   node('payment-close'), node('split-payment'),
 ].map((element) => [`#${element.id}`, element]));
-const document = { querySelector: (selector) => elements[selector] || null };
+const document = { querySelector: (selector) => elements[selector] || null, createElement: (tag) => ({ tagName: tag.toUpperCase(), style: {}, textContent: '' }) };
 const requests = [];
 const apiJson = (path, options) => new Promise((resolve, reject) => requests.push({ path, options, resolve, reject }));
 const notices = [];

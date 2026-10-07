@@ -47,7 +47,7 @@ assert.match(source, /'crm_session_token', 'crm_session_user'/, 'the prior local
 assert.match(source, /'territory_crm_shift'/, 'the separate staff-shift storage is backed up and seeded');
 assert.match(source, /mode === 'restore'/, 'previous browser demo data can be restored');
 assert.match(source, /item\.status === 'confirmed' && item\.date === today/, 'today reservation metric excludes cancelled and future bookings');
-assert.match(source, /totalCostOfGoods[\s\S]*totalRevenue - totalExpenses - totalCostOfGoods/, 'demo analytics subtracts cost of goods and expenses from revenue');
+assert.match(source, /const totalExpenses = null;[\s\S]*const totalOperatingExpenses = days\.reduce\([\s\S]*const totalCostOfGoods = days\.reduce\([\s\S]*payrollCoverage: \{ status: 'unsupported', reason: 'payroll_requires_database' \}, officialReady: false[\s\S]*netProfit: null/, 'demo keeps observed operating expenses and COGS while withholding payroll-dependent totals without a ledger');
 assert.match(source, /path === '\/api\/orders' && method === 'GET'/, 'demo order journal reads the generated orders');
 assert.match(source, /path === '\/api\/expenses' && method === 'GET'[\s\S]*expenseDate: item\.date/, 'demo expense ledger lists seeded expenses using the finance API shape');
 assert.match(source, /path === '\/api\/expenses' && method === 'POST'[\s\S]*demoState\.expenses\.push\(expense\)/, 'demo expense form persists entries into the same analytics data');

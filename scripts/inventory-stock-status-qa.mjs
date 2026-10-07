@@ -14,7 +14,7 @@ const items = [
   { id: 'tracked-empty', name: 'Сироп', category: 'Сиропы', department: 'Бар', unit: 'л', onHand: 0, minLevel: 2, cost: 0 },
   { id: 'tracked-ok', name: 'Лёд', category: 'Заготовки', department: 'Кухня', unit: 'кг', onHand: 5, minLevel: 2, cost: 0 },
 ];
-new Function('allItems', 'canWriteInventory', 'document', 'normalizeInventorySearch', 'esc', 'displayName', 'money', `${rendererSource}; draw(); return document.querySelector('#inventory-rows').innerHTML;`)(items, false, document, (value) => String(value || '').toLocaleLowerCase('ru-RU'), String, String, (value) => `${Number(value || 0)} ₽`);
+new Function('allItems', 'canWriteInventory', 'document', 'normalizeInventorySearch', 'esc', 'displayName', 'money', 'alcoholProfileById', 'alcoholItemLabel', `${rendererSource}; draw(); return document.querySelector('#inventory-rows').innerHTML;`)(items, false, document, (value) => String(value || '').toLocaleLowerCase('ru-RU'), String, String, (value) => `${Number(value || 0)} ₽`, () => null, () => '');
 assert.match(rows.innerHTML, /Порог не задан/, 'zero minimum explains that no replenishment threshold is configured');
 assert.match(rows.innerHTML, /data-label="Порог пополнения"/, 'mobile row label matches the threshold column heading');
 assert.match(rows.innerHTML, /Нужно пополнить/, 'positive minimum plus low stock must request replenishment');

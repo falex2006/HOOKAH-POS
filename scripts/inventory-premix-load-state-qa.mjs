@@ -10,7 +10,10 @@ const dashboardSource = portal.slice(dashboardStart, inventoryStart);
 assert.doesNotMatch(dashboardSource, /loadPremixData|premix-empty-guidance|premix-form/, 'premix controls must not be wired to the dashboard route');
 const inventorySource = portal.slice(inventoryStart, portal.indexOf('function renderFinance()', inventoryStart));
 assert.match(inventorySource, /if \(purchaseForm\) document\.querySelector\('#purchase-date'\)\.value = '';\s*renderPurchaseLines\(\); loadPurchaseDocuments\(\);/, 'read-only inventory renders without the purchase date editor');
-assert.match(inventorySource, /if \(!canWriteInventory\)[\s\S]*?api\('\/api\/recipes'\)\.then\(\(data\) => \{\s*const items = Array\.isArray\(data\.items\) \? data\.items : \[\];\s*recipeItems = items;\s*refreshInventoryContext\(\);/, 'read-only recipe load updates the premix KPI');
+assert.match(inventorySource, /const dataPromise = canManagePremixes \? Promise\.all\(\[api\('\/api\/recipes'\), api\('\/api\/inventory'\), api\('\/api\/inventory\/premixes'\)\]\) : Promise\.all\(\[Promise\.resolve\(\{ items: \[\] \}\), Promise\.resolve\(\{ items: \[\] \}\), api\('\/api\/inventory\/premixes'\)\]\)/,
+  'read-only roles load premix history without requesting write-only recipe or inventory data');
+assert.match(inventorySource, /const loadPremixData = \(\) => \{[\s\S]*?const list = document\.querySelector\('#premix-batches'\)[\s\S]*?refreshInventoryContext\(\);\s*\}\);/,
+  'premix completion refreshes inventory context after the batch history is rendered');
 assert.match(inventorySource, /const premixPanel = document\.createElement\('section'\)[\s\S]*?target\.append\(premixPanel\)[\s\S]*?loadPremixData\(\);/, 'inventory route must mount the premix panel before loading its data');
 assert.match(styles, /\.premix-setup-guidance:not\(\[hidden\]\)\{[^}]*display:flex[^}]*flex-direction:column[^}]*gap:8px/s, 'visible premix guidance must separate its heading, explanation and action');
 const start = portal.indexOf('  const loadPremixData = () => {');

@@ -68,7 +68,7 @@ try {
   await page.setViewportSize({ width: 375, height: 812 });
   const firstShift = (await api('/api/shifts')).current;
   assert.ok(firstShift?.id, 'paid order belongs to the active shift');
-  await api(`/api/shifts/${encodeURIComponent(firstShift.id)}/close`, 'POST', { closingCash: 200, checklistConfirmed: true });
+  await api(`/api/shifts/${encodeURIComponent(firstShift.id)}/close`, 'POST', { closingCash: 200, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } });
   const secondShift = await api('/api/shifts', 'POST', { openingCash: 0 }, 201);
   const multi = await api(`/api/dashboard/shift-kpis?date=${savedShift.date}`);
   assert.equal(multi.shifts.length, 2, 'both shifts appear on the selected day');

@@ -44,10 +44,11 @@ try {
   assert.match(report.period.from, /^\d{4}-\d{2}-\d{2}$/);
   assert.match(report.period.to, /^\d{4}-\d{2}-\d{2}$/);
   assert.deepEqual(report.legacyReservations, []);
+  assert.equal(report.periodBusiness.sales.orders,0);assert.equal(report.periodBusiness.sales.gross,0,'memory can confirm an empty supported sales period');assert.deepEqual(report.periodBusiness.receipts.byMethod,{});assert.equal(report.periodBusiness.payouts.byMethod,null,'unsupported payout source is unknown, not zero');assert.equal(report.balances.bonus.outstandingClawback,null);assert.equal(report.deposit.externalRefund,null);assert.equal(report.balances.reservationPrepayment.verifiedCounterMismatchCount,0);assert.equal(report.coverage.complete,false);
   expect(await call('/api/loyalty/reconciliation?from=2026-02-30'), 400, 'invalid_reconciliation_date');
   token = expect(await call('/api/login', 'POST', { username: 'staff', password: 'qa-staff' }), 200).token;
   expect(await call('/api/loyalty/reconciliation'), 403, 'forbidden');
-  console.log('LOYALTY RECONCILIATION MEMORY QA: PASS (timezone/default period, empty ledger, auth/RBAC, invalid date)');
+  console.log('LOYALTY RECONCILIATION MEMORY QA: PASS (timezone/default period, true zero vs unknown, empty ledger, auth/RBAC, invalid date)');
 } finally {
   if (child.exitCode === null && child.signalCode === null) {
     const exited = once(child, 'exit'); child.kill(); await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 3000))]);

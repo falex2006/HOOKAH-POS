@@ -12,6 +12,9 @@ if (!databaseUrl) throw new Error('Set RECIPE_DEPLETION_PG_TEST_DATABASE_URL to 
 const parsedUrl = new URL(databaseUrl);
 assert.match(parsedUrl.pathname, /(?:test|qa|scratch)/i,
   'refusing writes unless the database name clearly identifies a test/QA/scratch database');
+const databaseName = decodeURIComponent(parsedUrl.pathname.replace(/^\//, ''));
+const runnerOwnsDatabase = databaseName === process.env.LOCAL_FULL_PG_OWNED_DATABASE
+  && /^inventory_qa_[a-f0-9]+$/i.test(databaseName);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -288,12 +291,98 @@ try {
     return order.id;
   }
 
-  async function createOrderFor(productId) {
+  async function createOrderFor(productId, quantity = 1) {
     const dedicatedTable = await ownerReq(base, sessionToken, '/api/floor/tables', 'POST', { expectedVenueId: venueId, zoneId, name: `QA раздельный стол ${randomUUID().slice(0, 8)}`, capacity: 2 }, 201);
     const order = await req(base, '/api/orders', 'POST', { tableId: dedicatedTable.id }, 201);
-    await req(base, `/api/orders/${order.id}/items`, 'POST', { productId, quantity: 1 }, 201);
+    await req(base, `/api/orders/${order.id}/items`, 'POST', { productId, quantity }, 201);
     return order.id;
   }
+
+  const shortageProduct = await req(base, '/api/products', 'POST', {
+    name: `QA нехватка сырья ${venueId.slice(0, 8)}`, category: 'Бар', price: 90,
+  }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    productId: shortageProduct.id,
+    name: shortageProduct.name,
+    ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '4 л' }],
+    yieldQuantity: 1,
+    yieldUnit: 'порция',
+    portionCount: 1,
+  }, 201);
+  const shortageOrderId = await createOrderFor(shortageProduct.id);
+  const shortageBalanceBefore = await getBalance(stockItem.id);
+  const shortageMovementsBefore = await client.query(
+    'SELECT COUNT(*)::int AS count, COALESCE(SUM(quantity),0)::numeric AS quantity FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2',
+    [venueId, stockItem.id],
+  );
+  assert.equal(shortageBalanceBefore, 3000, 'shortage fixture starts with exactly 3000 ml before a 4000 ml recipe requirement'); checks++;
+  const shortageClose = await req(base, `/api/orders/${shortageOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(shortageClose.error, 'insufficient_recipe_stock', 'sale close rejects a recipe requiring more ingredient than venue stock');
+  assert.deepEqual(shortageClose.missing.map(({ ingredientId, quantity, onHand }) => ({ ingredientId, quantity: Number(quantity), onHand: Number(onHand) })),
+    [{ ingredientId: stockItem.id, quantity: 4000, onHand: 3000 }], 'shortage response identifies the exact component, converted requirement, and available balance'); checks += 2;
+  const shortageState = await client.query(`SELECT o.status,
+      (SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT COUNT(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs,
+      (SELECT COUNT(*)::int FROM stock_movements m WHERE m.order_id=o.id AND m.direction='out') AS depletions
+    FROM orders o WHERE o.id=$1 AND o.venue_id=$2`, [shortageOrderId, venueId]);
+  assert.deepEqual(shortageState.rows[0], { status: 'open', payments: 0, cogs: 0, depletions: 0 },
+    'rejected shortage leaves the order open without payment, COGS, or partial stock movement'); checks++;
+  assert.equal(await getBalance(stockItem.id), shortageBalanceBefore, 'shortage rollback preserves the ingredient stock balance'); checks++;
+  const shortageMovementsAfter = await client.query(
+    'SELECT COUNT(*)::int AS count, COALESCE(SUM(quantity),0)::numeric AS quantity FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2',
+    [venueId, stockItem.id],
+  );
+  assert.deepEqual(shortageMovementsAfter.rows[0], shortageMovementsBefore.rows[0], 'shortage rollback leaves ingredient movement count and total unchanged'); checks++;
+  await req(base, `/api/orders/${shortageOrderId}/payments`, 'POST', { amount: 30, method: 'cash' }, 201);
+  const shortageFinalPayment = await req(base, `/api/orders/${shortageOrderId}/payments`, 'POST', { amount: 60, method: 'card' }, 409);
+  assert.equal(shortageFinalPayment.error, 'insufficient_recipe_stock', 'final installment cannot complete a sale while recipe stock is insufficient'); checks++;
+  const shortageInstallmentState = await client.query(`SELECT o.status,
+      (SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT COALESCE(SUM(p.amount),0)::numeric FROM payments p WHERE p.order_id=o.id) AS paid,
+      (SELECT COUNT(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs,
+      (SELECT COUNT(*)::int FROM stock_movements m WHERE m.order_id=o.id AND m.direction='out') AS depletions
+    FROM orders o WHERE o.id=$1 AND o.venue_id=$2`, [shortageOrderId, venueId]);
+  assert.deepEqual(shortageInstallmentState.rows[0], { status: 'open', payments: 1, paid: '30.00', cogs: 0, depletions: 0 },
+    'failed final installment rolls back its payment while preserving the earlier partial payment and open order'); checks++;
+  assert.equal(await getBalance(stockItem.id), shortageBalanceBefore, 'failed final installment preserves shortage stock balance'); checks++;
+
+  const aggregateProductA = await req(base, '/api/products', 'POST', {
+    name: `QA aggregate shortage A ${venueId.slice(0, 8)}`, category: 'Бар', price: 50,
+  }, 201);
+  const aggregateProductB = await req(base, '/api/products', 'POST', {
+    name: `QA aggregate shortage B ${venueId.slice(0, 8)}`, category: 'Бар', price: 50,
+  }, 201);
+  for (const aggregateProduct of [aggregateProductA, aggregateProductB]) {
+    await req(base, '/api/recipes', 'POST', {
+      productId: aggregateProduct.id, name: aggregateProduct.name,
+      ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '2 л' }],
+      yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+    }, 201);
+  }
+  const aggregateShortageOrderId = await createOrderFor(aggregateProductA.id);
+  await req(base, `/api/orders/${aggregateShortageOrderId}/items`, 'POST', { productId: aggregateProductB.id, quantity: 1 }, 201);
+  assert.equal(await getBalance(stockItem.id), 3000, 'each two-liter order item individually fits the 3000 ml stock fixture'); checks++;
+  const aggregateMovementBaseline = await client.query(
+    'SELECT COUNT(*)::int AS count, COALESCE(SUM(quantity),0)::numeric AS quantity FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2',
+    [venueId, stockItem.id],
+  );
+  const aggregateShortageClose = await req(base, `/api/orders/${aggregateShortageOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(aggregateShortageClose.error, 'insufficient_recipe_stock', 'close rejects the combined 4000 ml requirement across two products'); checks++;
+  assert.deepEqual(aggregateShortageClose.missing.map(({ ingredientId, quantity, onHand }) => ({ ingredientId, quantity: Number(quantity), onHand: Number(onHand) })),
+    [{ ingredientId: stockItem.id, quantity: 4000, onHand: 3000 }], 'shortage payload aggregates both order lines for their shared ingredient'); checks++;
+  const aggregateShortageState = await client.query(`SELECT o.status,
+      (SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT COUNT(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs,
+      (SELECT COUNT(*)::int FROM stock_movements m WHERE m.order_id=o.id AND m.direction='out') AS depletions
+    FROM orders o WHERE o.id=$1 AND o.venue_id=$2`, [aggregateShortageOrderId, venueId]);
+  assert.deepEqual(aggregateShortageState.rows[0], { status: 'open', payments: 0, cogs: 0, depletions: 0 },
+    'aggregate shortage leaves the whole multi-product order open with no partial financial or stock effects'); checks++;
+  assert.equal(await getBalance(stockItem.id), shortageBalanceBefore, 'aggregate shortage leaves shared stock unchanged'); checks++;
+  const aggregateMovementAfter = await client.query(
+    'SELECT COUNT(*)::int AS count, COALESCE(SUM(quantity),0)::numeric AS quantity FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2',
+    [venueId, stockItem.id],
+  );
+  assert.deepEqual(aggregateMovementAfter.rows[0], aggregateMovementBaseline.rows[0], 'aggregate shortage leaves the shared ingredient movement count and total unchanged'); checks++;
 
   const firstOrderId = await createOrder();
 
@@ -469,7 +558,7 @@ try {
   assert.equal(financeSummary.date, currentDate, 'default finance date comes from the venue timezone, not the process timezone');
   assert.equal(Number(financeSummary.revenue), 300, 'venue-local finance summary includes sales across the UTC date boundary');
   assert.equal(Number(financeSummary.closedOrders), 2, 'venue-local summary counts both checks on the venue business date');
-  assert.equal(Number(financeSummary.paymentCount), 2, 'venue-local summary counts both payments across the UTC date boundary'); checks += 5;
+  assert.equal(Number(financeSummary.paymentCount), 4, 'venue-local summary counts closed-sale payments, an earlier partial receipt, and the shortage order installment across the UTC date boundary'); checks += 5;
   const financeReportResponse = await fetch(`${base}/api/finance/report?date=${encodeURIComponent(currentDate)}&type=x`, { headers: { Authorization: `Bearer ${sessionToken}`, 'X-Organization-Id': organizationId } });
   assert.equal(financeReportResponse.status, 200, 'X report succeeds for explicit venue-local business date');
   const financeReport = await financeReportResponse.json();
@@ -546,6 +635,61 @@ try {
   assert.ok(Math.abs(Number(afterPayroll.netProfit) - 3.3) < 0.001, 'profit equals 300 revenue − 78.7 COGS − 18 operating cost − 200 salary');
   assert.ok(Math.abs(Number(afterPayrollAnalytics.netProfit) - 3.3) < 0.001, 'period P&L reconciles to the independently expected result'); checks += 11;
 
+  const portionIngredient = await req(base, '/api/inventory/items', 'POST', {
+    name: `QA portion ingredient ${venueId.slice(0, 8)}`, unit: 'мл', itemType: 'ingredient', cost: 0.1, department: 'bar',
+  }, 201);
+  await req(base, '/api/inventory/movements', 'POST', {
+    itemId: portionIngredient.id, delta: 400, unit: 'мл', reason: 'QA four-portion recipe opening stock',
+  }, 201);
+  const portionProduct = await req(base, '/api/products', 'POST', {
+    name: `QA four-portion sale ${venueId.slice(0, 8)}`, category: 'Бар', price: 100,
+  }, 201);
+  const portionRecipe = await req(base, '/api/recipes', 'POST', {
+    productId: portionProduct.id, name: portionProduct.name,
+    ingredients: [{ ingredientId: portionIngredient.id, name: portionIngredient.name, quantity: '400 мл' }],
+    yieldQuantity: 4, yieldUnit: 'порция', portionCount: 4,
+  }, 201);
+  const portionRecipeCost = await req(base, `/api/recipes/${portionRecipe.id}/cost`);
+  assert.equal(Number(portionRecipeCost.totalCost), 40, 'four-portion recipe cost is the full 400 ml batch cost'); checks++;
+  assert.equal(Number(portionRecipeCost.costPerPortion), 10, 'four-portion recipe exposes cost per served portion'); checks++;
+  const onePortionOrderId = await createOrderFor(portionProduct.id, 1);
+  await req(base, `/api/orders/${onePortionOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(await getBalance(portionIngredient.id), 300, 'selling one of four portions consumes 100 ml from PostgreSQL stock'); checks++;
+  assert.equal(await getOrderCost(onePortionOrderId), 10, 'one-portion sale snapshots 10 RUB COGS'); checks++;
+  const twoPortionOrderId = await createOrderFor(portionProduct.id, 2);
+  await req(base, `/api/orders/${twoPortionOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(await getBalance(portionIngredient.id), 100, 'selling two portions consumes 200 ml from PostgreSQL stock'); checks++;
+  assert.equal(await getOrderCost(twoPortionOrderId), 20, 'two-portion sale snapshots 20 RUB COGS'); checks++;
+
+  const duplicateLineIngredient = await req(base, '/api/inventory/items', 'POST', {
+    name: `QA duplicate recipe lines ${venueId.slice(0, 8)}`, unit: 'мл', itemType: 'ingredient', cost: 0.1, department: 'bar',
+  }, 201);
+  await req(base, '/api/inventory/movements', 'POST', {
+    itemId: duplicateLineIngredient.id, delta: 100, unit: 'мл', reason: 'QA duplicate recipe line opening stock',
+  }, 201);
+  const duplicateLineProduct = await req(base, '/api/products', 'POST', {
+    name: `QA repeated ingredient sale ${venueId.slice(0, 8)}`, category: 'Бар', price: 100,
+  }, 201);
+  const duplicateLineRecipe = await req(base, '/api/recipes', 'POST', {
+    productId: duplicateLineProduct.id, name: duplicateLineProduct.name,
+    ingredients: [
+      { ingredientId: duplicateLineIngredient.id, name: duplicateLineIngredient.name, quantity: '30 мл' },
+      { ingredientId: duplicateLineIngredient.id, name: duplicateLineIngredient.name, quantity: '20 мл' },
+    ],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  }, 201);
+  assert.equal(duplicateLineRecipe.ingredients.length, 2, 'API preserves both recipe lines that refer to the same ingredient'); checks++;
+  const duplicateLineCost = await req(base, `/api/recipes/${duplicateLineRecipe.id}/cost`);
+  assert.equal(Number(duplicateLineCost.totalCost), 5, 'recipe cost sums repeated 30 ml and 20 ml lines at 0.10 RUB/ml'); checks++;
+  const duplicateLineOrderId = await createOrderFor(duplicateLineProduct.id);
+  await req(base, `/api/orders/${duplicateLineOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(await getBalance(duplicateLineIngredient.id), 50, 'sale depletes the combined 50 ml requirement exactly once'); checks++;
+  assert.equal(await getOrderCost(duplicateLineOrderId), 5, 'order COGS contains the combined repeated-ingredient cost'); checks++;
+  const duplicateLineMovement = await client.query(`SELECT COUNT(*)::int AS count,COALESCE(SUM(quantity),0)::numeric AS quantity
+    FROM stock_movements WHERE venue_id=$1 AND order_id=$2 AND ingredient_id=$3 AND direction='out'`,
+  [venueId, duplicateLineOrderId, duplicateLineIngredient.id]);
+  assert.deepEqual(duplicateLineMovement.rows[0], { count: 1, quantity: '50.000000' }, 'duplicate recipe lines become one order-linked 50 ml stock movement'); checks++;
+
   await req(base, '/api/product-categories', 'POST', { name: 'Табаки', department: 'hookah' }, 201);
   const tobacco = await req(base, '/api/inventory/items', 'POST', {
     name: 'QA tobacco 100g pack', unit: 'г', purchaseUnit: 'пачка', packMultiplier: 100,
@@ -603,10 +747,12 @@ try {
   await req(base, `/api/orders/${microTobaccoOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(await getBalance(tobacco.id), 81.9994, 'recipe sales retain a six-decimal ingredient debit in the stock ledger'); checks++;
 
-  await req(base, '/api/product-categories', 'POST', { name: 'Крепкий алкоголь', department: 'bar' }, 201);
+  const categoryCatalog = await req(base, '/api/product-categories', 'GET', undefined, 200);
+  const strongSpiritsCategory = categoryCatalog.items.find((item) => item.department === 'bar' && item.name === 'Крепкий алкоголь' && item.active !== false);
+  assert.ok(strongSpiritsCategory, 'new venue receives the canonical bar category'); checks++;
   const raceStock = await req(base, '/api/inventory/items', 'POST', {
     name: 'QA concurrent close stock', unit: 'шт', itemType: 'ingredient', cost: 1,
-    department: 'bar', category: 'Крепкий алкоголь',
+    department: 'bar', category: strongSpiritsCategory.name, categoryId: strongSpiritsCategory.id,
   }, 201);
   await req(base, '/api/inventory/movements', 'POST', { itemId: raceStock.id, delta: 1, unit: 'шт', reason: 'One unit for concurrent close QA' }, 201);
   const concurrentProduct = await req(base, '/api/products', 'POST', { name: 'QA concurrent stock product', category: 'Бар', price: 150 }, 201);
@@ -758,6 +904,32 @@ try {
   `mode transition and sale-recipe binding serialize; mode=${recipeRaceModeResponse.status} ${JSON.stringify(recipeRaceMode)}, recipe=${recipeRaceCardResponse.status} ${JSON.stringify(recipeRaceCard)}`);
   assert.equal(recipeRaceModeResponse.status === 200 ? recipeRaceCard.error : recipeRaceMode.error, 'non_stock_product_has_recipe', 'only one of the competing stock-mode and recipe-binding changes may commit'); checks += 2;
 
+  await req(base, '/api/inventory/movements', 'POST', { itemId: raceStock.id, delta: 1, unit: 'шт', reason: 'One unit for duplicate close QA' }, 201);
+  const duplicateRaceOrder = await createOrderFor(concurrentProduct.id);
+  const duplicateRaceStartBalance = await getBalance(raceStock.id);
+  const duplicateCloseResults = await Promise.all([1, 2].map(async () => {
+    const response = await fetch(`${base}/api/orders/${duplicateRaceOrder}/close`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sessionToken}`, 'X-Organization-Id': organizationId, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentMethod: 'cash' }),
+    });
+    return { status: response.status, data: await response.json() };
+  }));
+  assert.deepEqual(duplicateCloseResults.map((result) => result.status).sort(), [200, 409], 'concurrent close requests for one order serialize to one success and one conflict'); checks++;
+  assert.equal(duplicateCloseResults.find((result) => result.status === 200).data.status, 'closed', 'winning duplicate-close response reports a closed order');
+  assert.equal(duplicateCloseResults.find((result) => result.status === 409).data.error, 'order_already_final', 'losing duplicate-close response reports the finalized order'); checks += 2;
+  const duplicateCloseState = await client.query(`SELECT o.status,
+    (SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id AND p.status='paid') AS payments,
+    (SELECT COUNT(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cost_snapshots,
+    (SELECT COUNT(*)::int FROM stock_movements m WHERE m.order_id=o.id AND m.ingredient_id=$2 AND m.direction='out') AS depletions,
+    (SELECT COALESCE(SUM(m.quantity),0)::numeric FROM stock_movements m WHERE m.order_id=o.id AND m.ingredient_id=$2 AND m.direction='out') AS depleted
+    FROM orders o WHERE o.id=$1 AND o.venue_id=$3`, [duplicateRaceOrder, raceStock.id, venueId]);
+  const duplicateCloseFacts = duplicateCloseState.rows[0];
+  assert.deepEqual({ status: duplicateCloseFacts.status, payments: duplicateCloseFacts.payments, cost_snapshots: duplicateCloseFacts.cost_snapshots, depletions: duplicateCloseFacts.depletions },
+    { status: 'closed', payments: 1, cost_snapshots: 1, depletions: 1 }, 'one same-order close commits exactly one payment, cost snapshot, and recipe debit');
+  assert.equal(Number(duplicateCloseFacts.depleted), 1, 'the single same-order recipe movement records one portion'); checks += 2;
+  assert.equal(duplicateRaceStartBalance - await getBalance(raceStock.id), 1, 'concurrent duplicate close depletes exactly one recipe portion'); checks++;
+
   console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase/payment→stock→pack/bottle conversions→tobacco and cocktail recipes→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {
   if (server && server.exitCode === null) {
@@ -765,7 +937,7 @@ try {
     await Promise.race([new Promise((resolve) => server.once('exit', resolve)), delay(3000)]);
   }
   if (client._connected) {
-    await cleanSyntheticVenue(venueId);
+    if (!runnerOwnsDatabase) await cleanSyntheticVenue(venueId);
     await client.end();
   }
 }

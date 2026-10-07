@@ -16,7 +16,7 @@
     "start": "node server.js",
     "db:migrate": "node scripts/migrate.js",
     "qa:tasks": "node scripts/tasks-qa.mjs",
-    "qa:inventory": "node scripts/inventory-hierarchy-contract.mjs && node scripts/inventory-subdepartment-api-qa.mjs",
+    "qa:inventory": "node scripts/inventory-hierarchy-contract.mjs && node scripts/inventory-category-tobacco-contract.mjs && node scripts/inventory-subdepartment-api-qa.mjs",
     "qa:security": "node scripts/security-default-credential-qa.mjs && node scripts/security-qa.mjs",
     "qa:warehouse": "node scripts/warehouse-qa.mjs",
     "qa:payroll": "node scripts/payroll-qa.mjs",

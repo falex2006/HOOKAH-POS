@@ -35,24 +35,33 @@ try {
   const expenseCategory = await api('/api/finance/categories', 'POST', { name: 'QA operating costs', kind: 'expense' }, 201);
   const closedOrder = await api('/api/orders', 'POST', { tableId: 'finance-chart-qa' }, 201);
   await api(`/api/orders/${closedOrder.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201);
-  await api(`/api/orders/${closedOrder.id}/payments`, 'POST', { amount: 100, method: 'cash' }, 201);
+  await api(`/api/orders/${closedOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  const financeSummary = await api('/api/finance/summary');
+  assert.equal(financeSummary.revenue, 100, 'closed QA payment appears in the finance summary before UI assertions');
+  await api('/api/analytics?days=all');
   const order = await api('/api/orders', 'POST', { tableId: 'discount-ui-qa' }, 201);
   await api(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201);
   const first = await api(`/api/orders/${order.id}/discount-requests`, 'POST', { type: 'percent', value: 10, reason: 'UI QA approve' }, 201);
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 320, height: 640 }, locale: 'ru-RU' });
   const exceptions = [];
+  page.on('pageerror', (error) => exceptions.push(error.message));
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
   await page.locator('#login-username').fill('admin');
   await page.locator('#login-password').fill('admin');
   await page.locator('#login-form button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.includes('/login'));
-  page.on('pageerror', (error) => exceptions.push(error.message));
+  let unavailableShiftRequests = 0;
+  await page.route('**/api/shifts', (route) => { unavailableShiftRequests++; return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'shift_status_unavailable' }) }); });
   await page.goto(`${base}/finance#discounts`, { waitUntil: 'networkidle' });
   const section = page.locator('#discounts');
   await section.locator('.discount-row').first().waitFor();
   await page.waitForFunction(() => { const top = document.querySelector('#discounts')?.getBoundingClientRect().top; return Number.isFinite(top) && top >= 0 && top < innerHeight; });
-  assert.match(await page.locator('#finance-revenue').textContent(), /100/);
+  assert.match(await page.locator('#finance-revenue').textContent(), /100/, 'finance summary remains visible when shift status is unavailable');
+  assert.equal((await page.locator('#cash-register-status').textContent()).trim(), 'Состояние смены недоступно');
+  assert.ok(unavailableShiftRequests > 0, 'finance UI exercised the unavailable-shift response');
+  assert.equal(await page.locator('.cash-register-panel').evaluate((node) => node.classList.contains('is-open') || node.classList.contains('is-closed')), false, 'unavailable shift state is not shown as open or closed');
+  assert.equal((await page.locator('#cash-register-opening').textContent()).trim(), 'Недоступно');
   for (const [view, selector] of [['bars', '.finance-bars-view'], ['table', '.finance-data-table'], ['line', '.finance-line-chart']]) {
     await page.locator(`[data-finance-chart-view="${view}"]`).click();
     assert.equal(await page.locator(`[data-finance-chart-view="${view}"]`).getAttribute('aria-pressed'), 'true');
@@ -86,8 +95,8 @@ try {
   const conflict = await api(`/api/orders/${paidOrder.id}/discount-requests`, 'POST', { type: 'percent', value: 50, reason: `UI QA conflict ${'ОченьДлиннаяПричинаБезПробелов'.repeat(5)}` }, 201);
   await section.locator('#discount-reload').click();
   await section.locator(`.discount-approve[data-discount="${conflict.id}"]`).click();
-  await page.waitForFunction(() => document.querySelector('#discount-message')?.textContent?.includes('ниже уже полученной оплаты'));
-  assert.match(await section.locator('#discount-message').textContent(), /ниже уже полученной оплаты/);
+  await page.waitForFunction(() => document.querySelector('#discount-message')?.textContent?.includes('Цена заказа уже зафиксирована после первого платежа'), null, { timeout: 5000 });
+  assert.match(await section.locator('#discount-message').textContent(), /Цена заказа уже зафиксирована после первого платежа/);
   assert.equal((await api('/api/discount-requests')).items.find((item) => item.id === conflict.id).status, 'requested');
   await page.locator('#expense-category').selectOption(expenseCategory.id);
   await page.locator('#expense-amount').fill('12.50');
@@ -117,7 +126,7 @@ try {
     assert.equal(await page.locator('[data-finance-chart-view="table"]').getAttribute('aria-pressed'), 'true', `${label} preserves chart view`);
     assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1; }), false, `${label} has no horizontal overflow`);
     if (label !== 'cover-return') {
-      const outputDir = path.resolve('docs/ai-team/responsive-emulator');
+      const outputDir = path.resolve(process.env.FINANCE_QA_SCREENSHOT_DIR || 'docs/ai-team/responsive-emulator');
       await mkdir(outputDir, { recursive: true });
       await page.locator('#expense-form').screenshot({ path: path.join(outputDir, `finance-fold-draft-${label}.png`) });
     }

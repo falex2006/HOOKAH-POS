@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const {validateCanonicalPayrollPricingOrder:verify}=createRequire(import.meta.url)('../payroll-canonical-pricing-source.js');
+const id=n=>`aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12,'0')}`;
+const fixture=()=>({order:{id:id(1),venue_id:id(2),closed_at:'2026-10-02T12:00:00Z',pricing_locked_at:'2026-10-01T12:00:00Z'},header:{id:id(3),venue_id:id(2),order_id:id(1),schema_version:1,policy_version:1,currency_code:'RUB',currency_scale:2,transaction_at:'2026-10-01T12:00:00Z',subtotal_minor:'1',discount_minor:'1',minimum_adjustment_minor:'0',final_total_minor:'0',discount_source:'promotion',eligible_item_ids:[id(4),id(5)],winner_terms:{source:'promotion',reasonCode:'selected',amountCents:1,eligibleBasisCents:1,eligibleItemIds:[id(4),id(5)]},frozen_terms:{allocationPolicy:'largest-remainder-item-id-v1'}},itemIds:[id(4),id(5)],lines:[4,5].map(n=>({id:id(n+10),venue_id:id(2),order_id:id(1),snapshot_id:id(3),order_item_id:id(n),quantity:'0.500',unit_price:'0.01',gross_minor:n===4?'1':'0',discount_minor:n===4?'1':'0',net_minor:'0',eligible:true,seller_id:id(6),sold_at:'2026-10-01T11:00:00Z',seller_in_venue:true,product_facts:{productId:id(8),category:'bar',station:'bar'}}))});
+
+
+import {validateQaDatabaseUrl,assertQaDatabaseIdentity} from './postgres-qa-safety.mjs';
+const {Client}=createRequire(import.meta.url)('pg'),target=validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL),db=new Client({connectionString:target.url.href}),schema=`payroll_timestamp_qa_${process.pid}_${Date.now()}`;
+let created=false;
+const options={venueId:id(2),currency:'RUB'};
+try{await db.connect();assertQaDatabaseIdentity((await db.query('SELECT current_database() AS database,inet_server_addr() AS address,inet_server_port() AS port,(SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser')).rows[0],target.database,+target.url.port);await db.query(`CREATE SCHEMA ${schema}`);created=true;await db.query(`SET search_path TO ${schema},public`);
+ // This bounded suite proves actual PostgreSQL timestamptz::text consumption;
+ // source producer/storage guards remain covered by their existing suites.
+ await db.query('CREATE TABLE timestamp_facts (closed_at timestamptz NOT NULL,locked_at timestamptz NOT NULL,captured_at timestamptz NOT NULL,sold_at timestamptz NOT NULL)');
+ await db.query("INSERT INTO timestamp_facts VALUES('2026-10-01T12:00:00.123457Z','2026-10-01T12:00:00.123456Z','2026-10-01T12:00:00.123456Z','2026-10-01T12:00:00.123456Z')");
+ const input=async()=>{const row=(await db.query('SELECT closed_at::text,locked_at::text,captured_at::text,sold_at::text FROM timestamp_facts')).rows[0],d=fixture();d.order.closed_at=row.closed_at;d.order.pricing_locked_at=row.locked_at;d.header.transaction_at=row.captured_at;d.lines.forEach(l=>l.sold_at=row.sold_at);return d;};
+ for(const timezone of ['UTC','Asia/Yekaterinburg','Asia/Kolkata','America/New_York']){await db.query('SELECT set_config(\'TimeZone\',$1,false)',[timezone]);await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');const d=await input(),before=structuredClone(d),r=verify(d,options);assert.deepEqual(d,before);assert.match(d.lines[0].sold_at,/\.123456/);assert.equal(r.order.lineSnapshots[0].soldAt,d.lines[0].sold_at);await db.query('COMMIT');}
+ for(const [sql,code] of [["UPDATE timestamp_facts SET sold_at=locked_at+interval '1 microsecond'",'line_time_invalid'],["UPDATE timestamp_facts SET captured_at=locked_at+interval '1 microsecond'",'chronology_invalid'],["UPDATE timestamp_facts SET closed_at=locked_at-interval '1 microsecond'",'chronology_invalid']]){await db.query('BEGIN');try{await db.query(sql);const d=await input();assert.throws(()=>verify(d,options),e=>e.code===`payroll_canonical_pricing_${code}`);}finally{await db.query('ROLLBACK');}}
+ assert.equal((await db.query('SELECT count(*)::int n FROM timestamp_facts')).rows[0].n,1);assert.equal(verify(await input(),options).unknownSellerLineCount,0,'rollback restores valid precise source');
+ console.log('PAYROLL CANONICAL TIMESTAMP POSTGRES: PASS (real timestamptz six-digit text, four timezones, +1 microsecond negative boundaries and rollback)');
+}finally{if(created){await db.query('ROLLBACK');await db.query('SET search_path TO public');await db.query(`DROP SCHEMA ${schema} CASCADE`);assert.equal((await db.query('SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname=$1) present',[schema])).rows[0].present,false);}await db.end();}

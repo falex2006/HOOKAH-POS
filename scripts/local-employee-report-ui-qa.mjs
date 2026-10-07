@@ -37,6 +37,7 @@ for (const role of ['bartender', 'hookah_master', 'senior_bartender', 'senior_ho
   const redirects = [];
   assert.doesNotThrow(() => vm.runInNewContext(bootstrap, {
     localStorage: { getItem: (key) => key === 'crm_session_token' ? 'synthetic-session' : JSON.stringify({ id: 'roman', role }) },
+    URLSearchParams,
     window: { location: { replace: (url) => redirects.push(url) } },
   }, { timeout: 1000 }), `${role}: existing operational session can reach its report/tasks UI`);
   assert.equal(redirects.length, 0); scenarios++;
@@ -45,6 +46,7 @@ for (const role of ['platform_owner', 'unknown_role']) {
   const redirects = [];
   assert.throws(() => vm.runInNewContext(bootstrap, {
     localStorage: { getItem: (key) => key === 'crm_session_token' ? 'synthetic-session' : JSON.stringify({ id: 'roman', role }) },
+    URLSearchParams,
     window: { location: { replace: (url) => redirects.push(url) } },
   }, { timeout: 1000 }), /portal_permission_required/);
   assert.deepEqual(redirects, ['/']); scenarios++;

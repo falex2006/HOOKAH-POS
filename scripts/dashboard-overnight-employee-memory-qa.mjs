@@ -17,14 +17,26 @@ const orders = [
   ] },
   { openedById: 'employee-b', status: 'closed', closedAt: now.toISOString(), payments: [{ method: 'cash', amount: 70, status: 'paid', createdAt: now.toISOString() }] },
 ];
-const run = new Function('orders', 'req', 'reportDate', 'businessDateKey', 'json', 'res', 'businessTimezone', 'employeeView',
+const clients = [{ depositTopUps: [
+  { actorId: 'employee-a', amount: 25, method: 'card', createdAt: now.toISOString() },
+  { actorId: 'employee-b', amount: 900, method: 'cash', createdAt: now.toISOString() },
+  { actorId: 'employee-a', amount: 70, method: 'cash', createdAt: yesterday.toISOString() },
+] }];
+const reservations = [{ prepaymentReceipts: [
+  { actorId: 'employee-a', amount: 15, method: 'cash', createdAt: now.toISOString() },
+  { actorId: 'employee-b', amount: 800, method: 'card', createdAt: now.toISOString() },
+  { actorId: 'employee-a', amount: 35, method: 'card', createdAt: yesterday.toISOString() },
+] }];
+const run = new Function('orders', 'clients', 'reservations', 'req', 'reportDate', 'businessDateKey', 'json', 'res', 'businessTimezone', 'employeeView',
   `${server.slice(start, end)}\nreturn null;`);
-const result = run(orders, { user: { id: 'employee-a' } }, dayKey(now), dayKey, (_res, status, body) => { assert.equal(status, 200); return body; }, {}, timezone, true);
+const result = run(orders, clients, reservations, { user: { id: 'employee-a' } }, dayKey(now), dayKey, (_res, status, body) => { assert.equal(status, 200); return body; }, {}, timezone, true);
 assert.equal(result.employeeView, true);
 assert.equal(result.totals.revenue, 60);
 assert.equal(result.totals.paymentCount, 1);
 assert.equal(result.totals.closedOrders, 1);
 assert.equal(result.totals.cashless, 60);
+assert.deepEqual(result.totals.depositTopUps, { total: 25, cash: 0, cashless: 25, count: 1 });
+assert.deepEqual(result.totals.reservationPrepayments, { total: 15, cash: 15, cashless: 0, count: 1 });
 assert.deepEqual(result.shifts, [{ id: 'employee-today' }]);
 const financeRoute = server.indexOf("if (pathname === '/api/finance/summary'");
 const financeStart = server.indexOf('    if (employeeFinanceView) {\n      const revenue =', financeRoute);

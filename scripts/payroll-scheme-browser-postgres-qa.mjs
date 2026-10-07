@@ -1,0 +1,421 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { randomBytes, scryptSync } from 'node:crypto';
+import path from 'node:path';
+import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-safety.mjs';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const target = validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL);
+const require = createRequire(import.meta.url);
+const { Client } = require('pg');
+const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_PATH || 'playwright');
+const db = new Client({ connectionString: target.url.href });
+const schema = `payroll_browser_qa_${process.pid}_${Date.now()}`;
+assert.match(schema, /^payroll_browser_qa_\d+_\d+$/);
+const scopedUrl = new URL(target.url);
+scopedUrl.searchParams.set('options', `-c search_path=${schema},public`);
+let child;
+let browser;
+let created = false;
+try {
+  await db.connect();
+  const identity = (await db.query('SELECT current_database() AS database,inet_server_addr() AS address,inet_server_port() AS port,(SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser')).rows[0];
+  assertQaDatabaseIdentity(identity, target.database, Number(target.url.port));
+  await db.query(`CREATE SCHEMA "${schema}"`);
+  created = true;
+  await db.query(`SET search_path TO "${schema}",public`);
+  await db.query(readFileSync(path.join(root, 'schema.sql'), 'utf8'));
+  for (const name of readdirSync(path.join(root, 'migrations')).filter((name) => /^\d{3}.*\.sql$/.test(name) && Number(name.slice(0, 3)) <= 87).sort()) {
+    await db.query(readFileSync(path.join(root, 'migrations', name), 'utf8'));
+  }
+  const organizationId = (await db.query("INSERT INTO organizations(name,slug) VALUES('Payroll editor QA',$1) RETURNING id", [schema])).rows[0].id;
+  await db.query("INSERT INTO organization_subscriptions(organization_id,status) VALUES($1,'active')", [organizationId]);
+  const venueId = (await db.query("INSERT INTO venues(name,timezone,organization_id) VALUES('Payroll editor QA','Asia/Yekaterinburg',$1) RETURNING id", [organizationId])).rows[0].id;
+  const login = `payroll-editor-${process.pid}`;
+  const password = randomBytes(16).toString('hex');
+  const salt = randomBytes(16).toString('hex');
+  const hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
+  const ownerId = (await db.query("INSERT INTO users(venue_id,full_name,login,password_hash,role) VALUES($1,'Payroll QA owner',$2,$3,'owner') RETURNING id", [venueId, login, hash])).rows[0].id;
+  const employeeId = (await db.query("INSERT INTO users(venue_id,full_name,login,role) VALUES($1,'Payroll QA employee',$2,'bartender') RETURNING id", [venueId, `${login}-staff`])).rows[0].id;
+  await db.query('UPDATE users SET organization_id=$1 WHERE id=ANY($2::uuid[])', [organizationId, [ownerId, employeeId]]);
+  await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role) VALUES($1,$2,'owner'),($1,$3,'member')", [organizationId, ownerId, employeeId]);
+  await db.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, employeeId]);
+  const foreignVenueId = (await db.query("INSERT INTO venues(name,organization_id) VALUES('Foreign policy QA',$1) RETURNING id", [organizationId])).rows[0].id;
+  const foreignOwnerId = (await db.query("INSERT INTO users(venue_id,organization_id,full_name,login,password_hash,role) VALUES($1,$2,'Foreign owner',$3,$4,'owner') RETURNING id", [foreignVenueId, organizationId, `${login}-foreign`, hash])).rows[0].id;
+  const financeUserId = (await db.query("INSERT INTO users(venue_id,organization_id,full_name,login,password_hash,role,permission_scopes) VALUES($1,$2,'Finance only',$3,$4,'other_staff','[\"finance_read\"]') RETURNING id", [venueId, organizationId, `${login}-finance`, hash])).rows[0].id;
+  await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role) VALUES($1,$2,'owner'),($1,$3,'member')", [organizationId, foreignOwnerId, financeUserId]);
+  const counts = async () => (await db.query('SELECT (SELECT count(*)::int FROM payroll_entries) AS entries,(SELECT count(*)::int FROM expenses) AS expenses,(SELECT count(*)::int FROM payroll_calculation_runs) AS runs')).rows[0];
+  const before = await counts();
+  child = spawn(process.execPath, ['server.js'], { cwd: root, windowsHide: true,
+    env: { ...process.env, DATABASE_URL: scopedUrl.href, VENUE_ID: venueId, AUTH_REQUIRED: 'true', DEMO_MODE: 'false', NODE_ENV: 'test', HOST: '127.0.0.1', PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let startup = '';
+  const base = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Isolated payroll browser server did not start')), 15000);
+    child.once('error', (error) => { clearTimeout(timeout); reject(error); });
+    child.once('exit', (code) => { clearTimeout(timeout); reject(new Error(`QA server exited ${code}`)); });
+    child.stdout.on('data', (chunk) => { startup += chunk; const match = startup.match(/CRM running on http:\/\/localhost:(\d+)/); if (match) { clearTimeout(timeout); resolve(`http://127.0.0.1:${match[1]}`); } });
+    child.stderr.on('data', () => {}); // Never print connection/config secrets.
+  });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, locale: 'ru-RU' });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
+  await page.locator('#login-username').fill(login);
+  await page.locator('#login-password').fill(password);
+  const loginResponse = page.waitForResponse((response) => response.url().endsWith('/api/login') && response.request().method() === 'POST');
+  await page.locator('#login-form button[type="submit"]').click();
+  const authentication = await loginResponse;
+  assert.equal(authentication.status(), 200, 'QA owner authentication must succeed');
+  await page.waitForURL((url) => !url.pathname.includes('/login'));
+  await page.goto(`${base}/finance`, { waitUntil: 'networkidle' });
+  await page.locator('[data-scheme-new]').click();
+  assert.equal(await page.locator('[data-source-readiness-run]').isDisabled(), true, 'unsaved scheme has no readiness source');
+  await page.locator('[data-scheme-name]').fill('Browser payroll role grid');
+  const definition = { mode: 'progressive_daily', currency: 'RUB', effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30',
+    roleParameters: { bartender: { perShiftCents: 123456, bracketRatesBps: { 0: 1234, 100000: 2000 }, cap: { rateBps: 3000, basis: 'venue_day' }, extraPreserved: { note: 'keep' } } },
+    roleAssignments: [{ employeeId, roleId: 'bartender', effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }],
+    employeeOverrides: [{ employeeId, path: 'perShiftCents', mode: 'override', value: 0, effectiveFrom: '2026-11-01', effectiveTo: '2026-11-10' },
+      { employeeId, path: 'cap.rateBps', mode: 'override', value: 4000, effectiveFrom: '2026-11-01', effectiveTo: '2026-11-10' },
+      { employeeId, path: 'applyMilestones', mode: 'inherit', effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' }], itemRules: [] };
+  await page.locator('details').filter({ has: page.locator('[data-scheme-definition]') }).locator('summary').click();
+  await page.locator('[data-scheme-definition]').fill(JSON.stringify(definition));
+  await page.locator('[data-scheme-grid-rebuild]').click();
+  await page.locator('[data-grid-new-milestone-threshold]').fill('300000');
+  await page.locator('[data-grid-add-milestone-threshold]').click();
+  const bonusField = page.locator('[data-grid-role="bartender"][data-grid-path="milestoneBonusesCents.30000000"]');
+  assert.equal(await bonusField.inputValue(), '', 'new threshold does not invent an amount');
+  await bonusField.fill('2000,25');
+  await page.locator('[data-grid-new-milestone-threshold]').fill('500000');
+  await page.locator('[data-grid-add-milestone-threshold]').click();
+  await page.locator('[data-grid-role="bartender"][data-grid-path="milestoneBonusesCents.50000000"]').fill('0');
+  definition.roleParameters.bartender.milestoneBonusesCents = { 30000000: 200025, 50000000: 0 };
+  const milestoneRoleControl = page.locator('[data-grid-role="bartender"][data-grid-path="applyMilestones"]');
+  const milestonePersonalCard = page.locator('[data-grid-override]').filter({ has: page.locator('[data-grid-override-path][value="applyMilestones"]') });
+  assert.match(await milestonePersonalCard.locator('p').innerText(), /2026-11-01/);
+  assert.doesNotMatch(await milestonePersonalCard.locator('p').innerText(), /не задано|не начислять/);
+  const wageBeforeCaptionCheck = await page.locator('[data-grid-role="bartender"][data-grid-path="perShiftCents"]').inputValue();
+  await page.locator('[data-grid-role="bartender"][data-grid-path="perShiftCents"]').fill('ошибка');
+  assert.match(await milestonePersonalCard.locator('p').innerText(), /начислять/);
+  assert.doesNotMatch(await milestonePersonalCard.locator('p').innerText(), /Наследование не определено/);
+  await page.locator('[data-grid-role="bartender"][data-grid-path="perShiftCents"]').fill(wageBeforeCaptionCheck);
+  assert.equal(await milestoneRoleControl.inputValue(), '', 'omitted role setting remains inherited');
+  const roleModeControl = page.locator('[data-grid-role="bartender"][data-grid-path="mode"]');
+  await roleModeControl.selectOption('stable_percent');
+  assert.match(await milestonePersonalCard.locator('p').innerText(), /не начислять/);
+  assert.match(await milestoneRoleControl.locator('..').locator('.custom-select-trigger').innerText(), /Наследовать: не начислять/);
+  await roleModeControl.selectOption('');
+  assert.doesNotMatch(await milestonePersonalCard.locator('p').innerText(), /не начислять/);
+  assert.match(await milestoneRoleControl.locator('..').locator('.custom-select-trigger').innerText(), /Наследовать: начислять/);
+  await milestoneRoleControl.selectOption('true');
+  await page.locator('[data-scheme-grid-apply]').click();
+  assert.equal(JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).roleParameters.bartender.applyMilestones, true);
+  await milestoneRoleControl.selectOption('false');
+  assert.match(await milestonePersonalCard.locator('p').innerText(), /не начислять/);
+  await page.locator('[data-scheme-grid-apply]').click();
+  assert.equal(JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).roleParameters.bartender.applyMilestones, false);
+  definition.roleParameters.bartender.applyMilestones = false;
+  await page.locator('[data-grid-role="bartender"][data-grid-path="perShiftCents"]').fill('1000,25');
+  const roleImpact = page.locator('[data-grid-role-impact="bartender"]');
+  assert.match(await roleImpact.innerText(), /perShiftCents/);
+  assert.match(await roleImpact.innerText(), /2026-11-01 — 2026-11-10/);
+  assert.match(await roleImpact.innerText(), /0\.00/);
+  await page.locator('[data-scheme-grid-apply]').click();
+  assert.equal(JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).roleParameters.bartender.perShiftCents, 100025);
+  definition.roleParameters.bartender.perShiftCents = 100025;
+  for (const [personalPath, personalValue] of [['bracketRatesBps.40000000', 0], ['milestoneBonusesCents.40000000', 0]]) {
+    await page.locator('[data-grid-add-override]').click();
+    const personalCard = page.locator('[data-grid-override="new"]').last();
+    await personalCard.locator('[data-grid-employee]').fill(employeeId);
+    await personalCard.locator('[data-grid-override-path]').fill(personalPath);
+    await personalCard.locator('[data-grid-override-value]').fill('0');
+    await personalCard.locator('[data-grid-override-from]').fill('2026-11-01');
+    await personalCard.locator('[data-grid-override-to]').fill('2026-11-30');
+    definition.employeeOverrides.push({ employeeId, path: personalPath, mode: 'override', value: personalValue, effectiveFrom: '2026-11-01', effectiveTo: '2026-11-30' });
+  }
+  await page.locator('[data-scheme-grid-apply]').click();
+  for (const personalPath of ['bracketRatesBps.40000000', 'milestoneBonusesCents.40000000']) {
+    assert.equal(JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).employeeOverrides.find((row) => row.path === personalPath).value, 0);
+  }
+  await page.locator('[data-source-policy-enabled]').check();
+  await page.locator('[data-source-policy-sale]').selectOption('line_seller_snapshot');
+  await page.locator('[data-source-policy-discount]').selectOption('immutable_line_snapshot');
+  await page.locator('[data-source-policy-refund]').selectOption('recognized_event_date');
+  await page.locator('[data-source-policy-reason]').fill('Владелец выбирает фактического автора строки');
+  await page.locator('[data-source-policy-apply]').click();
+  const initialPolicy = JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).sourcePolicies;
+  await page.locator('[data-personal-cap-confirmation]').waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-personal-cap-exceptions]').innerText(), /30\.00% → 40\.00%/);
+  const roleCapField = page.locator('[data-grid-role="bartender"][data-grid-path="cap.rateBps"]');
+  await roleCapField.fill('50');
+  assert.equal(await page.locator('[data-personal-cap-confirmation]').isHidden(), true, 'unsaved higher role cap removes increase warning');
+  await roleCapField.fill('20');
+  assert.match(await page.locator('[data-personal-cap-exceptions]').innerText(), /20\.00% → 40\.00%/);
+  await roleCapField.fill('30');
+  await page.locator('[data-scheme-grid-apply]').click();
+  await page.locator('[data-scheme-risk-acknowledged]').check();
+  await page.locator('[data-scheme-save]').click();
+  await page.locator('[data-scheme-message]').getByText('Отдельно подтвердите повышение личного лимита выше роли.', { exact: true }).waitFor();
+  assert.equal((await db.query("SELECT count(*)::int AS count FROM payroll_schemes WHERE name='Browser payroll role grid'")).rows[0].count, 0, 'missing extra confirmation does not save a scheme');
+  await page.locator('[data-personal-cap-acknowledged]').check();
+  await page.locator('[data-scheme-risk-acknowledged]').check();
+  const createdResponse = page.waitForResponse((response) => response.url().endsWith('/api/payroll/schemes') && response.request().method() === 'POST');
+  await page.locator('[data-scheme-save]').click();
+  const createdResponseValue = await createdResponse;
+  assert.equal(createdResponseValue.status(), 201);
+  const createdScheme = await createdResponseValue.json();
+  assert.deepEqual(createdScheme.versions[0].sourcePolicies, initialPolicy);
+  assert.equal(createdScheme.versions[0].payoutRiskAcknowledgement.personalCapIncrease.exceptions[0].personalRateBps, 4000);
+  const initialDigest = createdScheme.versions[0].payoutRiskAcknowledgement.configDigest;
+  const versionId = createdScheme.versions[0].versionId;
+  await page.waitForFunction(() => document.querySelector('[data-scheme-editor-title]')?.textContent === 'Редактирование черновика');
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator(`[data-scheme-open-version="${versionId}"]`).click();
+  await page.waitForFunction(() => Boolean(document.querySelector('[data-scheme-definition]')?.value));
+  const readback = JSON.parse(await page.locator('[data-scheme-definition]').inputValue());
+  assert.deepEqual(readback.roleParameters, definition.roleParameters);
+  assert.equal(await milestoneRoleControl.inputValue(), 'false', 'saved false is visibly selected after reload');
+  assert.equal(await milestoneRoleControl.locator('..').locator('.custom-select-trigger').innerText(), 'Не начислять');
+  assert.match(await milestonePersonalCard.locator('p').innerText(), /не начислять/);
+  await milestonePersonalCard.locator('[data-grid-override-from]').fill('2026-12-01');
+  assert.doesNotMatch(await milestonePersonalCard.locator('p').innerText(), /не начислять/);
+  await milestonePersonalCard.locator('[data-grid-override-from]').fill('2026-11-01');
+  assert.match(await milestonePersonalCard.locator('p').innerText(), /не начислять/);
+  await page.locator('[data-scheme-grid-rebuild]').click();
+  assert.equal(readback.employeeOverrides.find((row) => row.path === 'perShiftCents').value, 0);
+  for (const personalPath of ['bracketRatesBps.40000000', 'milestoneBonusesCents.40000000']) {
+    assert.equal(readback.employeeOverrides.find((row) => row.path === personalPath).value, 0, 'new personal threshold survives API/PG/reload');
+  }
+  assert.deepEqual(readback.sourcePolicies, initialPolicy);
+  assert.equal(await page.locator('[data-personal-cap-acknowledged]').isChecked(), false);
+  assert.equal(await page.locator('[data-source-policy-sale]').inputValue(), 'line_seller_snapshot');
+  for (const field of ['sale', 'discount', 'refund']) {
+    const select = page.locator(`[data-source-policy-${field}]`);
+    const selectedText = await select.evaluate((node) => node.selectedOptions[0].textContent);
+    assert.equal(await select.locator('..').locator('.custom-select-trigger').innerText(), selectedText, 'visible selection matches saved native value');
+  }
+  assert.match(await page.locator('[data-source-policy-fieldset]').innerText(), /ещё не подтверждены/);
+  const scenario = { periodFrom: '2026-11-01', periodTo: '2026-11-01', employees: [{ id: employeeId }], attendance: [],
+    coverage: { kind: 'month_to_date_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'scenario' },
+    attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'scenario' },
+    sales: [{ id: 'scenario-sale', employeeId, department: 'bar', date: '2026-11-01', turnoverCents: 10000, commissionBaseCents: 10000 }] };
+  await page.locator('[data-scheme-preview-input]').fill(JSON.stringify(scenario));
+  const previewResponse = page.waitForResponse((response) => response.url().endsWith(`/api/payroll/versions/${versionId}/preview`) && response.request().method() === 'POST');
+  await page.locator('[data-scheme-run-preview]').click();
+  const previewValue = await previewResponse;
+  assert.equal(previewValue.status(), 200);
+  const previewPayload = await previewValue.json();
+  assert.equal(previewPayload.official, false);
+  assert.equal(previewPayload.persistence, 'none');
+  assert.equal(previewPayload.scenario, true);
+  assert.equal(previewPayload.result.sourcePolicyEvaluation.state, 'selected_not_applied');
+  assert.equal(previewPayload.result.sourcePolicyEvaluation.officialReady, false);
+  await page.locator('[data-source-policy-preview-notice]').waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-source-policy-preview-notice]').innerText(), /не сохраняется/);
+  await db.query(`INSERT INTO staff_schedules(venue_id,user_id,work_date,planned_start,planned_end)
+    VALUES ($1,$2,'2026-11-01','2026-11-01T10:00:00Z','2026-11-01T18:00:00Z')`, [venueId, employeeId]);
+  await db.query(`INSERT INTO staff_work_logs(venue_id,user_id,started_at,ended_at,source)
+    VALUES ($1,$2,'2026-11-01T10:00:00Z','2026-11-01T12:00:00Z','manual')`, [venueId, employeeId]);
+  const attendanceQuery = 'from=2026-11-01&to=2026-11-01';
+  const coverageResponse = await page.request.get(`${base}/api/payroll/attendance/approvals?${attendanceQuery}`);
+  assert.equal(coverageResponse.status(), 200);
+  const attendanceCoverage = await coverageResponse.json();
+  const approvedResponse = await page.request.post(`${base}/api/payroll/attendance/approvals`, { headers: { origin: base },
+    data: { periodFrom: '2026-11-01', periodTo: '2026-11-01', sourceWatermark: attendanceCoverage.sourceWatermark,
+      reason: 'QA owner verifies actual attendance', idempotencyKey: 'browser-verified-attendance' } });
+  assert.equal(approvedResponse.status(), 201);
+  const approval = await approvedResponse.json();
+  await page.locator('[data-source-readiness-from]').fill('2026-11-01');
+  await page.locator('[data-source-readiness-to]').fill('2026-11-01');
+  const readinessUiResponse = page.waitForResponse((response) => response.url().includes(`/api/payroll/versions/${versionId}/source-readiness?`) && response.request().method() === 'GET');
+  await page.locator('[data-source-readiness-run]').click();
+  assert.equal((await readinessUiResponse).status(), 200);
+  await page.locator('[data-source-readiness-component="approvedAttendance"]').getByText('Неизменяемый снимок табеля проверен.', { exact: true }).waitFor();
+  await page.locator('[data-source-readiness-official]').waitFor();
+  assert.match(await page.locator('[data-source-readiness-component="refundObservations"]').innerText(), /Неизвестно/);
+  await page.locator('[data-source-readiness-to]').fill('2026-11-02');
+  assert.equal(await page.locator('[data-source-readiness-official]').count(), 0, 'changing the period clears the previous report');
+  await page.locator('[data-source-readiness-to]').fill('2026-11-01');
+  await page.locator('[data-source-readiness-run]').click();
+  await page.locator('[data-source-readiness-official]').waitFor();
+  let releaseReadiness;
+  const readinessRelease = new Promise((resolve) => { releaseReadiness = resolve; });
+  let observedReadiness;
+  const readinessObserved = new Promise((resolve) => { observedReadiness = resolve; });
+  const readinessPattern = '**/api/payroll/versions/*/source-readiness?*';
+  await page.route(readinessPattern, async (route) => {
+    const original = await route.fetch();
+    observedReadiness();
+    await readinessRelease;
+    await route.fulfill({ response: original });
+  });
+  await page.locator('[data-source-readiness-run]').click();
+  await readinessObserved;
+  assert.equal(await page.locator('[data-source-readiness-run]').isDisabled(), true);
+  await page.locator('[data-source-readiness-to]').fill('2026-11-02');
+  const staleReadinessResponse = page.waitForResponse((response) => response.url().includes('/source-readiness?'));
+  releaseReadiness();
+  await (await staleReadinessResponse).finished();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.waitForFunction(() => document.querySelector('[data-source-readiness-run]')?.disabled === false);
+  assert.equal(await page.locator('[data-source-readiness-official]').count(), 0, 'delayed response does not restore a report for the old period');
+  await page.unroute(readinessPattern);
+  await page.route(readinessPattern, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: '<img src=x onerror=bad>' }) }));
+  await page.locator('[data-source-readiness-run]').click();
+  await page.locator('[data-source-readiness-result]').getByText('Не удалось проверить источники:', { exact: false }).waitFor();
+  assert.equal(await page.locator('[data-source-readiness-result] img').count(), 0);
+  assert.equal(await page.locator('[data-source-readiness-run]').isDisabled(), false);
+  await page.unroute(readinessPattern);
+  await page.locator('[data-source-readiness-to]').fill('2026-11-01');
+  await page.locator('[data-source-readiness-run]').click();
+  await page.locator('[data-source-readiness-official]').waitFor();
+  const savedDefinitionForReadiness = await page.locator('[data-scheme-definition]').inputValue();
+  await page.locator('[data-scheme-advanced]').locator('summary').click();
+  await page.locator('[data-scheme-definition]').fill(`${savedDefinitionForReadiness}\n`);
+  await page.locator('[data-source-readiness-dirty]').waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-source-readiness-dirty]').innerText(), /сохранённой версии/);
+  await page.locator('[data-scheme-definition]').fill(savedDefinitionForReadiness);
+  await page.locator('[data-scheme-grid-rebuild]').click();
+  const readinessResponse = await page.request.get(`${base}/api/payroll/versions/${versionId}/source-readiness?${attendanceQuery}`);
+  assert.equal(readinessResponse.status(), 200);
+  const readiness = await readinessResponse.json();
+  assert.equal(readiness.officialReady, false);
+  assert.equal(readiness.components.approvedAttendance.status, 'available');
+  assert.equal(readiness.components.approvedAttendance.approvalId, approval.approvalId);
+  assert.equal(readiness.components.canonicalLinePricing.status, 'unsupported');
+  assert.equal(readiness.components.orderObservations.closedOrderCount, 0);
+  assert.equal(readiness.components.refundObservations.status, 'unsupported');
+  assert.equal(readiness.components.refundObservations.eventCount, null);
+  for (const invalidQuery of [`${attendanceQuery}&from=2026-11-01`, `${attendanceQuery}&coverage=complete`]) {
+    assert.equal((await page.request.get(`${base}/api/payroll/versions/${versionId}/source-readiness?${invalidQuery}`)).status(), 400);
+  }
+  scenario.attendance = [{ id: 'forged', employeeId, date: '2026-11-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }];
+  await page.locator('[data-scheme-preview-input]').fill(JSON.stringify(scenario));
+  const sourcedResponse = page.waitForResponse((response) => response.url().endsWith(`/api/payroll/versions/${versionId}/preview/approved-attendance`) && response.request().method() === 'POST');
+  await page.locator('[data-scheme-run-approved-attendance]').click();
+  const sourcedValue = await sourcedResponse;
+  assert.equal(sourcedValue.status(), 200);
+  const sourcedPayload = await sourcedValue.json();
+  assert.equal(sourcedPayload.official, false); assert.equal(sourcedPayload.persistence, 'none');
+  assert.equal(sourcedPayload.sourceAttendanceApproval.approvalId, approval.approvalId);
+  const shiftDetails = sourcedPayload.result.daily.flatMap((day) => day.employees.flatMap((row) => row.shiftDetails));
+  assert.equal(shiftDetails.length, 1); assert.equal(shiftDetails[0].workedMinutes, 120);
+  assert.notEqual(shiftDetails[0].shiftId, 'forged');
+  await page.locator('[data-scheme-preview-result]').getByText('Сценарий с утверждённой посещаемостью, не официальный расчёт', { exact: true }).waitFor();
+  assert.equal((await db.query('SELECT created_by FROM payroll_scheme_versions WHERE id=$1', [versionId])).rows[0].created_by, ownerId);
+  const directory = path.join(root, 'tmp', 'payroll-editor-browser-qa');
+  mkdirSync(directory, { recursive: true });
+  for (const width of [320, 375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.locator('[data-scheme-editor]').scrollIntoViewIfNeeded();
+    await page.locator('[data-scheme-editor-title]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(directory, `editor-${width}.png`) });
+    await milestoneRoleControl.locator('..').screenshot({ path: path.join(directory, `milestone-role-${width}.png`) });
+    await page.locator('[data-grid-milestone-table]').screenshot({ path: path.join(directory, `milestone-bonus-${width}.png`) });
+    await page.locator('[data-source-readiness]').scrollIntoViewIfNeeded();
+    await page.locator('[data-source-readiness]').screenshot({ path: path.join(directory, `readiness-${width}.png`) });
+    await page.locator('[data-source-policy-fieldset]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(directory, `source-policy-${width}.png`) });
+    const overflow = await page.locator('.finance-payroll-schemes').evaluate((node) => ({ width: node.clientWidth, scroll: node.scrollWidth, offenders: [...node.querySelectorAll('*')].filter((entry) => entry.getBoundingClientRect().right > node.getBoundingClientRect().right + 1).slice(0, 8).map((entry) => ({ tag: entry.tagName, cls: entry.className, width: entry.clientWidth })) }));
+    assert.equal(overflow.scroll > overflow.width + 1, false, `payroll editor fits ${width}px: ${JSON.stringify(overflow)}`);
+  }
+  const wageCard = page.locator('[data-grid-override]').filter({ has: page.locator('[data-grid-override-path][value="perShiftCents"]') });
+  await wageCard.locator('[data-grid-inherit]').click();
+  assert.doesNotMatch(await roleImpact.innerText(), /perShiftCents/);
+  assert.equal(await page.locator('[data-scheme-risk-acknowledged]').isChecked(), false);
+  await page.locator('[data-scheme-risk-acknowledged]').check();
+  await page.locator('[data-personal-cap-acknowledged]').check();
+  const visibleRoleSelect = page.locator('[data-grid-role="bartender"][data-grid-path="mode"]').locator('..');
+  await visibleRoleSelect.locator('.custom-select-trigger').click();
+  await visibleRoleSelect.locator('[data-value="progressive_daily"]').click();
+  assert.equal(await page.locator('[data-scheme-risk-acknowledged]').isChecked(), false, 'visible role dropdown resets acknowledgement');
+  await page.locator('[data-scheme-grid-apply]').click();
+  assert.equal(JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).roleParameters.bartender.mode, 'progressive_daily');
+  definition.roleParameters.bartender.mode = 'progressive_daily';
+  await page.locator('[data-scheme-risk-acknowledged]').check();
+  const visiblePolicySelect = page.locator('[data-source-policy-sale]').locator('..');
+  await visiblePolicySelect.locator('.custom-select-trigger').click();
+  await visiblePolicySelect.locator('[data-value="order_responsible_snapshot"]').click();
+  assert.equal(await page.locator('[data-scheme-risk-acknowledged]').isChecked(), false, 'real visible dropdown resets acknowledgement');
+  assert.equal(await page.locator('[data-personal-cap-acknowledged]').isChecked(), false, 'visible dropdown resets separate cap acknowledgement');
+  assert.match(await page.locator('[data-source-policy-message]').innerText(), /неприменённые/);
+  await page.locator('[data-source-policy-reason]').fill('Владелец выбирает зафиксированного ответственного');
+  await page.locator('[data-source-policy-apply]').click();
+  const selectedPolicy = JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).sourcePolicies;
+  const inherited = JSON.parse(await page.locator('[data-scheme-definition]').inputValue()).employeeOverrides.find((row) => row.path === 'perShiftCents');
+  assert.equal(inherited.mode, 'inherit');
+  assert.equal(Object.hasOwn(inherited, 'value'), false);
+  assert.equal(inherited.effectiveFrom, '2026-11-01');
+  assert.equal(inherited.effectiveTo, '2026-11-10');
+  await page.locator('[data-scheme-risk-acknowledged]').check();
+  await page.locator('[data-personal-cap-acknowledged]').check();
+  const updatedResponse = page.waitForResponse((response) => response.url().includes(`/api/payroll/versions/${versionId}`) && response.request().method() === 'PUT');
+  await page.locator('[data-scheme-save]').click();
+  const updatedValue = await updatedResponse;
+  assert.equal(updatedValue.status(), 200);
+  const updatedVersion = await updatedValue.json();
+  assert.deepEqual(updatedVersion.sourcePolicies, selectedPolicy);
+  assert.notEqual(updatedVersion.payoutRiskAcknowledgement.configDigest, initialDigest);
+  await page.waitForFunction(() => !document.querySelector('[data-scheme-save]')?.disabled);
+  const revisionBefore = (await db.query('SELECT count(*)::int AS count FROM payroll_scheme_version_revisions WHERE scheme_version_id=$1', [versionId])).rows[0].count;
+  const invalidDefinition = JSON.parse(await page.locator('[data-scheme-definition]').inputValue()); invalidDefinition.sourcePolicies = null;
+  const ack = { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' };
+  const mutationHeaders = { origin: base };
+  assert.equal((await page.request.put(`${base}/api/payroll/versions/${versionId}`, { headers: mutationHeaders, data: { definition: invalidDefinition, payoutRiskAcknowledgement: ack } })).status(), 400);
+  assert.equal((await page.request.post(`${base}/api/payroll/schemes`, { headers: mutationHeaders, data: { name: 'Invalid policy', definition: invalidDefinition, payoutRiskAcknowledgement: ack } })).status(), 400);
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM payroll_scheme_version_revisions WHERE scheme_version_id=$1', [versionId])).rows[0].count, revisionBefore);
+  assert.equal((await db.query("SELECT count(*)::int AS count FROM payroll_schemes WHERE name='Invalid policy'")).rows[0].count, 0);
+  const currentHttp = await (await page.request.get(`${base}/api/payroll/versions/${versionId}`)).json();
+  assert.deepEqual(currentHttp.sourcePolicies, selectedPolicy);
+  assert.equal(currentHttp.payoutRiskAcknowledgement.configDigest, updatedVersion.payoutRiskAcknowledgement.configDigest);
+  const revisionHttp = await (await page.request.get(`${base}/api/payroll/versions/${versionId}/revisions`)).json();
+  assert.deepEqual(revisionHttp.items.at(-1).snapshot.sourcePolicies, selectedPolicy);
+  for (const [suffix, expected] of [['staff', 403], ['finance', 403], ['foreign', 404]]) {
+    const isolated = await browser.newContext();
+    try {
+      const auth = await isolated.request.post(`${base}/api/login`, { data: { username: `${login}-${suffix}`, password } });
+      assert.equal(auth.status(), 200);
+      assert.equal((await isolated.request.get(`${base}/api/payroll/versions/${versionId}`)).status(), expected);
+      assert.equal((await isolated.request.get(`${base}/api/payroll/versions/${versionId}/source-readiness?${attendanceQuery}`)).status(), expected);
+      assert.equal((await isolated.request.put(`${base}/api/payroll/versions/${versionId}`, { headers: mutationHeaders, data: { definition: invalidDefinition, payoutRiskAcknowledgement: ack } })).status(), expected);
+    } finally { await isolated.close(); }
+  }
+  const activatedResponse = page.waitForResponse((response) => response.url().endsWith(`/api/payroll/versions/${versionId}/activate`) && response.request().method() === 'POST');
+  await page.locator(`[data-scheme-activate="${versionId}"]`).click();
+  assert.equal((await activatedResponse).status(), 200);
+  await page.locator(`[data-scheme-open-version="${versionId}"]`).click();
+  await page.waitForFunction(() => document.querySelector('[data-scheme-grid-fieldset]')?.disabled === true);
+  assert.equal(await page.locator('[data-grid-inherit]').first().isDisabled(), true);
+  assert.equal(await page.locator('[data-grid-role="bartender"][data-grid-path="perShiftCents"]').isDisabled(), true);
+  assert.equal(await page.locator('[data-scheme-definition]').evaluate((node) => node.readOnly), true);
+  assert.equal(await page.locator('[data-scheme-save]').isHidden(), true);
+  assert.equal(await page.locator('[data-source-policy-sale]').isDisabled(), true);
+  assert.equal(await page.locator('[data-personal-cap-acknowledged]').isDisabled(), true);
+  assert.equal(await page.locator('[data-source-policy-sale]').locator('..').locator('.custom-select-trigger').isDisabled(), true);
+  const activeReadback = JSON.parse(await page.locator('[data-scheme-definition]').inputValue());
+  assert.equal(await page.locator('[data-source-readiness-run]').isDisabled(), false, 'active saved version can be inspected');
+  await page.locator('[data-source-readiness-run]').click();
+  await page.locator('[data-source-readiness-official]').waitFor();
+  await page.locator('[data-scheme-editor-cancel]').click();
+  assert.equal(await page.locator('[data-source-readiness-official]').count(), 0);
+  assert.equal(await page.locator('[data-source-readiness-run]').isDisabled(), true);
+  assert.deepEqual(activeReadback.employeeOverrides.find((row) => row.path === 'perShiftCents'), inherited);
+  assert.deepEqual(activeReadback.roleParameters, definition.roleParameters);
+  assert.deepEqual(activeReadback.sourcePolicies, selectedPolicy);
+  assert.deepEqual(await counts(), before, 'editing configuration never posts payroll or expenses');
+  assert.deepEqual(errors.filter((error) => !error.includes('ViewTransition opt-in disabled')), []);
+  console.log('PAYROLL SCHEME BROWSER POSTGRES QA: PASS (owner grid/policies→API→PG→reload, preview disclosure, policy revision/digest, malformed atomicity, role/tenant isolation, dated inheritance, activation read-only, four widths and no financial posting)');
+} finally {
+  await browser?.close();
+  if (child) { child.kill(); if (child.exitCode === null) await Promise.race([once(child, 'exit'), new Promise((resolve) => setTimeout(resolve, 3000))]); }
+  if (created) {
+    await db.query('SET search_path TO public');
+    await db.query(`DROP SCHEMA "${schema}" CASCADE`);
+    assert.equal((await db.query('SELECT 1 FROM pg_namespace WHERE nspname=$1', [schema])).rows.length, 0);
+  }
+  await db.end();
+}

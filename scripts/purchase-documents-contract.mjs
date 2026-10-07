@@ -32,6 +32,16 @@ for (const route of [
 ]) assert.match(server, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(repository, /async voidDraft\(venueId, id\)[\s\S]*?FOR UPDATE[\s\S]*?purchase_document_not_voidable[\s\S]*?status='voided'/,
   'only a locked draft may be voided, without creating stock movements');
+const postMethod = repository.match(/async post\(venueId, id, actorId\) \{([\s\S]*?)\n  \}\n  async/);
+assert.ok(postMethod, 'purchase post method must remain discoverable for critical guards');
+assert.match(postMethod[1], /is_marked AS ingredient_active[\s\S]*?FOR UPDATE OF l,i[\s\S]*?ingredient_active !== true[\s\S]*?purchase_ingredient_archived[\s\S]*?INSERT INTO stock_movements/,
+  'archived ingredient must fail closed while locked before any receipt movement');
+assert.match(server, /'purchase_ingredient_archived'[\s\S]{0,320}\? error\.message : 'purchase_document_post_failed'/,
+  'post route must preserve the stable archived-ingredient conflict instead of masking it');
+assert.match(portal, /purchase_ingredient_archived[\s\S]{0,220}Позиция в черновике архивирована/,
+  'operator receives a clear no-stock-change message for an archived draft line');
+assert.match(portal, /Архивная позиция:[\s\S]{0,100}line\.ingredientName/,
+  'draft editor preserves the archived line snapshot so it can be replaced deliberately');
 for (const contract of ['purchase_document_not_postable', 'purchase_document_empty', 'source_movement_id', 'stock_movements', 'receipt_unit_cost', 'inventory.purchase_document_posted', 'invalid_source_auto_order', 'FOR UPDATE OF l,i', 'purchase_document_required', 'purchase_item_not_in_auto_order', 'purchase_quantity_exceeds_auto_order', 'partially_received', 'receivedQuantity', 'auto_order_has_draft_receipts', 'has_drafts']) assert.match(`${server}\n${repository}`, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(repository, /assertAutoOrderAllocation\(client, sourceOrder, input\.venueId/,
   'draft receipts must reserve only the quantity still expected in their auto-order');

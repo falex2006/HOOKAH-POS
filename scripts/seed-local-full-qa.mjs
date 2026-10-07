@@ -222,7 +222,7 @@ async function seedVenue(ownerToken, org, venueId, prefix, extensive) {
     const payments = await request(ownerToken, `/api/orders/${manifest.entities[`${prefix}:history-order:${index}`].id}/payments`);
     closingCash += payments.items.filter(payment => payment.method === 'cash' && ['paid','partially_paid'].includes(payment.status)).reduce((total, payment) => total + Number(payment.amount), 0);
   }
-  await once(`${prefix}:shift:closed:close`, () => request(ownerToken, `/api/shifts/${shift.id}/close`, 'POST', { closingCash, checklistConfirmed: true }));
+  await once(`${prefix}:shift:closed:close`, () => request(ownerToken, `/api/shifts/${shift.id}/close`, 'POST', { closingCash, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } }));
   await once(`${prefix}:shift:open`, () => request(ownerToken, '/api/shifts', 'POST', { openingCash: 2000 }, [201]));
   for (let index = 0; index < 5; index++) {
     const key = `${prefix}:active-order:${index}`;

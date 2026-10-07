@@ -46,7 +46,7 @@ try {
   // remove it here to model a real pre-049 database before loading legacy rows.
   await client.query('ALTER TABLE products DROP COLUMN IF EXISTS inventory_mode');
 
-  const venue = (await client.query("INSERT INTO venues (name) VALUES ('Legacy migration QA') RETURNING id")).rows[0].id;
+  const venue = (await client.query("INSERT INTO venues (organization_id,name) VALUES ('00000000-0000-0000-0000-000000000010','Legacy migration QA') RETURNING id")).rows[0].id;
   const user = (await client.query(
     "INSERT INTO users (venue_id,full_name,login,role) VALUES ($1,'Legacy QA','legacy-qa-' || gen_random_uuid()::text,'owner') RETURNING id", [venue],
   )).rows[0].id;
@@ -205,10 +205,11 @@ try {
   await client.query('INSERT INTO loyalty_program_settings (venue_id,version) VALUES ($1,1)', [siblingVenue]);
 
   let expectedFailureIndex = 0;
-  const assertSqlFailure = async (query, params, expectedCode, label) => {
+  const assertSqlFailure = async (query, params, expectedCode, label, expectedConstraint = null) => {
     const savepoint = `loyalty_expected_failure_${expectedFailureIndex++}`;
     await client.query(`SAVEPOINT ${savepoint}`);
-    await assert.rejects(client.query(query, params), (error) => error.code === expectedCode, label);
+    await assert.rejects(client.query(query, params), (error) => error.code === expectedCode
+      && (!expectedConstraint || error.constraint === expectedConstraint), label);
     await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
     await client.query(`RELEASE SAVEPOINT ${savepoint}`);
   };
@@ -247,33 +248,45 @@ try {
   await client.query('ROLLBACK TO SAVEPOINT loyalty_scope_fk_check');
   await client.query('RELEASE SAVEPOINT loyalty_scope_fk_check');
 
-  await client.query('SAVEPOINT loyalty_venue_cascade');
+  await client.query('SAVEPOINT loyalty_venue_hard_delete_check');
   await client.query('SET CONSTRAINTS loyalty_promotion_scopes_venue_id_product_id_fkey DEFERRED');
   await client.query('UPDATE users SET venue_id=NULL WHERE id=$1', [loyaltyUser]);
   await client.query('DELETE FROM orders WHERE id=$1', [snapshotOrderId]);
   await client.query('DELETE FROM products WHERE id=$1', [loyaltyProduct]);
-  await client.query('DELETE FROM venues WHERE id=$1', [loyaltyVenue]);
-  await client.query('SET CONSTRAINTS loyalty_promotion_scopes_venue_id_product_id_fkey IMMEDIATE');
-  await client.query('RELEASE SAVEPOINT loyalty_venue_cascade');
+  await assertSqlFailure('DELETE FROM venues WHERE id=$1', [loyaltyVenue], '23503',
+    'immutable purchase-reversal policy history blocks hard deletion of its venue',
+    'inventory_purchase_reversal_policies_venue_id_fkey');
+  await client.query('ROLLBACK TO SAVEPOINT loyalty_venue_hard_delete_check');
+  await client.query('RELEASE SAVEPOINT loyalty_venue_hard_delete_check');
+  assert.equal((await client.query('SELECT id,is_active FROM venues WHERE id=$1', [loyaltyVenue])).rowCount, 1,
+    'failed venue hard-delete leaves the venue intact');
   assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_program_settings WHERE id=$1', [settingId])).rows[0].count,
-    0, 'venue cascade removes settings with immutable triggers enabled');
+    1, 'failed venue hard-delete retains immutable loyalty settings');
   assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_promotions WHERE venue_id=$1', [loyaltyVenue])).rows[0].count,
-    0, 'venue cascade removes promotion history with immutable triggers enabled');
+    2, 'failed venue hard-delete retains all immutable promotion versions');
   assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_promotion_scopes WHERE id=$1', [scopeId])).rows[0].count,
-    0, 'venue cascade removes promotion scopes with immutable triggers enabled');
+    1, 'failed venue hard-delete retains immutable promotion scopes');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM inventory_purchase_reversal_policies WHERE venue_id=$1', [loyaltyVenue])).rows[0].count,
+    1, 'venue retains its immutable seeded purchase-reversal policy version');
+  assert.equal((await client.query('UPDATE venues SET is_active=false WHERE id=$1 RETURNING is_active', [loyaltyVenue])).rows[0].is_active,
+    false, 'supported venue lifecycle archives without deleting the venue');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_promotions WHERE venue_id=$1', [loyaltyVenue])).rows[0].count,
+    2, 'archiving a venue preserves every immutable promotion version');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_program_settings WHERE venue_id=$1', [loyaltyVenue])).rows[0].count,
+    1, 'archiving a venue preserves its immutable loyalty settings');
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM inventory_purchase_reversal_policies WHERE venue_id=$1', [loyaltyVenue])).rows[0].count,
+    1, 'archiving a venue preserves its immutable purchase-reversal policy version');
   assert.equal((await client.query('SELECT count(*)::int AS count FROM loyalty_program_settings WHERE venue_id=$1', [siblingVenue])).rows[0].count,
-    1, 'venue cascade leaves sibling venue settings untouched');
-  assert.equal((await client.query('DELETE FROM users WHERE id=$1 RETURNING id', [loyaltyUser])).rowCount,
-    1, 'creator can be hard-deleted after the venue-owned history has been purged');
+    1, 'archiving a venue leaves sibling venue settings untouched');
   assert.equal((await client.query(`SELECT count(*)::int AS count FROM pg_trigger t
     JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname=current_schema()
       AND t.tgname IN ('loyalty_program_settings_immutable','loyalty_promotions_immutable','loyalty_promotion_scopes_immutable')
-      AND t.tgenabled='O'`)).rows[0].count, 3, 'all immutable-history triggers remain enabled after QA cascade');
+      AND t.tgenabled='O'`)).rows[0].count, 3, 'all immutable-history triggers remain enabled after hard-delete refusal and archive');
   assert.equal((await client.query("SELECT to_regprocedure('reject_loyalty_promotion_history_mutation()') IS NULL AS dropped")).rows[0].dropped,
     true, 'the replaced pre-076 trigger function is removed');
 
-  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline migrations + ${latest.length} new migrations; legacy records preserved; six-decimal warehouse and recipe quantities verified; 076 immutability, actor retention and venue cascade verified; latest migrations replayed; schema rolled back)`);
+  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline files + ${latest.length} migration files replayed, including migrations 039–076 in both groups; legacy records preserved; six-decimal warehouse and recipe quantities verified; immutable venue histories and actor retention verified; hard-delete restricted and archive preserves history; schema rolled back)`);
 } finally {
   if (transaction) await client.query('ROLLBACK').catch(() => {});
   if (client._connected) await client.end();

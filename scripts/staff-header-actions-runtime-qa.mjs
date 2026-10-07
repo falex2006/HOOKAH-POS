@@ -25,7 +25,8 @@ const requests=[],notices=[];
 const button={dataset:{},disabled:true,innerHTML:'',title:'',attributes:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(_event,fn){click=fn;}};
 const context={
   staffNotificationCenter:null,currentShift:null,staffShiftReadable:true,staffShiftManageable:true,document:{querySelector:()=>button,addEventListener(){},visibilityState:'visible'},staffIcon:(name)=>`<svg>${name}</svg>`,
-  notice:(text)=>notices.push(text),window:{confirm:()=>true,addEventListener(){},setInterval(){return 1}},requestStaffAction:async()=>choice,
+  notice:(text)=>notices.push(text),window:{confirm:()=>true,addEventListener(){},setInterval(){return 1},HOOKAH_SHIFT_CLOSE:{checklistVersion:1,checklistItems:[{id:'ordersReviewed',label:'Проверить заказы'},{id:'cashCounted',label:'Пересчитать кассу'},{id:'inventoryReviewed',label:'Проверить склад'},{id:'externalFiscalReportsHandled',label:'Проверить внешние отчёты'}]}},requestStaffAction:async()=>choice,
+  shiftCashCloseDescription:()=> 'Проверьте ожидаемую наличность и подтвердите четыре пункта.',shiftCloseResultMessage:()=> 'Смена закрыта',
   shiftCloseFailureMessage:()=> 'Смена осталась открытой',
   shiftApi:async(options={})=>{
     requests.push(options);
@@ -44,6 +45,6 @@ failing=true;await context.refreshShift();assert.equal(button.dataset.shiftState
 failing=false;await click();assert.equal(button.dataset.shiftState,'closed');assert.equal(requests.filter(x=>x.method).length,0,'retry only reads');
 const opening=click();await click();await opening;assert.equal(requests.filter(x=>x.method).length,1,'duplicate clicks cannot duplicate POST');assert.equal(button.dataset.shiftState,'open');assert.equal(button.attributes['aria-label'],'Закрыть смену');assert.ok(notices.includes('Смена открыта'),'successful opening displays success');
 await context.refreshShift();assert.equal(button.dataset.shiftState,'open','reload reads actual open shift');
-choice={closingCash:'0'};mutationFailing=true;await click();assert.equal(button.dataset.shiftState,'open');assert.equal(button.disabled,false);assert.ok(notices.includes('Смена осталась открытой'));
-mutationFailing=false;await click();assert.equal(button.dataset.shiftState,'closed');assert.ok(notices.includes('Смена закрыта'),'successful closing displays success');const closeRequest=[...requests].reverse().find((request)=>request.url?.endsWith('/close'));assert.equal(closeRequest?.url,'/api/shifts/shift-qa/close');assert.deepEqual(JSON.parse(closeRequest.body),{closingCash:0,checklistConfirmed:true});
+choice={closingCash:'0',ordersReviewed:'on',cashCounted:'on',inventoryReviewed:'on',externalFiscalReportsHandled:'on'};mutationFailing=true;await click();assert.equal(button.dataset.shiftState,'open');assert.equal(button.disabled,false);assert.ok(notices.includes('Смена осталась открытой'));
+mutationFailing=false;await click();assert.equal(button.dataset.shiftState,'closed');assert.ok(notices.includes('Смена закрыта'),'successful closing displays success');const closeRequest=[...requests].reverse().find((request)=>request.url?.endsWith('/close'));assert.equal(closeRequest?.url,'/api/shifts/shift-qa/close');assert.deepEqual(JSON.parse(closeRequest.body),{closingCash:0,checklist:{version:1,items:{ordersReviewed:true,cashCounted:true,inventoryReviewed:true,externalFiscalReportsHandled:true}}});
 console.log('STAFF HEADER ACTIONS QA: PASS (layout/dist, loading/open/closed/error/retry, duplicate guards, open/close/error and confirmed payload)');

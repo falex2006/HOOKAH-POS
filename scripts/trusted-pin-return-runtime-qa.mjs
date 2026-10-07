@@ -79,6 +79,16 @@ try {
   const pinUpdate = await request(baseUrl, `/api/staff/${adminId}/pin`, { method: 'PATCH', cookie: owner.cookie, body: { pin: '2468' } });
   assert.equal(pinUpdate.status, 200, 'owner sets admin PIN');
 
+  const normalAdmin = await login(baseUrl, 'trusted_admin', 'admin-pass', false);
+  assert.equal(normalAdmin.expiresIn, standardTtl, 'admin without trustDevice receives the standard session');
+  assert.equal(normalAdmin.trustedDevice, false);
+  const normalRestored = await request(baseUrl, '/api/session', { cookie: normalAdmin.cookie });
+  assert.equal(normalRestored.status, 200, 'normal admin cookie can read the existing session');
+  assert.equal(normalRestored.payload.trustedDevice, false, 'normal admin session is not marked as a trusted device');
+  const normalPinReturn = await request(baseUrl, '/api/session/pin-return', { method: 'POST', cookie: normalAdmin.cookie, body: { pin: '2468' } });
+  assert.equal(normalPinReturn.status, 403, 'normal admin session cannot use trusted PIN return');
+  assert.equal(normalPinReturn.payload.error, 'pin_return_requires_trusted_device');
+
   const admin = await login(baseUrl, 'trusted_admin', 'admin-pass', true);
   assert.equal(admin.expiresIn, trustedTtl, 'admin trusted device receives the long session');
   assert.equal(admin.trustedDevice, true);
@@ -87,6 +97,7 @@ try {
   const restored = await request(baseUrl, '/api/session', { cookie: admin.cookie });
   assert.equal(restored.status, 200, 'trusted cookie can read the existing session');
   assert.equal(restored.payload.token, undefined, 'session restore must not expose the bearer token before PIN return');
+  assert.equal(restored.payload.trustedDevice, true, 'trusted admin session is explicitly marked for PIN return');
   assert.equal(restored.payload.user.role, 'admin');
   assert.equal(restored.payload.user.pinConfigured, true);
 

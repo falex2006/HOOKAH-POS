@@ -12,7 +12,7 @@ const staffBranch = portal.slice(staffBranchStart, staffBranchEnd);
 
 assert.match(adminHtml, /<b data-admin-section-title>Главная<\/b>/,
   'admin top bar exposes a dynamic subsection title');
-assert.match(titleMap, /'#staff':\s*'Сотрудники'/,
+assert.match(titleMap, /'#staff':\s*'Персонал'/,
   'staff subsection maps to the same label as its page heading');
 assert.match(titleMap, /'#venue-layout-settings':\s*'Залы и рабочая зона'/,
   'venue layout settings use the settings name from the sitemap instead of the operational hall/order label');
@@ -20,7 +20,7 @@ assert.match(portal, /window\.addEventListener\('hashchange', updateAdminSection
   'admin top bar title updates when the selected subsection changes');
 assert.ok(/window\.location\.hash && window\.location\.hash !== '#'/.test(greeting) || /stable title; no recurring greeting/.test(greeting),
   'dashboard greeting must not overwrite a subsection heading or reappear as a recurring flash');
-assert.match(staffBranch, /staffTitle\.textContent = dashboardFocus === 'permissions' \? 'Роли и права доступа' : 'Сотрудники'/,
+assert.match(staffBranch, /staffTitle\.textContent = dashboardFocus === 'permissions' \? 'Роли и права доступа' : 'Персонал'/,
   'staff and permissions subsection headings remain explicit');
 assert.ok(staffBranch.includes(`setDashboardPanelVisibility('[data-dashboard-module="kpi"]`),
   'staff subsection hides both the KPI cards and their separate heading');

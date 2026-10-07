@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import {readFileSync,readdirSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+import {validateQaDatabaseUrl,assertQaDatabaseIdentity} from './postgres-qa-safety.mjs';
+const require=createRequire(import.meta.url),{Client,Pool}=require('pg');
+const {readPayrollItemReturnEvidenceInTransaction:readReturns}=require('../payroll-item-return-source.js');
+const {readPayrollSourceReadinessInTransaction:readiness}=require('../payroll-source-readiness.js');
+const {makePayrollAttendanceManifestService}=require('../payroll-attendance-manifest.js');
+const target=validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL),root=fileURLToPath(new URL('../',import.meta.url));
+const schema=`payroll_return_sequence_qa_${process.pid}_${Date.now()}`,db=new Client({connectionString:target.url.href}),url=new URL(target.url);url.searchParams.set('options',`-c search_path=${schema},public`);
+let pool,created=false;
+const insert=async(client,table,row)=>{const fields=Object.keys(row);return (await client.query(`INSERT INTO ${table}(${fields.join(',')}) VALUES(${fields.map((_,i)=>'$'+(i+1)).join(',')}) RETURNING id`,fields.map(k=>row[k]&&typeof row[k]==='object'&&!Array.isArray(row[k])?JSON.stringify(row[k]):row[k]))).rows[0].id;};
+try{
+ await db.connect();assertQaDatabaseIdentity((await db.query('SELECT current_database() AS database,inet_server_addr() AS address,inet_server_port() AS port,(SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser')).rows[0],target.database,+target.url.port);
+ await db.query(`CREATE SCHEMA ${schema}`);created=true;await db.query(`SET search_path TO ${schema},public`);await db.query(readFileSync(path.join(root,'schema.sql'),'utf8'));await db.query('DROP TRIGGER IF EXISTS pos_order_item_after_snapshot ON order_items');await db.query('DROP TABLE IF EXISTS order_refund_items,pos_order_item_return_balances,pos_order_pricing_snapshot_lines,pos_order_pricing_snapshots CASCADE');
+ for(const name of readdirSync(path.join(root,'migrations')).filter(n=>/^\d{3}.*\.sql$/.test(n)&&+n.slice(0,3)<=89).sort())await db.query(readFileSync(path.join(root,'migrations',name),'utf8'));
+ pool=new Pool({connectionString:url.href});
+ const venue=async(name)=>insert(db,'venues',{name,timezone:'Asia/Yekaterinburg'}),tenant=await venue('Canonical QA'),foreign=await venue('Foreign QA'),bad=await venue('Bad QA');
+ const user=async(venue_id,name)=>insert(db,'users',{venue_id,full_name:name,login:schema+name,role:'owner'}),owner=await user(tenant,'Owner'),foreignOwner=await user(foreign,'Foreign'),badOwner=await user(bad,'Bad');
+ const products=new Map();for(const venueId of [tenant,foreign,bad])products.set(venueId,await insert(db,'products',{venue_id:venueId,name:'Tea',category:'bar',sale_price:'10.00'}));
+ // Real090 guards apply to committed synthetic source fixtures. This test is
+ // not an assertion that the POS HTTP producer generated these facts.
+ const fixture=async(client=db,{venueId=tenant,ownerId=owner,sellerId=ownerId,lockAt='2026-10-31T19:00:00Z',closedAt='2026-11-01T12:00:00Z',legacy=false,unknown=false,gross='1000',quantity='1.000',price='10.00'}={})=>{
+  await client.query('BEGIN');try{
+   const aggregateGross=BigInt(gross)<=999999999999n?BigInt(gross):1000n;const aggregateDecimal=(aggregateGross/100n)+'.'+String(aggregateGross%100n).padStart(2,'0');const order=await insert(client,'orders',{venue_id:venueId,opened_by:ownerId,status:'closed',closed_at:closedAt,pricing_locked_at:lockAt,pricing_version:1,subtotal_snapshot:aggregateDecimal,discount_total_snapshot:'0.00',minimum_adjustment_snapshot:'0.00',final_total_snapshot:aggregateDecimal});
+   const item=await insert(client,'order_items',{order_id:order,product_id:products.get(venueId),quantity,unit_price:price,station:'bar',sales_employee_id:unknown?null:sellerId,sold_at:unknown?null:lockAt});
+   let snapshot,line;
+   if(!legacy){snapshot=await insert(client,'pos_order_pricing_snapshots',{venue_id:venueId,order_id:order,sold_at:lockAt,transaction_at:lockAt,subtotal_minor:gross,discount_minor:'0',minimum_adjustment_minor:'0',final_total_minor:gross,discount_source:'none',winner_source_ids:[],eligible_item_ids:[],winner_terms:{},frozen_terms:{allocationPolicy:'largest-remainder-item-id-v1',offers:[],inputs:{approvedDiscounts:[],promotions:[]},minimumAdjustment:0}});
+    line=await insert(client,'pos_order_pricing_snapshot_lines',{venue_id:venueId,snapshot_id:snapshot,order_id:order,order_item_id:item,seller_id:unknown?null:sellerId,sold_at:unknown?null:lockAt,quantity,unit_price:price,gross_minor:gross,discount_minor:'0',net_minor:gross,eligible:false,product_facts:{productId:products.get(venueId),productName:'Tea',category:'bar',station:'bar',productActive:true}});
+   }
+   await client.query('COMMIT');return {order,item,snapshot,line};
+  }catch(e){await client.query('ROLLBACK');throw e;}
+ };
+
+ await db.query(readFileSync(path.join(root,'migrations','090_pos_order_pricing_snapshots.sql'),'utf8'));await db.query(readFileSync(path.join(root,'migrations','091_pos_order_refund_items.sql'),'utf8'));
+ assert.equal((await db.query("SELECT count(*)::int n FROM pg_attribute WHERE attrelid='order_refund_items'::regclass AND attname='producer_sequence' AND NOT attisdropped")).rows[0].n,0,'real pre092 schema');
+ const options={venueId:tenant,currency:'RUB',from:'2026-11-01',to:'2026-11-02',timezone:'Asia/Yekaterinburg'},legacySource=await fixture(db,{closedAt:'2026-11-01T08:00:00Z'}),cleanSource=await fixture(db,{venueId:foreign,ownerId:foreignOwner,closedAt:'2026-11-01T08:00:00Z'});
+ const shifts=new Map();for(const [v,u] of [[tenant,owner],[foreign,foreignOwner],[bad,badOwner]])shifts.set(v,await insert(db,'shifts',{venue_id:v,opened_by:u,opened_at:'2026-10-30T10:00:00Z',opening_cash:'0.00'}));
+ let serial=0;
+ const header=async(client,source,v,u,time)=>insert(client,'order_refunds',{venue_id:v,order_id:source.order,shift_id:shifts.get(v),amount:'2.50',item_attribution_status:'complete',reason:'092 sequence QA',idempotency_key:'sequence-qa-'+(++serial),actor_id:u,created_at:time});
+ const item=async(client,source,v,refund,extra={})=>insert(client,'order_refund_items',{venue_id:v,refund_id:refund,order_id:source.order,snapshot_id:source.snapshot,order_item_id:source.item,returned_quantity:'0.250',returned_item_value_minor:'0',...extra});
+ const append=async(source,v,u,time,extra={})=>{await db.query('BEGIN');try{const refund=await header(db,source,v,u,time),row=await item(db,source,v,refund,extra);await db.query('COMMIT');return row;}catch(e){await db.query('ROLLBACK');throw e;}};
+ const readItem=async(opts=options)=>{const c=await pool.connect();try{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');const r=await readReturns(c,opts);await c.query('COMMIT');return r;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}};
+ const legacyId=await append(legacySource,tenant,owner,'2026-11-01T10:00:00.000001Z');
+ const beforeLegacy=(await db.query('SELECT to_jsonb(i) value FROM order_refund_items i WHERE id=$1',[legacyId])).rows[0].value;
+ const oldRead=await readItem();assert.equal(oldRead.status,'incomplete');assert(oldRead.reasons.includes('item_return_legacy_unsequenced'));assert.equal(oldRead.legacyUnsequencedEventCount,1);
+ const migration=readFileSync(path.join(root,'migrations','092_pos_order_refund_item_sequence.sql'),'utf8');await db.query(migration);await db.query(migration);
+ const afterLegacy=(await db.query('SELECT to_jsonb(i) value FROM order_refund_items i WHERE id=$1',[legacyId])).rows[0].value;
+ const fields=['producer_sequence','previous_returned_quantity','cumulative_returned_quantity','previous_returned_item_value_minor','cumulative_returned_item_value_minor'];for(const f of fields){assert.equal(afterLegacy[f],null);delete afterLegacy[f];}assert.deepEqual(afterLegacy,beforeLegacy,'092 preserves all legacy facts');
+ assert.equal((await db.query('SELECT return_sequence::text n FROM pos_order_item_return_balances WHERE order_item_id=$1',[legacySource.item])).rows[0].n,'0');
+ const mixedId=await append(legacySource,tenant,owner,'2026-11-01T09:00:00.000001Z',{producer_sequence:'99',previous_returned_quantity:'99',cumulative_returned_quantity:'99',previous_returned_item_value_minor:'99',cumulative_returned_item_value_minor:'99'});
+ const transitions=async(v)=>(await db.query('SELECT producer_sequence::text,previous_returned_quantity::text,cumulative_returned_quantity::text,previous_returned_item_value_minor::text,cumulative_returned_item_value_minor::text,returned_item_value_minor::text FROM order_refund_items WHERE id=$1',[v])).rows[0];
+ assert.deepEqual(await transitions(mixedId),{producer_sequence:'1',previous_returned_quantity:'0.250',cumulative_returned_quantity:'0.500',previous_returned_item_value_minor:'250',cumulative_returned_item_value_minor:'500',returned_item_value_minor:'250'},'actual producer overrides caller claims and freezes nonzero legacy baseline');
+ const mixed=await readItem();assert.equal(mixed.status,'incomplete');assert.equal(mixed.invalidItemCount,0,JSON.stringify(mixed));assert.equal(mixed.legacyBaselineItemCount,1);assert.equal(mixed.post092ValidatedItemCount,1);assert.equal(mixed.producerSequence,'not_attested');assert.equal(mixed.sequenceScope,'mixed_post_092_and_legacy');
+ const cleanOptions={...options,venueId:foreign};await append(cleanSource,foreign,foreignOwner,'2026-11-01T12:00:00.000001Z');await append(cleanSource,foreign,foreignOwner,'2026-11-01T12:00:00.000001Z');await append(cleanSource,foreign,foreignOwner,'2026-11-01T11:00:00.000001Z');
+ const clean=await readItem(cleanOptions);assert.equal(clean.status,'available',JSON.stringify(clean));assert.equal(clean.sequencedEventCount,3);assert.equal(clean.ambiguousItemCount,0);assert.equal(clean.producerSequence,'per_source_post_092');assert.equal(clean.paymentLinkage,'not_attested');assert.equal(clean.officialReady,undefined);
+
+ const integrationClient=await pool.connect();try{await integrationClient.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');const actual=await readiness(integrationClient,{venueId:foreign,userId:foreignOwner},{versionId:'aaaaaaaa-aaaa-4aaa-8aaa-000000000001',currency:'RUB'},{from:options.from,to:options.to},makePayrollAttendanceManifestService(pool));assert.equal(actual.officialReady,false);assert.equal(actual.components.recognizedLineRefunds.status,'unsupported');assert.equal(actual.components.fullEmployeeNetRevenue.status,'unsupported');assert.equal(actual.components.sourcePolicies.status,'unsupported');assert.equal(actual.components.approvedAttendance.status,'incomplete');assert.deepEqual(actual.components.itemReturnEvidence,await readReturns(integrationClient,cleanOptions),'actual readiness consumes identical 092 component in the same RR snapshot');assert.equal(actual.components.itemReturnEvidence.status,'available');assert.equal(actual.components.itemReturnEvidence.producerSequence,'per_source_post_092');await integrationClient.query('COMMIT');}catch(e){await integrationClient.query('ROLLBACK');throw e;}finally{integrationClient.release();}
+ await db.query('BEGIN');const rollbackRefund=await header(db,cleanSource,foreign,foreignOwner,'2026-11-01T13:00:00Z');await item(db,cleanSource,foreign,rollbackRefund);await db.query('ROLLBACK');assert.deepEqual(await readItem(cleanOptions),clean,'rolled back producer append leaves balance, history and watermark unchanged');
+ await append(cleanSource,foreign,foreignOwner,'2026-11-01T10:00:00Z');assert.equal((await db.query('SELECT return_sequence::text n FROM pos_order_item_return_balances WHERE order_item_id=$1',[cleanSource.item])).rows[0].n,'4','rollback consumes no sequence');
+ await assert.rejects(()=>append(cleanSource,foreign,foreignOwner,'2026-11-01T14:00:00Z'),e=>e.code==='23514'&&e.message.includes('quantity_exceeds_remaining'));
+ // Two independent actual producers serialize through the source balance row.
+ const concurrent=await fixture(db,{venueId:bad,ownerId:badOwner}),a=await pool.connect(),b=await pool.connect();
+ try{await a.query('BEGIN');await b.query('BEGIN');const ha=await header(a,concurrent,bad,badOwner,'2026-11-01T15:00:00Z'),hb=await header(b,concurrent,bad,badOwner,'2026-11-01T14:00:00Z');const ra=await item(a,concurrent,bad,ha);const pid=(await b.query('SELECT pg_backend_pid() pid')).rows[0].pid;const pending=item(b,concurrent,bad,hb);let blocked=false;for(let n=0;n<100&&!blocked;n++)blocked=(await db.query('SELECT cardinality(pg_blocking_pids($1))>0 blocked',[pid])).rows[0].blocked;assert.equal(blocked,true,'second producer waits on first source balance lock');await a.query('COMMIT');const rb=await pending;await b.query('COMMIT');assert.equal((await transitions(ra)).producer_sequence,'1');assert.equal((await transitions(rb)).producer_sequence,'2');}finally{await a.query('ROLLBACK');await b.query('ROLLBACK');a.release();b.release();}
+ assert.equal((await readItem({...options,venueId:bad})).status,'available');
+ const counts=async()=>(await db.query('SELECT (SELECT count(*) FROM payroll_entries)::int entries,(SELECT count(*) FROM expenses)::int expenses,(SELECT count(*) FROM payroll_calculation_runs)::int runs,(SELECT count(*) FROM payments)::int payments,(SELECT count(*) FROM order_refunds)::int refunds')).rows[0],before=await counts();await readItem();await readItem(cleanOptions);assert.deepEqual(await counts(),before,'readers append no money or source rows');
+ console.log('PAYROLL ITEM RETURN SEQUENCE POSTGRES: PASS (pre092 legacy preservation, exact producer transitions, tied/reversed timestamps, rollback and two-client serialization, read-only evidence)');
+}finally{await pool?.end();if(created){await db.query('ROLLBACK');await db.query('SET search_path TO public');await db.query(`DROP SCHEMA ${schema} CASCADE`);assert.equal((await db.query('SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname=$1) present',[schema])).rows[0].present,false);}await db.end();}
