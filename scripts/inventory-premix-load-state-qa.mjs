@@ -22,12 +22,17 @@ assert.ok(start >= 0 && end > start, 'premix loader must be discoverable');
 const loaderSource = portal.slice(start, end + 1);
 
 const createFixture = () => {
+  const createSelect = () => {
+    let markup = '';
+    return { value: '', options: [], get innerHTML() { return markup; }, set innerHTML(value) { markup = value; this.options = [...value.matchAll(/<option value="([^"]*)"/g)].map((match) => ({ value: match[1] })); this.value = this.options[0]?.value || ''; } };
+  };
   const controls = [0, 1, 2].map((index) => ({ disabled: false, matches: () => index === 2 }));
   const classes = new Set(); const attributes = new Map();
   const nodes = {
-    '#premix-recipe': { innerHTML: '' },
-    '#premix-output': { innerHTML: '' },
-    '#premix-form': { dataset: {}, querySelectorAll: () => controls },
+    '#premix-recipe': createSelect(),
+    '#premix-output': createSelect(),
+    '#premix-form': { hidden: true, dataset: {}, querySelectorAll: () => controls },
+    '#premix-production': { hidden: true },
     '#premix-empty-guidance': { hidden: true, innerHTML: '', classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) }, setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) },
     '#premix-batches': { innerHTML: '' },
   };
@@ -47,6 +52,8 @@ assert.ok(failedFixture.classes.has('auto-order-load-error'));
 assert.match(failedFixture.nodes['#premix-empty-guidance'].innerHTML, /Не удалось загрузить данные премиксов/);
 assert.match(failedFixture.nodes['#premix-empty-guidance'].innerHTML, /data-premix-retry/);
 assert.ok(failedFixture.controls.every((control) => control.disabled), 'production stays disabled while prerequisites are unknown');
+assert.equal(failedFixture.nodes['#premix-form'].hidden, true, 'failed prerequisites keep the form hidden');
+assert.equal(failedFixture.nodes['#premix-production'].hidden, true, 'failed prerequisites keep the production section hidden');
 assert.match(failedFixture.nodes['#premix-batches'].innerHTML, /История партий временно недоступна/);
 
 const recoveredFixture = createFixture();
@@ -55,8 +62,14 @@ await recover();
 assert.equal(recoveredFixture.nodes['#premix-empty-guidance'].hidden, true);
 assert.ok(!recoveredFixture.classes.has('auto-order-load-error'));
 assert.ok(recoveredFixture.controls.every((control) => !control.disabled), 'successful retry restores the production form');
+assert.equal(recoveredFixture.nodes['#premix-form'].hidden, false, 'ready prerequisites reveal the form');
+assert.equal(recoveredFixture.nodes['#premix-production'].hidden, false, 'ready prerequisites reveal the production section');
+recoveredFixture.nodes['#premix-recipe'].value = 'r';
+recoveredFixture.nodes['#premix-output'].value = 'o';
 recoveredFixture.nodes['#premix-form'].dataset.submitting = '1';
 await recover();
+assert.equal(recoveredFixture.nodes['#premix-recipe'].value, 'r', 'reload preserves the chosen recipe');
+assert.equal(recoveredFixture.nodes['#premix-output'].value, 'o', 'reload preserves the chosen output');
 assert.ok(recoveredFixture.controls.slice(0, 2).every((control) => !control.disabled), 'reload keeps selectors available while producing');
 assert.equal(recoveredFixture.controls[2].disabled, true, 'reload cannot re-enable production during an in-flight batch');
 assert.match(recoveredFixture.nodes['#premix-recipe'].innerHTML, /Сироп/);

@@ -89,3 +89,6 @@ assert.match(rules, /Справочники склада: каскадный в�
 assert.equal(map.inventoryMovementsPresentation.default, "documents");
 assert.equal(map.inventoryMovementsPresentation.editor, "modal");
 assert.match(rules, /Поставки и списания: журнал прежде формы/);
+
+assert.equal(map.inventoryWorkingViewsPresentation.summary, "compact");
+assert.equal(map.inventoryWorkingViewsPresentation.lists, "bounded");

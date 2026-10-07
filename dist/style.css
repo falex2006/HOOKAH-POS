@@ -3666,3 +3666,68 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .inventory-journal-editor .form-message:empty{display:none}
 @media(max-width:1100px){.inventory-movements-mode .purchase-document-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.inventory-movements-mode .purchase-document-filters .toolbar-row{grid-column:2/-1;justify-content:flex-end}.velora-theme .inventory-movements-mode .purchase-document-row{grid-template-columns:minmax(0,1fr) auto}.inventory-movements-mode .purchase-document-row>.toolbar-row{grid-column:1/-1}}
 @media(max-width:650px){.inventory-movement-journal-switch{width:100%}.inventory-movement-journal-switch button{min-width:0;flex:1}.inventory-movements-mode .purchase-document-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-movements-mode .purchase-document-filters .toolbar-row{grid-column:1/-1;justify-content:stretch}.inventory-movements-mode .purchase-document-filters .toolbar-row .button{flex:1}.inventory-movements-mode #purchase-document-list,.inventory-movements-mode #movement-history-list{max-height:55dvh}.inventory-journal-editor.purchase-document-dialog{width:calc(100vw - 20px);padding:16px}.inventory-journal-editor .purchase-lines{max-height:44dvh}.inventory-movements-mode .movement-row{grid-template-columns:minmax(0,1fr) auto}.inventory-movements-mode .inventory-header-actions{display:grid;grid-template-columns:1fr;width:100%}.inventory-movements-mode .inventory-header-actions .button{width:100%;white-space:normal}}
+
+/* Compact stock, replenishment and production summaries retain their data and states. */
+.velora-theme .portal-content.inventory-compact-mode{padding-top:16px}
+.inventory-compact-mode .inventory-page-title{margin-bottom:14px}
+.inventory-compact-mode .inventory-page-title .eyebrow{display:none}
+.inventory-compact-mode #inventory-page-description{font-size:13px;line-height:1.5}
+.velora-theme .inventory-compact-mode .inventory-context-kpis{gap:10px;margin-bottom:14px}
+.velora-theme .inventory-compact-mode .inventory-context-kpis>.kpi{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;min-height:0;padding:12px 14px;border-radius:12px}
+.velora-theme .inventory-compact-mode .inventory-context-kpis>.kpi>span{font-size:12px}
+.velora-theme .inventory-compact-mode .inventory-context-kpis>.kpi>strong{margin:0;font-size:22px;line-height:1.2;max-width:230px}
+.velora-theme .inventory-compact-mode .inventory-context-kpis>.kpi>small{grid-column:1/-1;font-size:11px;line-height:1.4}
+.velora-theme .inventory-stock-mode .inventory-stock-panel{padding:16px}
+.velora-theme .inventory-stock-mode .inventory-stock-panel>.panel-head{position:static;margin:0 0 12px;padding:0;background:none;gap:18px;align-items:end}
+.inventory-stock-mode .inventory-stock-panel h2{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.velora-theme .inventory-stock-mode .inventory-stock-filters{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(180px,1fr);align-items:end;gap:12px;min-width:min(500px,70%);margin:0}
+.inventory-stock-mode .inventory-stock-filters>label{display:grid;gap:6px;min-width:0;font-size:12px;color:var(--muted,#a4acbb)}
+.inventory-stock-mode .inventory-stock-filters input,.inventory-stock-mode .inventory-stock-filters .custom-select-trigger{box-sizing:border-box;width:100%;min-width:0;min-height:44px}
+.velora-theme .inventory-stock-mode .inventory-stock-panel>.table-wrap{max-height:clamp(240px,calc(100dvh - 410px),600px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.inventory-stock-mode .inventory-item-actions .button{min-height:44px;margin:0}
+@media(min-width:761px){.inventory-stock-mode .inventory-stock-panel thead th{position:sticky;top:0;z-index:2;background:var(--surface-2,#1c2027);box-shadow:0 1px 0 var(--line,#303744)}}
+@media(max-width:760px){.velora-theme .inventory-compact-mode .inventory-context-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .inventory-compact-mode .inventory-context-kpis>.kpi{grid-template-columns:minmax(0,1fr);padding:10px}.velora-theme .inventory-compact-mode .inventory-context-kpis>.kpi>strong{font-size:20px}.velora-theme .inventory-stock-mode .inventory-stock-panel>.panel-head{display:grid;gap:12px}.velora-theme .inventory-stock-mode .inventory-stock-filters{grid-template-columns:minmax(0,1fr);width:100%;min-width:0}.velora-theme .inventory-stock-mode .inventory-stock-panel>.table-wrap{max-height:55dvh;overflow:auto}.inventory-stock-mode .inventory-stock-panel tbody{grid-auto-rows:max-content}}
+
+/* Replenishment recommendations and saved requests share a compact workspace. */
+.velora-theme .inventory-auto-orders-mode .inventory-auto-order-panel{padding:16px}
+.inventory-auto-orders-mode .inventory-auto-order-panel>.panel-head{margin-bottom:12px;gap:12px}
+.inventory-auto-orders-mode .inventory-auto-order-panel>.panel-head .button{min-height:44px;margin:0}
+.auto-order-section-switch{display:flex;gap:6px;margin-bottom:12px}
+.auto-order-section-switch button{min-height:44px;padding:10px 14px;border:1px solid var(--line,#303744);border-radius:9px;color:var(--muted,#a4acbb);font-size:13px}
+.auto-order-section-switch button.is-active{border-color:var(--accent,#ff7180);background:rgba(255,113,128,.1);color:var(--text,#f3f6fb)}
+#auto-order-recommendations[hidden],#auto-order-request-history[hidden],.auto-order-history-active #create-auto-order,.auto-order-history-active #auto-order-low-count{display:none!important}
+.auto-order-calculation-help{margin-bottom:10px;font-size:12px;color:var(--muted,#a4acbb)}
+.auto-order-calculation-help summary{cursor:pointer;min-height:44px;align-content:center}
+.auto-order-calculation-help p{margin:4px 0 12px;max-width:700px;line-height:1.5}
+.velora-theme .inventory-auto-orders-mode .auto-order-table-wrap{max-height:clamp(240px,calc(100dvh - 470px),560px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.velora-theme .inventory-auto-orders-mode .auto-order-quantity{box-sizing:border-box;width:112px;min-height:44px;padding:9px 11px;border:1px solid var(--line,#384151);border-radius:9px;background:var(--surface-2,#20242d);color:var(--text,#f3f6fb);font:inherit;font-size:14px;font-variant-numeric:tabular-nums}
+.inventory-auto-orders-mode .auto-order-note{margin:10px 0 0;font-size:12px}
+.velora-theme .inventory-auto-orders-mode .auto-order-history{margin:0;padding:0;border:0}
+.inventory-auto-orders-mode .auto-order-history>.section-title-row{display:none}
+.inventory-auto-orders-mode #auto-order-history-list{display:grid;grid-auto-rows:max-content;max-height:clamp(240px,calc(100dvh - 410px),600px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.inventory-auto-orders-mode .auto-order-request-row{min-width:0}
+.inventory-auto-orders-mode .auto-order-request-row .button{min-height:44px}
+@media(min-width:1001px){.velora-theme .inventory-auto-orders-mode .auto-order-table-wrap .auto-order-check-col{width:48px;min-width:48px;max-width:48px;padding-inline:10px}.inventory-auto-orders-mode .auto-order-table-wrap thead th{position:sticky;top:0;z-index:2;background:var(--surface-2,#1c2027)}}
+@media(max-width:760px){.velora-theme .inventory-auto-orders-mode .auto-order-table-wrap,.inventory-auto-orders-mode #auto-order-history-list{max-height:55dvh;overflow:auto}.inventory-auto-orders-mode .auto-order-table-wrap tbody{grid-auto-rows:max-content}.auto-order-section-switch button{flex:1}}
+
+/* Production starts with available prerequisites; history remains immediately reachable. */
+.velora-theme .inventory-premixes-mode .premix-panel{padding:16px}
+.inventory-premixes-mode .premix-panel>.panel-head{display:none}
+.inventory-premixes-mode #premix-empty-guidance{margin:0 0 16px;padding:18px;text-align:left;align-items:start}
+.inventory-premixes-mode #premix-empty-guidance small{max-width:650px;margin:6px 0 12px;line-height:1.5}
+.inventory-premixes-mode #premix-empty-guidance .button{min-height:44px}
+.premix-panel #premix-form[hidden],#premix-production[hidden]{display:none}
+.premix-production{margin-bottom:16px;padding:0 14px;border:1px solid var(--line,#303744);border-radius:12px;background:var(--surface-2,#191d24)}
+.premix-production>summary{min-height:48px;padding:13px 0;cursor:pointer;font-size:14px;font-weight:600;color:var(--text,#f3f6fb)}
+.premix-production[open]>summary{margin-bottom:8px}
+.premix-production #premix-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-bottom:14px}
+.premix-production #premix-form>.form-row,.premix-production #premix-form>.form-message{grid-column:1/-1}
+.premix-production #premix-form>.button{align-self:end;min-height:44px;margin:0}
+.premix-production .custom-select-trigger,.premix-production input{min-height:44px}
+.premix-production .custom-select.is-open .custom-select-menu{position:static;max-height:220px;margin-top:6px}
+.inventory-premixes-mode #premix-batches{display:grid;grid-auto-rows:max-content;align-content:start;max-height:clamp(240px,calc(100dvh - 400px),600px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:2px;margin-top:12px}
+.inventory-premixes-mode .premix-batch-row{min-width:0}
+.inventory-premixes-mode .premix-batch-row>div{min-width:0;overflow-wrap:anywhere}
+.inventory-premixes-mode .premix-batch-actions .button{min-height:44px;margin:0}
+.inventory-premixes-mode .premix-batch-actions input{box-sizing:border-box;width:120px;min-height:44px;padding:9px 11px;border:1px solid var(--line,#384151);border-radius:9px;background:var(--surface-2,#20242d);color:var(--text,#f3f6fb);font:inherit}
+@media(max-width:760px){.premix-production #premix-form{grid-template-columns:minmax(0,1fr)}.premix-production #premix-form>.form-row{grid-template-columns:minmax(0,1fr)}.inventory-premixes-mode #premix-batches{max-height:55dvh}}

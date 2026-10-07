@@ -39,6 +39,7 @@
     {"path":"/network","file":"network.html","mode":"admin","title":"Моя сеть"},
     {"path":"/platform","file":"platform.html","mode":"platform","title":"Платформа"}
   ],
+  "inventoryWorkingViewsPresentation": {"views":["stock","auto-orders","premixes"],"summary":"compact","lists":"bounded","premixForm":"prerequisites"},
   "inventoryMovementsPresentation": {"default":"documents","sections":["documents","operations"],"editor":"modal"},
   "inventoryDirectoryPresentation": {"layout":"cascade","columns":["departments","subdepartments","categories"],"editor":"modal","categorySearch":true},
   "inventoryViews": [

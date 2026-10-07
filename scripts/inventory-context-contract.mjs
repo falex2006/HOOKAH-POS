@@ -40,7 +40,7 @@ assert.match(css, /\.visual-catalog-empty\{grid-column:1\/-1/, 'catalog empty st
 assert.match(portal, /recipe\.productId && productItems\.some\(\(product\) => String\(product\.id\) === String\(recipe\.productId\)\)/,
   'recipe linkage KPI must count only valid links to existing menu products');
 assert.match(portal, /id="premix-empty-guidance"/, 'premix empty state must explain how to create the required recipe');
-assert.match(portal, /querySelectorAll\('select,input,button\[type=submit\]'\)\.forEach\(\(control\) => \{ control\.disabled = !canProduce \|\| \(control\.matches\('button\[type=submit\]'\) && premixForm\.dataset\.submitting === '1'\); \}\)/,
+assert.match(portal, /querySelectorAll\('select,input,button\[type=submit\]'\)\.forEach\(\(control\) => \{ control\.disabled = !canProduce \|\| \(control\.matches\('button\[type=submit\]'\) && premixForm\.dataset\.submitting === '1'\);(?: control\._customSelectRefresh\?\.\(\);)? \}\)/,
   'premix production controls must remain disabled until a recipe and output stock item exist');
 assert.match(portal, /id="premix-submit" type="submit" disabled/, 'premix submit must start disabled before availability is confirmed');
 assert.match(portal, /data-premix-create-recipe/, 'premix empty state must offer a direct route to recipe creation');

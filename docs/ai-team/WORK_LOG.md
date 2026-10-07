@@ -4998,3 +4998,10 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - В synthetic QA виден вспомогательный toast каталога при успешном HTTP products: не ошибка основного журнала; отдельно от границ текущего UI-пакета. Автозаказ проверен по сохранению входного контракта; отдельный новый end-to-end автозаказ не создавался.
 
 - Финальный dense PG QA PASS включая последний документ на всех ширинах; cleanup подтверждён. Причина вспомогательного toast найдена: renderRecipes вызывался вне lexical scope. Исправлен явный callback из recipe scope, code-health подтвердил, добавлен contract и пройден быстрый directory browser regression без отдельной БД.
+
+## 2026-10-07 — завершение визуального прохода склада (3/3)
+- Промпты по этапам: docs/ai-team/WAREHOUSE_REMAINING_PROMPTS.md. Последовательно реализованы Остатки, Пополнение, Заготовки. Большие KPI уменьшены; stock фильтры подписаны и таблица ограничена со sticky header; рекомендации отделены от истории и quantity/checkbox приведены к теме; premix prerequisite guidance скрывает неготовую форму, готовая форма раскрывается отдельно.
+- API, схема БД, права, расчёты и production записи не менялись. Предыдущие справочники и движения сохранены. Code-health baseline/final без оставшихся замечаний; архитектор проверил неизменные API/role контракты.
+- PASS: syntax, auto-order-pending, premix-load-state (DOM fixture дополнен options/value), premix-submit-pending, stock-status-runtime, inventory-critical-state/context/responsive, visual-page-rules; git diff --check.
+- Новый inventory-remaining-browser-qa.cjs:40 memory-позиций, фильтры/поиск/отмена изменения, bounded lists, сохранение qty17/checkbox при смене вкладки, premix empty/ready, desktop1920/mobile390 без JS ошибок. Скриншоты просмотрены. Отправка заявки и выпуск партии в новом browser suite не выполнялись; неизменные сценарии covered targeted runtime tests. История заявок проверяется также на production чтением.
+- Один общий выпуск; root/dist CSS401/portal462. VPS deploy с backup и без seed; пользователи/остатки не очищаются.
