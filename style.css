@@ -2926,3 +2926,19 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 /* Long stock lists keep their context and filters available while scrolling. */
 .velora-theme .inventory-stock-panel>.panel-head{position:sticky;top:72px;z-index:4;margin:-22px -22px 16px;padding:18px 22px 14px;background:linear-gradient(180deg,#171a20 0%,#171a20f2 88%,#171a2000 100%);}
 @media(max-width:760px){.velora-theme .inventory-stock-panel>.panel-head{top:58px;margin:-14px -14px 14px;padding:14px 14px 12px}}
+
+/* Fold order journal: keep seven-column data readable at 760–900px. */
+@media (min-width:760px) and (max-width:900px) and (min-aspect-ratio:3/4) and (max-aspect-ratio:4/3){
+  .velora-theme .orders-view .table-wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;overflow:visible}
+  .velora-theme .orders-view .orders-table{display:contents;width:100%;min-width:0}
+  .velora-theme .orders-view .orders-table thead{display:none}
+  .velora-theme .orders-view .orders-table tbody{display:contents}
+  .velora-theme .orders-view .orders-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;height:auto;min-width:0;padding:8px 12px;border:1px solid #303640;border-radius:12px;background:#171a1f}
+  .velora-theme .orders-view .orders-table tbody td{display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:4px;width:100%;min-width:0;justify-self:stretch;box-sizing:border-box;padding:8px 2px;border:0;border-bottom:1px solid #2a2f37;white-space:normal;text-align:left;overflow-wrap:anywhere;line-height:1.35}
+  .velora-theme .orders-view .orders-table tbody td::before{content:attr(data-label);color:#858f9b;font-size:10px;line-height:1.3;letter-spacing:.04em;text-transform:uppercase}
+  .velora-theme .orders-view .orders-table tbody td:nth-child(1),.velora-theme .orders-view .orders-table tbody td:nth-child(3),.velora-theme .orders-view .orders-table tbody td:last-child{grid-column:1/-1}
+  .velora-theme .orders-view .orders-table tbody td:last-child{border-bottom:0;padding-bottom:2px}
+  .velora-theme .orders-view .orders-table tbody td:last-child .button{width:100%;box-sizing:border-box;text-align:center}
+  .velora-theme .orders-view .orders-table tbody td.empty{display:block;grid-column:1/-1;padding:14px 8px;border:0;text-align:center}
+  .velora-theme .orders-view .orders-table tbody td.empty::before{content:none}
+}
