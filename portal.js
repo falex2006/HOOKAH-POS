@@ -67,7 +67,7 @@ if (administrationNav && !administrationNav.querySelector('a[href="/integrations
 }
 const adminNavigationAllowed = ['owner', 'admin', 'developer', 'manager'].includes(portalUser.role);
 // Keep the sidebar structure identical on every management page.
-const normalizeManagementSidebar = () => {
+const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
   document.querySelectorAll('a[href="/finance#discounts"]').forEach((link) => link.remove());
   const sidebar = document.querySelector('.portal-sidebar');
   if (!sidebar) return;
@@ -372,7 +372,7 @@ const normalizeManagementSidebar = () => {
   const normalizedGroups = [...disclosureRoot.querySelectorAll('details.sidebar-nav-group[data-nav-group]')];
   const savedOpenGroup = normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true);
   const hasSavedDisclosureState = normalizedGroups.some((group) => savedGroupState(group.dataset.navGroup) !== null);
-  const preferredGroup = hasSavedDisclosureState ? savedOpenGroup : (currentPath === '/admin' && !currentHash ? null : normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)));
+  const preferredGroup = routeChange ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup : (currentPath === '/admin' && !currentHash ? null : normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup))));
   normalizedGroups.forEach((group) => { group.open = group === preferredGroup; });
   const homeLink = sidebar.querySelector(':scope > a[href="/admin"]');
   if (homeLink && homeLink.dataset.homeDisclosureBound !== 'true') {
@@ -2769,7 +2769,7 @@ function renderDashboard() {
   const dashboardHashChangeHandler = () => {
     disposeStaffDrawer();
     target.classList.toggle('staff-catalog-page', window.location.hash === '#staff');
-    normalizeManagementSidebar();
+    normalizeManagementSidebar({ routeChange: true });
     if (page === 'dashboard') {
       if (window.location.hash === '#tasks') renderTasks();
       else if (window.location.hash === '#loyalty') renderLoyalty();
@@ -2907,7 +2907,7 @@ function renderInventory() {
     const nextUrl = new URL(location.href);
     if (view === 'stock') nextUrl.searchParams.delete('view'); else nextUrl.searchParams.set('view', view);
     if (nextUrl.search !== location.search && historyMode) history[historyMode + 'State']({}, '', nextUrl.pathname + nextUrl.search + nextUrl.hash);
-    normalizeManagementSidebar();
+    normalizeManagementSidebar({ routeChange: true });
     if (scroll) document.querySelector('.portal-main')?.scrollTo({ top: 0, behavior: 'smooth' });
     return view;
   };

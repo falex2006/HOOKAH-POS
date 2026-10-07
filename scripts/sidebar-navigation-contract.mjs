@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-assert.match(portal, /const normalizeManagementSidebar = \(\) => \{/);
+assert.ok(portal.includes('const normalizeManagementSidebar = ({ routeChange = false } = {}) => {'));
 assert.match(portal, /disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'menu', 'inventory', 'finance', 'team', 'system'\]/);
 assert.match(portal, /const rememberGroupState = \(details, key\) => \{/);
 // Navigation now restores a single preferred group. Restoring every saved group
 // was deliberately removed because it reopened multiple sections after reload.
 assert.match(portal, /const savedOpenGroup = normalizedGroups\.find\(\(group\) => savedGroupState\(group\.dataset\.navGroup\) === true\);/);
-assert.match(portal, /const preferredGroup = hasSavedDisclosureState \? savedOpenGroup/);
+assert.ok(portal.includes('const preferredGroup = routeChange ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup'));
 assert.match(portal, /normalizedGroups\.forEach\(\(group\) => \{ group\.open = group === preferredGroup; \}\)/);
 assert.match(portal, /homeLink\.addEventListener\('click', \(\) => \{\s*normalizedGroups\.forEach\(\(group\) => \{\s*group\.open = false;/);
 assert.doesNotMatch(portal, /activeGroup\.open = true/);

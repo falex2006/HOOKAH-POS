@@ -32,7 +32,7 @@ assert.doesNotMatch(portal, /requestAnimationFrame\(\(\)\s*=>\s*document\.queryS
   'do not animate the empty initial content container on every full-page navigation');
 assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{/,
   'in-page/hash section changes use their shared lightweight route lifecycle');
-assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{[\s\S]*?normalizeManagementSidebar\(\);[\s\S]*?scrollIntoView\(\{ behavior: 'smooth'/,
+assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{[\s\S]*?normalizeManagementSidebar\(\{ routeChange: true \}\);[\s\S]*?scrollIntoView\(\{ behavior: 'smooth'/,
   'section changes update the title, content and final scroll through the same lifecycle');
 assert.doesNotMatch(portal, /classList\.add\('crm-route-enter'\)/,
   'do not animate dashboard geometry while its shared route helper aligns the section');
