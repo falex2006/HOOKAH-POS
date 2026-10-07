@@ -2428,6 +2428,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .dashboard-kpi-grid .dashboard-revenue-pending{width:100%;padding:10px 0 0;border-left:0;border-top:1px solid #3a3038}
 .velora-theme .dashboard-kpi-grid>.dashboard-revenue-card .dashboard-revenue-main>strong{font-size:clamp(28px,2.5vw,42px);white-space:nowrap;overflow-wrap:normal}
 .velora-theme .dashboard-kpi-grid>.kpi>strong{overflow-wrap:anywhere}
+@media(max-width:320px){.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card .dashboard-revenue-main>strong{font-size:clamp(18px,6vw,24px);white-space:nowrap;overflow-wrap:normal;word-break:normal}.velora-theme .dashboard-kpi-grid>.kpi{padding-inline:14px}}
 
 /* Sidebar labels use the same readable muted token as the rest of the product. */
 .velora-theme .side-label,.velora-theme .sidebar-nav-group summary,.staff-theme .portal-sidebar .side-label{color:#9aa3ae}
