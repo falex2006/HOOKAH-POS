@@ -259,6 +259,7 @@ const normalizeManagementSidebar = () => {
   ]);
   const financeGroup = ensureAreaGroup('finance', 'Финансы', 'chart-bar', [
     { href: '/finance', permission: 'finance_read', label: 'Обзор финансов', iconName: 'chart-bar', navigationModule: 'finance' },
+    { href: '/finance#payroll', permission: 'finance_read', label: 'Зарплата', iconName: 'receipt-2', navigationModule: 'finance' },
     { href: '/finance/report', permission: 'finance_read', label: 'Отчёты', iconName: 'receipt', navigationModule: 'finance' },
     { href: '/finance/categories', permission: 'finance', label: 'Категории доходов и расходов', iconName: 'cash', navigationModule: 'finance' },
   ]);
