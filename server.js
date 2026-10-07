@@ -4754,24 +4754,24 @@ if (staffProfile && req.method === 'PATCH') {
     const itemType = String(input.itemType || 'ingredient');
     const department = String(input.department || 'inventory').trim();
     const unit = String(input.unit || '').trim();
-    const cost = Number(input.cost || 0); const minLevel = Number(input.minLevel || 0); const packMultiplier = Number(input.packMultiplier ?? 1);
+    const purchaseCost = input.purchaseCost === undefined || input.purchaseCost === null || input.purchaseCost === '' ? null : Number(input.purchaseCost); const cost = Number(input.cost || 0); const minLevel = Number(input.minLevel || 0); const packMultiplier = Number(input.packMultiplier ?? 1); const calculatedCost = purchaseCost === null ? cost : Number((purchaseCost / packMultiplier).toFixed(4));
     if (!name || name.length > 120) return json(res, 400, { error: 'invalid_inventory_item_name' });
     if (!allowedUnits.includes(unit) || !['ingredient', 'product', 'consumable', 'equipment'].includes(itemType)) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
-    if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(minLevel) || minLevel < 0 || !Number.isFinite(packMultiplier) || packMultiplier <= 0) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
+    if (!Number.isFinite(cost) || cost < 0 || (purchaseCost !== null && (!Number.isFinite(purchaseCost) || purchaseCost < 0)) || !Number.isFinite(calculatedCost) || calculatedCost < 0 || !Number.isFinite(minLevel) || minLevel < 0 || !Number.isFinite(packMultiplier) || packMultiplier <= 0) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
     if (String(input.subdepartment || '').length > 80 || String(input.category || '').length > 80 || String(input.supplier || '').length > 160 || String(input.barcode || '').length > 64 || String(input.note || '').length > 500) return json(res, 400, { error: 'inventory_item_field_too_long' });
     if (input.categoryId !== undefined && input.categoryId !== null && !/^[0-9a-f-]{36}$/i.test(String(input.categoryId))) return json(res,400,{error:'invalid_inventory_category_id'});
     if (input.alcoholCatalogItemId !== undefined && input.alcoholCatalogItemId !== null && typeof input.alcoholCatalogItemId !== 'string') return json(res,400,{error:'invalid_alcohol_catalog_item_id'});
     const alcoholLinkError=await validateAlcoholCatalogLink(input.alcoholCatalogItemId); if(alcoholLinkError) return json(res,400,{error:alcoholLinkError});
     if (input.tobaccoCatalogItemId !== undefined && input.tobaccoCatalogItemId !== null && typeof input.tobaccoCatalogItemId !== 'string') return json(res,400,{error:'invalid_tobacco_catalog_item_id'});
     const tobaccoLinkError=await validateTobaccoCatalogLink(input.tobaccoCatalogItemId); if(tobaccoLinkError) return json(res,400,{error:tobaccoLinkError});
-    const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, department, subdepartment: String(input.subdepartment || '').trim().slice(0, 80), category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', categoryId: input.categoryId || null, tobaccoCatalogItemId: input.tobaccoCatalogItemId || null, itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null, alcoholCatalogItemId: input.alcoholCatalogItemId || null };
+    const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, department, subdepartment: String(input.subdepartment || '').trim().slice(0, 80), category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', categoryId: input.categoryId || null, tobaccoCatalogItemId: input.tobaccoCatalogItemId || null, itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost: calculatedCost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null, alcoholCatalogItemId: input.alcoholCatalogItemId || null };
     if (repositories?.inventory) { try { const result = repositories?.pool ? await withInventoryHierarchyTransaction(department, clean.subdepartment, clean.category, (client, categoryId) => repositories.inventory.create(venueDbId, { ...clean, categoryId }, client), clean.categoryId) : { value: await repositories.inventory.create(venueDbId, clean) }; if (result.error) return json(res, result.error === 'inventory_hierarchy_unavailable' ? 503 : 400, { error: result.error }); const item = result.value; recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, { ...item, onHand: 0 }); } catch (error) { const validationErrors = new Set(['inventory_category_not_found','inventory_category_ambiguous','inventory_category_subdepartment_mismatch']); if (validationErrors.has(error.message)) return json(res,400,{error:error.message}); return json(res, 409, { error: 'inventory_item_create_failed', detail: error.message }); } }
     const item = { id: `ing-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`, ...clean, onHand: 0, active: true }; inventory.push(item); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, item);
   }
   if (inventoryItemPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req);
-    const editableFields = ['name','shortName','department','subdepartment','category','categoryId','tobaccoCatalogItemId','itemType','unit','purchaseUnit','packMultiplier','cost','minLevel','supplier','barcode','note','alcoholCatalogItemId'];
+    const editableFields = ['name','shortName','department','subdepartment','category','categoryId','tobaccoCatalogItemId','itemType','unit','purchaseUnit','packMultiplier','purchaseCost','cost','minLevel','supplier','barcode','note','alcoholCatalogItemId'];
     if (!Object.keys(input).length || Object.keys(input).some((key) => !editableFields.includes(key))) return json(res, 400, { error: 'invalid_inventory_item_fields' });
     const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
     if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'invalid_inventory_item_name' });
@@ -4782,7 +4782,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (input.tobaccoCatalogItemId !== undefined && input.tobaccoCatalogItemId !== null && typeof input.tobaccoCatalogItemId !== 'string') return json(res,400,{error:'invalid_tobacco_catalog_item_id'});
     const tobaccoLinkError=await validateTobaccoCatalogLink(input.tobaccoCatalogItemId); if(tobaccoLinkError) return json(res,400,{error:tobaccoLinkError});
     const alcoholLinkError=await validateAlcoholCatalogLink(input.alcoholCatalogItemId,inventoryItemPath[1]); if(alcoholLinkError) return json(res,400,{error:alcoholLinkError});
-    for (const key of ['cost', 'minLevel', 'packMultiplier']) if (input[key] !== undefined && (!Number.isFinite(Number(input[key])) || Number(input[key]) < (key === 'packMultiplier' ? 0.01 : 0))) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
+    for (const key of ['cost', 'purchaseCost', 'minLevel', 'packMultiplier']) if (input[key] !== undefined && input[key] !== null && input[key] !== '' && (!Number.isFinite(Number(input[key])) || Number(input[key]) < (key === 'packMultiplier' ? 0.01 : 0))) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
     if (repositories?.inventory) {
       try {
         let item;
@@ -4790,7 +4790,7 @@ if (staffProfile && req.method === 'PATCH') {
           const client = await repositories.pool.connect();
           try {
             await client.query('BEGIN');
-            const current = await client.query('SELECT department,subdepartment,category,category_id AS "categoryId" FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [inventoryItemPath[1], venueDbId]);
+            const current = await client.query('SELECT department,subdepartment,category,category_id AS "categoryId",pack_multiplier AS "packMultiplier",cost FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [inventoryItemPath[1], venueDbId]);
             if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_item_not_found' }); }
             const observed = current.rows[0];
             const nextDepartment = input.department !== undefined ? input.department : observed.department;
@@ -4807,17 +4807,17 @@ if (staffProfile && req.method === 'PATCH') {
             const locked = await client.query('SELECT department,subdepartment,category FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [inventoryItemPath[1], venueDbId]);
             if (!locked.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_item_not_found' }); }
             if (locked.rows[0].department !== observed.department || locked.rows[0].subdepartment !== observed.subdepartment || locked.rows[0].category !== observed.category) { await client.query('ROLLBACK'); return json(res, 409, { error: 'inventory_item_changed_retry' }); }
-            item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], { ...input, ...(categoryChanged || input.categoryId !== undefined ? { categoryId: resolvedCategoryId } : {}) }, client);
+            const normalizedInput = { ...input }; if (input.purchaseCost !== undefined && input.purchaseCost !== null && input.purchaseCost !== '') { const factor = Number(input.packMultiplier ?? observed.packMultiplier); normalizedInput.cost = Number((Number(input.purchaseCost) / factor).toFixed(4)); } delete normalizedInput.purchaseCost; item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], { ...normalizedInput, ...(categoryChanged || input.categoryId !== undefined ? { categoryId: resolvedCategoryId } : {}) }, client);
             await client.query('COMMIT');
           } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
           finally { client.release(); }
-        } else item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], input);
+        } else { const normalizedInput = { ...input }; const current = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (input.purchaseCost !== undefined && input.purchaseCost !== null && input.purchaseCost !== '') { const factor = Number(input.packMultiplier ?? current?.packMultiplier ?? 1); normalizedInput.cost = Number((Number(input.purchaseCost) / factor).toFixed(4)); } delete normalizedInput.purchaseCost; item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], normalizedInput); }
         if (!item) return json(res, 404, { error: 'inventory_item_not_found' });
         recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item);
         return json(res, 200, item);
       } catch (error) { const validationErrors = new Set(['inventory_category_not_found','inventory_category_ambiguous','inventory_category_subdepartment_mismatch']); if (validationErrors.has(error.message)) return json(res,400,{error:error.message}); return json(res, 409, { error: 'inventory_item_update_failed', detail: error.message }); }
     }
-    const item = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); if (input.unit !== undefined && input.unit !== item.unit && stockMovements.some((movement) => movement.itemId === item.id)) return json(res, 409, { error: 'inventory_unit_has_movements' }); Object.assign(item, input); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item);
+    const item = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); if (input.unit !== undefined && input.unit !== item.unit && stockMovements.some((movement) => movement.itemId === item.id)) return json(res, 409, { error: 'inventory_unit_has_movements' }); const normalizedInput = { ...input }; if (input.purchaseCost !== undefined && input.purchaseCost !== null && input.purchaseCost !== '') { const factor = Number(input.packMultiplier ?? item.packMultiplier ?? 1); normalizedInput.cost = Number((Number(input.purchaseCost) / factor).toFixed(4)); } delete normalizedInput.purchaseCost; Object.assign(item, normalizedInput); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item);
   }
   if (inventoryItemPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
