@@ -2844,6 +2844,27 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{display:block;width:100%;height:100%;max-width:100%;object-fit:contain;object-position:left center}
 @media(max-width:900px){.portal-sidebar .brand>.hookah-pos-brand,.platform-sidebar .brand>.hookah-pos-brand{width:min(42px,100%);height:40px;max-height:40px;aspect-ratio:auto}.portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{object-position:center}}
 
+/* Staff shell uses the same touch drawer contract as the management shell. */
+@media(max-width:900px){
+  .staff-theme .app{display:flex;min-height:100vh;overflow-x:hidden}
+  .staff-theme .portal-sidebar{position:fixed;z-index:60;left:0;top:0;bottom:0;width:min(280px,calc(100vw - 48px));height:100vh;height:100dvh;max-height:100dvh;box-sizing:border-box;padding:calc(26px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));transform:translateX(-100%);transition:transform .2s ease,box-shadow .2s ease;box-shadow:12px 0 30px #0008;overflow-y:auto;overscroll-behavior:contain}
+  .staff-theme .portal-sidebar.is-expanded{transform:translateX(0);box-shadow:8px 0 28px #000a}
+  .staff-theme .portal-sidebar.is-expanded .brand div,.staff-theme .portal-sidebar.is-expanded .side-label,.staff-theme .portal-sidebar.is-expanded .portal-nav span,.staff-theme .portal-sidebar.is-expanded .user{display:block}
+  .staff-theme .portal-sidebar.is-expanded .brand{justify-content:flex-start;padding:0 10px 30px}
+  .staff-theme .portal-sidebar.is-expanded .portal-nav{gap:6px}
+  .staff-theme .portal-sidebar.is-expanded .portal-nav button{display:flex;align-items:center;justify-content:flex-start;width:100%;height:auto;min-height:46px;padding:12px 13px;font-size:14px;line-height:1.25}
+  .staff-theme .portal-sidebar.is-expanded .user{font-size:14px}
+  .staff-theme .portal-sidebar.is-expanded .user .staff-logout{font-size:14px}
+  .staff-theme main{width:100%;min-width:0;flex:1 1 100%}
+  .staff-theme .sidebar-mobile-toggle{display:grid;position:fixed;z-index:61;left:10px;top:calc(10px + env(safe-area-inset-top));width:44px;height:44px;place-items:center;border:1px solid #363b44;border-radius:12px;background:#1b1e23;color:#ff9168;box-shadow:0 6px 16px #0006}
+  .staff-theme .sidebar-mobile-toggle .icon{width:19px;height:19px}
+  .staff-theme .sidebar-mobile-toggle span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .staff-theme .sidebar-mobile-toggle[aria-expanded="true"]{left:calc(min(280px,100vw - 48px) - 58px)}
+  .staff-theme .sidebar-backdrop:not([hidden]){position:fixed;z-index:55;inset:0;display:block;background:rgba(4,7,11,.56);touch-action:none}
+  .staff-theme.sidebar-drawer-open{overflow:hidden}
+}
+@media(prefers-reduced-motion:reduce){.staff-theme .portal-sidebar,.staff-theme .sidebar-mobile-toggle,.staff-theme .sidebar-backdrop{transition:none!important}}
+
 /* Management roles keep the same notification center in the staff shell. */
 .staff-theme .staff-header-user>.notification-bell{position:relative;flex:0 0 44px;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:#aeb8c4;display:inline-flex;align-items:center;justify-content:center}
 .staff-theme .staff-header-user>.notification-bell:hover{background:#ffffff09;color:#e7edf6}
@@ -3322,3 +3343,14 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   animation:inventory-modal-border-sweep 8s linear infinite;
 }
 @media(prefers-reduced-motion:reduce){.velora-theme .modal.open :is(.action-box,.payment-box,.custom-role-editor-box,.catalog-box),.velora-theme .platform-modal:not([hidden]) .platform-modal-panel{animation:none}}
+
+/* Premium sidebar finish: one optical brand baseline, quiet depth and a clear
+   active-group signal without changing the navigation geometry. */
+.velora-theme .portal-sidebar,.staff-theme .portal-sidebar{background:linear-gradient(180deg,#191c21 0%,#17191d 52%,#15171b 100%)}
+.velora-theme .portal-sidebar .brand,.staff-theme .portal-sidebar .brand{position:relative;min-height:61px;align-items:center}
+.velora-theme .portal-sidebar .brand::after,.staff-theme .portal-sidebar .brand::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:1px;background:linear-gradient(90deg,transparent,#3b4049 24%,#3b4049 76%,transparent);opacity:.7}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary.has-active-child{color:#f3f5f7;background:#20242b;box-shadow:inset 2px 0 #ff5b68,0 6px 18px #00000018}
+.velora-theme .portal-sidebar .portal-nav a.active .icon,.staff-theme .portal-sidebar .portal-nav button.active .icon{filter:drop-shadow(0 0 7px rgba(255,129,105,.38))}
+.velora-theme .portal-sidebar .portal-nav a:focus-visible,.staff-theme .portal-sidebar .portal-nav button:focus-visible,.staff-theme .portal-sidebar .staff-logout:focus-visible{outline:2px solid #ff9a8f;outline-offset:2px}
+@media(max-width:900px){.velora-theme .portal-sidebar .brand::after,.staff-theme .portal-sidebar .brand::after{left:0;right:0}.velora-theme .portal-sidebar.is-expanded .brand::after,.staff-theme .portal-sidebar.is-expanded .brand::after{left:10px;right:10px}}
+@media(prefers-reduced-motion:reduce){.velora-theme .portal-sidebar .portal-nav a .icon,.staff-theme .portal-sidebar .portal-nav button .icon{filter:none}}

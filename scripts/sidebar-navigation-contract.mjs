@@ -7,7 +7,8 @@ assert.match(portal, /disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'me
 assert.match(portal, /const rememberGroupState = \(details, key\) => \{/);
 // Navigation now restores a single preferred group. Restoring every saved group
 // was deliberately removed because it reopened multiple sections after reload.
-assert.match(portal, /const preferredGroup = currentPath === '\/admin' && !currentHash \? null/);
+assert.match(portal, /const savedOpenGroup = normalizedGroups\.find\(\(group\) => savedGroupState\(group\.dataset\.navGroup\) === true\);/);
+assert.match(portal, /const preferredGroup = hasSavedDisclosureState \? savedOpenGroup/);
 assert.match(portal, /normalizedGroups\.forEach\(\(group\) => \{ group\.open = group === preferredGroup; \}\)/);
 assert.match(portal, /homeLink\.addEventListener\('click', \(\) => \{\s*normalizedGroups\.forEach\(\(group\) => \{\s*group\.open = false;/);
 assert.doesNotMatch(portal, /activeGroup\.open = true/);

@@ -370,7 +370,9 @@ const normalizeManagementSidebar = () => {
   mainNav.after(disclosureRoot);
   disclosureRoot.replaceChildren(...['operations', 'menu', 'inventory', 'finance', 'team', 'system'].map((key) => key === 'menu' ? menuGroup : key === 'inventory' ? inventoryGroup : key === 'finance' ? financeGroup : disclosureGroups.get(key)).filter(Boolean));
   const normalizedGroups = [...disclosureRoot.querySelectorAll('details.sidebar-nav-group[data-nav-group]')];
-  const preferredGroup = currentPath === '/admin' && !currentHash ? null : (normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) || normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true));
+  const savedOpenGroup = normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true);
+  const hasSavedDisclosureState = normalizedGroups.some((group) => savedGroupState(group.dataset.navGroup) !== null);
+  const preferredGroup = hasSavedDisclosureState ? savedOpenGroup : (currentPath === '/admin' && !currentHash ? null : normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)));
   normalizedGroups.forEach((group) => { group.open = group === preferredGroup; });
   const homeLink = sidebar.querySelector(':scope > a[href="/admin"]');
   if (homeLink && homeLink.dataset.homeDisclosureBound !== 'true') {
