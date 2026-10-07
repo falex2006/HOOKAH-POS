@@ -3547,3 +3547,5 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 @media(prefers-reduced-motion:reduce){.velora-theme .portal-sidebar .portal-nav a .icon,.staff-theme .portal-sidebar .portal-nav button .icon{filter:none}}
 
 @media(max-width:640px){.custom-role-editor-box .staff-permission-grid{grid-template-columns:1fr}}
+
+.inventory-departments-panel .catalog-tree-section{display:inline-grid;vertical-align:top;width:calc(33.333% - 14px);margin:0 18px 0 0;align-content:start}.inventory-departments-panel .catalog-tree-section:nth-of-type(3){margin-right:0}.inventory-departments-panel .catalog-tree-section .section-title-row{min-height:116px}.inventory-departments-panel .category-list{min-height:88px}@media(max-width:900px){.inventory-departments-panel .catalog-tree-section{display:block;width:auto;margin:0 0 18px}.inventory-departments-panel .catalog-tree-section .section-title-row{min-height:0}}.inventory-item-actions{justify-content:flex-start;flex-wrap:wrap;gap:6px}
