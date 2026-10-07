@@ -4964,3 +4964,8 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 ## 2026-10-07 — staged plan progress
 - Этап 5/7 (лояльность и скидки): подэтап 5.1 завершён. Проверены программы, акции, скидочные группы, бонусные ограничения, приоритеты, фиксация условий в заказе, возвраты и пересчёт остатка.
 - Контракты проходят; переход к Этапу 6/7 — визуальная доводка desktop/mobile/Fold.
+
+## 2026-10-07 — staged plan progress
+- Этап 6/7 (визуальная доводка): подэтап 6.1 завершён. Design, visual-page, live-defect, header, sidebar, date, staff and payroll UI contracts PASS.
+- Edge runtime check: `/admin#staff` renders the staff and role sections; `/finance#payroll` renders the payroll register and aligned filter block. In demo-memory mode the register explicitly shows the expected database-required empty/error state; this is not a silent failure.
+- Переход к Этапу 7/7 — итоговый QA и подготовка локального релиза.
