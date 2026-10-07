@@ -33,7 +33,7 @@
     {"path":"/delivery","file":"delivery.html","mode":"admin","title":"Доставка"},
     {"path":"/inventory","file":"inventory.html","mode":"admin","title":"Склад"},
     {"path":"/finance","file":"finance.html","mode":"admin","title":"Финансы"},
-    {"path":"/finance/categories","file":"finance-categories.html","mode":"admin","title":"Категории расходов"},
+    {"path":"/finance/categories","file":"finance-categories.html","mode":"admin","title":"Категории доходов и расходов"},
     {"path":"/finance/report","file":"finance-report.html","mode":"admin","title":"Финансовые отчёты"},
     {"path":"/integrations","file":"integrations.html","mode":"admin","title":"Интеграции"},
     {"path":"/network","file":"network.html","mode":"admin","title":"Моя сеть"},

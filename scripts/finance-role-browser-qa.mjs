@@ -60,6 +60,12 @@ try {
       const session = await page.request.get(`${base}/api/session`, { headers: authHeaders });
       assert.equal((await session.json()).user.role, role, 'API probes use the intended role');
       if (role === 'manager') {
+        // A cached profile can retain a personal grant superseded by server role settings.
+        await page.evaluate(() => {
+          const user = JSON.parse(localStorage.getItem('crm_session_user'));
+          user.permissionScopes = ['finance'];
+          localStorage.setItem('crm_session_user', JSON.stringify(user));
+        });
         await page.route('**/api/finance/purchase-payables*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: 'role-qa-payable', supplierName: 'QA supplier', documentNumber: 'QA-1', documentDate: '2026-09-01', totalCost: 100, totalPaid: 0, balanceDue: 100, paymentStatus: 'unpaid' }] }) }));
         await page.route('**/api/discount-requests*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: 'role-qa-discount', orderId: 'role-qa-order', type: 'percent', value: 10, reason: 'QA permission check', status: 'requested', requestedBy: 'QA' }] }) }));
       }
@@ -73,6 +79,8 @@ try {
         assert.match(await page.locator('.employee-turnover-panel').textContent(), /Оборот заказов, открытых вами/);
       } else {
         assert.match(await page.locator('#expense-list').textContent(), /финансовым ролям/);
+        await page.locator('summary').filter({ hasText: 'Поставщики · расчёты по накладным' }).click();
+        await page.locator('summary').filter({ hasText: 'Скидки · заявки' }).click();
         await page.locator('.payable-row').first().waitFor();
         await page.locator('.discount-row').first().waitFor();
         assert.match(await page.locator('#payables-list').textContent(), /QA supplier/);

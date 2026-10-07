@@ -3731,3 +3731,49 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .inventory-premixes-mode .premix-batch-actions .button{min-height:44px;margin:0}
 .inventory-premixes-mode .premix-batch-actions input{box-sizing:border-box;width:120px;min-height:44px;padding:9px 11px;border:1px solid var(--line,#384151);border-radius:9px;background:var(--surface-2,#20242d);color:var(--text,#f3f6fb);font:inherit}
 @media(max-width:760px){.premix-production #premix-form{grid-template-columns:minmax(0,1fr)}.premix-production #premix-form>.form-row{grid-template-columns:minmax(0,1fr)}.inventory-premixes-mode #premix-batches{max-height:55dvh}}
+/* Finance workspaces keep mounted forms and request state while switching views. */
+.finance-workspace>.finance-payroll-title,.finance-workspace>#payroll{display:none}
+.finance-workspace.finance-payroll-workspace>:not(#payroll):not(.finance-payroll-title){display:none!important}
+.finance-workspace.finance-payroll-workspace>.finance-payroll-title{display:flex}
+.finance-workspace.finance-payroll-workspace>#payroll{display:block}
+.finance-workspace .page-title,.finance-workspace [id]{scroll-margin-top:90px}
+.finance-disclosure{min-width:0;margin:12px 0;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:14px;background:var(--surface-2,#20242d)}
+.finance-disclosure>summary{cursor:pointer;padding:15px 18px;font-weight:600}
+.finance-disclosure>summary:focus-visible{outline:2px solid var(--accent,#ff5b73);outline-offset:-3px;border-radius:12px}
+.finance-disclosure>.panel,.finance-disclosure>.content-grid{margin:0;border:0}
+.finance-disclosure>form{padding:0 18px 18px}
+.finance-workspace .finance-payroll-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;align-items:end;gap:12px}
+.finance-workspace .finance-payroll-filters label{min-width:0;display:grid;gap:6px}
+.finance-workspace .finance-payroll-filters :is(input,select,.custom-select-trigger,.button){width:100%;min-height:44px;box-sizing:border-box}
+.finance-workspace :is(#payables-list,#expense-list,#discount-list,#payroll-register){max-height:560px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.finance-workspace .empty,.loyalty-reconciliation-panel .empty{min-height:0;padding:18px}
+.finance-workspace .finance-payroll-schemes{margin-bottom:20px}
+.finance-category-help{font-size:13px;margin-top:8px;max-width:760px}.finance-category-help summary{cursor:pointer}
+.finance-categories-panel>.panel-head{align-items:end;flex-wrap:wrap}
+.finance-category-filters{display:grid;grid-template-columns:minmax(180px,1.6fr) minmax(140px,1fr) minmax(170px,1fr);align-items:end;gap:12px;flex:1;max-width:760px}
+.finance-category-filters label,.finance-category-filters .inline-filter{display:grid;gap:6px;min-width:0;font-size:13px}
+.finance-category-filters :is(input,select,.custom-select-trigger){box-sizing:border-box;min-height:44px;width:100%}
+.finance-categories-panel .category-row{display:grid;grid-template-columns:minmax(150px,1fr) auto auto auto;gap:12px;align-items:center}
+.finance-category-dialog{color:var(--text,#f3f6fb)}.finance-category-dialog::backdrop{background:rgba(0,0,0,.65)}
+.finance-category-dialog .product-editor{display:grid;grid-template-columns:1fr;gap:16px;margin:0;border:0;padding:0;background:transparent}
+.finance-category-dialog .product-editor[hidden]{display:none}.finance-category-dialog label{display:grid;gap:7px}
+.finance-category-dialog .custom-select.is-open .custom-select-menu{position:static;max-height:220px}
+.velora-theme #report-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.velora-theme #report-kpis .kpi{min-width:0;grid-column:auto}.velora-theme #report-kpis strong{font-size:clamp(20px,2vw,30px)}
+.report-controls>.toolbar-row{display:grid;grid-template-columns:minmax(160px,1fr) minmax(220px,1.5fr) auto;align-items:end;gap:12px}
+.report-controls label{display:grid;gap:6px}.report-controls :is(input,select,.custom-select-trigger,.button){box-sizing:border-box;min-height:44px;width:100%}
+.loyalty-reconciliation-panel .finance-disclosure>section{padding:0 16px 16px}.loyalty-reconciliation-panel .finance-disclosure h3{font-size:14px}
+@media(max-width:1100px){.velora-theme #report-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}.velora-theme #report-kpis .kpi{grid-column:span 2}.velora-theme #report-kpis .kpi:nth-child(n+4){grid-column:span 3}.finance-workspace .finance-payroll-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.finance-workspace .finance-payroll-filters>.button{grid-column:1/-1}}
+@media(max-width:700px){.finance-category-filters{width:100%;grid-template-columns:1fr 1fr}.finance-category-filters>label:first-child{grid-column:1/-1}.finance-categories-panel .category-row{grid-template-columns:1fr auto}.report-controls>.toolbar-row{grid-template-columns:1fr}.finance-workspace .finance-payroll-filters{grid-template-columns:1fr}.finance-payroll-title{gap:12px;flex-wrap:wrap}.velora-theme #report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme #report-kpis .kpi,.velora-theme #report-kpis .kpi:nth-child(n+4){grid-column:auto}.velora-theme #report-kpis .kpi:last-child{grid-column:1/-1}}
+.finance-summary-date{display:grid;gap:6px;font-size:13px;font-weight:600}
+@media(max-width:480px){.velora-theme #report-kpis{grid-template-columns:1fr}.velora-theme #report-kpis .kpi:last-child{grid-column:auto}}
+
+.velora-theme :is(.finance-workspace,.report-controls) input[type="date"]{appearance:none;border:1px solid #394452;border-radius:10px;background:#101419;color:var(--text,#f3f6fb);padding:0 12px;font-family:inherit;font-size:14px}
+
+.velora-theme .loyalty-reconciliation-panel>.toolbar-row{display:grid;grid-template-columns:repeat(2,minmax(160px,240px));gap:12px;margin-block:12px}
+.velora-theme .loyalty-reconciliation-panel>.toolbar-row label{display:grid;gap:6px;font-size:13px}
+.velora-theme .loyalty-reconciliation-panel input[type="date"]{width:100%;appearance:none;border:1px solid #394452;border-radius:10px;background:#101419;color:var(--text,#f3f6fb);padding:0 12px;font:inherit}
+.velora-theme .report-grid .empty{min-height:0;padding:16px;margin:8px 0}
+.velora-theme #loyalty-reconciliation-results>.kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:900px){.velora-theme #loyalty-reconciliation-results>.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.velora-theme .loyalty-reconciliation-panel>.toolbar-row,.velora-theme #loyalty-reconciliation-results>.kpi-grid{grid-template-columns:1fr}}
