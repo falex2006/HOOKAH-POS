@@ -30,7 +30,8 @@ assert.match(deploy, /AUTH_REQUIRED=true/);
 assert.match(deploy, /allow_http_deploy_once="\$\{ALLOW_HTTP_DEPLOY_ONCE:-\}"[\s\S]*?unset ALLOW_HTTP_DEPLOY_ONCE/);
 assert.match(deploy, /skip_menu_seed_once="\$\{SKIP_MENU_SEED_ONCE:-\}"[\s\S]*?unset SKIP_MENU_SEED_ONCE/);
 assert.match(deploy, /SKIP_MENU_SEED_ONCE must be true when provided/);
-assert.match(deploy, /if \[ "\$skip_menu_seed_once" = 'true' \]; then[\s\S]*?Skipping menu seed for this explicitly scoped release[\s\S]*?else[\s\S]*?npm run db:seed-menu[\s\S]*?fi/);
+assert.match(deploy, /SKIP_MENU_SEED_ONCE="\$skip_menu_seed_once" \.\/migrate-vps\.sh/, 'deploy passes the one-time menu seed policy to the migration runner');
+assert.doesNotMatch(deploy, /npm run db:seed-menu/, 'deploy does not duplicate the migration runner seed');
 assert.ok(deploy.indexOf('skip_menu_seed_once=') < deploy.indexOf('. ./.env'), 'one-time menu seed opt-out must be captured before loading persistent environment');
 assert.ok(deploy.indexOf('SKIP_MENU_SEED_ONCE must be true') < deploy.indexOf('BACKUP_DIR='), 'invalid one-time menu seed opt-out must fail before backup or deployment changes');
 assert.match(deploy, /COOKIE_SECURE=true, or explicitly invoke this release once with ALLOW_HTTP_DEPLOY_ONCE=true/);
@@ -41,6 +42,8 @@ assert.ok(deploy.indexOf('COOKIE_SECURE=false requires') < deploy.indexOf('BACKU
 assert.match(deploy, /WARNING: deploying with non-secure session cookies over HTTP by explicit configuration/);
 assert.match(migrate, /psql --single-transaction -v ON_ERROR_STOP=1/, 'each VPS migration file must commit or roll back atomically');
 assert.match(migrate, /export LC_ALL=C/, 'VPS migration order must match the Node migration runner');
+assert.match(migrate, /skip_menu_seed="\$\{SKIP_MENU_SEED_ONCE:-\}"/, 'migration runner accepts the one-time menu seed policy');
+assert.match(migrate, /if \[ "\$skip_menu_seed" = 'true' \]; then[\s\S]*?Skipping menu seed for this explicitly scoped release[\s\S]*?else[\s\S]*?npm run db:seed-menu[\s\S]*?fi/, 'migration runner owns the conditional seed exactly once');
 assert.match(deploy, /git rev-parse --verify HEAD/, 'deployments must identify a committed release');
 assert.match(deploy, /release_branch=.*git symbolic-ref --short HEAD[\s\S]*?\[ \"\$release_branch\" = 'main' \]/, 'deployments must come from canonical main');
 assert.match(deploy, /git status --porcelain --untracked-files=all/, 'dirty and untracked release files must block deployment');

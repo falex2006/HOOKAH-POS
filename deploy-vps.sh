@@ -108,12 +108,7 @@ BACKUP_DIR="$backup_dir" BACKUP_LABEL="$backup_label" ./backup-postgres.sh
 $COMPOSE pull db nginx
 $COMPOSE build --pull crm
 $COMPOSE up -d
-./migrate-vps.sh
-if [ "$skip_menu_seed_once" = 'true' ]; then
-  echo 'Skipping menu seed for this explicitly scoped release'
-else
-  $COMPOSE exec -T crm npm run db:seed-menu
-fi
+SKIP_MENU_SEED_ONCE="$skip_menu_seed_once" ./migrate-vps.sh
 $COMPOSE restart crm
 
 for attempt in $(seq 1 30); do

@@ -14,6 +14,11 @@ else
   exit 1
 fi
 test -f .env || { echo 'Create .env from .env.example first' >&2; exit 1; }
+skip_menu_seed="${SKIP_MENU_SEED_ONCE:-}"
+case "$skip_menu_seed" in
+  ''|true) ;;
+  *) echo 'SKIP_MENU_SEED_ONCE must be true when provided' >&2; exit 1 ;;
+esac
 set -a
 . ./.env
 set +a
@@ -37,5 +42,9 @@ done
 
 echo 'CRM migrations applied'
 $COMPOSE up -d crm
-$COMPOSE exec -T crm npm run db:seed-menu
-echo 'CRM menu catalog synchronized'
+if [ "$skip_menu_seed" = 'true' ]; then
+  echo 'Skipping menu seed for this explicitly scoped release'
+else
+  $COMPOSE exec -T crm npm run db:seed-menu
+  echo 'CRM menu catalog synchronized'
+fi
