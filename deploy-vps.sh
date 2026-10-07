@@ -48,6 +48,8 @@ case "${SAAS_OWNER_EMAIL}" in platform-owner@example.com|change_*|replace-*|repl
 
 $COMPOSE config --quiet
 release_commit="$(git rev-parse --verify HEAD 2>/dev/null)" || { echo 'Deploy from a committed Git checkout' >&2; exit 1; }
+release_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+[ "$release_branch" = 'main' ] || { echo 'Deployments must come from the canonical main branch' >&2; exit 1; }
 dirty_paths="$(git status --porcelain --untracked-files=all)"
 [ -z "$dirty_paths" ] || { echo 'Commit or remove all untracked and modified release files before deploying' >&2; exit 1; }
 project_name="${COMPOSE_PROJECT_NAME:-territory-crm}"

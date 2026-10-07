@@ -42,6 +42,7 @@ assert.match(deploy, /WARNING: deploying with non-secure session cookies over HT
 assert.match(migrate, /psql --single-transaction -v ON_ERROR_STOP=1/, 'each VPS migration file must commit or roll back atomically');
 assert.match(migrate, /export LC_ALL=C/, 'VPS migration order must match the Node migration runner');
 assert.match(deploy, /git rev-parse --verify HEAD/, 'deployments must identify a committed release');
+assert.match(deploy, /release_branch=.*git symbolic-ref --short HEAD[\s\S]*?\[ \"\$release_branch\" = 'main' \]/, 'deployments must come from canonical main');
 assert.match(deploy, /git status --porcelain --untracked-files=all/, 'dirty and untracked release files must block deployment');
 assert.match(deploy, /flock 8/, 'parallel deployments must be serialized');
 assert.match(deploy, /\/var\/lock\/\$project_name-deploy\.lock/, 'deploy lock must be stable across checkouts of one Compose project');
