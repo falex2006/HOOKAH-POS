@@ -2251,6 +2251,25 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Keep warehouse directory names readable when category rows become narrow. */
 @media(max-width:560px){.velora-theme .inventory-departments-panel .category-row{grid-template-columns:minmax(0,1fr);align-items:start}.velora-theme .inventory-departments-panel .category-row>div:first-child{min-width:0;overflow-wrap:normal;word-break:normal}.velora-theme .inventory-departments-panel .category-row .toolbar-row{width:100%;justify-content:flex-start}}
 
+/* Keep directory actions compact and on one visual baseline until the phone stack is needed. */
+@media (min-width:561px) {
+  .velora-theme .inventory-page-title>.toolbar-row {
+    display:flex;
+    width:auto;
+    align-items:center;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .velora-theme .inventory-page-title>.toolbar-row>.button {
+    width:auto;
+    flex:0 1 auto;
+    min-width:0;
+    min-height:44px;
+    white-space:nowrap;
+  }
+}
+
 /* Keep warehouse actions and section navigation balanced at laptop widths. */
 .velora-theme .inventory-page-title{align-items:flex-start}
 .velora-theme .inventory-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
@@ -2874,6 +2893,25 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme .logo-upload::after{content:'Выбрать файл';display:inline-flex;width:max-content;align-items:center;min-height:34px;padding:7px 12px;border:1px solid #4a5360;border-radius:8px;background:#20252c;color:#e8edf1;font-size:12px;font-weight:700}
 .velora-theme .logo-upload:hover{border-color:#ff6372}.velora-theme .logo-upload:hover::after{border-color:#ff6372;color:#fff}
 .velora-theme .company-form .logo-upload input[type=file]{position:absolute;width:1px;height:1px;min-width:0;padding:0;border:0;opacity:0;pointer-events:none}
+
+/* Final action-bar normalization: labels size naturally, buttons share one baseline. */
+@media (min-width:561px) {
+  .velora-theme .inventory-page-title>.toolbar-row {
+    display:flex;
+    width:auto;
+    align-items:center;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .velora-theme .inventory-page-title>.toolbar-row>.button {
+    width:auto;
+    flex:0 1 auto;
+    min-width:0;
+    min-height:44px;
+    white-space:nowrap;
+  }
+}
 
 /* Long stock lists keep their context and filters available while scrolling. */
 .velora-theme .inventory-stock-panel>.panel-head{position:sticky;top:72px;z-index:4;margin:-22px -22px 16px;padding:18px 22px 14px;background:linear-gradient(180deg,#171a20 0%,#171a20f2 88%,#171a2000 100%);}
