@@ -5023,4 +5023,3 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Added platform-only DELETE with exact word/slug/acknowledgement, row lock, all direct FK occupancy guards (including inactive data), transactional audit. Only subscription metadata may cascade. No production company deleted.
 - UI: nested confirmation dialog, final confirmation, request race protection and pending guards.
 - QA: platform-empty-delete-qa.cjs reused local QA PostgreSQL; browser deletion, reload, persisted audit, invalid auth/confirmation and inactive venue protection PASS. Syntax, platform-saas-contract, diff check PASS. code-health final review: no blockers. No schema migration.
-
