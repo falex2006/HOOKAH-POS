@@ -77,6 +77,12 @@ const assert = require('node:assert/strict');
     await page.locator('[data-inventory-directory-status="active"]').click();
     await page.waitForFunction(id => !!document.querySelector(`.product-category-edit[data-category="${id}"]`), created.id);
     assert.equal((await readCategories()).find(item => item.id === created.id).active, true);
+    // A dense real API fixture reproduces the long-directory layout, in one batch.
+    for (let index = 1; index <= 40; index++) await post('/api/product-categories', { department: department.id, name: `QA Много категорий ${String(index).padStart(2, '0')}`, subdepartmentId: sub.id });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.locator(`[data-inventory-department="${department.id}"]`).click();
+    await page.locator(`[data-directory-subdepartment="${sub.id}"]`).click();
+    assert.equal(await categoryRows.count(), 42, 'dense fixture loaded');
     fs.mkdirSync('tmp/inventory-directory-visual', { recursive: true });
     for (const width of [1920, 1366, 390]) {
       await page.setViewportSize({ width, height: width < 500 ? 844 : 1000 });
@@ -89,8 +95,24 @@ const assert = require('node:assert/strict');
         assert.equal(await categoryRows.count(), 1, 'mobile whole-department navigation');
         await page.locator(`[data-inventory-department="${department.id}"]`).click();
         await page.locator(`[data-directory-subdepartment="${sub.id}"]`).click();
-        assert.equal(await categoryRows.count(), 2, 'mobile subdepartment navigation');
+        assert.equal(await categoryRows.count(), 42, 'mobile subdepartment navigation');
       }
+      const categoryList = page.locator('#product-category-list');
+      const scroll = await categoryList.evaluate(node => ({ scrollHeight: node.scrollHeight, clientHeight: node.clientHeight, overflowY: getComputedStyle(node).overflowY }));
+      assert.ok(scroll.scrollHeight > scroll.clientHeight, 'dense category list scrolls locally at ' + width);
+      assert.ok(scroll.clientHeight <= (width < 500 ? 360 : 520), 'category list bounded at ' + width);
+      assert.equal(scroll.overflowY, 'auto');
+      const mainHeight = await page.locator('.portal-main').evaluate(node => node.scrollHeight);
+      assert.ok(mainHeight < (width < 500 ? 2200 : 1300), 'page does not grow with 40 categories at ' + width);
+      const lastEdit = categoryRows.last().locator('.product-category-edit');
+      await openActions(lastEdit);
+      await lastEdit.scrollIntoViewIfNeeded();
+      assert.equal(await lastEdit.evaluate(node => { const box = node.getBoundingClientRect(); return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)); }), true, 'last row action not clipped at ' + width);
+      await page.screenshot({ path: `tmp/inventory-directory-visual/last-action-${width}.png`, fullPage: true });
+      await lastEdit.click();
+      await page.locator('#product-category-name').waitFor({ state: 'visible' });
+      await page.locator('#cancel-product-category').click();
+      await categoryList.evaluate(node => node.scrollTop = 0);
       await page.evaluate(() => { document.querySelectorAll('.portal-main,.portal-content').forEach(node => node.scrollTop = 0); window.scrollTo(0, 0); });
       console.log(JSON.stringify({ width, firstDepartmentRowY: await page.locator('#inventory-department-list').evaluate(node => node.getBoundingClientRect().top) }));
       await page.screenshot({ path: `tmp/inventory-directory-visual/${width}.png`, fullPage: true });
@@ -108,6 +130,10 @@ const assert = require('node:assert/strict');
     }
     assert.deepEqual(errors, [], 'browser runtime errors');
     console.log('PASS inventory directory cascade, search, create/edit/cancel, API persistence, archive/restore, responsive');
+  } catch (error) {
+    const page = browser?.contexts()[0]?.pages()[0];
+    if (page) { fs.mkdirSync('tmp/inventory-directory-visual', { recursive: true }); await page.screenshot({ path: 'tmp/inventory-directory-visual/failure.png', fullPage: true }).catch(() => {}); }
+    throw error;
   } finally { await browser?.close(); server.kill(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
 

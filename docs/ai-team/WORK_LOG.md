@@ -4983,3 +4983,8 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Новый inventory-directory-browser-qa.cjs PASS на изолированном memory-сервере: минимальные fixtures, каскад/поиск/создание/редактирование/отмена/архив/восстановление/API reread/reload; 1920/1366/390, нулевое горизонтальное переполнение и pageerror. Скриншоты просмотрены. Первый список Y328 Full HD. Mobile — последовательные вертикальные колонки, drawer закрыт при проверке.
 - Производственные данные для QA не изменялись; полный PostgreSQL CRUD через production UI не выполнялся. Серверные обработчики неизменны; проверки их контрактов и mocked transaction QA PASS.
 - CSS revision398 / portal459 синхронизированы root/dist HTML; публикация через существующий deploy workflow с резервной копией и SKIP_MENU_SEED_ONCE=true.
+
+### Production review follow-up
+- Первый выпуск71d88664 опубликован штатно, backup/health PASS. Проверка реальных33 категорий выявила неограниченную длину списка, которую небольшой local fixture не покрывал.
+- Добавлены ограниченные прокручиваемые списки с заголовками вне scroll, inline-меню последней строки без обрезки, 44px кнопки. QA расширен до40 категорий; никакие production записи не менялись. Cache revisions399/460.
+- Dense QA42: PASS1920/1366/390, last-row hit-test/edit, scroll bounds. Исправлен mobile grid-row overlap. В memory fixture есть toast ошибки вспомогательного каталога; основные directory API и JS runtime PASS. Финальный code-health bounded-list review PASS.
