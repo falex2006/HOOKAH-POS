@@ -1,0 +1,207 @@
+/* SaaS Control Center only. Keep these selectors outside the POS stylesheet. */
+.platform-page .platform-start-card[hidden] {
+  display: none;
+}
+
+.platform-page .platform-start-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #303742;
+  border-radius: 12px;
+  background: #12161a;
+  color: #e9edf2;
+  text-decoration: none;
+}
+
+.platform-page button.platform-start-step {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.platform-page .platform-start-step:hover,
+.platform-page .platform-start-step:focus-visible {
+  border-color: #ff7752;
+}
+
+.platform-page .owner-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.platform-page .owner-detail {
+  display: grid;
+  gap: 10px;
+  color: #dce3eb;
+}
+
+.platform-page .owner-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #2b333d;
+  border-radius: 11px;
+  background: #171c22;
+}
+
+.platform-page .owner-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.platform-page .owner-main strong,
+.platform-page .owner-main span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.platform-page .owner-main strong {
+  color: #f5f7fa;
+  font-size: 14px;
+}
+
+.platform-page .owner-main span {
+  color: #9ca9b7;
+  font-size: 12px;
+}
+
+.platform-page .owner-status {
+  justify-self: end;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.platform-page .owner-status.is-active {
+  color: #8fe0bc;
+  background: #1a2926;
+}
+
+.platform-page .owner-status.is-blocked {
+  color: #ffb0b8;
+  background: #342126;
+}
+
+.platform-page .owner-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid #2b333d;
+}
+
+.platform-page .owner-actions .table-action {
+  min-height: 44px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: #20262e;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+}
+
+.platform-page .owner-actions .table-action:hover {
+  background: #2a323d;
+}
+
+.platform-page .platform-modal-panel {
+  max-height: min(88dvh, 900px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.platform-page .platform-owner-dialog {
+  z-index: 24;
+}
+
+.platform-access-denied {
+  max-width: 520px;
+  margin: 12vh auto;
+  padding: 28px;
+  border: 1px solid #2b333d;
+  border-radius: 16px;
+  background: #171c22;
+  color: #f5f7fa;
+}
+
+.platform-access-denied p { color: #9ca9b7; }
+.platform-access-denied a { color: #9ad6ff; }
+
+.platform-page .owner-access-link-label {
+  display: grid;
+  gap: 7px;
+}
+
+.platform-page #owner-access-link {
+  min-height: 76px;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  resize: vertical;
+}
+
+@media (max-width: 560px) {
+  .platform-page .company-detail-owner {
+    padding: 12px;
+  }
+
+  .platform-page .owner-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .platform-page .owner-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .platform-page .owner-status {
+    justify-self: start;
+  }
+
+  .platform-page .owner-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .platform-page .owner-actions .table-action {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .platform-page .platform-modal {
+    padding: 12px;
+  }
+
+  .platform-page .platform-modal-panel {
+    max-height: calc(100dvh - 24px);
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .platform-page .platform-owner-dialog .modal-actions {
+    flex-direction: column-reverse;
+  }
+}
+
+@media (max-width: 360px) {
+  .platform-page .owner-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
