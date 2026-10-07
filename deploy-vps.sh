@@ -52,7 +52,7 @@ release_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
 [ "$release_branch" = 'main' ] || { echo 'Deployments must come from the canonical main branch' >&2; exit 1; }
 dirty_paths="$(git status --porcelain --untracked-files=all)"
 [ -z "$dirty_paths" ] || { echo 'Commit or remove all untracked and modified release files before deploying' >&2; exit 1; }
-project_name="${COMPOSE_PROJECT_NAME:-territory-crm}"
+project_name="${COMPOSE_PROJECT_NAME:-hookah-pos}"
 [[ "$project_name" =~ ^[A-Za-z0-9._-]{1,63}$ ]] || { echo 'COMPOSE_PROJECT_NAME has an invalid format' >&2; exit 1; }
 export COMPOSE_PROJECT_NAME="$project_name"
 export CRM_RELEASE_ID=unreleased
