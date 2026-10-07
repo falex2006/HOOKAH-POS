@@ -119,4 +119,3 @@ const path = require('node:path');
     server.kill();
   }
 })().catch((error) => { console.error(error); process.exitCode = 1; });
-
