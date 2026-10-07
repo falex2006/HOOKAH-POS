@@ -2894,6 +2894,11 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme .logo-upload:hover{border-color:#ff6372}.velora-theme .logo-upload:hover::after{border-color:#ff6372;color:#fff}
 .velora-theme .company-form .logo-upload input[type=file]{position:absolute;width:1px;height:1px;min-width:0;padding:0;border:0;opacity:0;pointer-events:none}
 
+.velora-theme .settings-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
+.velora-theme .settings-toolbar .button{min-height:38px;white-space:nowrap}
+.velora-theme .settings-toolbar-state{color:#7f8995;font-size:11px;white-space:nowrap}
+@media(max-width:760px){.velora-theme .settings-toolbar{width:100%;justify-content:flex-start}.velora-theme .settings-toolbar-state{width:100%;white-space:normal}}
+
 /* Final action-bar normalization: labels size naturally, buttons share one baseline. */
 @media (min-width:561px) {
   .velora-theme .inventory-page-title>.toolbar-row {
