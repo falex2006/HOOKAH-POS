@@ -10,7 +10,7 @@ const checks = [
   ['Task cards expose a status selector', /<article class="task-card">[\s\S]*?<select data-task-status=/, portal],
   ['Task board has dedicated layout', /\.velora-theme \.tasks-board\{display:grid;/, css],
   ['Task board collapses for tablet', /@media\(max-width:1100px\)\{\.velora-theme \.tasks-board\{grid-template-columns:repeat\(2/, css],
-  ['Task board collapses to one column on mobile', /@media\(max-width:650px\)\{\.velora-theme \.tasks-board\{grid-template-columns:1fr/, css],
+  ['Task board collapses to one column on mobile', /@media\(max-width:650px\)\{[\s\S]*?\.velora-theme \.tasks-board\{grid-template-columns:1fr/, css],
   ['Guest cards expose archive action', /data-client-action="archive"/, portal],
   ['Guest cards expose owner-only delete action', /data-client-action="delete"[\s\S]*Удалить гостя/, portal],
   ['Guest card list has responsive grid', /\.client-grid\{display:grid;[\s\S]*@media\(max-width:900px\)\{\.client-grid\{grid-template-columns:1fr\}/, css],

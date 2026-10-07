@@ -32,7 +32,7 @@ for (const route of [
 ]) assert.match(server, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(repository, /async voidDraft\(venueId, id\)[\s\S]*?FOR UPDATE[\s\S]*?purchase_document_not_voidable[\s\S]*?status='voided'/,
   'only a locked draft may be voided, without creating stock movements');
-const postMethod = repository.match(/async post\(venueId, id, actorId\) \{([\s\S]*?)\n  \}\n  async/);
+const postMethod = repository.match(/async post\(venueId, id, actorId\) \{([\s\S]*?)\r?\n  \}\r?\n  async/);
 assert.ok(postMethod, 'purchase post method must remain discoverable for critical guards');
 assert.match(postMethod[1], /is_marked AS ingredient_active[\s\S]*?FOR UPDATE OF l,i[\s\S]*?ingredient_active !== true[\s\S]*?purchase_ingredient_archived[\s\S]*?INSERT INTO stock_movements/,
   'archived ingredient must fail closed while locked before any receipt movement');
