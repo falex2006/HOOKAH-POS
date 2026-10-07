@@ -4246,6 +4246,7 @@ if (page === 'finance_categories') renderFinanceCategories();
 if (page === 'finance_report') renderFinanceReport();
 if (page === 'reservations') renderReservations();
 if (page === 'dashboard' && location.hash === '#tasks') renderTasks();
+if (page === 'dashboard' && ['#staff', '#permissions'].includes(location.hash)) setTimeout(() => renderDashboard(), 0);
 
 // Cross-page navigation is handled by the browser's View Transition API where
 // available. Keep the content entrance animation for in-page/hash changes only.
