@@ -2746,6 +2746,7 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .velora-theme .custom-select-trigger{min-height:44px;height:44px;box-sizing:border-box}
 .velora-theme .form-grid,.velora-theme .form-row{align-items:start;gap:14px}
 .velora-theme .form-grid>label,.velora-theme .form-row>label{min-width:0}
+.velora-theme #promotion-form input,.velora-theme #promotion-form select,.velora-theme #promotion-form textarea{width:100%;min-width:0;box-sizing:border-box}
 .velora-theme label>small{display:block;min-height:18px;line-height:1.35}
 .velora-theme .network-row>div:first-child{min-width:0;flex:1}
 .velora-theme .network-row small{overflow-wrap:anywhere}
