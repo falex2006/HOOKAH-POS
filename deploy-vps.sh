@@ -6,6 +6,12 @@ umask 077
 # Do not put real passwords in this file; create .env before running it.
 allow_http_deploy_once="${ALLOW_HTTP_DEPLOY_ONCE:-}"
 unset ALLOW_HTTP_DEPLOY_ONCE
+skip_menu_seed_once="${SKIP_MENU_SEED_ONCE:-}"
+unset SKIP_MENU_SEED_ONCE
+case "$skip_menu_seed_once" in
+  ''|true) ;;
+  *) echo 'SKIP_MENU_SEED_ONCE must be true when provided' >&2; exit 1 ;;
+esac
 command -v docker >/dev/null || { echo 'Docker is required'; exit 1; }
 
 if docker compose version >/dev/null 2>&1; then
@@ -101,7 +107,11 @@ $COMPOSE pull db nginx
 $COMPOSE build --pull crm
 $COMPOSE up -d
 ./migrate-vps.sh
-$COMPOSE exec -T crm npm run db:seed-menu
+if [ "$skip_menu_seed_once" = 'true' ]; then
+  echo 'Skipping menu seed for this explicitly scoped release'
+else
+  $COMPOSE exec -T crm npm run db:seed-menu
+fi
 $COMPOSE restart crm
 
 for attempt in $(seq 1 30); do
