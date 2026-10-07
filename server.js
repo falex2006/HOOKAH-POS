@@ -5418,6 +5418,22 @@ if (staffProfile && req.method === 'PATCH') {
     const task = { id: `task-${Date.now()}`, title, description, status, priority, assigneeId: input.assigneeId || null, assigneeName: assignedPerson?.name || null, dueAt: deadline.dueAt || null, dueDate: deadline.dueDate || null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; tasks.push(task); recordAudit(req, 'task.created', 'task', task.id, null, task); return json(res, 201, task);
   }
   const taskPath = pathname.match(/^\/api\/tasks\/([^/]+)$/);
+  if (taskPath && req.method === 'DELETE') {
+    if (denyUnlessAny(req, res, ['staff_manage', 'tasks_manage'])) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(taskPath[1])) {
+      try {
+        const { rows } = await repositories.pool.query('DELETE FROM tasks WHERE id=$1 AND venue_id=$2 RETURNING id', [taskPath[1], venueDbId]);
+        if (!rows[0]) return json(res, 404, { error: 'task_not_found' });
+        recordAudit(req, 'task.deleted', 'task', rows[0].id, null, { id: rows[0].id });
+        return json(res, 200, { ok: true, id: rows[0].id });
+      } catch (error) { return json(res, 409, { error: 'task_delete_failed', detail: error.message }); }
+    }
+    const index = tasks.findIndex((entry) => entry.id === taskPath[1]);
+    if (index < 0) return json(res, 404, { error: 'task_not_found' });
+    const [deleted] = tasks.splice(index, 1);
+    recordAudit(req, 'task.deleted', 'task', deleted.id, null, deleted);
+    return json(res, 200, { ok: true, id: deleted.id });
+  }
   if (taskPath && req.method === 'PATCH') {
     if (denyUnlessAny(req, res, ['orders', 'staff_view', 'staff_manage', 'tasks_manage'])) return;
     const input = await body(req); const canManageTasks = hasPermission(req, 'staff_manage') || hasPermission(req, 'tasks_manage'); const allowed = canManageTasks ? ['title','description','status','priority','assigneeId','dueAt','dueDate'] : ['status'];

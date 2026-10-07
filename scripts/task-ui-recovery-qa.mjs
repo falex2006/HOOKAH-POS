@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../portal.js',import.meta.url),'utf8');
+const server=readFileSync(new URL('../server.js',import.meta.url),'utf8');
 const section=source.slice(source.indexOf('function renderTasks()'),source.indexOf('function renderLoyalty()',source.indexOf('function renderTasks()')));
+assert.match(section,/data-task-edit/); assert.match(section,/data-task-delete/); assert.match(section,/method: 'DELETE'/); assert.match(section,/Изменить задачу/); assert.match(server,/req\.method === 'DELETE'/); assert.match(server,/task\.deleted/);
 const focusCode=section.slice(section.indexOf('const focusTaskStatus ='),section.indexOf('\n  const draw ='));
 let focused='',taskPresent=true,enhanced=0;
 const trigger={focus(){focused='task';}};
