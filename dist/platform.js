@@ -41,15 +41,17 @@
   };
   const modal = $('#company-modal'), detailModal = $('#company-detail-modal'), ownerModal = $('#owner-modal');
   const passwordModal = $('#owner-password-modal'), accessModal = $('#owner-access-modal');
+  const deleteModal = $('#company-delete-modal'), deleteForm = $('#company-delete-form');
+  let loadedDetail = null, detailRequest = 0, deleteTarget = null, deletingCompany = false;
   const ownerForm = $('#owner-form'), passwordForm = $('#owner-password-form');
   let detailOrgId = null, detailLoaded = false, ownerTrigger = null, passwordOwner = null, passwordTrigger = null, accessTrigger = null;
   const setBusy = (button, busy, label) => { if (!button) return; if (busy) { button.dataset.idleLabel = button.textContent; button.disabled = true; button.textContent = label; } else { button.disabled = false; button.textContent = button.dataset.idleLabel || button.textContent; } };
-  const modalRoots = [accessModal, passwordModal, ownerModal, detailModal, modal];
+  const modalRoots = [deleteModal, accessModal, passwordModal, ownerModal, detailModal, modal];
   const modalOpeners = new WeakMap();
   const setModal = (element, open) => {
     if (open && element.hidden) modalOpeners.set(element, document.activeElement);
     element.hidden = !open;
-    const nestedOwnerDialogOpen = [ownerModal, passwordModal, accessModal].some((item) => item && !item.hidden);
+    const nestedOwnerDialogOpen = [deleteModal, ownerModal, passwordModal, accessModal].some((item) => item && !item.hidden);
     detailModal.inert = nestedOwnerDialogOpen;
     if (nestedOwnerDialogOpen) detailModal.setAttribute('aria-hidden', 'true'); else detailModal.removeAttribute('aria-hidden');
     const anyModalOpen = modalRoots.some((item) => item && !item.hidden);
@@ -85,6 +87,62 @@
     try { const [overview, companies, plans, health] = await Promise.all([api('/api/platform/overview'), api('/api/platform/organizations'), api('/api/platform/plans'), api('/api/health')]); state.companies = companies.items || []; state.companiesLoaded = true; state.health = health.status === 'ok' ? 'ok' : 'offline'; renderKpis(overview); renderCompanies(); renderOnboarding(); renderPlans(plans); renderHealth(); $('#platform-updated').textContent = `Обновлено ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`; }
     catch (error) { if (error.message.includes('в систему')) return; state.loadError = error.message; state.health = 'offline'; renderCompanies(); renderHealth(); $('#platform-updated').textContent = 'Не удалось обновить'; }
   };
+  const deletionConfirmed = () => Boolean(deleteTarget && deleteForm.elements.confirmation.value === 'Удалить' && deleteForm.elements.slug.value === deleteTarget.slug && deleteForm.elements.acknowledged.checked);
+  const syncDelete = () => { $('#confirm-company-delete').disabled = deletingCompany || !deletionConfirmed(); };
+  const closeDelete = () => { if (deletingCompany) return; setModal(deleteModal, false); deleteTarget = null; deleteForm.reset(); };
+  $('#delete-company').addEventListener('click', () => {
+    if (!detailLoaded || !loadedDetail || loadedDetail.id !== detailOrgId) return;
+    deleteTarget = { ...loadedDetail };
+    deleteForm.reset();
+    $('#company-delete-target').textContent = `${deleteTarget.name} · ${deleteTarget.slug}`;
+    $('#company-delete-error').textContent = '';
+    syncDelete();
+    setModal(deleteModal, true);
+    deleteForm.elements.confirmation.focus();
+  });
+  deleteForm.addEventListener('input', syncDelete);
+  deleteForm.addEventListener('change', syncDelete);
+  deleteModal.querySelectorAll('[data-close-company-delete]').forEach((button) => button.addEventListener('click', closeDelete));
+  deleteModal.addEventListener('click', (event) => { if (event.target === deleteModal) closeDelete(); });
+  deleteForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (deletingCompany || !deletionConfirmed()) return;
+    const target = { ...deleteTarget };
+    if (!confirm(`Окончательно удалить компанию «${target.name}» (${target.slug})? Это действие нельзя отменить.`)) return;
+    deletingCompany = true;
+    $('#company-delete-error').textContent = '';
+    deleteForm.setAttribute('aria-busy', 'true');
+    deleteModal.querySelectorAll('input,button').forEach((element) => { element.disabled = true; });
+    let deleted = false;
+    try {
+      await api(`/api/platform/organizations/${encodeURIComponent(target.id)}`, { method: 'DELETE', body: JSON.stringify({ confirmation: 'Удалить', slug: target.slug, acknowledged: true }) });
+      deleted = true;
+    } catch (error) {
+      $('#company-delete-error').textContent = ({ organization_not_empty: 'В компании уже есть данные. Удаление запрещено. Закройте это окно и установите статус «Приостановлена» в карточке компании.', organization_not_found: 'Компания уже удалена или недоступна. Закройте окно и обновите данные.', organization_delete_confirmation_required: 'Подтверждение не совпало. Проверьте слово и адрес компании.', organization_delete_requires_database: 'Удаление доступно только при подключённой базе данных.', organization_delete_failed: 'Сервер не смог удалить компанию. Попробуйте снова.' }[error.message] || `Не удалось удалить компанию: ${error.message}`);
+    } finally {
+      deletingCompany = false;
+      deleteForm.removeAttribute('aria-busy');
+      deleteModal.querySelectorAll('input,button').forEach((element) => { element.disabled = false; });
+      syncDelete();
+    }
+    if (deleted) {
+      closeDelete();
+      setModal(detailModal, false);
+      loadedDetail = null; detailLoaded = false;
+      state.companies = state.companies.filter((item) => String(item.id) !== String(target.id));
+      renderCompanies();
+      $('#company-search').focus();
+      await load();
+    }
+  });
+  $('#settings-create-company').addEventListener('click', () => setModal(modal, true));
+  $('#settings-refresh').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    setBusy(button, true, 'Обновление…');
+    await load();
+    $('#settings-result').textContent = state.loadError ? `Не удалось обновить: ${state.loadError}` : 'Данные и состояние платформы обновлены.';
+    setBusy(button, false);
+  });
   const closeOwner = () => { setModal(ownerModal, false); ownerForm.reset(); $('#owner-form-error').textContent = ''; state.ownerEditing = null; ownerTrigger?.focus(); };
   const openOwner = (owner = null) => { state.ownerEditing = owner; ownerForm.reset(); $('#owner-form-error').textContent = ''; $('#owner-modal-title').textContent = owner ? 'Изменить владельца' : 'Добавить владельца'; ownerForm.elements.name.value = owner?.name || ''; ownerForm.elements.login.value = owner?.login || ''; const passwordLabel = ownerForm.elements.password.closest('label'); passwordLabel.style.display = owner ? 'none' : 'grid'; ownerForm.elements.password.required = !owner; ownerForm.elements.password.value = ''; setModal(ownerModal, true); };
   const closePassword = () => { setModal(passwordModal, false); passwordForm.reset(); $('#owner-password-error').textContent = ''; passwordOwner = null; passwordTrigger?.focus(); };
@@ -102,9 +160,9 @@
       return `<article class="owner-row"><div class="owner-main"><strong>${escapeHtml(owner.name || 'Без имени')}</strong><span>${escapeHtml(owner.login || '')}</span></div><span class="owner-status ${active ? 'is-active' : 'is-blocked'}">${escapeHtml(status)}</span><div class="owner-actions"><button class="table-action" type="button" data-owner-edit="${escapeHtml(owner.id)}">Изменить</button><button class="table-action" type="button" data-owner-password="${escapeHtml(owner.id)}">Сменить пароль</button><button class="table-action" type="button" data-owner-reset="${escapeHtml(owner.id)}">Выдать ссылку</button><button class="table-action" type="button" data-owner-toggle="${escapeHtml(owner.id)}">${active ? 'Заблокировать' : 'Разблокировать'}</button>${!owner.isPrimary ? `<button class="table-action" type="button" data-owner-primary="${escapeHtml(owner.id)}">Назначить главным</button><button class="table-action" type="button" data-owner-delete="${escapeHtml(owner.id)}">Удалить совладельца</button>` : ''}</div></article>`;
     }).join('');
   };
-  const openDetail = async (orgId) => { detailOrgId = orgId; detailLoaded = false; $('#company-detail-error').textContent = ''; $('#owner-management-error').textContent = ''; setModal(detailModal, true); $('#save-company-detail').disabled = true; $('#company-detail-meta').textContent = 'Загрузка…'; $('#company-detail-owner').textContent = 'Загрузка владельцев…';
-    try { const item = await api(`/api/platform/organizations/${encodeURIComponent(orgId)}`); detailLoaded = true; $('#company-detail-title').textContent = item.name; $('#company-detail-meta').textContent = `${item.slug} · ${item.city || 'Город не указан'} · ${Number(item.venues) || 0} заведений · ${Number(item.seats) || 0} мест`; $('#company-detail-plan').value = item.plan || 'starter'; $('#company-detail-status').value = item.status || (item.isActive === false ? 'cancelled' : 'active'); state.owners = item.owners || []; renderOwners(); $('#save-company-detail').disabled = false; }
-    catch (error) { $('#company-detail-error').textContent = `Не удалось загрузить компанию: ${error.message}`; $('#company-detail-owner').textContent = 'Список владельцев недоступен.'; }
+  const openDetail = async (orgId) => { const request = ++detailRequest; loadedDetail = null; $('#delete-company').disabled = true; detailOrgId = orgId; detailLoaded = false; $('#company-detail-error').textContent = ''; $('#owner-management-error').textContent = ''; setModal(detailModal, true); $('#save-company-detail').disabled = true; $('#company-detail-meta').textContent = 'Загрузка…'; $('#company-detail-owner').textContent = 'Загрузка владельцев…';
+    try { const item = await api(`/api/platform/organizations/${encodeURIComponent(orgId)}`); if (request !== detailRequest) return; loadedDetail = { id: orgId, name: item.name, slug: item.slug }; $('#delete-company').disabled = false; detailLoaded = true; $('#company-detail-title').textContent = item.name; $('#company-detail-meta').textContent = `${item.slug} · ${item.city || 'Город не указан'} · ${Number(item.venues) || 0} заведений · ${Number(item.seats) || 0} мест`; $('#company-detail-plan').value = item.plan || 'starter'; $('#company-detail-status').value = item.status || (item.isActive === false ? 'cancelled' : 'active'); state.owners = item.owners || []; renderOwners(); $('#save-company-detail').disabled = false; }
+    catch (error) { if (request !== detailRequest) return; $('#company-detail-error').textContent = `Не удалось загрузить компанию: ${error.message}`; $('#company-detail-owner').textContent = 'Список владельцев недоступен.'; }
   };
   $('#open-company').addEventListener('click', () => setModal(modal, true)); $('#start-create-company').addEventListener('click', () => setModal(modal, true)); $('#close-company').addEventListener('click', () => setModal(modal, false)); $('#cancel-company').addEventListener('click', () => setModal(modal, false));
   $('#company-search').addEventListener('input', renderCompanies);
@@ -143,6 +201,7 @@
     const currentModal = activeModal();
     if (event.key === 'Escape') {
       if (!currentModal) return;
+      if (currentModal === deleteModal) { event.preventDefault(); closeDelete(); return; }
       if (currentModal === accessModal) closeAccess(); else if (currentModal === passwordModal) closePassword(); else if (currentModal === ownerModal) closeOwner(); else setModal(currentModal, false);
       return;
     }

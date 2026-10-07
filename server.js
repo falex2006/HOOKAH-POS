@@ -1738,6 +1738,49 @@ async function api(req, res) {
       const input=await body(req); if (input.active === false && current.rows[0].isPrimary) return json(res,409,{error:'primary_owner_must_be_transferred_first'}); if (input.isPrimary === true && current.rows[0].active === false) return json(res,409,{error:'inactive_owner_cannot_be_primary'}); if (input.login !== undefined && !/^[^\s@]+@[^\s@]+$/.test(String(input.login).trim())) return json(res,400,{error:'valid_owner_email_required'}); if (req.method === 'PATCH' && input.isPrimary === true) { const client=await repositories.pool.connect(); try { await client.query('BEGIN'); await client.query('UPDATE organization_memberships SET is_primary=false WHERE organization_id=$1 AND membership_role=\'owner\'', [organizationId]); await client.query('UPDATE organization_memberships SET is_primary=true,status=\'active\' WHERE organization_id=$1 AND user_id=$2 AND membership_role=\'owner\'', [organizationId,targetId]); await client.query('COMMIT'); recordAudit(req,'platform.owner_transferred','organization_owner',targetId,current.rows[0],{...current.rows[0],isPrimary:true}); return json(res,200,{...current.rows[0],isPrimary:true}); } catch(error) { await client.query('ROLLBACK').catch(()=>{}); return json(res,503,{error:'owner_transfer_failed'}); } finally { client.release(); } } const fields=[]; const values=[]; if(input.name!==undefined){values.push(String(input.name).trim());fields.push(`full_name=$${values.length}`);} if(input.login!==undefined){values.push(String(input.login).trim().toLowerCase());fields.push(`login=$${values.length}`);} if(input.password){ if(String(input.password).length<8)return json(res,400,{error:'password_too_short'}); values.push(await hashPassword(input.password));fields.push(`password_hash=$${values.length}`); fields.push('password_reset_token_hash=NULL'); fields.push('password_reset_expires_at=NULL');} if(input.active!==undefined){values.push(Boolean(input.active));fields.push(`is_active=$${values.length}`);} if(!fields.length)return json(res,200,current.rows[0]); values.push(targetId); const targetIdParameter=values.length; values.push(organizationId); const organizationIdParameter=values.length; let updated; try { updated=await repositories.pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=$${targetIdParameter} AND organization_id=$${organizationIdParameter} RETURNING id,full_name AS name,login,is_active AS active`,values); } catch(error) { if(input.login!==undefined && error.code==='23505') return json(res,409,{error:'owner_login_already_exists'}); throw error; } if(input.password || input.active === false) { await repositories.pool.query('DELETE FROM auth_sessions WHERE user_id=$1',[targetId]); for (const [sessionToken, session] of sessions) if (session.user?.id === targetId) sessions.delete(sessionToken); } recordAudit(req,'platform.owner_updated','organization_owner',targetId,current.rows[0],updated.rows[0]); return json(res,200,updated.rows[0]);
     } catch (error) { return json(res,503,{error:'owner_management_failed'}); }
   }
+  if (platformOrgPath && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'platform')) return;
+    const organizationId = platformOrgPath[1];
+    const input = await body(req);
+    if (input.confirmation !== 'Удалить' || input.acknowledged !== true || typeof input.slug !== 'string') return json(res, 400, { error: 'organization_delete_confirmation_required' });
+    if (String(req.user?.organizationId || '') === organizationId) return json(res, 409, { error: 'organization_current_session' });
+    if (!repositories?.pool) return json(res, 503, { error: 'organization_delete_requires_database' });
+    if (!/^[0-9a-f-]{36}$/i.test(organizationId)) return json(res, 404, { error: 'organization_not_found' });
+    let client;
+    try {
+      client = await repositories.pool.connect();
+      await client.query('BEGIN');
+      const current = await client.query('SELECT id,name,slug FROM organizations WHERE id=$1 FOR UPDATE', [organizationId]);
+      const organization = current.rows[0];
+      if (!organization) { await client.query('ROLLBACK'); return json(res, 404, { error: 'organization_not_found' }); }
+      if (input.slug !== organization.slug) { await client.query('ROLLBACK'); return json(res, 400, { error: 'organization_delete_confirmation_required' }); }
+      // Check every direct FK, including inactive/archived records and future tables.
+      // Only the empty organization's subscription may be removed by cascade.
+      const references = await client.query(`SELECT DISTINCT ns.nspname AS schema_name,t.relname AS table_name,a.attname AS column_name
+        FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid
+        JOIN pg_namespace ns ON ns.oid=t.relnamespace
+        JOIN LATERAL unnest(c.conkey,c.confkey) AS k(local_key,foreign_key) ON true
+        JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.local_key
+        JOIN pg_attribute target ON target.attrelid=c.confrelid AND target.attnum=k.foreign_key
+        WHERE c.contype='f' AND c.confrelid='organizations'::regclass AND target.attname='id'
+          AND c.conrelid <> 'organization_subscriptions'::regclass`);
+      const quoteIdentifier = (value) => '"' + String(value).replace(/"/g, '""') + '"';
+      for (const reference of references.rows) {
+        const table = `${quoteIdentifier(reference.schema_name)}.${quoteIdentifier(reference.table_name)}`;
+        const used = await client.query(`SELECT 1 FROM ${table} WHERE ${quoteIdentifier(reference.column_name)}=$1 LIMIT 1`, [organizationId]);
+        if (used.rows.length) { await client.query('ROLLBACK'); return json(res, 409, { error: 'organization_not_empty' }); }
+      }
+      // Platform credentials are not necessarily a users row; do not attribute
+      // this action to the legacy fallback tenant user ID.
+      await client.query("INSERT INTO audit_events(action,entity_type,entity_id,before_data,after_data) VALUES('platform.organization_deleted','organization',$1,$2,$3)", [organizationId, organization, { actorRole: req.user?.role, actorName: req.user?.name, result: 'deleted_empty_organization' }]);
+      await client.query('DELETE FROM organizations WHERE id=$1', [organizationId]);
+      await client.query('COMMIT');
+      return json(res, 200, { ok: true, id: organizationId });
+    } catch (error) {
+      if (client) await client.query('ROLLBACK').catch(() => {});
+      return json(res, error.code === '23503' ? 409 : 503, { error: error.code === '23503' ? 'organization_not_empty' : 'organization_delete_failed' });
+    } finally { client?.release(); }
+  }
   if (platformOrgPath && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
     const organizationId = platformOrgPath[1];

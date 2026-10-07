@@ -5017,3 +5017,10 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Причины: масштаб аватара утекал из плиток в список/таблицу из-за specificity; контакты таблицы не имели обёртки стилей; absolute корона карточки применялась к таблице; мобильные строки сохраняли grid-row:1.
 - Исправлены scoped scale, inline crown, bounded SVG, адаптивные строки/ширины столбцов. Slider заменён четырьмя preset-кнопками с прежними значениями1–4; toolbar сохраняет геометрию. API, права и данные сотрудников не изменены.
 - Code-health baseline/final выполнен отдельно. Browser QA расширен на1920/1440/768/620/390, persistence/account isolation, равную высоту кнопок, bounded avatars/icons и inline crown. Проверка таблицы обновлена под намеренный локальный scroll вместо stacked-table. Root/dist CSS403/portal464.
+
+## 2026-10-08 — Platform minimal settings and empty-company deletion
+- Added settings actions for create/manage/refresh; test billing remains explicitly informational.
+- Added platform-only DELETE with exact word/slug/acknowledgement, row lock, all direct FK occupancy guards (including inactive data), transactional audit. Only subscription metadata may cascade. No production company deleted.
+- UI: nested confirmation dialog, final confirmation, request race protection and pending guards.
+- QA: platform-empty-delete-qa.cjs reused local QA PostgreSQL; browser deletion, reload, persisted audit, invalid auth/confirmation and inactive venue protection PASS. Syntax, platform-saas-contract, diff check PASS. code-health final review: no blockers. No schema migration.
+
