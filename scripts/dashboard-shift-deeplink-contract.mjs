@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
-const applyModules = portal.match(/const apply = \(\) => \{[\s\S]*?document\.querySelectorAll\('\[data-dashboard-module\]'\)\.forEach\(\(node\) => \{[^;]+; \}\);[\s\S]*?\n  \};/)?.[0];
+const applyModules = portal.match(/const apply = \(\) => \{[\s\S]*?document\.querySelectorAll\('\[data-dashboard-module\]'\)\.forEach\(\(node\) => \{[\s\S]*?\n    \}\);[\s\S]*?\n  \};/)?.[0];
 assert.ok(applyModules, 'dashboard module visibility handler must exist');
 assert.match(applyModules, /window\.location\.hash === '#shift-control'.*node\.id === 'shift-control'/, 'direct shift deep link must keep its target visible after preferences apply');
 

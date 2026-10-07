@@ -10,7 +10,9 @@ assert.match(lock, /class="auth-smoke-backdrop" aria-hidden="true"/, 'screen loc
 assert.match(distLock, /class="auth-smoke-backdrop" aria-hidden="true"/, 'dist screen lock uses the shared video backdrop host');
 assert.match(lock, /auth-smoke\.css\?rev=2/);
 assert.match(authCss, /\.auth-smoke-video[,{][^}]*position:absolute/);
-assert.doesNotMatch(css, /@keyframes smokeRise|@keyframes loginSmoke/);
+// Login atmosphere animations live in the shared stylesheet; the lock itself
+// must remain a passive overlay and must not define its own smoke animation.
+assert.doesNotMatch(lock, /@keyframes smokeRise|@keyframes loginSmoke/);
 assert.doesNotMatch(authCss, /@keyframes smokeRise|@keyframes loginSmoke/);
 assert.match(lock, /api\/session\/unlock/);
 assert.match(lock, /if \(!token\) return;/, 'lock screen must not recover a bearer token from a trusted cookie before PIN return');
