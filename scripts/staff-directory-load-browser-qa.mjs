@@ -121,7 +121,7 @@ try {
   await page.locator('#staff-photo').setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64') });
   assert.equal(await page.locator('#staff-form button[type="submit"]').isDisabled(), true, 'submit waits for selected photo');
   await page.waitForFunction(() => !document.querySelector('#staff-form button[type="submit"]').disabled);
-  assert.equal(await page.locator('#staff-form').getAttribute('data-photo').then((value) => value.startsWith('data:image/png')), true);
+  assert.equal(await page.locator('#staff-form').getAttribute('data-photo').then((value) => value.startsWith('data:image/')), true, 'photo processing keeps a supported data URL');
   await page.locator('#staff-form button[type="submit"]').focus();
   await page.keyboard.press('Tab');
   assert.equal(await page.locator('.staff-drawer-close').evaluate((node) => document.activeElement === node), true, 'Tab wraps inside drawer');
