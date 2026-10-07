@@ -16,6 +16,7 @@ const loginRevision = '98';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '11';
+const payrollSchemeUiRevision = '1';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
 const brandHead = `<!-- Hookah POS brand icons -->
@@ -113,8 +114,10 @@ cpSync(resolve(root, 'style.css'), resolve(root, 'dist', 'style.css'));
 for (const name of ['auth-smoke.js', 'auth-smoke.css']) cpSync(resolve(root, name), resolve(root, 'dist', name));
 for (const name of ['login-smoke-ambient.png', 'login-smoke-ambient.mp4']) cpSync(resolve(root, 'assets', name), resolve(root, 'dist', 'assets', name));
 cpSync(resolve(root, 'staff-admin-card.js'), resolve(root, 'dist', 'staff-admin-card.js'));
+cpSync(resolve(root, 'payroll-scheme-ui.js'), resolve(root, 'dist', 'payroll-scheme-ui.js'));
 cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', 'purchase-document-validation.js'));
 cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));
 cpSync(resolve(root, 'assets', 'login-background.mp4'), resolve(root, 'dist', 'assets', 'login-background.mp4'));
 cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'), { recursive: true });
 console.log(`Synced app.js rev=${appRevision}, portal.js rev=${portalRevision}, lock.js rev=${lockRevision}, staff-profile.js rev=${staffProfileRevision}, login.js rev=${loginRevision}, staff-admin-card.js rev=${staffAdminCardRevision}, style.css rev=${cssRevision} across ${htmlFiles.length} source and dist routes.`);
+
