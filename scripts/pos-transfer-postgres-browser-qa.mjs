@@ -68,7 +68,9 @@ try {
   await page.locator('#login-username').fill(qaLogin);
   await page.locator('#login-password').fill(qaPassword);
   await page.locator('#login-form button[type="submit"]').click();
-  await page.waitForURL((url) => !url.pathname.includes('/login'));
+  // The login handler uses replace() and a local session token; wait for the
+  // authenticated state rather than assuming a navigation event is observable.
+  await page.waitForFunction(() => Boolean(localStorage.getItem('crm_session_token')));
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.locator(`[data-zone-id="${ids.zone}"]`).click();
   await page.locator(`[data-table="${ids.source}"]`).click();
