@@ -3837,7 +3837,9 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .staff-theme .table-context-actions:empty{display:none}
 .staff-theme .table-context-actions button{min-height:40px;padding:9px 12px;display:inline-flex;align-items:center;gap:7px;border-radius:10px}
 .staff-theme .table-context-actions .icon{width:16px;height:16px}
+.staff-theme .table-context-actions [data-table-action="close-panel"]{display:none}
 @media(max-width:600px){.staff-theme .table-context-actions{display:grid;grid-template-columns:1fr 1fr}.staff-theme .table-context-actions button{justify-content:center}}
+@media(max-width:760px){.staff-theme .order{position:fixed;z-index:70;inset:68px 12px 12px 80px;width:auto!important;max-width:none!important;max-height:none!important;overflow:auto;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(10px);transition:opacity .18s ease,transform .18s ease,visibility .18s ease}.staff-theme.staff-order-open .order{opacity:1;visibility:visible;pointer-events:auto;transform:none}.staff-theme .table-context-actions [data-table-action="close-panel"]{display:inline-flex}.staff-theme .table-context-actions{position:sticky;top:0;z-index:2;background:linear-gradient(#17191d 78%,transparent);padding-bottom:8px}}
 
 /* Keep the hookah-master navigation compact while leaving the full sidebar on small screens. */
 @media(min-width:901px){.staff-theme .portal-sidebar{width:210px;flex:0 0 210px}}
