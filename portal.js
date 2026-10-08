@@ -455,6 +455,11 @@ document.querySelectorAll('.portal-sidebar .side-label').forEach((label) => {
 });
 document.querySelectorAll('[data-owner-only]').forEach((node) => { if (!['owner', 'developer'].includes(portalUser.role)) node.hidden = true; });
 document.querySelectorAll('[data-staff-nav]').forEach((node) => { if (!portalPermissions.has('staff_view')) node.hidden = true; });
+const employeePortalRole = ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'cleaner', 'security', 'technician', 'other_staff', 'staff'].includes(String(portalUser.role || '').toLowerCase());
+if (employeePortalRole) {
+  document.querySelector('.portal-sidebar a[href="/admin"]')?.closest('nav')?.remove();
+  document.querySelector('.portal-sidebar [data-nav-group="finance"]')?.remove();
+}
 document.querySelectorAll('[data-admin-mode-switch],.current-mode').forEach((node) => node.remove());
 
 const portalFooterRole = document.querySelector('.sidebar-footer b');
