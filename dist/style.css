@@ -1319,6 +1319,17 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 
 /* Inactive staff rows have restore + archive actions in addition to the card button. */
 .velora-theme .staff-row.inactive{grid-template-columns:34px minmax(0,1fr) 100px max-content max-content max-content}
+
+/* POS workspace: keep the service surface dense and the order actions reachable. */
+@media (min-width:1181px){
+  .staff-theme .workspace{grid-template-columns:minmax(0,1fr) minmax(340px,380px);gap:16px;padding-inline:28px}
+  .staff-theme .tables{grid-template-columns:repeat(4,minmax(112px,1fr));gap:10px}
+  .staff-theme .table{height:108px;padding:14px;border-radius:14px}
+  .staff-theme .table strong{font-size:21px}
+  .staff-theme .table em{margin-top:10px}
+  .staff-theme .order{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 108px);overflow:auto;padding:18px}
+  .staff-theme .order .actions{position:sticky;bottom:0;padding-top:10px;background:linear-gradient(transparent,#17191d 18%)}
+}
 .velora-theme .staff-row.inactive .staff-avatar{grid-column:1;grid-row:1}
 .velora-theme .staff-row.inactive>div{grid-column:2;grid-row:1}
 .velora-theme .staff-row.inactive>.badge{grid-column:3;grid-row:1}
