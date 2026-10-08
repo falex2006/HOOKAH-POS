@@ -85,6 +85,7 @@ await reservationRepository.create(pgReservationBase);
 if (databaseCalls.some((call) => call.sql.includes('UPDATE tables'))) throw new Error('PostgreSQL reservation creation must leave floor status to the derived floor query');
 assert.match(staffSource, /const rawMin=t\.minCapacity\?\?t\.capacity,rawMax=t\.maxCapacity\?\?t\.capacity;[\s\S]*?const capacityText=hasCapacity\?\(/, 'the staff floor must show saved capacity and avoid invented fallback values');
 assert.match(staffSource, /Вместимость не указана/, 'the staff floor must explain when capacity is unavailable');
+assert.match(staffSource, /status==='awaiting_payment'&&\(staffSessionPermissions\.has\('orders'\)\|\|staffSessionPermissions\.has\('finance'\)\|\|staffSessionPermissions\.has\('finance_read'\)\)/, 'payment action must require an operational or finance permission');
 assert.match(staffSource, /const normalizeTableId=\(value\)=>\{const raw=String\(value\|\|''\)\.trim\(\);return raw\.startsWith\('table-'\)\?raw:\(\/\^\\d\+\$\/\.test\(raw\)\?`table-\$\{raw\}`:raw\);\};/, 'UUID table ids from PostgreSQL must remain unchanged while numeric demo ids keep their prefix');
 assert.match(staffSource, /JSON\.stringify\(\{tableId,minimumOrderTotal:tableMinimums\[tableId\]\|\|0\}\)/, 'opening an order must submit the original saved table id without adding a second prefix');
 assert.match(staffSource, /const floorTableLabel=\(id\)=>\{const raw=String\(id\?\?''\)\.trim\(\);const table=floorTableFor\(raw\);return table\?\.name/, 'the order panel and queue must use the saved human-readable table name');
