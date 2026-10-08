@@ -61,6 +61,7 @@ const fakePool = {
   connect: async () => ({
     query: async (sql, params) => {
       databaseCalls.push({ sql, params });
+      if (sql.includes('SELECT t.id,t.status::text AS status FROM tables')) return { rows: [{ id: 'qa-table', status: 'free' }] };
       if (sql.includes('INSERT INTO guests')) return { rows: [{ id: 'qa-guest' }] };
       if (sql.includes('INSERT INTO reservations')) return { rows: [{ id: 'qa-reservation' }] };
       return { rows: [] };
