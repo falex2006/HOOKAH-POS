@@ -814,7 +814,7 @@ try {
   assert.equal(Number((await db.query('SELECT count(*) AS count FROM order_items WHERE order_id=$1', [splitTarget.id])).rows[0].count), 1, 'other item list unchanged');
   assert.equal(Number((await db.query('SELECT quantity FROM order_items WHERE id=$1', [sourceItemId])).rows[0].quantity), 1, 'source quantity returns to its original finance-test baseline');
   await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
-  await bartender.locator('#order-delete:not([disabled])').click();
+  await bartender.locator('#order-delete:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#staff-action-fields [name="comment"]').fill('Нельзя удалить другой заказ');
   await bartender.evaluate((id) => document.querySelector(`[data-queue-order="${id}"]`).click(), splitTarget.id);
   await bartender.locator('#staff-action-submit').click();
