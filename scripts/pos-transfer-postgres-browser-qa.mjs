@@ -35,6 +35,7 @@ try {
   await db.query('BEGIN');
   try {
     await db.query("INSERT INTO organizations (id,name,slug,plan) VALUES ($1,'Isolated POS transfer QA',$2,'starter')", [ids.organization, `pos-transfer-${ids.organization}`]);
+    await db.query("INSERT INTO organization_subscriptions (organization_id,plan,status,seats_limit,venues_limit) VALUES ($1,'starter','trialing',20,5)", [ids.organization]);
     await db.query("INSERT INTO venues (id,organization_id,name,timezone) VALUES ($1,$2,'Isolated POS transfer QA','Asia/Yekaterinburg')", [ids.venue, ids.organization]);
     await db.query("INSERT INTO users (id,venue_id,organization_id,full_name,login,password_hash,role) VALUES ($1,$2,$3,'POS transfer QA',$4,$5,'admin')", [ids.user, ids.venue, ids.organization, qaLogin, passwordHash]);
     await db.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'admin','active')", [ids.organization, ids.user]);
