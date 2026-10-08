@@ -5565,6 +5565,32 @@ if (staffProfile && req.method === 'PATCH') {
     const venueReservations = reservations.filter((reservation) => reservation.venueId === currentVenueId).map((reservation) => ({ ...reservation, linkedOrderId: orders.find((order)=>order.venueId===currentVenueId&&order.reservationId===reservation.id)?.id || null }));
     return json(res, 200, { items: date ? venueReservations.filter((reservation) => reservation.date === date) : venueReservations });
   }
+  const reservationUpdatePath = pathname.match(/^\/api\/reservations\/([^/]+)$/);
+  if (reservationUpdatePath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'reservations')) return;
+    const reservationId = reservationUpdatePath[1];
+    const input = await body(req);
+    if (!input.guestName || !input.date || !input.time || !input.tableId) return json(res, 400, { error: 'guest_date_time_table_required' });
+    if (String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
+    if (input.notes !== undefined && String(input.notes).length > 2000) return json(res, 400, { error: 'reservation_notes_too_long' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) || !/^\d{2}:\d{2}$/.test(String(input.time)) || Number.isNaN(Date.parse(`${input.date}T${input.time}:00`)) || Date.parse(`${input.date}T${input.time}:00`) <= Date.now()) return json(res, 400, { error: 'invalid_reservation_datetime' });
+    if (input.phone && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
+    if (!Number.isInteger(Number(input.guests || 1)) || Number(input.guests || 1) < 1 || Number(input.guests || 1) > 50) return json(res, 400, { error: 'invalid_guest_count' });
+    if (!Number.isFinite(Number(input.deposit || 0)) || Number(input.deposit || 0) < 0) return json(res, 400, { error: 'invalid_reservation_deposit' });
+    if (repositories?.reservations && /^[0-9a-f-]{36}$/i.test(reservationId)) {
+      try { const updated = await repositories.reservations.update(venueDbId, reservationId, { ...input, guestName: String(input.guestName).trim(), phone: String(input.phone || '').trim(), notes: String(input.notes || '') }); recordAudit(req, 'reservation.updated', 'reservation', reservationId, null, updated); return json(res, 200, updated); }
+      catch (error) { const code = error.message || error.code; const status = code === 'reservation_not_found' ? 404 : 409; return json(res, status, { error: code === 'table_not_found_or_unavailable' ? 'table_unavailable' : code === 'table_capacity_exceeded' ? 'table_capacity_exceeded' : code === 'table_already_reserved' ? 'table_already_reserved' : code }); }
+    }
+    const reservation = reservations.find((entry) => entry.id === reservationId && entry.venueId === currentVenueId);
+    if (!reservation) return json(res, 404, { error: 'reservation_not_found' });
+    if (reservation.status !== 'confirmed') return json(res, 409, { error: 'reservation_not_confirmed' });
+    const tableZone = floor.find((zone) => zone.tables.some((entry) => entry.id === input.tableId)); const table = tableZone?.tables.find((entry) => entry.id === input.tableId);
+    if (!table || table.status === 'blocked') return json(res, 409, { error: 'table_unavailable' });
+    if (Number(input.guests || 1) > Number(table.maxCapacity || table.capacity || 50)) return json(res, 400, { error: 'table_capacity_exceeded', maximumGuests: Number(table.maxCapacity || table.capacity || 50) });
+    if (reservations.some((entry) => entry.id !== reservationId && entry.status === 'confirmed' && entry.tableId === input.tableId && entry.date === input.date && entry.time === input.time)) return json(res, 409, { error: 'table_already_reserved' });
+    Object.assign(reservation, { guestName: String(input.guestName).trim(), phone: String(input.phone || '').trim(), date: input.date, time: input.time, tableId: input.tableId, tableName: table.name, zoneName: tableZone.name, guests: Number(input.guests || 1), depositRequired: Number(input.deposit || 0), notes: String(input.notes || '') });
+    recordAudit(req, 'reservation.updated', 'reservation', reservationId, null, reservation); return json(res, 200, reservation);
+  }
   if (pathname === '/api/reservations' && req.method === 'POST') {
     if (denyUnless(req, res, 'reservations')) return;
     const input = await body(req);

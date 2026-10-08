@@ -107,6 +107,7 @@ class OrderRepository {
       return rows[0];
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
+
 }
 
 class InventoryRepository {
@@ -818,6 +819,27 @@ class ReservationRepository {
       await client.query('COMMIT');
       return { ...input, id: rows[0].id, depositRequired: Number(input.deposit || 0), depositPaid: 0, legacyDepositPaid: 0, verifiedDepositPaid: 0, prepaymentReceipts: [], deposit: 0, status: 'confirmed' };
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+  }
+  async update(venueId, id, input) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(`SELECT r.id,r.status,r.table_id AS "tableId",r.guest_id AS "guestId",r.deposit_required AS "depositRequired",r.verified_deposit_paid AS "verifiedDepositPaid",v.timezone
+        FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.id=$1 AND r.venue_id=$2 FOR UPDATE`, [id, venueId]);
+      if (!current.rows[0]) throw new Error('reservation_not_found');
+      if (current.rows[0].status !== 'confirmed') throw new Error('reservation_not_confirmed');
+      const table = await client.query("SELECT t.id,t.status::text AS status,t.max_capacity AS \"maxCapacity\",t.capacity,z.name AS \"zoneName\",t.name AS \"tableName\" FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.archived_at IS NULL FOR UPDATE OF t", [input.tableId, venueId]);
+      if (!table.rows[0] || table.rows[0].status === 'blocked') throw new Error('table_not_found_or_unavailable');
+      if (Number(input.guests || 1) > Number(table.rows[0].maxCapacity || table.rows[0].capacity || 50)) throw new Error('table_capacity_exceeded');
+      const conflict = await client.query(`SELECT r.id FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.venue_id=$1 AND r.id<>$2 AND r.table_id=$3 AND r.starts_at=($4::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg')) AND r.status='confirmed' LIMIT 1`, [venueId, id, input.tableId, `${input.date}T${input.time}:00`]);
+      if (conflict.rows[0]) throw new Error('table_already_reserved');
+      const guest = input.clientId ? await client.query('SELECT id FROM guests WHERE id=$1 AND venue_id=$2', [input.clientId, venueId]) : await client.query(`INSERT INTO guests (venue_id, phone, full_name) VALUES ($1,$2,$3) ON CONFLICT (venue_id, phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id`, [venueId, input.phone || null, input.guestName]);
+      if (!guest.rows[0]) throw new Error('guest_not_found');
+      const { rows } = await client.query(`UPDATE reservations SET table_id=$1,guest_id=$2,starts_at=($3::timestamp AT TIME ZONE COALESCE(NULLIF((SELECT timezone FROM venues WHERE id=$4),''),'Asia/Yekaterinburg')),guests_count=$5,deposit_required=$6,notes=$7 WHERE id=$8 AND venue_id=$4 RETURNING id`, [input.tableId, guest.rows[0].id, `${input.date}T${input.time}:00`, venueId, Number(input.guests || 1), Number(input.deposit || 0), input.notes || null, id]);
+      if (!rows[0]) throw new Error('reservation_not_found');
+      await client.query('COMMIT');
+      return { ...input, id, venueId, tableId: input.tableId, tableName: table.rows[0].tableName, zoneName: table.rows[0].zoneName, guestId: guest.rows[0].id, depositRequired: Number(input.deposit || 0), verifiedDepositPaid: Number(current.rows[0].verifiedDepositPaid || 0), status: 'confirmed' };
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
   }
 }
 
