@@ -24,6 +24,7 @@ services:
       SAAS_OWNER_EMAIL: ${SAAS_OWNER_EMAIL:-}
       SAAS_OWNER_PASSWORD: ${SAAS_OWNER_PASSWORD:-}
       DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD:-change_me}@db:5432/crm
+      ALPHASAT_TRUST_PROXY: "true"
     labels:
       com.hookahpos.release-id: ${CRM_RELEASE_ID:-unreleased}
     depends_on:
@@ -39,12 +40,15 @@ services:
     restart: unless-stopped
     ports:
       - "${NGINX_HTTP_PORT:-8080}:80"
+      - "${NGINX_HTTPS_PORT:-8443}:443"
     read_only: true
     tmpfs:
       - /var/cache/nginx
       - /var/run
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./acme-webroot:/var/www/certbot:ro
     depends_on:
       - crm
   db:
