@@ -33,6 +33,9 @@ let context;
 let passed = false;
 let checks = 0;
 let output = '';
+const posQaWidth = Number(process.env.POS_QA_WIDTH || 1440);
+const posQaHeight = Number(process.env.POS_QA_HEIGHT || 900);
+assert.ok(Number.isInteger(posQaWidth) && posQaWidth >= 320 && Number.isInteger(posQaHeight) && posQaHeight >= 480, 'POS QA viewport must be a valid browser size');
 
 const hash = (value) => {
   const salt = randomBytes(16).toString('hex');
@@ -95,7 +98,7 @@ try {
   assert.equal((await health.json()).database, 'postgres', 'browser journey uses PostgreSQL'); checks++;
 
   browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
-  context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ru-RU' });
+  context = await browser.newContext({ viewport: { width: posQaWidth, height: posQaHeight }, locale: 'ru-RU' });
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', (error) => { if (error.message !== 'Transition was aborted because of invalid state. ViewTransition opt-in disabled') pageErrors.push(error.stack || error.message); });
