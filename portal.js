@@ -5731,7 +5731,11 @@ async function renderAuthorizedReservationsPage() {
       return;
     }
     renderReservations();
-  } catch (_) {
+  } catch (error) {
+    if (error?.status === 403 || ['permission_required', 'forbidden', 'reservations_permission_required'].includes(error?.payload?.error)) {
+      target.innerHTML = '<section class="panel"><h1>Доступ ограничен</h1><p>У этой роли нет доступа к бронированиям. Владелец может изменить право в настройках системной роли.</p><a class="button" href="/">Вернуться в рабочий зал</a></section>';
+      return;
+    }
     target.innerHTML = '<section class="panel" role="alert"><h1>Не удалось проверить доступ</h1><p>Обновите страницу, чтобы повторить проверку.</p><button class="button" id="reservations-session-retry" type="button">Повторить</button></section>';
     target.querySelector('#reservations-session-retry')?.addEventListener('click', renderAuthorizedReservationsPage);
   }
