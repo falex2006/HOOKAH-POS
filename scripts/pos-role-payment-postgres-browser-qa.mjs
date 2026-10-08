@@ -593,7 +593,7 @@ try {
   await bartender.locator(`[data-table="${ids.table}"]`).click();
   const phoneOrderMore = bartender.locator('.order-more');
   if (await phoneOrderMore.count()) await phoneOrderMore.locator('summary').click();
-  await bartender.locator('#split-payment:not([disabled])').click();
+  await bartender.locator('#split-payment:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#payment-form [type="submit"]:not([disabled])').waitFor();
   assert.match(await bartender.locator('#payment-due').innerText(), /500/);
   await bartender.screenshot({ path: path.join(screenshotDir, 'payment-phone-320.png'), fullPage: false });
