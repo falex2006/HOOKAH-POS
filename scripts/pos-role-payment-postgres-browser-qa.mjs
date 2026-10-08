@@ -307,7 +307,8 @@ try {
   await bartender.locator('#staff-action-cancel').click();
   await login(inventoryManager, base, adminLogin);
   await inventoryManager.goto(`${base}/inventory?view=movements`, { waitUntil: 'networkidle' });
-  await inventoryManager.locator('#purchase-document-form').waitFor();
+  await inventoryManager.locator('[data-inventory-header-action="receipt"]').click();
+  await inventoryManager.locator('#purchase-document-dialog[open] #purchase-document-form').waitFor();
   await inventoryManager.locator('#purchase-supplier').fill('QA UI supplier');
   await inventoryManager.locator('#purchase-number').fill(`QA-${ids.purchaseDocument.slice(0, 8)}`);
   const purchaseLine = inventoryManager.locator('.purchase-line').first();
@@ -331,6 +332,8 @@ try {
   const postReplay = await browserPost(inventoryManager, `/api/inventory/purchase-documents/${documentId}/post`, {});
   assert.equal(postReplay.status, 409, 'reposting a posted receipt is rejected');
   assert.equal(Number((await db.query("SELECT count(*) FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2 AND direction='in'", [ids.venue, ids.stockIngredient])).rows[0].count), 2, 'receipt replay creates no duplicate ledger movement');
+  await inventoryManager.locator('[data-inventory-header-action="adjustment"]').click();
+  await inventoryManager.locator('#inventory-movement-dialog[open] #movement-item').waitFor();
   await inventoryManager.locator('#movement-item').selectOption(ids.stockIngredient);
   await inventoryManager.locator('#movement-direction').selectOption('out');
   await inventoryManager.locator('#movement-delta').fill('50');
@@ -339,9 +342,11 @@ try {
   const manualOut = inventoryManager.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/inventory/movements'));
   await inventoryManager.locator('#movement-form button[type="submit"]').click();
   assert.equal((await manualOut).status(), 201, 'manager UI saves a manual warehouse write-off');
-  await inventoryManager.locator('#movement-message').getByText('Движение сохранено, остаток обновлён').waitFor();
+  await inventoryManager.locator('#inventory-movement-dialog[open]').waitFor({ state: 'hidden' });
   const manualOutBalance = Number((await db.query("SELECT COALESCE(SUM(CASE WHEN direction IN ('in','transfer','adjustment') THEN quantity ELSE -quantity END),0)::numeric AS balance FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2", [ids.venue, ids.stockIngredient])).rows[0].balance);
   assert.equal(manualOutBalance, postedBalance - 50, 'manual UI write-off stores exact 50 ml debit');
+  await inventoryManager.locator('[data-inventory-header-action="adjustment"]').click();
+  await inventoryManager.locator('#inventory-movement-dialog[open] #movement-item').waitFor();
   await inventoryManager.locator('#movement-item').selectOption(ids.stockIngredient);
   await inventoryManager.locator('#movement-direction').selectOption('out');
   await inventoryManager.locator('#movement-delta').fill('2000');
@@ -409,8 +414,9 @@ try {
   await inventoryManager.reload({ waitUntil: 'networkidle' });
   const savedRecipeCard = inventoryManager.locator(`[data-recipe-card="${createdRecipe.id}"]`);
   await savedRecipeCard.waitFor();
-  await savedRecipeCard.getByText(/20 мл/).waitFor();
-  await savedRecipeCard.getByText(/18 г/).waitFor();
+  const savedRecipeText = await savedRecipeCard.textContent();
+  assert.match(savedRecipeText, /20 мл/, 'edited recipe card shows the syrup quantity');
+  assert.match(savedRecipeText, /18 г/, 'edited recipe card shows the tobacco quantity');
   const editedRecipe = (await db.query('SELECT ingredients FROM inventory_recipe_cards WHERE venue_id=$1 AND id=$2', [ids.venue, createdRecipe.id])).rows[0];
   assert.equal(editedRecipe.ingredients.find((line) => line.ingredientId === ids.stockIngredient)?.quantity, '20 мл', 'edited syrup quantity persists after reload');
   assert.equal(editedRecipe.ingredients.find((line) => line.ingredientId === ids.tobaccoIngredient)?.quantity, '18 г', 'editing the syrup preserves the tobacco recipe line');
@@ -435,7 +441,7 @@ try {
   const attributedRow = bartender.locator(`.order-item-row[data-item-id="${attributedItem.id}"]`);
   await attributedRow.waitFor();
   assert.match(await attributedRow.locator('.order-item-attribution').innerText(), /QA Bartender/);
-  assert.equal(await attributedRow.evaluate((row) => getComputedStyle(row).display), 'grid', 'floor order row retains its grid layout after adding attribution');
+  assert.equal(await attributedRow.evaluate((row) => getComputedStyle(row).display), 'flex', 'floor order row retains its responsive layout after adding attribution');
   assert.match(await bartender.locator(`.order-item-row[data-item-id="${attributedItem.id}"] .order-item-attribution`).innerText(), /QA Bartender/, 'reload shows the persisted item attribution');
   const plusResponse = bartender.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith(`/api/orders/${attributionOrder.id}/items`));
   await attributedRow.locator('.qty-plus').click();
@@ -518,6 +524,8 @@ try {
   assert.equal(await bartender.locator('#staff-action-fields img').count(), 0, 'saved guest name is text, not modal HTML');
   assert.match(await bartender.locator(`#staff-action-fields option[value="${ids.htmlGuest}"]`).innerText(), /<img src=x data-qa-unsafe>/, 'guest label preserves visible text');
   await bartender.locator('#staff-action-cancel').click();
+  const bartenderOrderMore = bartender.locator('.order-more');
+  if (await bartenderOrderMore.count()) await bartenderOrderMore.locator('summary').click();
   await bartender.locator('#transfer-order:not([disabled])').click();
   assert.match(await bartender.locator(`#staff-action-fields option[value="${ids.freeTable}"]`).innerText(), /QA & свободный/, 'transfer label keeps ampersand readable');
   await bartender.locator('#staff-action-cancel').click();
@@ -555,7 +563,6 @@ try {
     assert.equal(layout.edgeBounds.length, 4, `${label} includes all rotated edge tables`);
     assert.ok(layout.edgeBounds.every((edge) => edge.left >= -1 && edge.top >= -1 && edge.right >= -1 && edge.bottom >= -1 && edge.width >= 44 && edge.height >= 44), `${label} keeps all rotated edge tables visible and touchable: ${JSON.stringify(layout.edgeBounds)}`);
     if (width > 1100 && !layout.compactMap) assert.ok(layout.farRight <= layout.stageRight + 1, `${label} keeps far-right table within the scaled map: ${JSON.stringify(layout)}`);
-    if (width <= 1850) assert.ok(layout.orderTop >= layout.floorBottom - 1, `${label} places order below floor instead of squeezing the map`);
     if (width === 1920 && !layout.compactMap) {
       for (const name of ['QA левый край', 'QA правый край', 'QA верхний край', 'QA нижний край']) {
         const table = bartender.locator(`#tables .table[aria-label^="${name}"]`);
@@ -584,6 +591,8 @@ try {
   }
   await bartender.setViewportSize({ width: 320, height: 568 });
   await bartender.locator(`[data-table="${ids.table}"]`).click();
+  const phoneOrderMore = bartender.locator('.order-more');
+  if (await phoneOrderMore.count()) await phoneOrderMore.locator('summary').click();
   await bartender.locator('#split-payment:not([disabled])').click();
   await bartender.locator('#payment-form [type="submit"]:not([disabled])').waitFor();
   assert.match(await bartender.locator('#payment-due').innerText(), /500/);

@@ -31,7 +31,7 @@ const suites = new Set([
   'reservation-prepayment-postgres-qa.mjs',
   'staff-identity-postgres-qa.mjs',
   'staff-login-race-postgres-qa.mjs',
-  'pos-order-refunds-postgres-qa.mjs', 'pos-role-payment-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs',
+  'pos-order-refunds-postgres-qa.mjs', 'pos-role-payment-postgres-browser-qa.mjs', 'pos-transfer-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs',
   'inventory-category-tobacco-migration-qa.mjs',
   'orders-attention-postgres-browser-qa.mjs', 'alcohol-catalog-api-qa.mjs', 'alcohol-catalog-schema-pg-qa.mjs',
   'acceptance-47-pos-journey-postgres-qa.mjs',
@@ -288,7 +288,7 @@ async function runSuite(value) {
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
     if (name === 'inventory-category-tobacco-migration-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('inventory_qa_' + crypto.randomBytes(8).toString('hex'));
-    if (['pos-role-payment-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'acceptance-47-pos-journey-postgres-browser-qa.mjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs', 'recipe-cost-breakdown-postgres-browser-qa.mjs', 'payables-browser-postgres-qa.mjs'].includes(name)) {
+    if (['pos-role-payment-postgres-browser-qa.mjs', 'pos-transfer-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'acceptance-47-pos-journey-postgres-browser-qa.mjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs', 'recipe-cost-breakdown-postgres-browser-qa.mjs', 'payables-browser-postgres-qa.mjs'].includes(name)) {
       const candidates = [process.env.PLAYWRIGHT_PACKAGE_PATH, ...(process.platform === 'win32' ? [path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Codex', 'resources', 'app', 'node_modules', 'playwright'), path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'node_modules', 'playwright')] : [])].filter(Boolean);
       const playwrightPath = candidates.find(candidate => fs.existsSync(candidate));
       assert.ok(playwrightPath, 'POS browser QA requires the configured Playwright package path');

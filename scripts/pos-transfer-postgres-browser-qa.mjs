@@ -74,10 +74,13 @@ try {
   // The login handler uses replace() and a local session token; wait for the
   // authenticated state rather than assuming a navigation event is observable.
   await page.waitForFunction(() => Boolean(localStorage.getItem('crm_session_token')));
-  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.goto(base, { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.locator('.tables').waitFor();
   await page.locator(`[data-zone-id="${ids.zone}"]`).click();
   await page.locator(`[data-table="${ids.source}"]`).click();
   assert.equal(await page.locator('#transfer-order').isDisabled(), false);
+  const orderMore = page.locator('.order-more');
+  if (await orderMore.count()) await orderMore.locator('summary').click();
   await page.locator('#transfer-order').click();
   const select = page.locator('#staff-action-form select[name="tableId"]');
   await select.waitFor();
