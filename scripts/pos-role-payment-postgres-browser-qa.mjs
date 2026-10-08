@@ -821,8 +821,8 @@ try {
   assert.match(await bartender.locator('#staff-notice').innerText(), /Заказ изменился/, 'stale delete dialog is rejected');
   assert.deepEqual((await db.query('SELECT status FROM orders WHERE id IN ($1,$2) ORDER BY id', [ids.splitOrder, splitTarget.id])).rows.map((row) => row.status), ['open', 'open'], 'stale delete changes neither order');
   await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
-  await bartender.locator(`[data-table="${ids.table}"]`).click();
-  await bartender.locator('#discount-request:not([disabled])').click();
+  await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
+  await bartender.locator('#discount-request:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#staff-action-fields [name="value"]').fill('10');
   await bartender.evaluate((tableId) => document.querySelector(`[data-table="${tableId}"]`).click(), ids.freeTable);
   await bartender.locator('#staff-action-submit').click();
