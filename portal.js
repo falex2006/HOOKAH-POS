@@ -5711,7 +5711,32 @@ async function renderAuthorizedFinancePage() {
   }
 }
 if (['finance', 'finance_categories', 'finance_report'].includes(page)) renderAuthorizedFinancePage();
-if (page === 'reservations') renderReservations();
+async function renderAuthorizedReservationsPage() {
+  const target = document.querySelector('#page-content');
+  if (!target) return;
+  target.innerHTML = '<div class="panel" role="status">Проверяем доступ к бронированиям…</div>';
+  try {
+    const session = await api('/api/session');
+    if (!Array.isArray(session.permissions)) throw new Error('session_permissions_unavailable');
+    portalPermissions.clear();
+    session.permissions.forEach((permission) => portalPermissions.add(permission));
+    portalPermissions.add('dashboard');
+    if (session.user) {
+      portalUser = session.user;
+      localStorage.setItem('crm_session_user', JSON.stringify(portalUser));
+    }
+    normalizeManagementSidebar({ routeChange: true });
+    if (!portalPermissions.has('reservations')) {
+      target.innerHTML = '<section class="panel"><h1>Доступ ограничен</h1><p>У этой роли нет доступа к бронированиям. Владелец может изменить право в настройках системной роли.</p><a class="button" href="/">Вернуться в рабочий зал</a></section>';
+      return;
+    }
+    renderReservations();
+  } catch (_) {
+    target.innerHTML = '<section class="panel" role="alert"><h1>Не удалось проверить доступ</h1><p>Обновите страницу, чтобы повторить проверку.</p><button class="button" id="reservations-session-retry" type="button">Повторить</button></section>';
+    target.querySelector('#reservations-session-retry')?.addEventListener('click', renderAuthorizedReservationsPage);
+  }
+}
+if (page === 'reservations') renderAuthorizedReservationsPage();
 if (page === 'dashboard' && location.hash === '#tasks') renderTasks();
 
 // Cross-page navigation is handled by the browser's View Transition API where
