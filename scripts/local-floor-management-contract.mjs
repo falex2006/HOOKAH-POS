@@ -99,17 +99,25 @@ const tableLabelApi = new Function(`${normalizeDefinition}; let serverZones=[]; 
 tableLabelApi.setZones([{ tables: [{ id: pgTableId, name: 'Терраса 1' }] }]);
 if (tableLabelApi.floorTableLabel(pgTableId) !== 'Терраса 1') throw new Error('Orders must display a table name instead of its database id');
 const body = (value) => JSON.stringify(value);
+let qaToken = '';
 const request = async (path, options = {}) => {
-  const response = await fetch(new URL(path, target), { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+  const response = await fetch(new URL(path, target), { ...options, headers: { 'Content-Type': 'application/json', ...(qaToken ? { Authorization: `Bearer ${qaToken}` } : {}), ...(options.headers || {}) } });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`${options.method || 'GET'} ${path} ${response.status} ${JSON.stringify(payload)}`);
   return payload;
 };
 const raw = async (path, options = {}) => {
-  const response = await fetch(new URL(path, target), { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+  const response = await fetch(new URL(path, target), { ...options, headers: { 'Content-Type': 'application/json', ...(qaToken ? { Authorization: `Bearer ${qaToken}` } : {}), ...(options.headers || {}) } });
   return { status: response.status, payload: await response.json().catch(() => ({})) };
 };
 const suffix = Date.now();
+const manifest = JSON.parse(readFileSync(new URL('../tmp/full-local-qa/seed-manifest.json', import.meta.url), 'utf8'));
+const owner = manifest.credentials.find((entry) => entry.role === 'owner');
+if (!owner) throw new Error('Local floor contract requires a seeded owner credential');
+const loginResponse = await fetch(new URL('/api/login', target), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: owner.login, password: owner.password }) });
+const loginPayload = await loginResponse.json();
+if (!loginResponse.ok || !loginPayload.token) throw new Error(`Local floor contract login failed: HTTP ${loginResponse.status}`);
+qaToken = loginPayload.token;
 const expectedVenueId = (await request('/api/floor')).venueId;
 const zone = await request('/api/floor/zones', { method: 'POST', body: body({ expectedVenueId, name: `Тестовый этаж ${suffix}` }) });
 if (!zone.id || zone.name !== `Тестовый этаж ${suffix}`) throw new Error('Zone creation returned incomplete data');
