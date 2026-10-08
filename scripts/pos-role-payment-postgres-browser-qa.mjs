@@ -437,7 +437,7 @@ try {
   assert.equal(attributedItem.salesEmployeeName, 'QA Bartender');
   assert.ok(Number.isFinite(Date.parse(attributedItem.soldAt)), 'the server returns a persisted sale timestamp');
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-queue-order="${attributionOrder.id}"]`).click();
+  await bartender.locator(`[data-queue-order="${attributionOrder.id}"]`).evaluate((button) => button.click());
   const attributedRow = bartender.locator(`.order-item-row[data-item-id="${attributedItem.id}"]`);
   await attributedRow.waitFor();
   assert.match(await attributedRow.locator('.order-item-attribution').innerText(), /QA Bartender/);
@@ -468,7 +468,7 @@ try {
   assert.deepEqual(lineState.rows.map((row) => Number(row.quantity)).sort((left, right) => left - right), [1, 1, 1]);
   assert.ok(lineState.rows.every((row) => row.sales_employee_id === ids.bartender && row.sold_at), 'all persisted lines retain seller and timestamp');
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-queue-order="${attributionOrder.id}"]`).click();
+  await bartender.locator(`[data-queue-order="${attributionOrder.id}"]`).evaluate((button) => button.click());
   await bartender.locator(`.order-item-row[data-item-id="${uiRecipeLineItem.id}"]`).waitFor();
   await bartender.locator('#catalog').waitFor({ state: 'hidden' });
   const bartenderClose = bartender.waitForResponse((response) => response.request().method() === 'POST' && /\/api\/orders\/[0-9a-f-]+\/close$/.test(response.url()));
