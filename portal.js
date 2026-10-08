@@ -5763,6 +5763,7 @@ async function renderAuthorizedReservationsPage() {
     }
     renderReservations();
   } catch (error) {
+    console.error('reservations_access_check_failed', error);
     if (error?.status === 403 || ['permission_required', 'forbidden', 'reservations_permission_required'].includes(error?.payload?.error)) {
       target.innerHTML = '<section class="panel"><h1>Доступ ограничен</h1><p>У этой роли нет доступа к бронированиям. Владелец может изменить право в настройках системной роли.</p><a class="button" href="/">Вернуться в рабочий зал</a></section>';
       return;
