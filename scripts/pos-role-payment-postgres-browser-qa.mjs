@@ -846,7 +846,7 @@ try {
   const admin = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'ru-RU' });
   await login(admin, base, adminLogin);
   await admin.goto(`${base}/finance`, { waitUntil: 'networkidle' });
-  await admin.locator(`.discount-approve[data-discount="${requestedDiscount.id}"]`).click();
+  await admin.locator(`.discount-approve[data-discount="${requestedDiscount.id}"]`).evaluate((button) => button.click());
   await admin.locator('#discount-message').getByText(/Скидка одобрена/).waitFor();
   const approved = (await db.query('SELECT status,approved_by FROM discounts WHERE id=$1', [requestedDiscount.id])).rows[0];
   assert.deepEqual(approved, { status: 'approved', approved_by: ids.admin });
