@@ -293,8 +293,10 @@ const renderZone=(zone)=>{
   tables.classList.add('has-map');
   tables.innerHTML=`<div class="floor-map-stage" style="aspect-ratio:${sceneWidth}/${sceneHeight}" data-scene-width="${sceneWidth}" data-scene-height="${sceneHeight}" data-scene-left="${sceneLeft}" data-scene-top="${sceneTop}">`+serverTables.map((t,index)=>{
     const label=t.status==='occupied'?'Занят':t.status==='reserved'?`Бронь${t.reservation?.createdByName?` · ${t.reservation.createdByName}`:''}`:t.status==='awaiting_payment'?'Ожидает оплату':t.status==='blocked'?'Закрыт':'Свободен';
-    const minCapacity=Number(t.minCapacity||t.capacity||2),maxCapacity=Number(t.maxCapacity||t.capacity||4);
-    const capacityText=minCapacity===maxCapacity?`${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`:`${minCapacity}–${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`;
+    const rawMin=t.minCapacity??t.capacity,rawMax=t.maxCapacity??t.capacity;
+    const minCapacity=Number(rawMin),maxCapacity=Number(rawMax);
+    const hasCapacity=Number.isFinite(minCapacity)&&minCapacity>0&&Number.isFinite(maxCapacity)&&maxCapacity>=minCapacity;
+    const capacityText=hasCapacity?(minCapacity===maxCapacity?`${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`:`${minCapacity}–${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`):'Вместимость не указана';
     const place=placements[index];
     const style=`--floor-left:${(place.x-sceneLeft)/sceneWidth*100}%;--floor-top:${(place.y-sceneTop)/sceneHeight*100}%;--floor-width:${place.width/sceneWidth*100}%;--floor-height:${place.height/sceneHeight*100}%;--table-rotation:${place.rotation}deg;--table-counter-rotation:${-place.rotation}deg`;
     const safeTableName=escapeFloorText(String(t.name||'Стол').replace(/^Стол /,''));
