@@ -1335,6 +1335,8 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .staff-theme.staff-orders-view .workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,420px);align-items:start;gap:16px;padding-inline:28px}
 .staff-theme.staff-orders-view main{position:relative;min-height:100vh}
 .staff-theme.staff-orders-view .tables{display:none}
+.staff-theme.staff-orders-view .tables.has-map{display:none!important}
+.staff-theme.staff-orders-view .tabs{display:none}
 .staff-theme.staff-orders-view .workspace{display:contents}
 .staff-theme.staff-orders-view .order{position:absolute;top:105px;right:28px;width:min(420px,calc(35% - 28px));max-height:calc(100vh - 130px);overflow:auto;padding:18px}
 .staff-theme.staff-orders-view .queue{position:absolute;top:105px;left:28px;right:calc(min(420px,35%) + 44px);height:calc(100vh - 145px);overflow:auto;padding:0 0 28px;margin:0;min-width:0}
