@@ -104,12 +104,15 @@ fi
 printf 'in-progress|%s|%s\n' "$release_fingerprint" "$backup_label" > "$state_file.tmp.$$"
 chmod 600 "$state_file.tmp.$$"
 mv "$state_file.tmp.$$" "$state_file"
-BACKUP_DIR="$backup_dir" BACKUP_LABEL="$backup_label" ./backup-postgres.sh
-$COMPOSE pull db nginx
 $COMPOSE build --pull crm
-$COMPOSE up -d
+# Stop writes before the final backup and keep CRM stopped on migration failure.
+$COMPOSE stop crm
+BACKUP_DIR="$backup_dir" BACKUP_LABEL="$backup_label" ./backup-postgres.sh
+./verify-backup.sh "$backup_dir/crm-$backup_label.sql.gz"
 SKIP_MENU_SEED_ONCE="$skip_menu_seed_once" ./migrate-vps.sh
-$COMPOSE restart crm
+$COMPOSE up -d --no-deps nginx
+# Refresh upstream DNS after the CRM container changes.
+$COMPOSE restart nginx
 
 for attempt in $(seq 1 30); do
   container_id="$($COMPOSE ps -q crm)"

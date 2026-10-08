@@ -63,7 +63,7 @@ set -e
 [[ "$first_output" != *'Applying migrations/002_after_failure.sql'* ]] || { echo 'Runner continued after a failed migration' >&2; exit 1; }
 first_log="$(cat "$tmp_resolved/.qa-log")"
 [[ "$(printf '%s\n' "$first_log" | grep -c '^compose exec -T db psql ' || true)" -eq 1 ]] || { echo 'Runner did not stop after its first failed psql call' >&2; exit 1; }
-[[ "$first_log" != *'compose up -d crm'* && "$first_log" != *'npm run db:seed-menu'* ]] || { echo 'Runner started CRM or seed after a failed migration' >&2; exit 1; }
+[[ "$first_log" != *'compose up -d --no-deps crm'* && "$first_log" != *'npm run db:seed-menu'* ]] || { echo 'Runner started CRM or seed after a failed migration' >&2; exit 1; }
 if printf '%s\n' "$first_log" | grep '^compose exec -T db psql ' | grep -vq -- '--single-transaction'; then
   echo 'A migration psql call omitted --single-transaction' >&2
   exit 1

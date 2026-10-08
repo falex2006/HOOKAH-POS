@@ -5141,3 +5141,9 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Fresh mixed827c4509: admin создал2 non_stock позиции100+100; repeat dispatch не создал работу. Бармен видит только чай, завершение оставляет whole in_progress; кальянщик видит только кальян, завершение переводит whole ready. Cash200, reload table4free/close disabled PASS.
 - Независимый reviewer сохранил mixed-partial и подтвердил archive FIX06 role=false/assigned0. Его финальный ход прервался по лимиту; координатор сам выполнил guarded REPEATABLE READ READ ONLY mixed-after: closed200,2ready,1paid200,1snapshot20000,1cost0,0stock, monetary lines unchanged. Не выдаётся за независимый final review.
 - Viewport reset успешен. Новых продуктовых правок нет. FIX_06_RESULT/PROGRESS обновлены: основная локальная приёмка PASS с явными ограничениями (shortage/forced foreign station/concurrent POST не повторены); далее пользовательское тестирование. Публикации нет.
+
+## 2026-10-08 — безопасность серверного выпуска
+- Исправлен ownership guard временной БД в verify-backup; конфликт createdb больше не приводит к dropdb чужой базы.
+- deploy: build → stop CRM → backup/restore-check → migrations → CRM → nginx. Убрано автоматическое обновление infrastructure images; migrate сохраняет существующий db container.
+- Static deploy contract и fake migration failure/retry PASS. COOKIE_SECURE будет включён в приватной конфигурации HTTPS сервера.
+- Production validation и commit/CI фиксируются в отдельном релизном отчёте после выполнения.

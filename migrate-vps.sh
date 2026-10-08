@@ -23,7 +23,7 @@ set -a
 . ./.env
 set +a
 
-$COMPOSE up -d db
+$COMPOSE up -d --no-recreate db
 for attempt in $(seq 1 30); do
   if $COMPOSE exec -T db pg_isready -U "${POSTGRES_USER:-crm}" -d "${POSTGRES_DB:-crm}" >/dev/null 2>&1; then
     break
@@ -41,7 +41,7 @@ for migration in migrations/*.sql; do
 done
 
 echo 'CRM migrations applied'
-$COMPOSE up -d crm
+$COMPOSE up -d --no-deps crm
 if [ "$skip_menu_seed" = 'true' ]; then
   echo 'Skipping menu seed for this explicitly scoped release'
 else
