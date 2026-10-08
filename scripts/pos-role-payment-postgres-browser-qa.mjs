@@ -915,7 +915,7 @@ try {
   assert.equal(afterCloseRead.find((order) => order.id === ids.splitOrder)?.status, 'closed', 'close survives reload');
   assert.equal(afterCloseRead.find((order) => order.id === splitTarget.id)?.status, 'open', 'other order survives reload');
   await bartender.locator(`[data-queue-order="${splitTarget.id}"]`).evaluate((button) => button.click());
-  await bartender.locator('#order-delete:not([disabled])').click();
+  await bartender.locator('#order-delete:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#staff-action-fields [name="comment"]').fill('QA отмена ошибочного заказа');
   await bartender.locator('#staff-action-fields [name="writeoff"]').selectOption('false');
   const deleteResponse = bartender.waitForResponse((response) => response.request().method() === 'DELETE' && response.url().endsWith(`/api/orders/${splitTarget.id}`));
