@@ -828,8 +828,8 @@ try {
   await bartender.locator('#staff-action-submit').click();
   assert.equal(Number((await db.query('SELECT count(*) AS count FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1', [ids.venue])).rows[0].count), 0, 'switching tables during discount dialog creates no request');
   assert.equal((await browserPost(bartender, `/api/orders/${ids.order}/discount-requests`, { type: 'percent', value: 10, reason: 'closed order' })).status, 409, 'closed order rejects a new discount');
-  await bartender.locator(`[data-table="${ids.table}"]`).click();
-  await bartender.locator('#discount-request:not([disabled])').click();
+  await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
+  await bartender.locator('#discount-request:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#staff-action-fields [name="value"]').fill('10');
   await bartender.locator('#staff-action-fields [name="reason"]').fill('QA согласование скидки');
   const discountPost = bartender.waitForResponse((response) => response.request().method() === 'POST' && /\/api\/orders\/[^/]+\/discount-requests$/.test(response.url()));
