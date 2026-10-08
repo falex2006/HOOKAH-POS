@@ -17,7 +17,7 @@ let payload={user:{id:'staff',venueId:'a'},permissions:['orders','floor']};
 let error=null,pending=null,token='real-token';
 const events={},intervals=[];
 const context={Promise,Set,JSON,Array,Error,clearPreparationQueue(){},loadPreparationQueue(){},
- document:{visibilityState:'visible',querySelector:s=>nodes.get(s),querySelectorAll:s=>s.includes('.portal-sidebar')?[nav]:s.includes('.workspace')?[workspace,order]:[],addEventListener:(type,fn)=>events[type]=fn},
+ document:{body:node(),visibilityState:'visible',querySelector:s=>nodes.get(s),querySelectorAll:s=>s.includes('.portal-sidebar')?[nav]:s.includes('.workspace')?[workspace,order]:[],addEventListener:(type,fn)=>events[type]=fn},
  window:{addEventListener:(type,fn)=>events[type]=fn,setInterval:(fn,ms)=>intervals.push({fn,ms}),location:{replace(){}}},
  localStorage:{getItem:()=>token,setItem(){},removeItem(){}},
  staticStaffDemo:()=>false,staffFetchJson:async()=>{calls++;if(pending)return pending;if(error)throw error;return payload;},
@@ -25,12 +25,13 @@ const context={Promise,Set,JSON,Array,Error,clearPreparationQueue(){},loadPrepar
  applyStaffHeader(){},mountStaffExtensions(){},refreshFloor:()=>refreshes++,loadProducts:()=>loads++,refreshShift(){},
  draw(){},showFloorUnavailable:()=>clears++,catalog:node(),
  staffSessionVerified:false,staffSessionRequest:null,staffAccessRevision:0,staffSessionSignature:'',staffSessionPermissions:new Set(),staffShiftReadable:false,staffShiftManageable:false,staffNotificationCenter:null,
+ catalogRequestRevision:0,catalogRequest:null,catalogRequestContext:'',
  floorRequestRevision:0,floorRefreshPending:null,shiftRefreshPending:null,ordersRequestRevision:0,orderPricingRevision:0,paymentLoadRevision:0,paymentState:{},products:['old'],catalogState:'ready',currentShift:{},
 };
 context.staffCanWork=()=>context.staffSessionVerified&&context.staffSessionPermissions.has('orders')&&context.staffSessionPermissions.has('floor');
 vm.createContext(context);vm.runInContext(source.slice(start,end)+'\nthis.verify=verifyStaffSession;',context);
 assert.equal(intervals[0].ms,30000);
-await context.verify();assert.equal(context.staffSessionVerified,true);assert.equal(workspace.hidden,false);assert.equal(refreshes,1);assert.equal(loads,1);
+await context.verify();assert.equal(context.staffSessionVerified,true);assert.equal(workspace.hidden,false);assert.equal(refreshes,1);assert.equal(loads,0,'session verification must not eagerly load the catalog before it opens');
 await context.verify();assert.equal(applies,1,'unchanged sessions do not reinstall handlers');assert.equal(refreshes,1,'poll does not reload data');
 payload={user:{id:'staff',venueId:'a'},permissions:[]};await context.verify();assert.equal(workspace.hidden,true);assert.equal(order.inert,true);assert.equal(context.paymentState,null);assert.deepEqual([...context.products],[]);assert.equal(context.staffSessionPermissions.size,0);assert.equal(refreshes,1);
 payload={user:{id:'staff',venueId:'a'},permissions:['orders','floor']};await context.verify();assert.equal(workspace.hidden,false);assert.equal(refreshes,2);
