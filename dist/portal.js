@@ -456,6 +456,13 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
   window.__applyInterfacePreferences?.();
 };
 normalizeManagementSidebar();
+const operationsNavGuard = document.querySelector('.portal-sidebar') && new MutationObserver(() => {
+  const group = document.querySelector('.portal-sidebar details.sidebar-nav-group[data-nav-group="operations"]');
+  if (!group) return;
+  const navs = group.querySelectorAll(':scope > .portal-nav');
+  navs.forEach((nav, index) => { if (index > 0) nav.remove(); });
+});
+operationsNavGuard?.observe(document.querySelector('.portal-sidebar'), { childList: true, subtree: true });
 document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
   if (!portalPermissions.has(link.dataset.permission)) link.hidden = true;
 });
