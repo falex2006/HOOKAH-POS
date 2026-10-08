@@ -174,10 +174,11 @@ async function seedVenue(ownerToken, org, venueId, prefix, extensive) {
   for (let index = 0; index < 3; index++) groups.push(await ensure(ownerToken, `${prefix}:discount:${index}`, '/api/discount-groups', '/api/discount-groups', { name: `QA Группа ${index}`, discountPercent: index * 5, bonusPercent: index * 3, depositMin: index * 500 }));
   const guests = [];
   for (let index = 0; index < 8; index++) {
-    const guest = await ensure(ownerToken, `${prefix}:guest:${index}`, '/api/clients', '/api/clients', { name: `QA Гость ${index + 1}`, nickname: `qa_${prefix}_${index}`, guestStatus: ['new','regular','vip','blocked'][index % 4], phoneNumbers: [{ number: `+7 (000) 000-${String(index).padStart(2,'0')}-00`, primary: true }], discountGroupId: groups[index % 3].id, bonusBalance: index * 100, depositBalance: index * 250, tobaccoPreferences: ['QA Табак'], bowlPreferences: ['Фанел'], barPreferences: ['Лимонад'], allergies: index === 2 ? 'Синтетическая тестовая аллергия' : '', notes: 'Не реальный клиент, локальный QA' });
+    const guest = await ensure(ownerToken, `${prefix}:guest:${index}`, '/api/clients', '/api/clients', { name: `QA Гость ${index + 1}`, nickname: `qa_${prefix}_${index}`, guestStatus: ['new','regular','vip','blocked'][index % 4], phoneNumbers: [{ number: `+7 (000) 000-${String(index).padStart(2,'0')}-00`, primary: true }], discountGroupId: groups[index % 3].id, tobaccoPreferences: ['QA Табак'], bowlPreferences: ['Фанел'], barPreferences: ['Лимонад'], allergies: index === 2 ? 'Синтетическая тестовая аллергия' : '', notes: 'Не реальный клиент, локальный QA' });
     guests.push(guest);
   }
-  await once(`${prefix}:guest:loyalty`, () => request(ownerToken, `/api/clients/${guests[1].id}/loyalty`, 'POST', { delta: 50, reason: 'QA начисление' }));
+  for (let index = 0; index < guests.length; index++) if (index * 100) await once(`${prefix}:guest:loyalty:${index}`, () => request(ownerToken, `/api/clients/${guests[index].id}/loyalty`, 'POST', { delta: index * 100, reason: 'QA начальный баланс', idempotencyKey: `${prefix}:guest:loyalty:${index}` }));
+  await once(`${prefix}:guest:loyalty:extra`, () => request(ownerToken, `/api/clients/${guests[1].id}/loyalty`, 'POST', { delta: 50, reason: 'QA начисление', idempotencyKey: `${prefix}:guest:loyalty:extra` }));
   await once(`${prefix}:guest:avatar`, () => request(ownerToken, `/api/clients/${guests[0].id}`, 'PATCH', { avatarUrl: fixtureImage, telegram: '@qa_guest_demo' }));
   await once(`${prefix}:guest:archive`, () => request(ownerToken, `/api/clients/${guests[7].id}/archive`, 'POST', {}));
   for (let index = 0; index < 3; index++) {
@@ -224,6 +225,7 @@ async function seedVenue(ownerToken, org, venueId, prefix, extensive) {
   }
   await once(`${prefix}:shift:closed:close`, () => request(ownerToken, `/api/shifts/${shift.id}/close`, 'POST', { closingCash, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } }));
   await once(`${prefix}:shift:open`, () => request(ownerToken, '/api/shifts', 'POST', { openingCash: 2000 }, [201]));
+  for (let index = 1; index < guests.length; index++) await once(`${prefix}:guest:deposit:${index}`, () => request(ownerToken, `/api/clients/${guests[index].id}/deposit-top-ups`, 'POST', { amount: index * 250, method: 'card', reason: 'QA начальный баланс', idempotencyKey: `${prefix}:guest:deposit:${index}` }, [201, 200]));
   for (let index = 0; index < 5; index++) {
     const key = `${prefix}:active-order:${index}`;
     const order = await ensure(ownerToken, key, '/api/orders', '/api/orders', { tableId: tables[index].id, notes: key }, candidate => candidate.notes === key);
