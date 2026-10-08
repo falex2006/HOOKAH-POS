@@ -169,7 +169,7 @@ try {
     return response.json();
   });
   assert.equal(occupiedFloor.zones.find((zone) => zone.id === hall.id)?.tables.find((entry) => entry.id === table.id)?.status, 'occupied', 'the same table is occupied during its open POS order'); checks++;
-  await page.locator('#split-payment:not([disabled])').click();
+  const orderMore = page.locator('.order-more');\n  if (await orderMore.count()) await orderMore.locator('summary').click();\n  await page.locator('#split-payment:not([disabled])').click();
   await page.locator('#payment-cash').fill('100');
   const paymentResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith(`/api/orders/${order.id}/payments`));
   await page.locator('#payment-form [type="submit"]').click();
