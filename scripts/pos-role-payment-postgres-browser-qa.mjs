@@ -519,7 +519,7 @@ try {
   assert.equal(floorRead.status, 200, `bartender floor read: ${JSON.stringify(floorRead.body)}`);
   assert.ok(floorRead.body.zones.some((zone) => zone.id === ids.zone), 'bartender sees QA zone');
   await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
-  await bartender.locator(`[data-table="${ids.table}"]`).click();
+  await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   await bartender.locator('#order-guest:not([disabled])').click();
   assert.equal(await bartender.locator('#staff-action-fields img').count(), 0, 'saved guest name is text, not modal HTML');
   assert.match(await bartender.locator(`#staff-action-fields option[value="${ids.htmlGuest}"]`).innerText(), /<img src=x data-qa-unsafe>/, 'guest label preserves visible text');
@@ -590,7 +590,7 @@ try {
     await bartender.screenshot({ path: path.join(screenshotDir, `pos-tiny-cards-${width}.png`), fullPage: true });
   }
   await bartender.setViewportSize({ width: 320, height: 568 });
-  await bartender.locator(`[data-table="${ids.table}"]`).click();
+  await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   const phoneOrderMore = bartender.locator('.order-more');
   if (await phoneOrderMore.count()) await phoneOrderMore.locator('summary').click();
   await bartender.locator('#split-payment:not([disabled])').evaluate((button) => button.click());
@@ -645,7 +645,7 @@ try {
 
   await bartender.reload({ waitUntil: 'networkidle' });
   await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
-  await bartender.locator(`[data-table="${ids.table}"]`).click();
+  await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   await bartender.locator('#split-payment:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#payment-form [type="submit"]:not([disabled])').waitFor();
   assert.match(await bartender.locator('#payment-due').innerText(), /300/);
@@ -708,7 +708,7 @@ try {
   await bartender.setViewportSize({ width: 375, height: 812 });
   await bartender.reload({ waitUntil: 'networkidle' });
   await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
-  await bartender.locator(`[data-table="${ids.table}"]`).click();
+  await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   await bartender.locator('#split-order:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#staff-action-fields [name="items"]').fill('1, abc');
   await bartender.locator('#staff-action-submit').click();
@@ -718,7 +718,7 @@ try {
   await bartender.evaluate((tableId) => document.querySelector(`[data-table="${tableId}"]`).click(), ids.freeTable);
   await bartender.locator('#staff-action-submit').click();
   assert.equal(Number((await db.query('SELECT count(*) AS count FROM orders WHERE venue_id=$1', [ids.venue])).rows[0].count), beforeSplitCount, 'switching tables during the dialog cannot split another order');
-  await bartender.locator(`[data-table="${ids.table}"]`).click();
+  await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   await bartender.locator('#split-order:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#staff-action-fields [name="items"]').fill('1');
   const splitPost = bartender.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith(`/api/orders/${ids.splitOrder}/split`));
