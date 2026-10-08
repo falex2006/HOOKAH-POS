@@ -17,6 +17,10 @@ assert.match(app, /const preserveWorkspaceRoute=\(href\)=>/);
 assert.match(app, /queryParams\.delete\('mode'\)/);
 assert.match(app, /next\.searchParams\.delete\('operator'\)/);
 assert.match(app, /staff-guests-link.*preserveWorkspaceRoute\(['"]\/clients['"]\)/s);
+assert.match(app, /label\.includes\('Бронирования'\).*hasStaffPermission\('reservations',staffSessionPermissions\)/s,
+  'reservation navigation must re-check the authenticated permission before redirect');
+assert.match(app, /label\.includes\('Финансы'\).*hasStaffPermission\('finance_read',staffSessionPermissions\)/s,
+  'finance navigation must re-check the authenticated permission before redirect');
 assert.doesNotMatch(app, /operatorId|actingAccount|режим сотрудника/);
 
 // The employee sidebar stays hidden until the authenticated session is read.
