@@ -425,7 +425,7 @@ try {
   const recipeAfterInvalidPatch = (await db.query('SELECT ingredients FROM inventory_recipe_cards WHERE venue_id=$1 AND id=$2', [ids.venue, createdRecipe.id])).rows[0].ingredients;
   assert.equal(recipeAfterInvalidPatch.find((line) => line.ingredientId === ids.stockIngredient)?.quantity, '20 мл', 'invalid replacement does not alter the persisted syrup line');
   assert.equal(recipeAfterInvalidPatch.find((line) => line.ingredientId === ids.tobaccoIngredient)?.quantity, '18 г', 'invalid replacement preserves the other persisted recipe line');
-  await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
+  await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
   await bartender.locator(`[data-table="${ids.freeTable}"]`).click();
   const orderCreate = await browserPost(bartender, '/api/orders', { tableId: ids.freeTable, minimumOrderTotal: 0 });
   assert.equal(orderCreate.status, 201, 'the bartender can open a floor order: ' + JSON.stringify(orderCreate.body));
@@ -518,7 +518,7 @@ try {
   const floorRead = await browserApi(bartender, '/api/floor');
   assert.equal(floorRead.status, 200, `bartender floor read: ${JSON.stringify(floorRead.body)}`);
   assert.ok(floorRead.body.zones.some((zone) => zone.id === ids.zone), 'bartender sees QA zone');
-  await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
+  await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
   await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   await bartender.locator('#order-guest:not([disabled])').click();
   assert.equal(await bartender.locator('#staff-action-fields img').count(), 0, 'saved guest name is text, not modal HTML');
@@ -579,7 +579,7 @@ try {
   for (const width of [1201, 1920]) {
     await bartender.setViewportSize({ width, height: 900 });
     await bartender.reload({ waitUntil: 'networkidle' });
-    await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
+    await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
     assert.equal(await bartender.locator('#tables').evaluate((floor) => floor.classList.contains('compact-map')), true, `${width} uses readable cards for tiny floor objects`);
     for (const name of ['QA малый слева', 'QA малый справа', 'QA малый снизу']) {
       const table = bartender.locator(`#tables .table[aria-label^="${name}"]`);
@@ -644,7 +644,7 @@ try {
   await db.query("UPDATE orders SET status='cancelled' WHERE id=$1",[ids.failedSnapshotOrder]);
 
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
+  await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
   await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   await bartender.locator('#split-payment:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#payment-form [type="submit"]:not([disabled])').waitFor();
@@ -670,7 +670,7 @@ try {
   assert.equal(order.status, 'closed');
   assert.ok(order.closed_in_shift_id);
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
+  await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
   assert.match(await bartender.locator(`[data-table="${ids.table}"]`).innerText(), /Свободен/);
   const bartenderFinance = await browserApi(bartender, '/api/finance/summary');
   assert.equal(bartenderFinance.status, 200);
@@ -707,7 +707,7 @@ try {
   assert.equal(Number((await db.query('SELECT count(*) AS count FROM orders WHERE venue_id=$1', [ids.venue])).rows[0].count), beforeSplitCount, 'invalid splits create no order');
   await bartender.setViewportSize({ width: 375, height: 812 });
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
+  await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
   await bartender.locator(`[data-table="${ids.table}"]`).evaluate((table) => table.click());
   await bartender.locator('#split-order:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#staff-action-fields [name="items"]').fill('1, abc');
@@ -820,7 +820,7 @@ try {
   await bartender.locator('#staff-action-submit').click();
   assert.match(await bartender.locator('#staff-notice').innerText(), /Заказ изменился/, 'stale delete dialog is rejected');
   assert.deepEqual((await db.query('SELECT status FROM orders WHERE id IN ($1,$2) ORDER BY id', [ids.splitOrder, splitTarget.id])).rows.map((row) => row.status), ['open', 'open'], 'stale delete changes neither order');
-  await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
+  await bartender.locator(`[data-zone-id="${ids.zone}"]`).evaluate((tab) => tab.click());
   await bartender.locator(`[data-table="${ids.table}"]`).click();
   await bartender.locator('#discount-request:not([disabled])').click();
   await bartender.locator('#staff-action-fields [name="value"]').fill('10');
