@@ -3967,8 +3967,8 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 /* Calm floor availability and seating duration; no blinking or motion. */
 .staff-theme .table.free{border-color:rgba(54,214,156,.35)}
 .staff-theme .table.free em::before{content:'';display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:currentColor;vertical-align:middle}
-.staff-theme .table .table-elapsed{display:block;font-size:12px;line-height:1.25;font-variant-numeric:tabular-nums;color:#f2c88b;margin-top:4px;white-space:nowrap}
-.staff-theme.light-theme .table .table-elapsed{color:#80520b}
+.staff-theme .table .table-elapsed{display:inline-flex;align-self:center;align-items:center;justify-content:center;box-sizing:border-box;min-width:64px;max-width:100%;padding:4px 10px;border:1px solid #f2c88b30;border-radius:8px;background:#f2c88b0c;font-size:14px;font-weight:650;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:.06em;color:#f2c88b;margin:7px auto 0;white-space:nowrap}
+.staff-theme.light-theme .table .table-elapsed{color:#80520b;border-color:#80520b30;background:#80520b0a}
 
 .staff-theme .table>.table-elapsed{transform:rotate(var(--table-counter-rotation,0deg));transform-origin:center}
 @media(max-width:1100px){.staff-theme .tables.has-map>.floor-map-stage>.table>.table-elapsed{transform:none}}
