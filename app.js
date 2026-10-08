@@ -67,7 +67,7 @@ const verifyStaffSession=()=>{
     if(!session?.user||!Array.isArray(session.permissions))throw new Error('session_invalid_response');
     applyStaffSession(session);
     staffSessionVerified=true;
-    localStorage.setItem('crm_session_user',JSON.stringify(session.user));
+    localStorage.setItem('crm_session_user',JSON.stringify({...session.user,workspacePermissions:Array.isArray(session.permissions)?session.permissions:[]}));
     mountStaffExtensions();
     document.querySelector('.order')?.removeAttribute('inert');
     if(status)status.hidden=true;
