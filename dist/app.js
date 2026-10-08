@@ -90,6 +90,7 @@ let openOrders=[];
 let currentOrder=null;
 let floorVenueId='';
 let floorReady=false;
+let floorRefreshPending=null;
 let ordersRequestRevision=0;
 let orderPricingRevision=0;
 const normalizeTableId=(value)=>{const raw=String(value||'').trim();return raw.startsWith('table-')?raw:(/^\d+$/.test(raw)?`table-${raw}`:raw);};
@@ -359,6 +360,7 @@ const applyFloorPayload=(payload)=>{
 };
 const refreshFloor=()=>{
   if(!staffSessionVerified)return Promise.resolve(null);
+  if(floorRefreshPending)return floorRefreshPending;
   const revision=++floorRequestRevision;
   const controller=new AbortController();
   const timeout=window.setTimeout(()=>controller.abort(),8000);
@@ -368,9 +370,10 @@ const refreshFloor=()=>{
   if(orderPanel){orderPanel.inert=true;orderPanel.setAttribute('aria-busy','true');}
   tables.querySelectorAll('button.table').forEach((button)=>{button.disabled=true;});
   const read=staticStaffDemo()?Promise.resolve().then(()=>{let state={};try{state=JSON.parse(localStorage.getItem('territory_crm_demo_state')||'{}');}catch(_){}const venueId=state.networkCurrentId||'demo-venue-territory';const floor=venueId==='demo-venue-territory'?state:state.floorByVenue?.[venueId]||{};return{venueId,zones:floor.floorZones||[]};}):fetch('/api/floor',{headers:sessionHeaders(),signal:controller.signal}).then((response)=>response.ok?response.json():Promise.reject(new Error('floor_failed')));
-  return read.then((payload)=>revision===floorRequestRevision?applyFloorPayload(payload):null)
+  floorRefreshPending=read.then((payload)=>revision===floorRequestRevision?applyFloorPayload(payload):null)
     .catch((error)=>{if(revision===floorRequestRevision)showFloorUnavailable(error?.name==='AbortError'?'Схема зала отвечает слишком долго':'Не удалось загрузить схему зала');return null;})
-    .finally(()=>window.clearTimeout(timeout));
+    .finally(()=>{window.clearTimeout(timeout);floorRefreshPending=null;});
+  return floorRefreshPending;
 };
 if(staticStaffDemo())refreshFloor();
 window.addEventListener('focus',()=>{if(staffSessionVerified&&document.visibilityState==='visible'){refreshFloor();if(!staffShiftActionPending)refreshShift({silent:true});}});
