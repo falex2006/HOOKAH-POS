@@ -2742,7 +2742,6 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 @media(max-width:1100px){.staff-theme .tables.has-map>.floor-map-stage>.table strong{font-size:18px}}
 .staff-theme .tables.has-map.compact-map>.floor-map-stage>.table strong{font-size:18px}
 @media(max-width:420px){.staff-theme .tables.has-map>.floor-map-stage{grid-template-columns:1fr}}
-@media(max-width:1850px){.staff-theme .workspace{grid-template-columns:minmax(0,1fr)}.staff-theme .order{width:100%;max-width:none}}
 .staff-theme main>.tabs{flex-shrink:0}
 .staff-theme main>.tabs button{min-height:44px}
 @container crm-content (min-width:961px){.velora-theme .dashboard-kpi-grid--1{grid-template-columns:minmax(0,1fr)}.velora-theme .dashboard-kpi-grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .dashboard-kpi-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}}
