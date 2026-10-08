@@ -24,12 +24,23 @@ try {
   }
   assert.ok(base, `isolated QA server starts; output: ${output}`);
   let checks = 0;
-  async function req(url, method = 'GET', data, expected = 200) {
-    const response = await fetch(`${base}${url}`, { method, headers: { 'Content-Type': 'application/json' }, body: data === undefined ? undefined : JSON.stringify(data) });
+  async function req(url, method = 'GET', data, expected = 200, token = null) {
+    const response = await fetch(`${base}${url}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: data === undefined ? undefined : JSON.stringify(data) });
     const result = await response.json();
     assert.equal(response.status, expected, `${method} ${url}: ${JSON.stringify(result)}`);
     checks++;
     return result;
+  }
+  const staffSession = await req('/api/login', 'POST', { username: 'staff', password: 'demo' });
+  const staffToken = staffSession.token;
+  let floorZoneId = null;
+  let floorVenueId = null;
+  async function createTableId(label) {
+    if (!floorZoneId) {
+      const floor = await req('/api/floor'); floorVenueId = floor.venueId; floorZoneId = floor.zones?.[0]?.id || null;
+      if (!floorZoneId) floorZoneId = (await req('/api/floor/zones', 'POST', { name: `QA ${Date.now()}`, expectedVenueId: floorVenueId }, 201)).id;
+    }
+    return (await req('/api/floor/tables', 'POST', { zoneId: floorZoneId, expectedVenueId: floorVenueId, name: `QA ${label} ${Date.now()} ${Math.random().toString(36).slice(2,7)}`, capacity: 2 }, 201)).id;
   }
   const health = await req('/api/health');
   assert.equal(health.database, 'memory', 'runtime test exercises the actual isolated in-memory API path'); checks++;
@@ -82,12 +93,12 @@ try {
   assert.equal(unchangedSaleRecipe.recipeType, 'sale', 'rejected sale-to-premix edit leaves the linked sale recipe unchanged'); checks++;
   await req('/api/recipes', 'POST', { productId: product.id, name: 'QA incompatible unit', ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '1 кг' }], yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1 }, 400);
 
-  async function createOrder() {
-    const order = await req('/api/orders', 'POST', { tableId: `qa-${Date.now()}-${Math.random()}` }, 201);
-    await req(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201);
+  async function createOrder(label = 'sale') {
+    const order = await req('/api/orders', 'POST', { tableId: await createTableId(label) }, 201);
+    await req(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201, staffToken);
     return order.id;
   }
-  const successfulOrderId = await createOrder();
+  const successfulOrderId = await createOrder('successful-sale');
   const close = await req(`/api/orders/${successfulOrderId}/close`, 'POST', { paymentMethod: 'cash' });
   assert.equal(close.status, 'closed'); assert.equal(close.costOfGoods, 10, '1 l recipe cost is calculated from 1000 ml at 0.01 per ml'); checks += 2;
   const afterSale = await req('/api/inventory');
@@ -98,7 +109,7 @@ try {
   assert.equal(analytics.days.reduce((sum, day) => sum + day.costOfGoods, 0), 10, 'daily cost of goods matches the aggregate');
   assert.ok(analytics.days.every((day) => day.netProfit === null && day.payroll === null), 'daily payroll and full profit remain unknown without the ledger'); checks += 4;
 
-  const rejectedOrderId = await createOrder();
+  const rejectedOrderId = await createOrder('rejected-sale');
   const rejectedClose = await req(`/api/orders/${rejectedOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
   assert.equal(rejectedClose.error, 'insufficient_recipe_stock'); checks++;
   const openOrder = (await req('/api/orders')).items.find((entry) => entry.id === rejectedOrderId);
@@ -108,8 +119,8 @@ try {
 
   const unmappedProduct = await req('/api/products', 'POST', { name: `QA no-recipe tracked ${Date.now()}`, category: 'bar', price: 100 }, 201);
   assert.equal(unmappedProduct.inventoryMode, 'tracked', 'new catalog item explicitly defaults to stock tracking'); checks++;
-  const unmappedOrder = await req('/api/orders', 'POST', { tableId: `qa-unmapped-${Date.now()}` }, 201);
-  await req(`/api/orders/${unmappedOrder.id}/items`, 'POST', { productId: unmappedProduct.id, quantity: 1 }, 201);
+  const unmappedOrder = await req('/api/orders', 'POST', { tableId: await createTableId('unmapped') }, 201);
+  await req(`/api/orders/${unmappedOrder.id}/items`, 'POST', { productId: unmappedProduct.id, quantity: 1 }, 201, staffToken);
   const blockedClose = await req(`/api/orders/${unmappedOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 409);
   assert.equal(blockedClose.error, 'product_recipe_required', 'tracked product cannot close without a linked recipe'); checks++;
   assert.equal((await req('/api/orders')).items.find((entry) => entry.id === unmappedOrder.id).status, 'open', 'missing-recipe close preserves the open order'); checks++;
@@ -118,14 +129,14 @@ try {
   assert.equal(blockedFinalPayment.error, 'product_recipe_required', 'final installment is rejected until recipe exists'); checks++;
   assert.equal((await req(`/api/orders/${unmappedOrder.id}/payments`)).items.length, 1, 'failed final installment rolls back the attempted payment'); checks++;
   const nonStockProduct = await req('/api/products', 'POST', { name: `QA service item ${Date.now()}`, category: 'Услуги', price: 100, inventoryMode: 'non_stock' }, 201);
-  const nonStockOrder = await req('/api/orders', 'POST', { tableId: `qa-non-stock-${Date.now()}` }, 201);
-  await req(`/api/orders/${nonStockOrder.id}/items`, 'POST', { productId: nonStockProduct.id, quantity: 1 }, 201);
+  const nonStockOrder = await req('/api/orders', 'POST', { tableId: await createTableId('non-stock') }, 201);
+  await req(`/api/orders/${nonStockOrder.id}/items`, 'POST', { productId: nonStockProduct.id, quantity: 1 }, 201, staffToken);
   const nonStockClose = await req(`/api/orders/${nonStockOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(nonStockClose.status, 'closed'); assert.equal(nonStockClose.costOfGoods, 0, 'explicit non-stock service can close without recipe COGS'); checks += 2;
   const reviewProduct = await req('/api/products', 'POST', { name: `QA review item ${Date.now()}`, category: 'bar', price: 100 }, 201);
   await req(`/api/products/${reviewProduct.id}`, 'PATCH', { inventoryMode: 'needs_review' }, 200);
-  const reviewOrder = await req('/api/orders', 'POST', { tableId: `qa-review-${Date.now()}` }, 201);
-  await req(`/api/orders/${reviewOrder.id}/items`, 'POST', { productId: reviewProduct.id, quantity: 1 }, 201);
+  const reviewOrder = await req('/api/orders', 'POST', { tableId: await createTableId('review') }, 201);
+  await req(`/api/orders/${reviewOrder.id}/items`, 'POST', { productId: reviewProduct.id, quantity: 1 }, 201, staffToken);
   const blockedReviewClose = await req(`/api/orders/${reviewOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 409);
   assert.equal(blockedReviewClose.error, 'product_inventory_mode_required', 'unclassified legacy product cannot close as a zero-cost sale'); checks++;
   assert.equal((await req('/api/inventory')).items.find((item) => item.id === stockItem.id).onHand, 0, 'review/missing-recipe attempts do not change stock'); checks++;

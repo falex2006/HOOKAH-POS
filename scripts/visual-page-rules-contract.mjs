@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 
 const root = new URL('../', import.meta.url);
 const rules = fs.readFileSync(new URL('VISUAL_PAGE_RULES.md', root), 'utf8');
@@ -32,8 +33,44 @@ assert.doesNotMatch(portal, /requestAnimationFrame\(\(\)\s*=>\s*document\.queryS
   'do not animate the empty initial content container on every full-page navigation');
 assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{/,
   'in-page/hash section changes use their shared lightweight route lifecycle');
-assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{[\s\S]*?normalizeManagementSidebar\(\{ routeChange: true \}\);[\s\S]*?scrollIntoView\(\{ behavior: 'smooth'/,
-  'section changes update the title, content and final scroll through the same lifecycle');
+const hashHandlerMatch = portal.match(/const dashboardHashChangeHandler = \(\) => \{[\s\S]*?\r?\n  \};(?=\r?\n  if \(target\._dashboardHashChangeHandler\))/);
+assert.ok(hashHandlerMatch, 'dashboard hash lifecycle must remain a replaceable route handler');
+assert.match(hashHandlerMatch[0], /if \(page === 'dashboard'\)[\s\S]*?renderDashboard\(\)[\s\S]*?scrollTarget\?\.scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/,
+  'dashboard hash changes must render content and scroll the final title or focused section');
+assert.match(portal, /window\.addEventListener\('hashchange', updateAdminSectionTitle\)[\s\S]*?updateAdminSectionTitle\(\);/,
+  'dashboard title and active navigation must track the same hash lifecycle');
+const scrollCalls = [];
+const titleTarget = { scrollIntoView: (options) => scrollCalls.push(options) };
+const mockLinks = [{ dataset: { permission: 'dashboard' }, hidden: false }];
+const mockDocument = {
+  querySelectorAll: (selector) => selector === '.portal-sidebar [data-permission]' ? mockLinks : []
+};
+const target = { classList: { toggle: () => {} }, querySelector: (selector) => selector === '.page-title' ? titleTarget : null };
+let hash = '#staff';
+let rendered = 0;
+const mockWindow = { location: { get hash() { return hash; } } };
+// Bind the free names used by the actual handler without reimplementing its behavior.
+const lifecycleContext = vm.createContext({
+  disposeStaffDrawer: () => {}, target, document: mockDocument, window: mockWindow,
+  page: 'dashboard', hasPortalPermission: (permission) => permission === 'dashboard',
+  renderTasks: () => {}, renderLoyalty: () => {}, renderDashboard: () => { rendered += 1; }
+});
+const lifecycleHandler = vm.runInContext(`(${hashHandlerMatch[0].replace(/^const dashboardHashChangeHandler = /, '').replace(/;$/, '')})`, lifecycleContext);
+hash = '#staff'; lifecycleHandler();
+hash = '#settings'; lifecycleHandler();
+assert.equal(rendered, 2, 'repeated hash transitions must render the current dashboard content');
+assert.equal(scrollCalls.length, 2, 'each successful transition must scroll the final page title');
+assert.equal(scrollCalls[0].behavior, 'smooth');
+assert.equal(scrollCalls[0].block, 'start');
+hash = '#missing';
+const failingDocument = { ...mockDocument, querySelector: () => null };
+const errorContext = vm.createContext({
+  disposeStaffDrawer: () => {}, target, document: failingDocument, window: mockWindow,
+  page: 'inventory', hasPortalPermission: () => true,
+  renderTasks: () => {}, renderLoyalty: () => {}, renderDashboard: () => {}
+});
+assert.doesNotThrow(() => vm.runInContext(`(${hashHandlerMatch[0].replace(/^const dashboardHashChangeHandler = /, '').replace(/;$/, '')})`, errorContext)(),
+  'missing hash targets must leave navigation usable without a scroll exception');
 assert.doesNotMatch(portal, /classList\.add\('crm-route-enter'\)/,
   'do not animate dashboard geometry while its shared route helper aligns the section');
 assert.match(rules, /значок стоит у заголовка группы; вложенные ссылки остаются текстовыми/,

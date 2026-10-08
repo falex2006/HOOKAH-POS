@@ -46,6 +46,7 @@ $checks = @(
   @{ file = 'local-click-contract.mjs'; node = $true },
   @{ file = 'pos-modal-a11y-contract.mjs'; node = $true },
   @{ file = 'staff-catalog-load-state-contract.mjs'; node = $true },
+  @{ file = 'staff-catalog-refresh-runtime-qa.mjs'; node = $true },
   @{ file = 'local-design-contract.mjs'; node = $true },
   @{ file = 'local-deploy-contract.mjs'; node = $true },
   @{ file = 'security-default-credential-qa.mjs'; node = $true },

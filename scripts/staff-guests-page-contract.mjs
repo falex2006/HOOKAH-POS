@@ -8,17 +8,19 @@ assert.equal(source,dist,'portal source/dist parity');
 // focused on that current behavior instead of extracting the removed helper.
 const helper=`const hasPortalLinkPermission = (link, permission) => portalPermissions.has(permission || link?.dataset?.permission);`;
 const routeGuard=source.slice(source.indexOf('const pagePermissions ='),source.indexOf('const formatRuDate ='));
-for(const [permissions,allowed] of [[['orders'],false],[['staff_view'],true],[['finance_read'],false],[[],false]]) {
-  const context={URL,location:{origin:'http://localhost'},portalPermissions:new Set(permissions),page:'clients',window:{location:{replace(){}}}};
+for(const [permissions,linkAllowed,routeAllowed] of [[['orders'],false,true],[['staff_view'],true,true],[['finance_read'],false,false],[[],false,false]]) {
+  const portalPermissions=new Set(permissions);
+  const hasPortalPermission=(permission)=>portalPermissions.has(permission)||(permission==='clients'&&['staff_view','staff','orders'].some((candidate)=>portalPermissions.has(candidate)));
+  const context={URL,location:{origin:'http://localhost'},portalPermissions,hasPortalPermission,page:'clients',window:{location:{replace(){}}}};
   vm.createContext(context);
   vm.runInContext(helper+'\nthis.checkLink=hasPortalLinkPermission;',context);
-  assert.equal(context.checkLink({href:'http://localhost/clients',dataset:{permission:'staff_view'}}),allowed);
+  assert.equal(context.checkLink({href:'http://localhost/clients',dataset:{permission:'staff_view'}}),linkAllowed);
   assert.equal(context.checkLink({href:'http://localhost/inventory',dataset:{permission:'inventory_read'}}),false,'guest access must not unlock inventory');
-  if(allowed) vm.runInContext(routeGuard,context);
+  if(routeAllowed) vm.runInContext(routeGuard,context);
   else assert.throws(()=>vm.runInContext(routeGuard,context),/portal_route_forbidden/);
 }
-assert.match(source,/link\.hidden = !portalPermissions\.has\(permission\)/);
-assert.match(source,/link\.hidden = !portalPermissions\.has\(permission\) \|\| navigation\[name\] === false/);
+assert.match(source,/link\.hidden = !hasPortalPermission\(permission\)/);
+assert.match(source,/link\.hidden = !hasPortalPermission\(permission\) \|\| navigation\[name\] === false/);
 const fillStart=source.indexOf('const fill = (client) => {');
 const fillEnd=source.indexOf("document.querySelector('#client-nickname')",fillStart);
 assert.ok(fillStart>0&&fillEnd>fillStart);

@@ -4,7 +4,7 @@
 
 ## Служебные
 - `GET /api/health` — состояние сервиса.
-- `GET /api/products` — активные позиции меню для каталога.
+- `GET /api/products?expectedVenueId=<id>` — активные позиции меню текущего заведения; необязательный `expectedVenueId` сверяется с заведением текущей сессии и при несовпадении возвращается `409 venue_context_changed`. Ответ помечается `Cache-Control: no-store`; чтение доступно по действующим правам `floor`, `inventory_read` или `inventory`. Рабочее место запрашивает список при открытии меню, возвращении к открытому меню и раз в 60 секунд, пока меню открыто и вкладка видима; исторические строки заказа не переписываются.
 - `GET /api/session?role=<role>` — демонстрационный профиль и разрешения роли; для живой cookie-сессии возвращает `trustedDevice`, но не возвращает bearer token до PIN-проверки.
 - `GET/PATCH /api/session/preferences` — пользовательские настройки аккаунта (таймер блокировки, модули главной, вид выручки, показатели аналитики и вид каталога персонала); сервер валидирует допустимые значения и сохраняет их в PostgreSQL. `staffDirectory.view`: `cards` / `list` / `table`; `staffDirectory.cardScale`: целое число 1–4.
 - `POST /api/session/unlock` — проверка 4-значного PIN для разблокировки рабочего экрана; после успешной проверки возвращает `ok`, текущий `token` и `user`.
@@ -93,6 +93,12 @@
 
 - GET /api/staff — список сотрудников; POST /api/staff — создание сотрудника с ролью.
 
+### Календарный день бронирований и состояние стола
+
+`POST/PATCH /api/reservations` трактует `date` и `time` как местное время заведения. Для сохранения, проверки будущего времени, повторного чтения и определения сегодняшней брони используется один корректный часовой пояс: точки → организации → `Asia/Yekaterinburg`. Пустые и некорректные старые значения пропускаются; часовой пояс процесса Node и PostgreSQL-соединения не определяет день брони. Несуществующее местное время при переходе DST отклоняется PostgreSQL-путём с `invalid_reservation_datetime`.
+
+После создания/переноса/отмены брони и удаления/отмены/переноса/полной оплаты/закрытия заказа состояние затронутого стола пересчитывается в той же транзакции: `blocked` сохраняется, активный заказ даёт `occupied`, иначе подтверждённая бронь на сегодняшний местный день даёт `reserved`, иначе `free`. Вчерашняя или завтрашняя бронь не резервирует стол сегодня. `GET /api/floor` использует тот же календарь. Права и ограничения предоплат сохраняются.
+
 ### POST /api/orders/:id/close
 Закрывает заказ. Для VIP возвращает subtotal, finalTotal и minimumAdjustment; итог не может быть ниже minimumOrderTotal.
 
@@ -167,3 +173,17 @@
 - Item replacement остаётся процентом от net revenue и исключает строку из margin pool; additive сохраняет строку и добавляет revenue-based комиссию отдельно, даже при отрицательной марже дня. Это явное itemRuleBasis, не автоматическое преобразование исторической ставки в процент маржи.
 - Preview возвращает employee `marginIncentive` (signed/payable/loss offsets/formula/policies), line `costSnapshot`, `signedMarginCents`, `marginAllocation` и null scalar appliedRateBps для маржинального pool. UI показывает отдельную себестоимость и отрицательные суммы. Migration086 расширяет только config constraints; old-schema409 совместим с предыдущими режимами. Typed serializer refuses margin до официального source/snapshot контракта.
 - JSONB scalar string overrides читаются как уже декодированные pg значения; второй JSON.parse не применяется. Loss/item/excess-policy строки, нулевые numeric overrides и audit digest сохраняются после reload.
+
+## FIX-03.1 — исполнение строк заказа
+
+Контракт: `docs/architecture/FIX_03_1_DISPATCH_CONTRACT.md`; требуется миграция099.
+
+- `POST /api/products`, `PATCH /api/products/:id`: поле `preparationStation: "bar" | "hookah" | null`, независимо от текстовой `category` и legacy `station`. Направление копируется при создании строки заказа; позднее изменение товара не переназначает уже созданную работу.
+- Строки ответа заказа дополнены `preparationStation`, `preparationStatus` (`new|queued|in_progress|ready`), `preparationDispatchedAt`, `preparationStartedAt`, `preparationReadyAt`. Старые поля сохраняются.
+- `POST /api/orders/:id/dispatch`: `{expectedVenueId,station:"bar"|"hookah",itemIds:[...]}`. Требует orders и открытой смены. Непустой явный список принадлежит выбранному заказу/точке; новые строки становятся queued. Неизвестное направление назначается впервые, в том числе legacy queued/null; другое заданное направление не переопределяется. Повтор тех же IDs не захватывает новые строки. Ответ `{orderId,status,items}` содержит актуальные строки заказа.
+- `PATCH /api/orders/:orderId/items/:itemId/preparation`: `{status:"in_progress"|"ready",expectedStatus:"queued"|"in_progress"}`. Требует orders и bar_tasks/hookah_tasks для направления либо tasks_manage. Переход queued→in_progress→ready; повтор результата идемпотентен, конфликт409, чужое направление403, чужой заказ/строка404. Исполнение оплаченного заказа разрешено без повторного открытия смены и не меняет финансовые факты.
+- `GET /api/preparation/queue`: `{items:[{id,orderId,tableId,tableName,orderStatus,name,quantity,preparationStation,preparationStatus,preparationDispatchedAt,...}],stations:[...]}`. Только разрешённые направления текущей точки; queued/in_progress, включая финансово closed, исключая cancelled.
+
+Общая готовность активного заказа выводится из готовности строк; добавление новой строки снимает ready, старые готовые работы сохраняются. Legacy endpoint общего ready не должен обходить этот контроль. Изменение количества/удаление отправленной работы отклоняется409. Передача и исполнение не создают оплат, списаний сырья или повторных pricing snapshots.
+
+Для обеих мутаций исполнения `expectedVenueId` необязателен: клиент передаёт зафиксированную точку, несовпадение при наличии поля даёт409. Сервер всегда проверяет фактическую принадлежность заказа/строки независимо от этого поля.

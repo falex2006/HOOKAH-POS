@@ -14,9 +14,9 @@ const demoState = { networkCurrentId: null, discountGroups: [{ id: 'seed', name:
 let saves = 0;
 const demoSave = () => { saves += 1; };
 const window = { location: { origin: 'http://localhost' } };
-const demoCall = new Function('portalPermissions', 'demoState', 'demoDefaultVenue', 'window', 'demoSave',
+const demoCall = new Function('portalPermissions', 'hasPortalPermission', 'demoState', 'demoDefaultVenue', 'window', 'demoSave',
   `${portal.slice(helperStart, helperEnd)}\nreturn async (url, options = {}) => { const path = new URL(url, window.location.origin).pathname; const method = options.method || 'GET'; const input = options.body ? JSON.parse(options.body) : {};\n${portal.slice(routeStart, routeEnd)}\n};`
-)(portalPermissions, demoState, demoDefaultVenue, window, demoSave);
+)(portalPermissions, (permission) => permission === 'dashboard' || portalPermissions.has(permission), demoState, demoDefaultVenue, window, demoSave);
 const call = (path, method = 'GET', body) => demoCall(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
 const error = async (promise, code) => assert.rejects(promise, (failure) => failure.payload?.error === code);
 

@@ -13,9 +13,14 @@ const syncScript = readFileSync(new URL('../scripts/sync-published-assets.mjs', 
 const shiftCloseContract = readFileSync(new URL('../shift-close-contract.js', import.meta.url), 'utf8');
 const cssRevision = Number(syncScript.match(/cssRevision = '(\d+)'/)?.[1]);
 const portalRevision = Number(syncScript.match(/portalRevision = '(\d+)'/)?.[1]);
+const portalSessionRevision = Number(syncScript.match(/portalSessionRevision = '(\d+)'/)?.[1]);
 const appRevision = Number(syncScript.match(/appRevision = '(\d+)'/)?.[1]);
 const platformRevision = Number(syncScript.match(/platformRevision = '(\d+)'/)?.[1]);
-assert.ok([cssRevision, portalRevision, appRevision, platformRevision].every(Number.isInteger), 'published asset revisions must be declared in the sync script');
+assert.ok([cssRevision, portalRevision, portalSessionRevision, appRevision, platformRevision].every(Number.isInteger), 'published asset revisions must be declared in the sync script');
+const portalSession = readFileSync(new URL('../portal-session.js', import.meta.url), 'utf8');
+const distPortalSession = readFileSync(new URL('../dist/portal-session.js', import.meta.url), 'utf8');
+assert.match(portalSession, new RegExp(`portal\\.js\\?rev=${portalRevision}`), 'session bootstrap must load the canonical portal script revision');
+assert.equal(distPortalSession, portalSession, 'published session bootstrap must match its canonical source');
 const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 assert.match(appSource, /floorPixelPlacement/, 'POS must convert floor layouts through one pixel contract');
 assert.match(appSource, /layout\.unit==='grid'/, 'legacy grid layouts must remain readable');
@@ -25,7 +30,7 @@ for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${file} must use current CSS cache version`);
   assert.doesNotMatch(html, /style\.css\?rev=(?:12[0-7]|1[01]\d)/, `${file} has stale CSS cache version`);
-  if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, new RegExp(`portal\\.js\\?rev=${portalRevision}`), `${file} must use current portal JS cache version`);
+  if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, new RegExp(`portal-session\\.js\\?rev=${portalSessionRevision}`), `${file} must use the current session bootstrap revision`);
   if (file === 'index.html') assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`), 'index.html must use current staff app JS cache version');
   if (file === 'index.html') assert.match(html, /assets\/tabler-icons\.svg\?rev=3#table-layout/, 'staff workspace must use the refreshed icon sprite');
   if (file === 'platform.html') assert.match(html, new RegExp(`platform\\.js\\?rev=${platformRevision}`), 'platform.html must use current platform JS cache version');
@@ -53,7 +58,7 @@ for (const fileUrl of distHtmlFiles) {
   const html = readFileSync(fileUrl, 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${fileUrl.pathname} must use current CSS cache version`);
   if (!/\/login(?:\/|\.html)/.test(fileUrl.pathname) && !/\/platform(?:\/|\.html)/.test(fileUrl.pathname) && !fileUrl.pathname.endsWith('/dist/index.html')) {
-    assert.match(html, new RegExp(`portal\\.js\\?rev=${portalRevision}`), `${fileUrl.pathname} must use current portal JS cache version`);
+    assert.match(html, new RegExp(`portal-session\\.js\\?rev=${portalSessionRevision}`), `${fileUrl.pathname} must use current session bootstrap revision`);
   }
 }
 for (const file of htmlFiles) {
@@ -85,7 +90,7 @@ for (const file of ['admin.html', 'orders.html', 'inventory.html']) {
   assert.match(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), /assets\/tabler-icons\.svg/,
     `${file} must use Tabler Icons`);
 }
-console.log(`LOCAL DESIGN CONTRACT: PASS (routes=${htmlFiles.length}, dist routes=${distHtmlFiles.length}, CSS rev=${cssRevision}, portal rev=${portalRevision}, action links and Tabler Icons)`);
+console.log(`LOCAL DESIGN CONTRACT: PASS (routes=${htmlFiles.length}, dist routes=${distHtmlFiles.length}, CSS rev=${cssRevision}, portal bootstrap rev=${portalSessionRevision} -> portal rev=${portalRevision}, action links and Tabler Icons)`);
 
 
 

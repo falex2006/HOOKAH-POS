@@ -11,8 +11,8 @@ assert.ok(routeStart >= 0 && routeEnd > routeStart, 'actual demo premix producti
 
 const parserSource = portal.slice(parserStart, parserEnd);
 const routeSource = portal.slice(routeStart, routeEnd);
-const execute = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'demoAllocatePremixConsumption', `${parserSource}\nreturn (async () => { ${routeSource} })();`);
-const produce = (state, payload) => execute('/api/inventory/premixes/produce', 'POST', payload, new Set(['inventory']), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' }, () => []);
+const execute = new Function('path', 'method', 'input', 'portalPermissions', 'hasPortalPermission', 'demoState', 'demoSave', 'portalUser', 'demoAllocatePremixConsumption', `${parserSource}\nreturn (async () => { ${routeSource} })();`);
+const produce = (state, payload) => { const permissions = new Set(['inventory']); return execute('/api/inventory/premixes/produce', 'POST', payload, permissions, (permission) => permissions.has(permission), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' }, () => []); };
 const stateFor = (recipe, inventory) => ({ recipes: [recipe], inventory, premixBatches: [], movements: [], audit: [] });
 
 const itemRouteStart = portal.indexOf("if (path === '/api/inventory/items' && method === 'POST')");
@@ -23,9 +23,10 @@ const demoVisibleAlcoholLink = (value) => {
   assert.ok(value === undefined || value === null || value === '', 'this fixture does not exercise alcohol catalog links');
   return null;
 };
-const createDemoItem = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'Date', 'demoVisibleAlcoholLink', `return (async () => { ${portal.slice(itemRouteStart, itemRouteEnd)} })();`);
+const createDemoItem = new Function('path', 'method', 'input', 'portalPermissions', 'hasPortalPermission', 'demoState', 'demoSave', 'portalUser', 'Date', 'demoVisibleAlcoholLink', `return (async () => { ${portal.slice(itemRouteStart, itemRouteEnd)} })();`);
 const demoItems = { inventory: [], audit: [] };
-const demoItemArgs = ['/api/inventory/items', 'POST', { name: 'QA premix source', unit: 'мл' }, new Set(['inventory']), demoItems, () => {}, { name: 'QA' }, FrozenDate, demoVisibleAlcoholLink];
+const demoItemPermissions = new Set(['inventory']);
+const demoItemArgs = ['/api/inventory/items', 'POST', { name: 'QA premix source', unit: 'мл' }, demoItemPermissions, (permission) => demoItemPermissions.has(permission), demoItems, () => {}, { name: 'QA' }, FrozenDate, demoVisibleAlcoholLink];
 const firstDemoItem = await createDemoItem(...demoItemArgs);
 const secondDemoItem = await createDemoItem(...demoItemArgs);
 assert.notEqual(firstDemoItem.id, secondDemoItem.id, 'rapid demo inventory creates retain distinct IDs in one millisecond');

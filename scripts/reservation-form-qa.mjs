@@ -36,10 +36,10 @@ const refundedHistoryLabel = renderHistoryPayment({ depositRequired: 300, verifi
 assert.match(refundedHistoryLabel, /предоплата возвращена полностью \(300 ₽\)/);
 assert.doesNotMatch(refundedHistoryLabel, /получение не подтверждено/);
 assert.match(historyPaymentHelper, /refund/);
-assert.match(portal, /canAdjustGuestLoyalty = portalPermissions\.has\('finance'\) \|\| portalPermissions\.has\('loyalty'\) \|\| portalPermissions\.has\('staff_manage'\)/, 'loyalty UI visibility uses scoped permissions rather than role labels');
-assert.match(portal, /if \(!portalPermissions\.has\('finance'\) && !portalPermissions\.has\('loyalty'\) && !portalPermissions\.has\('staff_manage'\)\) throw new Error\('forbidden'\)/, 'demo guest-ledger endpoint matches the API permission boundary');
+assert.match(portal, /canAdjustGuestLoyalty = hasPortalPermission\('finance'\) \|\| hasPortalPermission\('loyalty'\) \|\| hasPortalPermission\('staff_manage'\)/, 'loyalty UI visibility uses scoped permissions rather than role labels');
+assert.match(portal, /if \(!hasPortalPermission\('finance'\) && !hasPortalPermission\('loyalty'\) && !hasPortalPermission\('staff_manage'\)\) throw new Error\('forbidden'\)/, 'demo guest-ledger endpoint matches the API permission boundary');
 assert.match(portal, /reservationPaymentsVisible: canReadReservationPayments/, 'demo guest history explicitly reports restricted payment fields');
-assert.match(portal, /if \(path === '\/api\/clients' && method === 'GET'\).*canReadGuestBalances = portalPermissions/, 'demo guest list applies the same balance visibility policy as the API');
+assert.match(portal, /if \(path === '\/api\/clients' && method === 'GET'\).*canReadGuestBalances = hasPortalPermission/, 'demo guest list applies the same balance visibility policy as the API');
 assert.match(portal, /const clientProfile = path\.match\(.*?protectedFields = \['discountGroupId','loyaltyPoints','bonusBalance','depositBalance'\].*?guest_balances_require_ledger/, 'demo guest profile update cannot overwrite protected loyalty balances');
 assert.match(portal, /const prepaymentReceipts = \(item\.prepaymentReceipts \|\| \[\]\).*refundedAmount = \(item\.prepaymentRefunds \|\| \[\]\)/, 'demo history derives receipt refund summaries for the common UI label');
 const reservationListStart = portal.indexOf('const draw = (query = \'\') =>', portal.indexOf("function renderReservations"));

@@ -27,3 +27,11 @@ docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < migration
 Миграция `006_guest_venue_phone_unique.sql` переводит уникальность телефона гостя на составной ключ точки и телефона для сетевого режима.
 
 Миграция `011_user_preferences.sql` добавляет JSON-поле персональных настроек аккаунта: таймер блокировки рабочего места и настройки отображения главной/аналитики. Она безопасна для повторного запуска через `ADD COLUMN IF NOT EXISTS`.
+
+## 099 — отдельное исполнение строк заказа (FIX-03.1)
+
+`migrations/099_order_item_execution.sql` аддитивно добавляет nullable `products.preparation_station` и таблицу `order_item_execution`: одна запись на order_item_id, station bar/hookah/null, status new/queued/in_progress/ready и nullable временные отметки. Tenant/заказ определяются через order_items→orders. Legacy station/status, цены и immutable финансовые guards не меняются.
+
+Повторный запуск безопасен: DDL IF NOT EXISTS и backfill ON CONFLICT DO NOTHING. Переносится только активная история: точные legacy station bar/hookah распознаются, прочие становятся null; order ready→execution ready, in_progress→queued, open→new. Историческое время передачи не выдумывается. Закрытая старая история не заполняется; новые оплаченные работы сохраняются до исполнения.
+
+Порядок выпуска: backup и проверка миграции в изолированной БД, затем099, совместимый API и UI. Старый код может не читать новые поля, но откат приложения требует отдельно учитывать уже созданные работы и ограничить несовместимые изменения. Разрушительный rollback с DROP таблицы/колонки не предусмотрен: он удалил бы факты исполнения. При проблеме сохранять данные, останавливать затронутый функционал и выпускать совместимую исправляющую миграцию. Само наличие документа не означает production-развёртывание.

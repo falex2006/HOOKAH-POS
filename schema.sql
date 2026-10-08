@@ -227,6 +227,7 @@ CREATE TABLE products (
   venue_id uuid NOT NULL REFERENCES venues(id),
   name text NOT NULL,
   category text NOT NULL,
+  preparation_station text CHECK (preparation_station IN ('bar','hookah')),
   sale_price numeric(12,2) NOT NULL DEFAULT 0 CHECK (sale_price >= 0),
   image_url text,
   is_active boolean NOT NULL DEFAULT true,
@@ -517,6 +518,16 @@ CREATE TABLE order_items (
   sold_at timestamptz,
   CHECK ((sales_employee_id IS NULL AND sold_at IS NULL) OR (sales_employee_id IS NOT NULL AND sold_at IS NOT NULL))
 );
+
+CREATE TABLE IF NOT EXISTS order_item_execution (
+  order_item_id uuid PRIMARY KEY REFERENCES order_items(id) ON DELETE CASCADE,
+  station text CHECK (station IN ('bar','hookah')),
+  status text NOT NULL DEFAULT 'new' CHECK (status IN ('new','queued','in_progress','ready')),
+  dispatched_at timestamptz,
+  started_at timestamptz,
+  ready_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS order_item_execution_station_status_idx ON order_item_execution(station,status);
 
 CREATE OR REPLACE FUNCTION validate_order_item_sales_attribution() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE order_venue_id uuid; order_organization_id uuid; employee_venue_id uuid; employee_organization_id uuid;

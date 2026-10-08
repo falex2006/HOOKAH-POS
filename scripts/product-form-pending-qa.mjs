@@ -17,7 +17,7 @@ assert.match(block, /try \{ const data = await api\('\/api\/products'\); drawPro
 
 const handlers = new Map();
 const elements = new Map();
-const make = (id, value = '') => ({ id, value, disabled: false, hidden: false, textContent: '', className: '', innerHTML: '', addEventListener: (name, callback) => handlers.set(`${id}:${name}`, callback) });
+const make = (id, value = '') => ({ id, value, disabled: false, hidden: false, textContent: '', className: '', innerHTML: '', closest: () => ({ after() {} }), addEventListener: (name, callback) => handlers.set(`${id}:${name}`, callback) });
 for (const id of ['product-id', 'product-name', 'product-category', 'product-price', 'product-inventory-mode', 'product-aliases', 'product-image-file', 'delete-product', 'save-product', 'new-product', 'cancel-product', 'product-form-title', 'product-form-hint', 'product-form-status', 'product-message']) elements.set(`#${id}`, make(id));
 const form = { dataset: {}, hidden: false, reset: () => {}, reportValidity: () => true, querySelectorAll: () => [...elements.values()], addEventListener: (name, callback) => handlers.set(`product-form:${name}`, callback) };
 elements.set('#product-form', form);
@@ -35,7 +35,10 @@ form.reset = () => { resetCount += 1; };
 let compressResolve;
 vm.runInNewContext(block, {
   canWriteInventory: true,
-  document: { querySelector: (selector) => elements.get(selector) },
+  document: {
+    querySelector: (selector) => selector === '#product-preparation-station' ? null : elements.get(selector),
+    createElement: (tagName) => ({ tagName, textContent: '', id: '', innerHTML: '', append() {} }),
+  },
   pendingProductImage: null,
   productImageChanged: false,
   syncProductPreview: () => { previewCount += 1; },

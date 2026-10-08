@@ -15,7 +15,11 @@ const roles = {
   developer: { required: ['floor', 'orders', 'finance_read', 'inventory_read', 'diagnostics'], forbidden: ['finance', 'inventory'] },
   platform_owner: { required: ['platform', 'diagnostics'], forbidden: ['finance', 'inventory', 'orders'] }
 };
-assert.match(server, /if \(pathname === '\/api\/session'\)[\s\S]*?const user = req\.user \|\| persistedSession\?\.user \|\| \{ name: 'Демо сотрудник', role: 'bartender' \}/);
+const sessionRoute = server.match(/if \(pathname === '\/api\/session'\)\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
+assert.match(sessionRoute, /const persistedSession = await sessionFromRequest\(req\)/,
+  'session identity is resolved from the authenticated request or persisted session');
+assert.match(sessionRoute, /const user = withEffectivePermissions\(req\.user \|\| persistedSession\?\.user \|\| \{ name: 'Демо сотрудник', role: 'bartender' \}\);/,
+  'session permissions are recalculated from the trusted server-side identity');
 assert.doesNotMatch(server, /url\.searchParams\.get\('role'\)/, 'session role must come from the authenticated account, never the URL');
 for (const role of ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master']) {
   const declaration = portal.match(new RegExp(`${role}: new Set\\(\\[([^\\]]+)\\]\\)`))?.[1] || '';

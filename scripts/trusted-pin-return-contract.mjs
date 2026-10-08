@@ -17,7 +17,7 @@ assert.match(server, /pin_return_role_forbidden/, 'trusted PIN return rejects op
 assert.match(server, /pin_return_requires_trusted_device/, 'trusted PIN return rejects owner-admin sessions that were not created as trusted devices');
 assert.match(server, /req\.user\.pinConfigured = true/, 'PIN return marks the restored user as PIN-configured for the browser lock state');
 assert.match(server, /trustedDevice: Boolean\(persistedSession\?\.trustedDevice\)/, 'session restore exposes only the trusted-device flag, never the bearer token');
-assert.match(server, /return json\(res, 200, \{ token, user, permissions: effectivePermissions\(user\), expiresIn: sessionTtlSeconds\(TRUSTED_SESSION_TTL_MS\), trustedDevice: true \}\)/, 'PIN return restores the existing trusted session token after verification');
+assert.match(server, /return json\(res, 200, \{ token, user, permissions: user\.workspacePermissions, permissionPolicy: user\.permissionPolicy, expiresIn: sessionTtlSeconds\(TRUSTED_SESSION_TTL_MS\), trustedDevice: true \}\)/, 'PIN return restores the existing trusted session token and effective permission policy after verification');
 assert.match(login, /const adminPinRoles = new Set\(\['owner', 'admin', 'developer'\]\)/, 'trusted PIN return is limited to owner/admin/developer roles');
 assert.match(login, /login-trust-device/, 'password login exposes a trust-this-device choice');
 assert.match(login, /fetch\('\/api\/session', \{ cache: 'no-store' \}\)/, 'login page checks the current trusted cookie session');
