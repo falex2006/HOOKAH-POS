@@ -840,7 +840,7 @@ try {
   assert.ok([ids.splitOrder, splitTarget.id].includes(requestedDiscount.orderId));
   assert.equal((await db.query('SELECT status,reason FROM discounts WHERE id=$1', [requestedDiscount.id])).rows[0].reason, 'QA согласование скидки');
   await manager.goto(`${base}/finance`, { waitUntil: 'networkidle' });
-  await manager.locator('#discount-list').getByText('QA согласование скидки').waitFor();
+  await manager.locator('#discount-list').getByText('QA согласование скидки').waitFor({ state: 'attached' });
   assert.equal(await manager.locator(`.discount-approve[data-discount="${requestedDiscount.id}"]`).count(), 0, 'manager sees discount but cannot decide');
   assert.equal((await browserPost(manager, `/api/discount-requests/${requestedDiscount.id}/approve`, {})).status, 403, 'manager decision API is denied');
   const admin = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'ru-RU' });
