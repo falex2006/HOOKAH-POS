@@ -1329,6 +1329,7 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   .staff-theme .table strong{font-size:21px}
   .staff-theme .table em{margin-top:10px}
   .staff-theme .order{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 108px);overflow:auto;padding:18px}
+  .staff-theme .order .order-head{position:sticky;top:-18px;z-index:3;padding:18px 0 10px;background:linear-gradient(#1b1e23 78%,transparent)}
   .staff-theme .order .actions{position:sticky;bottom:0;padding-top:10px;background:linear-gradient(transparent,#17191d 18%)}
 }
 
