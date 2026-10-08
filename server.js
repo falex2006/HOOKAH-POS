@@ -14,7 +14,6 @@ const shiftCloseContract = require('./shift-close-contract');
 const { isValidIsoDate, countInclusiveDays, calculatePayrollAmount, canTransitionPayroll } = require('./payroll');
 const { makeService: makePayrollSchemeService } = require('./payroll-scheme-service');
 const { handlePayrollSchemeRoute, sameOriginMutation } = require('./payroll-scheme-routes');
-const { consumeAlphaSatAdapterLimit, getAlphaSatAdapterSourceAddress } = require('./scripts/alphasat-adapter-rate-limit.cjs');
 const isValidIsoTimestamp = (value) => {
   if (typeof value !== 'string' || !value.trim()) return false;
   const text = value.trim();
@@ -236,8 +235,6 @@ const memoryPreferencesByAccount = new Map();
 const loginAttempts = new Map();
 const pinUnlockAttempts = new Map();
 const requestBuckets = new Map();
-const alphasatAdapterSourceBuckets = new Map();
-const alphasatAdapterCredentialBuckets = new Map();
 const configuredApiRateLimit = Number(process.env.API_RATE_LIMIT);
 const API_RATE_LIMIT = Number.isInteger(configuredApiRateLimit) && configuredApiRateLimit >= 30 && configuredApiRateLimit <= 10000
   ? configuredApiRateLimit
@@ -953,16 +950,6 @@ const depleteMemoryOrder = (order, { reason = `Списание по заказ�
 };
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
-const hashAlphaSatAdapterSecret = (token) => crypto.createHash('sha256').update(token).digest();
-const alphaSatRequestId = (req) => {
-  const supplied = String(req.headers['x-request-id'] || '');
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(supplied)
-    ? supplied
-    : crypto.randomUUID();
-};
-const alphaSatAdapterError = (res, statusCode, code, requestId) => json(res, statusCode, {
-  error: { code, request_id: requestId, retryable: statusCode >= 500 }
-});
 const STANDARD_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const TRUSTED_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_TTL_MS = STANDARD_SESSION_TTL_MS;
@@ -1267,135 +1254,11 @@ async function api(req, res) {
   let venueDbId = defaultVenueDbId;
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
-  if (pathname.startsWith('/api/alphasat/v1/') && req.method === 'OPTIONS') {
-    const requestId = alphaSatRequestId(req);
-    const headers = {
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Accept, Authorization, X-Request-ID',
-      'Access-Control-Max-Age': '600',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Request-ID': requestId,
-      'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
-    };
-    res.writeHead(204, headers);
-    return res.end();
-  }
   if (req.method === 'OPTIONS') { const headers = { 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'" }; if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN; res.writeHead(204, headers); return res.end(); }
-  if (pathname.startsWith('/api/alphasat/v1/')) {
-    const requestId = alphaSatRequestId(req);
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Request-ID', requestId);
-    if (Number(req.headers['content-length'] || 0) > 2 * 1024 * 1024) return alphaSatAdapterError(res, 413, 'payload_too_large', requestId);
-    if (req.method !== 'GET') return alphaSatAdapterError(res, 405, 'method_not_allowed', requestId);
-    if (url.search) return alphaSatAdapterError(res, 400, 'invalid_request', requestId);
-    const sourceAddress = getAlphaSatAdapterSourceAddress(
-      req.headers,
-      req.socket.remoteAddress,
-      process.env.ALPHASAT_TRUST_PROXY === 'true',
-    );
-    if (consumeAlphaSatAdapterLimit(alphasatAdapterSourceBuckets, sourceAddress, API_RATE_LIMIT)) {
-      res.setHeader('Retry-After', '60');
-      return alphaSatAdapterError(res, 429, 'rate_limited', requestId);
-    }
-    const authorization = String(req.headers.authorization || '');
-    const tokenMatch = authorization.match(/^Bearer (as_hookah_([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43}))$/i);
-    if (!repositories?.pool) return alphaSatAdapterError(res, 503, 'installation_not_ready', requestId);
-    if (!tokenMatch) return alphaSatAdapterError(res, 401, 'unauthorized', requestId);
-    let credential;
-    try {
-      const result = await repositories.pool.query(
-        `SELECT id,token_hash,allowed_organization_id AS "organizationId"
-         FROM alphasat_adapter_credentials
-         WHERE id=$1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
-        [tokenMatch[2]],
-      );
-      credential = result.rows[0];
-    } catch (_) {
-      return alphaSatAdapterError(res, 503, 'installation_not_ready', requestId);
-    }
-    const suppliedHash = hashAlphaSatAdapterSecret(tokenMatch[3]);
-    const storedHash = credential && /^[0-9a-f]{64}$/i.test(String(credential.token_hash || ''))
-      ? Buffer.from(String(credential.token_hash), 'hex')
-      : Buffer.alloc(32);
-    if (!credential || !crypto.timingSafeEqual(suppliedHash, storedHash)) {
-      return alphaSatAdapterError(res, 401, 'unauthorized', requestId);
-    }
-    if (consumeAlphaSatAdapterLimit(alphasatAdapterCredentialBuckets, credential.id, API_RATE_LIMIT)) {
-      res.setHeader('Retry-After', '60');
-      return alphaSatAdapterError(res, 429, 'rate_limited', requestId);
-    }
-    try {
-      const installationResult = await repositories.pool.query(
-        'SELECT installation_id AS "installationId" FROM alphasat_adapter_installation WHERE singleton=true',
-      );
-      const installationId = installationResult.rows[0]?.installationId;
-      if (!installationId) return alphaSatAdapterError(res, 503, 'installation_not_ready', requestId);
-      await repositories.pool.query('UPDATE alphasat_adapter_credentials SET last_used_at=now() WHERE id=$1', [credential.id]);
-      if (pathname === '/api/alphasat/v1/status') {
-        await repositories.pool.query(
-          `INSERT INTO audit_events (venue_id,action,entity_type,after_data)
-           VALUES (NULL,'alphasat.adapter.status_read','integration',jsonb_build_object('credential_id',$1::text))`,
-          [credential.id],
-        );
-        return json(res, 200, {
-          contract_version: '1.0',
-          product_code: 'hookah-pos',
-          installation_id: installationId,
-          product_version: String(process.env.CRM_RELEASE_ID || 'unknown').slice(0, 80),
-          state: 'ready',
-          checked_at: new Date().toISOString(),
-          capabilities: ['organizations.list', 'organizations.read'],
-        });
-      }
-      if (pathname === '/api/alphasat/v1/organizations') {
-        const organizationResult = await repositories.pool.query(
-          `SELECT id,name,is_active AS active
-           FROM organizations
-           WHERE id=$1`,
-          [credential.organizationId],
-        );
-        if (!organizationResult.rows[0]) return alphaSatAdapterError(res, 503, 'installation_not_ready', requestId);
-        const organization = organizationResult.rows[0];
-        await repositories.pool.query(
-          `INSERT INTO audit_events (venue_id,action,entity_type,entity_id,after_data)
-           VALUES (NULL,'alphasat.adapter.organizations_read','organization',$1,
-             jsonb_build_object('credential_id',$2::text))`,
-          [organization.id, credential.id],
-        );
-        return json(res, 200, {
-          items: [{ id: organization.id, name: organization.name, state: organization.active ? 'active' : 'suspended' }],
-          next_cursor: null,
-        });
-      }
-      const organizationMatch = pathname.match(/^\/api\/alphasat\/v1\/organizations\/([0-9a-f-]{36})$/i);
-      if (organizationMatch) {
-        const organizationResult = await repositories.pool.query(
-          `SELECT id,name,is_active AS active
-           FROM organizations
-           WHERE id=$1 AND id=$2`,
-          [organizationMatch[1], credential.organizationId],
-        );
-        if (!organizationResult.rows[0]) return alphaSatAdapterError(res, 404, 'organization_not_found', requestId);
-        const organization = organizationResult.rows[0];
-        await repositories.pool.query(
-          `INSERT INTO audit_events (venue_id,action,entity_type,entity_id,after_data)
-           VALUES (NULL,'alphasat.adapter.organization_read','organization',$1,
-             jsonb_build_object('credential_id',$2::text))`,
-          [organization.id, credential.id],
-        );
-        return json(res, 200, { id: organization.id, name: organization.name, state: organization.active ? 'active' : 'suspended' });
-      }
-      return alphaSatAdapterError(res, 404, 'route_not_found', requestId);
-    } catch (_) {
-      return alphaSatAdapterError(res, 503, 'installation_not_ready', requestId);
-    }
-  }
-  if (Number(req.headers['content-length'] || 0) > 2 * 1024 * 1024) return json(res, 413, { error: 'payload_too_large', maxBytes: 2 * 1024 * 1024 });
   const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now(); const bucket = requestBuckets.get(clientIp); const activeBucket = bucket && now - bucket.startedAt < API_RATE_WINDOW_MS ? bucket : { startedAt: now, count: 0 }; activeBucket.count += 1; requestBuckets.set(clientIp, activeBucket);
   if (activeBucket.count > API_RATE_LIMIT) { res.setHeader('Retry-After', '60'); return json(res, 429, { error: 'rate_limited', retryAfter: 60 }); }
+  if (Number(req.headers['content-length'] || 0) > 2 * 1024 * 1024) return json(res, 413, { error: 'payload_too_large', maxBytes: 2 * 1024 * 1024 });
   if (pathname === '/api/setup/status' && req.method === 'GET') {
     if (!firstRunSetupEnabled) return json(res, 200, { required: false });
     if (repositories?.pool) {
@@ -2794,7 +2657,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         if (!selected.rows[0]) return json(res, 404, { error: 'venue_not_found' });
       } catch (_) { return json(res, 503, { error: 'floor_unavailable' }); }
     }
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,t.archived_at AS "archivedAt",t.archive_version AS "archiveVersion",CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' WHEN EXISTS (SELECT 1 FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.table_id=t.id AND r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date) THEN 'reserved' ELSE CASE WHEN t.status='reserved'::table_status THEN 'free'::table_status ELSE t.status END END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z LEFT JOIN tables t ON t.zone_id=z.id AND ($2::boolean OR t.archived_at IS NULL) WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId, includeArchived]); const { rows: reservationRows } = await repositories.pool.query(`SELECT r.id,r.table_id AS "tableId",r.starts_at AS "startsAt",r.guests_count AS guests,COALESCE(g.full_name,'Гость') AS "guestName",to_char(r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'),'YYYY-MM-DD') AS date,to_char(r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'),'HH24:MI') AS time FROM reservations r JOIN venues v ON v.id=r.venue_id LEFT JOIN guests g ON g.id=r.guest_id AND g.venue_id=r.venue_id WHERE r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date ORDER BY r.starts_at,r.id`, [venueDbId]); const reservationsByTable = new Map(reservationRows.map((reservation) => [String(reservation.tableId), reservation])); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } if (row.id) { const reservation = reservationsByTable.get(String(row.id)); zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {}, archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null, archiveVersion: Number(row.archiveVersion || 0), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, guests: Number(reservation.guests || 0), date: reservation.date, time: reservation.time } : null }); } } return json(res, 200, { venueId: venueDbId, zones }); } catch (_) { return json(res, 503, { error: 'floor_unavailable' }); } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,t.archived_at AS "archivedAt",t.archive_version AS "archiveVersion",CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' WHEN EXISTS (SELECT 1 FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.table_id=t.id AND r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date) THEN 'reserved' ELSE CASE WHEN t.status='reserved'::table_status THEN 'free'::table_status ELSE t.status END END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z LEFT JOIN tables t ON t.zone_id=z.id AND ($2::boolean OR t.archived_at IS NULL) WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId, includeArchived]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } if (row.id) zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {}, archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null, archiveVersion: Number(row.archiveVersion || 0) }); } return json(res, 200, { venueId: venueDbId, zones }); } catch (_) { return json(res, 503, { error: 'floor_unavailable' }); } }
     const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.filter((table) => includeArchived || !table.archivedAt).map((table) => { const reservation = reservations.find((entry) => entry.tableId === table.id && entry.status === 'confirmed' && entry.date === today()); const occupied = orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)); return { ...table, archivedAt: table.archivedAt || null, archiveVersion: Number(table.archiveVersion || 0), status: table.status === 'blocked' ? 'blocked' : (occupied ? 'occupied' : reservation ? 'reserved' : table.status === 'reserved' ? 'free' : table.status), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, date: reservation.date, time: reservation.time, createdByName: reservation.createdByName || 'Сотрудник', createdByRole: reservation.createdByRole || 'Сотрудник' } : null }; }) }));
     return json(res, 200, { venueId: currentVenueId, zones: derivedFloor });
   }
