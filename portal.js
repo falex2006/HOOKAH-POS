@@ -449,6 +449,10 @@ const refreshSidebarGroups = () => {
   });
 };
 refreshSidebarGroups();
+document.querySelectorAll('.portal-sidebar .side-label').forEach((label) => {
+  const next = label.nextElementSibling;
+  if (next?.classList.contains('portal-nav') && next.hidden) label.hidden = true;
+});
 document.querySelectorAll('[data-owner-only]').forEach((node) => { if (!['owner', 'developer'].includes(portalUser.role)) node.hidden = true; });
 document.querySelectorAll('[data-staff-nav]').forEach((node) => { if (!portalPermissions.has('staff_view')) node.hidden = true; });
 document.querySelectorAll('[data-admin-mode-switch],.current-mode').forEach((node) => node.remove());
