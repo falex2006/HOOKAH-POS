@@ -1059,6 +1059,8 @@ try {
   assert.equal(closePreview.status, 200);
   const shiftExpected = Number(closePreview.body.current.expectedCash);
   assert.ok(Number.isFinite(shiftExpected), `the final shift has a usable cash preview: ${JSON.stringify(closePreview.body.current)}`);
+  await bartender.evaluate(() => document.querySelector('[data-table-action="close-panel"]')?.click());
+  await bartender.waitForFunction(() => !document.body.classList.contains('staff-order-open'));
   await bartender.locator('#shift-toggle').click();
   await bartender.locator('#staff-action-modal.open').waitFor();
   const expectedLabel = new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(shiftExpected);
