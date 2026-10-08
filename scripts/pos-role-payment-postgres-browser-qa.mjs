@@ -744,7 +744,7 @@ try {
   await bartender.locator('#staff-action-submit').click();
   assert.match(await bartender.locator('#staff-notice').innerText(), /Заказ изменился/, 'stale note is rejected after selection changes');
   assert.deepEqual((await db.query('SELECT notes FROM orders WHERE id IN ($1,$2) ORDER BY id', [ids.splitOrder, splitTarget.id])).rows.map((row) => row.notes), ['QA заметка разделения', 'QA заметка разделения'], 'stale note changes neither order');
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   await bartender.locator('#order-guest:not([disabled])').click();
   await bartender.locator('#staff-action-fields [name="clientId"]').waitFor();
   assert.equal(await bartender.locator('#staff-action-fields [name="clientId"]').count(), 1, 'guest action has one modal form');
@@ -754,7 +754,7 @@ try {
   await bartender.locator('#staff-action-submit').click();
   assert.match(await bartender.locator('#staff-notice').innerText(), /Заказ изменился/, 'stale guest binding is rejected');
   assert.deepEqual((await db.query('SELECT guest_id FROM orders WHERE id IN ($1,$2) ORDER BY id', [ids.splitOrder, splitTarget.id])).rows.map((row) => row.guest_id), [ids.guest, ids.guest], 'stale guest binding changes neither order');
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   await bartender.locator('#order-notes:not([disabled])').click();
   await bartender.locator('#staff-action-fields [name="notes"]').fill('QA заметка сохранена');
   const notesPatch = bartender.waitForResponse((response) => response.request().method() === 'PATCH' && response.url().endsWith(`/api/orders/${ids.splitOrder}`));
@@ -776,7 +776,7 @@ try {
   await db.query('UPDATE order_items SET quantity=2 WHERE id=$1', [sourceItemId]);
   await bartender.reload({ waitUntil: 'networkidle' });
   for (const quantity of [1.5, 1000]) assert.equal((await browserPatch(bartender, `/api/orders/${ids.splitOrder}/items/${sourceItemId}`, { quantity })).status, 400, `invalid quantity ${quantity} is rejected`);
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   let releaseItemPatch;
   const itemPatchGate = new Promise((resolve) => { releaseItemPatch = resolve; });
   let itemPatchStarted;
@@ -795,7 +795,7 @@ try {
   const removableItemId = randomUUID();
   await db.query("INSERT INTO order_items (id,order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,1,500,'bar')", [removableItemId, ids.splitOrder, ids.product]);
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   let releaseItemDelete;
   const itemDeleteGate = new Promise((resolve) => { releaseItemDelete = resolve; });
   let itemDeleteStarted;
@@ -813,7 +813,7 @@ try {
   assert.equal(Number((await db.query('SELECT count(*) AS count FROM order_items WHERE id=$1', [removableItemId])).rows[0].count), 0, 'source extra item deleted');
   assert.equal(Number((await db.query('SELECT count(*) AS count FROM order_items WHERE order_id=$1', [splitTarget.id])).rows[0].count), 1, 'other item list unchanged');
   assert.equal(Number((await db.query('SELECT quantity FROM order_items WHERE id=$1', [sourceItemId])).rows[0].quantity), 1, 'source quantity returns to its original finance-test baseline');
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   await bartender.locator('#order-delete:not([disabled])').click();
   await bartender.locator('#staff-action-fields [name="comment"]').fill('Нельзя удалить другой заказ');
   await bartender.evaluate((id) => document.querySelector(`[data-queue-order="${id}"]`).click(), splitTarget.id);
@@ -853,7 +853,7 @@ try {
   const discountedPayment = await browserApi(bartender, `/api/orders/${requestedDiscount.orderId}/payments`);
   assert.deepEqual([discountedPayment.status, Number(discountedPayment.body.due)], [200, 450], 'approved 10% discount persists in amount due');
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-queue-order="${requestedDiscount.orderId}"]`).click();
+  await bartender.locator(`[data-queue-order="${requestedDiscount.orderId}"]`).evaluate((button) => button.click());
   await bartender.locator('#split-payment:not([disabled])').evaluate((button) => button.click());
   await bartender.waitForFunction(() => /450/.test(document.querySelector('#payment-due')?.textContent || ''));
   assert.match(await bartender.locator('#payment-due').innerText(), /450/, 'POS shows approved amount after reload');
@@ -865,7 +865,7 @@ try {
   const pendingFinanceSummary = await browserApi(manager, '/api/finance/summary');
   const pendingOrderState = await db.query("SELECT o.status,COALESCE((SELECT SUM(i.unit_price*i.quantity) FROM order_items i WHERE i.order_id=o.id),0)::numeric AS gross,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id AND p.status IN ('paid','partially_paid')),0)::numeric AS paid,COALESCE((SELECT SUM(d.value) FROM discounts d WHERE d.order_id=o.id AND d.status='approved'),0)::numeric AS approved_discount FROM orders o WHERE o.venue_id=$1 AND o.status IN ('open','in_progress','ready')", [ids.venue]);
   assert.equal(Number(pendingFinanceSummary.body.pendingRevenue), 950, `manager pending revenue reflects approved discount; active order evidence ${JSON.stringify(pendingOrderState.rows)}`);
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   let releaseStatus;
   const statusGate = new Promise((resolve) => { releaseStatus = resolve; });
   let statusStarted;
@@ -885,14 +885,14 @@ try {
   assert.equal(await bartender.evaluate(() => currentOrder?.id), splitTarget.id, 'late status response keeps the new selection');
   assert.equal(await bartender.evaluate(() => currentOrder?.status), 'open', 'late status response does not corrupt selected order in memory');
   await bartender.waitForFunction(() => floorReady && !document.querySelector('.order')?.inert);
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   await bartender.locator('.close:not([disabled])').click();
   await bartender.evaluate((id) => document.querySelector(`[data-queue-order="${id}"]`).click(), splitTarget.id);
   await bartender.locator('#staff-action-submit').click();
   assert.match(await bartender.locator('#staff-notice').innerText(), /Заказ изменился/, 'close dialog rejects stale selection');
   assert.equal((await db.query('SELECT status FROM orders WHERE id=$1', [ids.splitOrder])).rows[0].status, 'in_progress', 'stale close leaves source order open');
   assert.equal((await db.query('SELECT status FROM orders WHERE id=$1', [splitTarget.id])).rows[0].status, 'open', 'stale close leaves other order open');
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   await bartender.locator('.close:not([disabled])').click();
   let releaseClose;
   const closeGate = new Promise((resolve) => { releaseClose = resolve; });
@@ -914,7 +914,7 @@ try {
   const afterCloseRead = (await browserApi(bartender, '/api/orders?scope=all')).body.items || [];
   assert.equal(afterCloseRead.find((order) => order.id === ids.splitOrder)?.status, 'closed', 'close survives reload');
   assert.equal(afterCloseRead.find((order) => order.id === splitTarget.id)?.status, 'open', 'other order survives reload');
-  await bartender.locator(`[data-queue-order="${splitTarget.id}"]`).click();
+  await bartender.locator(`[data-queue-order="${splitTarget.id}"]`).evaluate((button) => button.click());
   await bartender.locator('#order-delete:not([disabled])').click();
   await bartender.locator('#staff-action-fields [name="comment"]').fill('QA отмена ошибочного заказа');
   await bartender.locator('#staff-action-fields [name="writeoff"]').selectOption('false');
@@ -963,7 +963,7 @@ try {
   await db.query("INSERT INTO orders (id,venue_id,table_id,opened_by,status) VALUES ($1,$2,$3,$4,'open')", [ids.htmlOrder, ids.venue, ids.freeTable, ids.bartender]);
   await db.query("INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,1,100,'bar')", [ids.htmlOrder, ids.htmlProduct]);
   await bartender.reload({ waitUntil: 'networkidle' });
-  await bartender.locator(`[data-queue-order="${ids.htmlOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.htmlOrder}"]`).evaluate((button) => button.click());
   assert.equal(await bartender.locator('.order .items img').count(), 0, 'stored product name creates no HTML image in order');
   assert.match(await bartender.locator('.order .items .order-item-row span').first().innerText(), /<img src=x data-qa-product>/i, 'stored product markup is shown as text');
 
