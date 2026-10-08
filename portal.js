@@ -13,6 +13,7 @@ let portalTheme = 'dark';
 try { portalTheme = applyPortalTheme(localStorage.getItem(themeStorageKey) || 'dark'); } catch (_) { portalTheme = applyPortalTheme('dark'); }
 const portalRoleLabels = { owner: ['Владелец заведения', 'Полный доступ к заведению и сотрудникам'], admin: ['Администратор', 'Владелец заведения'], developer: ['Разработчик', 'Полный доступ к CRM'], manager: ['Управляющий', 'Операционное управление'], bartender: ['Бармен', 'Работа с заказами и гостями'], hookah_master: ['Кальянщик', 'Работа с заказами и гостями'], staff: ['Сотрудник', 'Работа с гостями'] };
 Object.assign(portalRoleLabels, { senior_bartender: ['Старший бармен', 'Работа с заказами и гостями'], senior_hookah_master: ['Старший кальянщик', 'Работа с заказами и гостями'], cleaner: ['Уборщица / уборщик', 'Рабочие поручения'], security: ['Охрана', 'Рабочие поручения'], technician: ['Техник', 'Рабочие поручения'], other_staff: ['Другая должность', 'Рабочие поручения'] });
+document.body.classList.toggle('staff-red-cursor', ['bartender', 'hookah_master'].includes(portalUser.role));
 const portalRole = portalRoleLabels[portalUser.role] || ['Пользователь', 'Ограниченный доступ'];
 const localDateKey = (value = new Date()) => { const raw = String(value || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw; const date = value instanceof Date ? value : new Date(value); if (Number.isNaN(date.getTime())) return raw.slice(0, 10); return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-'); };
 function getDashboardGreetingForHour(hour) { const value = Number(hour); if (!Number.isInteger(value) || value < 0 || value > 23) return 'Здравствуйте'; if (value >= 5 && value < 12) return 'Доброе утро'; if (value >= 12 && value < 18) return 'Добрый день'; if (value >= 18 && value < 22) return 'Добрый вечер'; return 'Доброй ночи'; }
@@ -84,6 +85,49 @@ if (administrationNav && !administrationNav.querySelector('a[href="/integrations
   administrationNav.append(link);
 }
 const adminNavigationAllowed = ['owner', 'admin', 'developer', 'manager'].includes(portalUser.role) || ['staff', 'staff_view', 'settings', 'diagnostics', 'tasks_manage', 'loyalty'].some((permission) => portalPermissions.has(permission));
+const employeePortalRole = ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'cleaner', 'security', 'technician', 'other_staff', 'staff'].includes(String(portalUser.role || '').toLowerCase());
+const canOpenEmployeeWorkspace = hasPortalPermission('floor') && hasPortalPermission('orders');
+const employeeOrdersRoute = canOpenEmployeeWorkspace ? '/?view=orders' : '/orders';
+// The employee shell follows the session role; custom permissions only add links.
+const normalizeEmployeeSidebar = (sidebar, makeLink) => {
+  document.body.classList.add('employee-portal');
+  sidebar.querySelectorAll(':scope > .portal-nav, :scope > .side-label, :scope > .sidebar-nav-groups, :scope > .sidebar-nav-group, :scope > .sidebar-menu-search, :scope > a[href="/admin"]').forEach((node) => node.remove());
+  const anchor = sidebar.querySelector(':scope > .sidebar-footer, :scope > .logout-button');
+  const current = new URL(location.href);
+  const appendGroup = (title, items) => {
+    const visible = items.filter((item) => item.available !== false && hasPortalPermission(item.permission));
+    if (!visible.length) return;
+    const label = document.createElement('div'); label.className = 'side-label'; label.textContent = title;
+    const nav = document.createElement('nav'); nav.className = 'portal-nav employee-nav';
+    visible.forEach((item) => {
+      const link = makeLink(item); const url = new URL(link.href);
+      for (const key of ['venue', 'venueId', 'workspace']) if (current.searchParams.has(key)) url.searchParams.set(key, current.searchParams.get(key));
+      link.href = url.pathname + url.search + url.hash;
+      const active = (url.pathname === current.pathname && (url.hash ? url.hash === current.hash : !current.hash)) || (item.href === '/?view=orders' && current.pathname === '/orders') || (item.href === '/finance' && current.pathname.startsWith('/finance/')) || (item.href === '/admin' && current.pathname === '/admin' && current.hash && !['#tasks', '#loyalty'].includes(current.hash));
+      link.classList.toggle('active', Boolean(active));
+      if (active) link.setAttribute('aria-current', 'page');
+      link.setAttribute('aria-label', item.label); link.title = item.label; nav.append(link);
+    });
+    if (anchor) { anchor.before(label, nav); } else sidebar.append(label, nav);
+  };
+  appendGroup('Операции', [
+    { href: '/', permission: 'floor', available: canOpenEmployeeWorkspace, label: 'Рабочий зал', iconName: 'table-layout' },
+    { href: employeeOrdersRoute, permission: 'orders', label: 'Заказы', iconName: 'receipt' },
+    { href: '/clients', permission: 'clients', label: 'Гости', iconName: 'users' },
+    { href: '/reservations', permission: 'reservations', label: 'Бронирования', iconName: 'calendar-event' },
+    { href: '/admin#tasks', permission: 'tasks', label: 'Задачи', iconName: 'list-check' },
+    { href: '/delivery', permission: 'delivery', label: 'Доставка', iconName: 'truck-delivery' },
+  ]);
+  appendGroup('КОНТРОЛЬ', [
+    { href: '/inventory', permission: 'inventory_read', label: 'Склад', iconName: 'package' },
+    { href: '/finance', permission: 'finance_read', label: 'Финансы', iconName: 'chart-bar' },
+    { href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'gift' },
+  ]);
+  if (adminNavigationAllowed) appendGroup('АДМИНИСТРИРОВАНИЕ', [{ href: '/admin', permission: 'dashboard', label: 'Панель администратора', iconName: 'layout-dashboard' }]);
+  // Preserve the existing profile, PIN, notification and shift DOM/handlers.
+  document.querySelector('.portal-header')?.classList.add('employee-header');
+  window.__applyInterfacePreferences?.();
+};
 // Keep the sidebar structure identical on every management page.
 const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
   document.querySelectorAll('a[href="/finance#discounts"]').forEach((link) => link.remove());
@@ -182,6 +226,7 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
     }
     link.href = targetUrl.pathname + targetUrl.search + targetUrl.hash; link.dataset.permission = permission; if (navigationModule) link.dataset.navigationModule = navigationModule; link.hidden = !hasPortalPermission(permission); link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
   };
+  if (employeePortalRole) { normalizeEmployeeSidebar(sidebar, makeLink); return; }
   // Include nav blocks inside disclosure groups so hash-based re-renders do
   // not create duplicate operation/control menus after the first grouping pass.
   const navs = [...sidebar.querySelectorAll('.portal-nav')];
@@ -504,11 +549,6 @@ document.querySelectorAll('.portal-sidebar .side-label').forEach((label) => {
 });
 document.querySelectorAll('[data-owner-only]').forEach((node) => { if (!['owner', 'developer'].includes(portalUser.role)) node.hidden = true; });
 document.querySelectorAll('[data-staff-nav]').forEach((node) => { if (!hasPortalPermission('staff_view')) node.hidden = true; });
-const employeePortalRole = ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'cleaner', 'security', 'technician', 'other_staff', 'staff'].includes(String(portalUser.role || '').toLowerCase());
-if (employeePortalRole && !adminNavigationAllowed) {
-  document.querySelector('.portal-sidebar a[href="/admin"]')?.closest('nav')?.remove();
-  document.querySelector('.portal-sidebar [data-nav-group="finance"]')?.remove();
-}
 document.querySelectorAll('[data-admin-mode-switch],.current-mode').forEach((node) => node.remove());
 
 const portalFooterRole = document.querySelector('.sidebar-footer b');
@@ -1492,7 +1532,7 @@ const refreshSidebarCounters = () => {
   });
   Promise.allSettled([api('/api/metrics'), api('/api/notifications?limit=1&filter=unread'), api('/api/shifts'), api('/api/integrations')]).then(([metrics, notifications, shifts, integrations]) => {
     const data = metrics.status === 'fulfilled' ? metrics.value : {};
-    setBadge('/orders', data.openOrders, 'Открытые заказы');
+    setBadge(employeePortalRole ? employeeOrdersRoute : '/orders', data.openOrders, 'Открытые заказы');
     setBadge('/reservations', data.reservationsToday, 'Брони на сегодня');
     setBadge('/inventory?view=stock', data.lowStock, 'Позиции ниже минимума');
     setBadge('/admin#tasks', data.discountRequests, 'Заявки, требующие внимания');

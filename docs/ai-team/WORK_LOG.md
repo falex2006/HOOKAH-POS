@@ -5147,3 +5147,7 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - deploy: build → stop CRM → backup/restore-check → migrations → CRM → nginx. Убрано автоматическое обновление infrastructure images; migrate сохраняет существующий db container.
 - Static deploy contract и fake migration failure/retry PASS. COOKIE_SECURE будет включён в приватной конфигурации HTTPS сервера.
 - Production validation и commit/CI фиксируются в отдельном релизном отчёте после выполнения.
+
+## 09.10.2026 — выпуск рабочего интерфейса
+- Сведены employee shell, время за столом, уникальная основная кнопка, статичная availability метка и красный курсор двух ролей.
+- Release gates syntax/shell/design/navigation/header/permissions/deploy PASS; details docs/release/STAFF_UI_RELEASE_2026_10_09.md.
