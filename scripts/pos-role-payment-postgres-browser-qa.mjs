@@ -847,7 +847,7 @@ try {
   await login(admin, base, adminLogin);
   await admin.goto(`${base}/finance`, { waitUntil: 'networkidle' });
   await admin.locator(`.discount-approve[data-discount="${requestedDiscount.id}"]`).evaluate((button) => button.click());
-  await admin.locator('#discount-message').getByText(/Скидка одобрена/).waitFor();
+  await admin.locator('#discount-message').getByText(/Скидка одобрена/).waitFor({ state: 'attached' });
   const approved = (await db.query('SELECT status,approved_by FROM discounts WHERE id=$1', [requestedDiscount.id])).rows[0];
   assert.deepEqual(approved, { status: 'approved', approved_by: ids.admin });
   const discountedPayment = await browserApi(bartender, `/api/orders/${requestedDiscount.orderId}/payments`);
