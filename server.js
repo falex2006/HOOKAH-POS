@@ -1860,6 +1860,7 @@ async function api(req, res) {
           const { rows } = await repositories.pool.query('SELECT s.id,s.opened_at AS "openedAt",s.opening_cash AS "openingCash",COALESCE(u.full_name,u.login,\'Не указан\') AS "openedByName" FROM shifts s LEFT JOIN users u ON u.id=s.opened_by AND (u.venue_id=s.venue_id OR u.organization_id=(SELECT organization_id FROM venues WHERE id=s.venue_id)) WHERE s.venue_id=$1 AND s.closed_at IS NULL ORDER BY s.opened_at DESC LIMIT 1', [venueDbId]);
           const row = rows[0];
           const current = row ? { id: row.id, openedAt: row.openedAt, closedAt: null, openingCash: Number(row.openingCash || 0) } : null;
+          if (current) Object.assign(current, await getShiftCashSummary(repositories.pool, venueDbId, current));
           return json(res, 200, { items: current ? [current] : [], current });
         } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
       }
@@ -1868,7 +1869,7 @@ async function api(req, res) {
       const unresolvedLegacyCash = cashPayments.filter((payment) => !payment.shiftId);
       const depositCash = clients.flatMap((guest) => guest.depositTopUps || []).filter((receipt) => receipt.shiftId === shift?.id && receipt.method === 'cash').reduce((sum, receipt) => sum + Number(receipt.amount || 0), 0);
       const reservationCash = reservations.flatMap((reservation) => reservation.prepaymentReceipts || []).filter((receipt) => receipt.shiftId === shift?.id && receipt.method === 'cash').reduce((sum, receipt) => sum + Number(receipt.amount || 0), 0);
-      const current = shift ? { id: shift.id, openedAt: shift.openedAt, closedAt: null, openingCash: Number(shift.openingCash || 0) } : null;
+      const current = shift ? { id: shift.id, openedAt: shift.openedAt, closedAt: null, openingCash: Number(shift.openingCash || 0), unresolvedLegacyCashCount: unresolvedLegacyCash.length, unresolvedLegacyCashAmount: unresolvedLegacyCash.reduce((sum, payment) => sum + Number(payment.amount || 0), 0), expectedCash: unresolvedLegacyCash.length ? null : Number(shift.openingCash || 0) + cashPayments.filter((payment) => payment.shiftId === shift.id).reduce((sum, payment) => sum + Number(payment.amount || 0), 0) + depositCash + reservationCash, cashPreviewAt: new Date().toISOString() } : null;
       return json(res, 200, { items: current ? [current] : [], current });
     }
     const canSeeShiftOpener = hasPermission(req, 'finance_read');
