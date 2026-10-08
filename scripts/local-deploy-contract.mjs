@@ -87,8 +87,15 @@ assert.match(deploy, /recovery-\$\(date -u \+%Y%m%dT%H%M%S%N\)/, 'a new recovery
 assert.match(deploy, /already deployed and healthy; skipping duplicate deployment/, 'a healthy identical release must be idempotent');
 assert.match(deploy, /BACKUP_LABEL="\$backup_label" \.\/backup-postgres\.sh/, 'each new release attempt must create or reuse its matching pre-release backup');
 assert.ok(deploy.indexOf("printf 'in-progress|") < deploy.indexOf('BACKUP_LABEL="$backup_label"'), 'the attempt and backup label must be persisted before writing the snapshot');
-assert.ok(deploy.indexOf('BACKUP_LABEL=') < deploy.indexOf('$COMPOSE pull'), 'the database backup must be verified before updating images');
-assert.match(deploy, /\$COMPOSE pull db nginx/, 'pull only published infrastructure images; the CRM image is built from source');
+assert.ok(deploy.indexOf('$COMPOSE stop crm') < deploy.indexOf('BACKUP_DIR='), 'stop writes before final backup');
+assert.ok(deploy.indexOf('./verify-backup.sh') < deploy.indexOf('SKIP_MENU_SEED_ONCE="$skip_menu_seed_once" ./migrate-vps.sh'), 'restore must pass before migration');
+assert.doesNotMatch(deploy, /\$COMPOSE up -d\s*\n/, 'do not start new API before migrations');
+assert.match(migrate, /up -d --no-recreate db/);
+assert.ok(migrate.indexOf('done\n\necho') < migrate.indexOf('up -d --no-deps crm'), 'start API after migration loop');
+const restore = read('verify-backup.sh');
+assert.match(restore, /created=false[\s\S]*?\[ "\$created" = true \] \|\| return 0/);
+assert.match(restore, /createdb[^\n]*\ncreated=true/);
+assert.doesNotMatch(deploy, /\$COMPOSE pull db nginx/, 'scoped application release must not upgrade infrastructure');
 assert.match(deploy, /\$COMPOSE build --pull crm/, 'build the CRM service from the checked-out release');
 assert.match(backup, /if \[ -e "\$file" \]/, 'repeated releases must reuse a verified backup instead of creating duplicates');
 assert.match(backup, /gzip -t "\$file"/, 'a reused backup must be integrity checked');
