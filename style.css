@@ -3835,7 +3835,8 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 
 .staff-theme .table-context-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px}
 .staff-theme .table-context-actions:empty{display:none}
-.staff-theme .table-context-actions button{min-height:40px;padding:9px 12px;display:inline-flex;align-items:center;gap:7px;border-radius:10px}
+.staff-theme .table-context-actions button{min-height:48px;padding:10px 14px;display:inline-flex;align-items:center;gap:7px;border-radius:10px}
+.staff-theme .table-context-note{flex:1 0 100%;margin:0 0 2px;color:#ffbf78;font-size:12px;line-height:1.4}
 .staff-theme .table-context-actions .icon{width:16px;height:16px}
 .staff-theme .order-more{margin-top:10px;border:1px solid #343b46;border-radius:10px;background:#1a1e24}
 .staff-theme .order-more summary{cursor:pointer;padding:12px 14px;color:#cbd2db;font-weight:600;list-style:none}
