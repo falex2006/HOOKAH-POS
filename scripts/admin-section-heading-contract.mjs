@@ -14,6 +14,8 @@ assert.match(adminHtml, /<b data-admin-section-title>Главная<\/b>/,
   'admin top bar exposes a dynamic subsection title');
 assert.match(titleMap, /'#staff':\s*'Персонал'/,
   'staff subsection maps to the same label as its page heading');
+assert.match(titleMap, /'#company':\s*'Настройки заведения'/,
+  'company top-bar title matches the focused company page heading');
 assert.match(titleMap, /'#venue-layout-settings':\s*'Залы и рабочая зона'/,
   'venue layout settings use the settings name from the sitemap instead of the operational hall/order label');
 assert.match(portal, /window\.addEventListener\('hashchange', updateAdminSectionTitle\)/,

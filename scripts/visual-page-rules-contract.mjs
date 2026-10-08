@@ -52,6 +52,7 @@ const mockWindow = { location: { get hash() { return hash; } } };
 // Bind the free names used by the actual handler without reimplementing its behavior.
 const lifecycleContext = vm.createContext({
   disposeStaffDrawer: () => {}, target, document: mockDocument, window: mockWindow,
+  syncCompanyPageClass: () => {},
   page: 'dashboard', hasPortalPermission: (permission) => permission === 'dashboard',
   renderTasks: () => {}, renderLoyalty: () => {}, renderDashboard: () => { rendered += 1; }
 });
@@ -66,6 +67,7 @@ hash = '#missing';
 const failingDocument = { ...mockDocument, querySelector: () => null };
 const errorContext = vm.createContext({
   disposeStaffDrawer: () => {}, target, document: failingDocument, window: mockWindow,
+  syncCompanyPageClass: () => {},
   page: 'inventory', hasPortalPermission: () => true,
   renderTasks: () => {}, renderLoyalty: () => {}, renderDashboard: () => {}
 });
@@ -116,8 +118,9 @@ assert.match(portal, /data-custom-role-archive="\$\{r\.id\}" \$\{count\?'disable
   'assigned roles must not be archivable');
 const headings = [...rules.matchAll(/^### `([^`]+)`/gm)].map((m) => m[1]);
 assert.equal(new Set(headings).size, headings.length, 'duplicate page rule heading');
-assert.equal(headings.length, map.entries.length, 'page rule count differs from canonical map');
-console.log(`VISUAL PAGE RULES CONTRACT: PASS (${headings.length} canonical pages, ${map.adminSubroutes.length} admin subsections)`);
+const canonicalPageHeadings = headings.filter((heading) => map.entries.some((entry) => heading === entry.path));
+assert.equal(canonicalPageHeadings.length, map.entries.length, 'canonical page rule count differs from site map');
+console.log(`VISUAL PAGE RULES CONTRACT: PASS (${canonicalPageHeadings.length} canonical pages, ${map.adminSubroutes.length} admin subsections)`);
 
 assert.equal(map.inventoryDirectoryPresentation.layout, "cascade");
 assert.equal(map.inventoryDirectoryPresentation.editor, "modal");

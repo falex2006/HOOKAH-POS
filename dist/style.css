@@ -3985,3 +3985,69 @@ body.staff-red-cursor :is(:disabled,[aria-disabled="true"]),body.staff-red-curso
 body.staff-red-cursor [aria-busy="true"],body.staff-red-cursor [aria-busy="true"] *{cursor:wait!important}
 body.staff-red-cursor [inert],body.staff-red-cursor [inert] *{cursor:not-allowed!important}
 }
+/* Company settings: one page frame, grouped fields and a stable save area. */
+#page-content.company-page-active{position:relative;isolation:isolate}
+#page-content.company-page-active::before{content:"";position:absolute;inset:12px;border:1px solid #c1c8d0;border-radius:16px;pointer-events:none;z-index:-1;animation:company-page-frame-pulse 8s ease-in-out infinite}
+@keyframes company-page-frame-pulse{0%,100%{opacity:.18}50%{opacity:.5}}
+.light-theme #page-content.company-page-active::before{border-color:#526672}
+#company .company-form{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start;max-width:100%}
+#company .company-fieldset{min-width:0;margin:0;padding:20px;border:1px solid #363d48;border-radius:12px;animation:none}
+#company .company-fieldset>legend{padding:0 8px;color:#f3f5f7;font-size:15px;font-weight:700}
+#company .company-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 24px}
+#company .company-field-grid>label{display:grid;gap:8px;min-width:0;color:#c1c8d0;font-size:13px}
+#company .company-field-wide{grid-column:1/-1}
+#company .company-field-grid input,#company .company-field-grid select{min-height:44px}
+#company .company-form .muted{color:#9aa3ae;line-height:1.5}
+#company .company-phone-list{width:100%;min-width:0}
+#company .company-phone-row{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(160px,1.4fr) auto 44px;align-items:center;gap:12px}
+#company .company-phone-row>label{display:flex;align-items:center;gap:8px;min-height:44px;white-space:nowrap;color:#c1c8d0}
+#company .company-phone-row input[type=radio]{appearance:auto;width:18px;height:18px;min-width:18px;min-height:18px;margin:0;padding:0;border:0;border-radius:50%;background:none;box-shadow:none;accent-color:#ff7180;flex:0 0 18px}
+#company .company-phone-row input[type=tel]{min-width:0}
+#company .company-phone-row__remove,#company .staff-phone-row__remove{min-width:44px;min-height:44px}
+#company .company-logo-row{display:grid;grid-template-columns:128px minmax(0,1fr);gap:24px;align-items:start}
+#company .company-logo-preview{width:128px;height:128px;display:grid;place-items:center;padding:12px;box-sizing:border-box;background:#15181d;border:1px solid #363d48;border-radius:12px;color:#9aa3ae;text-align:center;font-size:12px}
+#company .company-logo-preview img{max-width:100%;max-height:100%;object-fit:contain}
+#company .company-logo-controls{display:grid;gap:12px;min-width:0}
+#company .company-logo-controls .logo-upload{grid-column:auto;min-width:0;min-height:0}
+#company #company-logo-name{overflow-wrap:anywhere}
+#company #company-remove-logo{justify-self:start}
+#company #company-remove-logo[hidden]{display:none}
+#company .company-layout-note{padding:16px 20px;border:1px solid #363d48;border-radius:12px;background:#15181d}
+#company .company-layout-note p{margin:8px 0 12px}
+#company .company-save-footer{display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding-top:20px;border-top:1px solid #363d48}
+#company .company-save-footer .button{min-height:44px;align-self:center}
+#company #company-message{margin:0;min-width:0;flex:1 1 240px;line-height:1.5}
+#company .company-policy-details{margin:16px 0}
+#company .company-policy-details summary{cursor:pointer;min-height:44px;display:list-item;align-content:center;color:#c1c8d0}
+.light-theme #company .company-fieldset,.light-theme #company .company-layout-note,.light-theme #company .company-logo-preview,.light-theme #company .company-save-footer{border-color:#d6e1e6}
+.light-theme #company .company-fieldset>legend,.light-theme #company .company-field-grid>label,.light-theme #company .company-phone-row>label,.light-theme #company .company-policy-details summary{color:#20313d}
+.light-theme #company .company-layout-note,.light-theme #company .company-logo-preview{background:#f4f7fa}
+.light-theme #company .company-form .muted{color:#526672}
+body.velora-theme:has(#page-content.company-page-active) .modal.open :is(.action-box,.payment-box,.custom-role-editor-box,.catalog-box){animation:none;background:linear-gradient(#1b1f25,#171a1f);border:1px solid #363d48!important}
+body.velora-theme.light-theme:has(#page-content.company-page-active) .modal.open :is(.action-box,.payment-box,.custom-role-editor-box,.catalog-box){background:#fff;border-color:#d6e1e6!important}
+@media(max-width:1100px){#company .company-phone-row{grid-template-columns:minmax(100px,.8fr) minmax(140px,1.4fr) 44px}#company .company-phone-row>label{grid-column:1/3;grid-row:2}#company .company-phone-row>.staff-phone-row__remove{grid-column:3;grid-row:1/3}}
+@media(max-width:650px){#company .company-field-grid{grid-template-columns:minmax(0,1fr)}#company .company-fieldset{padding:14px}#company .company-logo-row{grid-template-columns:minmax(0,1fr)}#company .company-save-footer{align-items:stretch}#company .company-save-footer .button{width:100%}#company .company-phone-row{grid-template-columns:minmax(0,1fr) 44px}#company .company-phone-row>select,#company .company-phone-row>.custom-select,#company .company-phone-row>input[type=tel],#company .company-phone-row>label{grid-column:1;grid-row:auto}#company .company-phone-row>.staff-phone-row__remove{grid-column:2;grid-row:1/4}#page-content.company-page-active::before{inset:6px}}
+@media(prefers-reduced-motion:reduce){#page-content.company-page-active::before{animation:none;opacity:.3}}
+/* Keep settings navigation compact while editing the venue card. */
+#page-content.company-page-active .settings-hub{padding:12px;gap:12px;margin-top:12px}
+#page-content.company-page-active .settings-hub-head{display:none}
+#page-content.company-page-active .settings-category-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0}
+#page-content.company-page-active .settings-category-card{box-sizing:border-box;min-height:48px;padding:8px 12px;gap:12px}
+#page-content.company-page-active .settings-category-card small{display:none}
+#page-content.company-page-active .settings-category-card[href="#company"]{border-color:#ff7180;background:#20242a}
+.light-theme #page-content.company-page-active .settings-category-card[href="#company"]{background:#fff}
+@media(max-width:700px){#page-content.company-page-active .settings-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){#page-content.company-page-active .settings-category-grid{grid-template-columns:minmax(0,1fr)}}
+/* Venue form controls must follow the selected light theme, including enhanced selects. */
+.portal.light-theme #company .custom-select-trigger,.portal.light-theme #company .custom-select-menu{background:#fff;border-color:#d6e1e6;color:#20313d}
+.portal.light-theme #company .custom-select-menu{box-shadow:0 8px 24px #1934420d}
+.portal.light-theme #company .custom-select-option{background:transparent;color:#20313d}
+.portal.light-theme #company .custom-select-option:hover,.portal.light-theme #company .custom-select-option:focus-visible,.portal.light-theme #company .custom-select-option[aria-selected="true"]{background:#edf2f5;color:#20313d}
+.portal.light-theme #company .custom-select-trigger:focus-visible{outline:2px solid #526672;outline-offset:2px}
+.portal.light-theme #company .company-phone-list{background:#fff;border-color:#d6e1e6;color:#20313d}
+.portal.light-theme #company .company-phone-list .staff-phone-list__header b{color:#20313d}
+.portal.light-theme #company .company-phone-list .staff-phone-list__add,.portal.light-theme #company .company-phone-list .staff-phone-row__remove{background:#f4f7fa;border-color:#d6e1e6;color:#20313d}
+.portal.light-theme #company .company-form .logo-upload{background:#f4f7fa;border-color:#d6e1e6;color:#20313d}
+.portal.light-theme #company .company-form .logo-upload:hover{background:#fff;border-color:#526672}
+.portal.light-theme #company .company-form .logo-upload::after,.portal.light-theme #company .company-form .logo-upload input[type=file]::file-selector-button{background:#fff;border-color:#d6e1e6;color:#20313d}
+.portal.light-theme #company .company-form .logo-upload:hover::after{border-color:#526672;color:#20313d}
