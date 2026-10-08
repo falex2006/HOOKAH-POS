@@ -3859,3 +3859,12 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .table-context-more summary::-webkit-details-marker{display:none;}
 .table-context-more[open] summary{border-color:var(--accent,#ff5a70);}
 .table-context-more>button{display:flex;margin-top:8px;white-space:nowrap;}
+
+/* Desktop POS: keep the selected-table panel in view while its long order
+   content scrolls independently from the floor map. */
+@media (min-width:901px){
+  .staff-theme .workspace{min-height:0;align-items:start}
+  .staff-theme .order{position:sticky;top:0;max-height:calc(100vh - 130px);overflow-y:auto;overscroll-behavior:contain}
+  .staff-theme .order-head{position:sticky;top:-22px;z-index:3;padding-top:22px;padding-bottom:10px;background:linear-gradient(#151f26 82%,transparent)}
+  .staff-theme .table-context-actions{position:sticky;top:58px;z-index:2;padding-bottom:8px;background:linear-gradient(#151f26 82%,transparent)}
+}
