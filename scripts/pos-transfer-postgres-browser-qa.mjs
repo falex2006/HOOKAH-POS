@@ -115,6 +115,9 @@ try {
         await db.query('DELETE FROM orders WHERE venue_id=$1', [ids.venue]);
         await db.query('DELETE FROM products WHERE venue_id=$1', [ids.venue]);
         await db.query('DELETE FROM shifts WHERE venue_id=$1', [ids.venue]);
+        await db.query('ALTER TABLE inventory_purchase_reversal_policies DISABLE TRIGGER USER');
+        await db.query('DELETE FROM inventory_purchase_reversal_policies WHERE venue_id=$1', [ids.venue]);
+        await db.query('ALTER TABLE inventory_purchase_reversal_policies ENABLE TRIGGER USER');
         await db.query('DELETE FROM users WHERE venue_id=$1', [ids.venue]);
         await db.query('DELETE FROM zones WHERE venue_id=$1', [ids.venue]);
         await db.query('DELETE FROM venues WHERE id=$1', [ids.venue]);
