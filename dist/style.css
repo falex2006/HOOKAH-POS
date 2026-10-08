@@ -3832,6 +3832,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 @media(max-width:480px){.velora-theme .loyalty-reconciliation-panel>.toolbar-row,.velora-theme #loyalty-reconciliation-results>.kpi-grid{grid-template-columns:1fr}}
 
 .portal.velora-theme .staff-catalog :is(.staff-directory-row,.staff-table-row) .staff-card-actions button{flex:0 0 auto;height:auto;padding:10px 12px}
+.velora-theme .reservation-row.is-focused{border-color:#ff6878;box-shadow:0 0 0 3px #ff68782b,0 12px 28px #0005;scroll-margin-top:90px}
 
 .staff-theme .table-context-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px}
 .staff-theme .table-context-actions:empty{display:none}
