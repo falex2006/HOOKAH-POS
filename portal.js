@@ -4516,7 +4516,7 @@ function renderFinance() {
     document.title = `Hookah POS — ${payroll ? 'Зарплата' : 'Финансы'}`;
     const anchor = document.getElementById(location.hash.slice(1));
     for (let parent = anchor?.parentElement; parent && parent !== target; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
-    normalizeManagementSidebar({ routeChange: true });
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !portalPermissions.has(link.dataset.permission); });
     requestAnimationFrame(() => (payroll ? payrollTitle : anchor || target.querySelector('.page-title'))?.scrollIntoView({ block: 'start' }));
   };
   if (target._financeHashChangeHandler) window.removeEventListener('hashchange', target._financeHashChangeHandler);
@@ -5732,7 +5732,7 @@ async function renderAuthorizedFinancePage() {
     session.permissions.forEach((permission) => portalPermissions.add(permission));
     portalPermissions.add('dashboard');
     if (session.user) { portalUser = session.user; localStorage.setItem('crm_session_user', JSON.stringify(portalUser)); }
-    normalizeManagementSidebar({ routeChange: true });
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !portalPermissions.has(link.dataset.permission); });
     if (!portalPermissions.has(pagePermissions[page])) {
       target.innerHTML = '<section class="panel"><h1>Доступ ограничен</h1><p>Для этого раздела требуется право управления финансами. Владелец может изменить доступ в настройках роли.</p><a class="button" href="/finance">Обзор финансов</a></section>';
       return;
@@ -5760,7 +5760,7 @@ async function renderAuthorizedReservationsPage() {
       portalUser = session.user;
       localStorage.setItem('crm_session_user', JSON.stringify(portalUser));
     }
-    normalizeManagementSidebar({ routeChange: true });
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !portalPermissions.has(link.dataset.permission); });
     if (!portalPermissions.has('reservations')) {
       target.innerHTML = '<section class="panel"><h1>Доступ ограничен</h1><p>У этой роли нет доступа к бронированиям. Владелец может изменить право в настройках системной роли.</p><a class="button" href="/">Вернуться в рабочий зал</a></section>';
       return;
