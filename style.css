@@ -1321,7 +1321,7 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .velora-theme .staff-row.inactive{grid-template-columns:34px minmax(0,1fr) 100px max-content max-content max-content}
 
 /* POS workspace: keep the service surface dense and the order actions reachable. */
-@media(max-width:1850px){.staff-theme .workspace{grid-template-columns:minmax(0,1fr) 380px}}
+@media(max-width:1850px){.staff-theme .workspace{grid-template-columns:minmax(0,1fr)}}
 @media (min-width:1181px){
   .staff-theme .workspace{grid-template-columns:minmax(0,1fr) minmax(340px,380px);gap:16px;padding-inline:28px}
   .staff-theme .tables{grid-template-columns:repeat(4,minmax(112px,1fr));gap:10px}
