@@ -437,6 +437,14 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
     requestAnimationFrame(() => sidebar.querySelectorAll('details.sidebar-nav-group').forEach(revealActiveSidebarLink));
   };
   window.addEventListener('resize', sidebar._activeNavigationResizeHandler, { passive: true });
+  // A few older templates keep the original flat operations nav beside the
+  // grouped one. Remove those stale copies after grouping has completed.
+  const canonicalOperations = sidebar.querySelector('details.sidebar-nav-group[data-nav-group="operations"] .portal-nav');
+  if (canonicalOperations) sidebar.querySelectorAll('.portal-nav').forEach((nav) => {
+    if (nav === canonicalOperations || nav === mainNav) return;
+    const routes = new Set([...nav.querySelectorAll('a')].map((link) => link.getAttribute('href')));
+    if (routes.has('/reservations') && routes.has('/orders') && routes.has('/')) nav.remove();
+  });
   window.__applyInterfacePreferences?.();
 };
 normalizeManagementSidebar();
