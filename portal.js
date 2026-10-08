@@ -2830,7 +2830,11 @@ function renderDashboard() {
   const dashboardHashChangeHandler = () => {
     disposeStaffDrawer();
     target.classList.toggle('staff-catalog-page', window.location.hash === '#staff');
-    normalizeManagementSidebar({ routeChange: true });
+    // The sidebar is normalized during portal bootstrap. Re-running the
+    // structural grouping here can attempt to move an existing nav into one
+    // of its descendants on staff routes; refresh visibility only after the
+    // server session has replaced the cached permissions.
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !portalPermissions.has(link.dataset.permission); });
     if (page === 'dashboard') {
       if (window.location.hash === '#tasks') renderTasks();
       else if (window.location.hash === '#loyalty') renderLoyalty();
@@ -2969,7 +2973,7 @@ function renderInventory() {
     const nextUrl = new URL(location.href);
     if (view === 'stock') nextUrl.searchParams.delete('view'); else nextUrl.searchParams.set('view', view);
     if (nextUrl.search !== location.search && historyMode) history[historyMode + 'State']({}, '', nextUrl.pathname + nextUrl.search + nextUrl.hash);
-    normalizeManagementSidebar({ routeChange: true });
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !portalPermissions.has(link.dataset.permission); });
     if (scroll) document.querySelector('.portal-main')?.scrollTo({ top: 0, behavior: 'smooth' });
     return view;
   };
