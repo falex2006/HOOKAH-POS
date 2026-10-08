@@ -5154,3 +5154,6 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 
 ## 09.10.2026 — Company page audit and polish
 Fixed late preference route visibility, grouped company form and compact navigation, logo lifecycle, timezone preservation, explicit phone limit, real-room deposit link, scoped8s page pulse. Architect/frontend/code-health approved; API31 and relevant contracts PASS, Edge local save/reload/navigation/light-dark desktop QA PASS. Details: docs/release/COMPANY_PAGE_RELEASE_2026_10_09.md.
+
+## 09.10.2026 — Compact table elapsed timer
+Visible seating duration now uses unbounded HH:MM in a centered compact badge, no text labels. Unknown remains —:—; title and accessible label preserve duration meaning. Saved opening timestamps, role guards,30-second updates and rotation layout unchanged. Timer regression covers100+hours, invalid timestamps, clock skew, reuse and source/dist. Syntax/design/staff shell/permissions/timer QA PASS. CSS410/app214. User explicitly authorized Git/VPS.

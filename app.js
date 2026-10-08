@@ -276,9 +276,9 @@ function drawQueue(filter=queueFilter){queueFilter=filter;const chips=document.q
 function tableElapsedLabel(order, now=Date.now()) {
   const raw=order?.openedAt||order?.createdAt;
   const started=raw?new Date(raw).getTime():NaN;
-  if(!Number.isFinite(started))return 'Время неизвестно';
+  if(!Number.isFinite(started))return '—:—';
   const minutes=Math.floor(Math.max(0,now-started)/60000);
-  return 'За столом: '+(minutes>=60?Math.floor(minutes/60)+' ч '+minutes%60+' мин':minutes+' мин');
+  return String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
 }
 function updateTableElapsedTimes(){
   if(!floorReady||(!staticStaffDemo()&&!staffCanWork()))return;
@@ -294,8 +294,8 @@ function updateTableElapsedTimes(){
     timer.textContent=tableElapsedLabel(order,now);
     const baseLabel=node.dataset.elapsedBaseLabel||node.getAttribute('aria-label')||'';
     node.dataset.elapsedBaseLabel=baseLabel;
-    node.setAttribute('aria-label',baseLabel+' · '+timer.textContent);
-    timer.title='От открытия заказа';
+    node.setAttribute('aria-label',baseLabel+' · '+(order?'Время за столом '+timer.textContent.replace(':',' часов ')+' минут':'Время за столом неизвестно'));
+    timer.title=order?'Время за столом · часы:минуты · от открытия заказа':'Время за столом неизвестно';
   });
 }
 window.setInterval(()=>{if(document.visibilityState==='visible')updateTableElapsedTimes();},30000);

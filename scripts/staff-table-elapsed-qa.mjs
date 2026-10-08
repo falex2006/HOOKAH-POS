@@ -33,15 +33,15 @@ const context = vm.createContext({
 });
 vm.runInContext(`${app.slice(start, end)}\nglobalThis.subject = { tableElapsedLabel, updateTableElapsedTimes };`, context);
 const { tableElapsedLabel: label, updateTableElapsedTimes: update } = context.subject;
-assert.equal(label({ createdAt: '2026-10-09T11:59:30Z' }), 'За столом: 0 мин');
-assert.equal(label({ createdAt: '2026-10-09T11:01:00Z' }), 'За столом: 59 мин');
-assert.equal(label({ createdAt: '2026-10-09T10:59:00Z' }), 'За столом: 1 ч 1 мин');
-assert.equal(label({ createdAt: '2026-10-08T10:00:00Z' }), 'За столом: 26 ч 0 мин');
-assert.equal(label({ createdAt: '2026-10-09T17:00:00+05:00' }), 'За столом: 0 мин', 'parse saved timezone offset');
-assert.equal(label({ createdAt: '2026-10-09T13:00:00Z' }), 'За столом: 0 мин', 'clock skew never yields negative elapsed');
-assert.equal(label({ createdAt: 'invalid' }), 'Время неизвестно');
-assert.equal(label({ updatedAt: '2026-10-09T11:00:00Z' }), 'Время неизвестно', 'updates cannot invent an opening');
-assert.equal(label({ openedAt: '2026-10-09T10:00:00Z', createdAt: '2026-10-09T11:00:00Z' }), 'За столом: 2 ч 0 мин');
+assert.equal(label({ createdAt: '2026-10-09T11:59:30Z' }), '00:00');
+assert.equal(label({ createdAt: '2026-10-09T11:01:00Z' }), '00:59');
+assert.equal(label({ createdAt: '2026-10-09T10:59:00Z' }), '01:01');
+assert.equal(label({ createdAt: '2026-10-08T10:00:00Z' }), '26:00');
+assert.equal(label({ createdAt: '2026-10-09T17:00:00+05:00' }), '00:00', 'parse saved timezone offset');
+assert.equal(label({ createdAt: '2026-10-09T13:00:00Z' }), '00:00', 'clock skew never yields negative elapsed');
+assert.equal(label({ createdAt: 'invalid' }), '—:—');
+assert.equal(label({ updatedAt: '2026-10-09T11:00:00Z' }), '—:—', 'updates cannot invent an opening');
+assert.equal(label({ openedAt: '2026-10-09T10:00:00Z', createdAt: '2026-10-09T11:00:00Z' }), '02:00');
 context.openOrders = [
   { tableId: '1', status: 'open', createdAt: '2026-10-09T11:00:00Z' },
   { tableId: 'table-1', status: 'in_progress', createdAt: '2026-10-09T10:00:00Z' },
@@ -51,9 +51,11 @@ context.openOrders = [
   { tableId: 'table-3', status: 'open', createdAt: '2026-10-09T09:00:00Z' },
 ];
 update();
-assert.equal(occupied.children[0].textContent, 'За столом: 2 ч 0 мин', 'earliest active saved opening wins');
-assert.equal(waiting.children[0].textContent, 'Время неизвестно');
+assert.equal(occupied.children[0].textContent, '02:00', 'earliest active saved opening wins');
+assert.equal(waiting.children[0].textContent, '—:—');
 assert.equal(free.children.length, 0, 'free table never gets a timer');
+assert.match(occupied.label, /Время за столом 02 часов 00 минут/);
+assert.equal(label({createdAt:'2026-10-05T08:00:00Z'}), '100:00', 'hours never wrap after 24h or 99h');
 const timer = occupied.children[0], aria = occupied.label;
 update(); assert.equal(occupied.children.length, 1); assert.equal(occupied.children[0], timer, 'timer node is reused'); assert.equal(occupied.label, aria, 'accessible label does not accumulate');
 assert.equal(context.openOrders[0].createdAt, '2026-10-09T11:00:00Z', 'rendering never sorts source orders in place');
@@ -62,7 +64,7 @@ context.allowed = true; context.floorReady = false; update(); assert.equal(timer
 context.floorReady = true;
 assert.equal(intervals.length, 1); assert.equal(intervals[0].delay, 30000);
 context.document.visibilityState = 'hidden'; intervals[0].callback(); assert.equal(timer.textContent, 'unchanged');
-context.document.visibilityState = 'visible'; events.visibilitychange(); assert.equal(timer.textContent, 'За столом: 2 ч 0 мин');
+context.document.visibilityState = 'visible'; events.visibilitychange(); assert.equal(timer.textContent, '02:00');
 occupied.dataset.status = 'free'; update(); assert.equal(occupied.children.length, 0); assert.equal(occupied.label, 'Стол table-1: occupied'); assert.equal(occupied.dataset.elapsedBaseLabel, undefined);
 const renderStart = app.indexOf('const renderZone='), renderEnd = app.indexOf('const showFloorUnavailable=', renderStart);
 assert.match(app.slice(renderStart, renderEnd), /updateTableElapsedTimes\(\);\s*updateFloorMapMode\(\);/, 'timers are included before layout fitting');
