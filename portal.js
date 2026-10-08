@@ -449,6 +449,10 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
   operationGroups.slice(1).forEach((group) => group.remove());
   const operationGroup = operationGroups[0] || sidebar.querySelector('details.sidebar-nav-group[data-nav-group="operations"]');
   if (operationGroup) operationGroup.querySelectorAll(':scope > .portal-nav').forEach((nav, index) => { if (index > 0) nav.remove(); });
+  requestAnimationFrame(() => {
+    const group = sidebar.querySelector('details.sidebar-nav-group[data-nav-group="operations"]');
+    group?.querySelectorAll(':scope > .portal-nav').forEach((nav, index) => { if (index > 0) nav.remove(); });
+  });
   window.__applyInterfacePreferences?.();
 };
 normalizeManagementSidebar();
