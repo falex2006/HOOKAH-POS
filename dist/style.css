@@ -3854,3 +3854,8 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 
 /* Keep the hookah-master navigation compact while leaving the full sidebar on small screens. */
 @media(min-width:901px){.staff-theme .portal-sidebar{width:210px;flex:0 0 210px}}
+.table-context-more{display:inline-flex;position:relative;align-items:center;}
+.table-context-more summary{list-style:none;cursor:pointer;min-height:48px;padding:0 16px;border:1px solid var(--line,#303640);border-radius:12px;display:inline-flex;align-items:center;color:var(--text,#e8edf5);font-weight:600;}
+.table-context-more summary::-webkit-details-marker{display:none;}
+.table-context-more[open] summary{border-color:var(--accent,#ff5a70);}
+.table-context-more>button{display:flex;margin-top:8px;white-space:nowrap;}
