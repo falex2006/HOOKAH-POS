@@ -66,8 +66,8 @@ assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`));
 assert.doesNotMatch(html, /Мария|Darkside Blueberry|2 100 ₽|<span>Смена открыта<\/span>/,
   'initial workspace must not impersonate a demo employee or show a fake order/shift');
 assert.match(html, /<section class="order" inert>/, 'order actions remain inert until session verification');
-assert.match(app, /localStorage\.setItem\('crm_session_user',JSON\.stringify\(session\.user\)\);\s*mountStaffExtensions\(\);/,
-  'cached profile extensions mount only after server identity replaces stale local data');
+assert.match(app, /if\(staffSessionVerified\)\{mountStaffExtensions\(\);/,
+  'profile extensions mount only after staff session verification');
 const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 assert.match(css, /\.staff-theme \.portal-sidebar \.portal-nav button\[hidden\][\s\S]*?display:none!important/,
   'server-hidden buttons must stay visually hidden despite authored display rules');
