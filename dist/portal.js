@@ -188,6 +188,14 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
     else { link.dataset.permission = item.permission; link.innerHTML = `${iconMarkup(item.iconName)}<span>${item.label}</span>`; }
   });
   operationLinks.forEach((item) => { const link = operations.querySelector(`a[href="${item.href}"]`); if (link) operations.append(link); });
+  // Some legacy portal pages contain a second static operations block. Keep
+  // the canonical block above and remove only duplicate blocks that expose
+  // the same operational routes, otherwise the sidebar renders two menus.
+  sidebar.querySelectorAll('.portal-nav').forEach((nav) => {
+    if (nav === operations || nav === mainNav) return;
+    const routes = new Set([...nav.querySelectorAll('a')].map((link) => link.getAttribute('href')));
+    if (routes.has('/reservations') && routes.has('/orders') && routes.has('/')) nav.remove();
+  });
   let control = navs.find((nav) => nav !== mainNav && nav !== operations && [...nav.querySelectorAll('a')].some((a) => ['/inventory','/finance'].includes(a.getAttribute('href'))));
   if (!control) { control = document.createElement('nav'); control.className = 'portal-nav'; operations.after(control); }
   control.querySelectorAll('a[href="/inventory"],a[href^="/inventory?"],a[href^="/finance/report"],a[href^="/finance/categories"]').forEach((link) => link.remove());
