@@ -36,14 +36,14 @@ case "$*" in
     [[ "$QA_SCENARIO" != collision ]] || exit 42
     exit 0 ;;
   'compose exec -T db dropdb '*)
-    [[ "$QA_SCENARIO" != cleanup_failure ]] || exit 44
+    [[ "$QA_SCENARIO" != cleanup_failure && "$QA_SCENARIO" != restore_cleanup_failure ]] || exit 44
     exit 0 ;;
   'compose exec -T db psql '*)
     if [[ "$*" == *' -Atqc '* ]]; then
       if [[ "$QA_SCENARIO" == missing_tables ]]; then printf 'f\n'; else printf 't\n'; fi
     else
       cat >/dev/null
-      [[ "$QA_SCENARIO" != restore_failure ]] || exit 43
+      [[ "$QA_SCENARIO" != restore_failure && "$QA_SCENARIO" != restore_cleanup_failure ]] || exit 43
     fi
     exit 0 ;;
   *) echo 'Unexpected fake Docker call' >&2; exit 99 ;;
@@ -82,9 +82,10 @@ run_case() {
 
 run_case collision 42 0 false
 run_case restore_failure 43 1 false
+run_case restore_cleanup_failure 43 1 false
 run_case missing_tables 1 1 false
 run_case success 0 1 true
 # Explicit cleanup fails; EXIT trap retries only the owned database.
 run_case cleanup_failure 44 2 false
 run_case invalid_name 2 0 false
-echo 'VERIFY BACKUP OWNERSHIP QA: PASS (6 fake-Docker scenarios; no live database)'
+echo 'VERIFY BACKUP OWNERSHIP QA: PASS (7 fake-Docker scenarios; no live database)'
