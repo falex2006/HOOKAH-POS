@@ -887,6 +887,7 @@ try {
   await bartender.waitForFunction(() => floorReady && !document.querySelector('.order')?.inert);
   await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   await bartender.locator('.order > .close:not([disabled])').click();
+  await bartender.locator('#staff-action-modal.open').waitFor();
   await bartender.evaluate((id) => document.querySelector(`[data-queue-order="${id}"]`).click(), splitTarget.id);
   await bartender.locator('#staff-action-submit').click();
   assert.match(await bartender.locator('#staff-notice').innerText(), /Заказ изменился/, 'close dialog rejects stale selection');
