@@ -3868,3 +3868,13 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   .staff-theme .order-head{position:sticky;top:-22px;z-index:3;padding-top:22px;padding-bottom:10px;background:linear-gradient(#151f26 82%,transparent)}
   .staff-theme .table-context-actions{position:sticky;top:58px;z-index:2;padding-bottom:8px;background:linear-gradient(#151f26 82%,transparent)}
 }
+/* Tablet POS: keep the floor visible and open the selected order above it. */
+@media (min-width:761px) and (max-width:1180px){
+  .staff-theme .workspace{grid-template-columns:1fr;min-height:0}
+  .staff-theme .order{position:fixed;z-index:70;inset:78px 18px 18px 220px;width:auto!important;max-width:none!important;max-height:none!important;overflow:auto;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(10px);transition:opacity .18s ease,transform .18s ease,visibility .18s ease}
+  .staff-theme.staff-order-open .order{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+  .staff-theme.staff-order-open{overflow:hidden}
+  .staff-theme.staff-order-open::after{content:"";position:fixed;inset:0;background:#050608d9;z-index:60}
+  .staff-theme .table-context-actions [data-table-action="close-panel"]{display:inline-flex}
+  .staff-theme .table-context-actions{position:sticky;top:0;z-index:2;background:linear-gradient(#17191d 78%,transparent);padding-bottom:8px}
+}
