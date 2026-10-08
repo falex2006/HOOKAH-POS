@@ -737,7 +737,7 @@ try {
   const splitRead = await browserApi(bartender, '/api/orders');
   assert.equal(splitRead.status, 200);
   assert.ok((splitRead.body.items || []).some((entry) => entry.id === splitTarget.id && entry.guestName === 'QA гость разделения'), 'split target guest survives reload');
-  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).click();
+  await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
   await bartender.locator('#order-notes:not([disabled])').click();
   await bartender.locator('#staff-action-fields [name="notes"]').fill('Нельзя перенести в другой заказ');
   await bartender.evaluate((id) => document.querySelector(`[data-queue-order="${id}"]`).click(), splitTarget.id);
