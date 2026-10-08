@@ -828,6 +828,8 @@ class ReservationRepository {
         FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.id=$1 AND r.venue_id=$2 FOR UPDATE`, [id, venueId]);
       if (!current.rows[0]) throw new Error('reservation_not_found');
       if (current.rows[0].status !== 'confirmed') throw new Error('reservation_not_confirmed');
+      const linkedOrder = await client.query('SELECT id FROM orders WHERE venue_id=$1 AND reservation_id=$2 LIMIT 1', [venueId, id]);
+      if (linkedOrder.rows[0]) throw new Error('reservation_linked_order_edit_forbidden');
       const table = await client.query("SELECT t.id,t.status::text AS status,t.max_capacity AS \"maxCapacity\",t.capacity,z.name AS \"zoneName\",t.name AS \"tableName\" FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.archived_at IS NULL FOR UPDATE OF t", [input.tableId, venueId]);
       if (!table.rows[0] || table.rows[0].status === 'blocked') throw new Error('table_not_found_or_unavailable');
       if (Number(input.guests || 1) > Number(table.rows[0].maxCapacity || table.rows[0].capacity || 50)) throw new Error('table_capacity_exceeded');

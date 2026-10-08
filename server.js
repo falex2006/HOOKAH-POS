@@ -5584,6 +5584,7 @@ if (staffProfile && req.method === 'PATCH') {
     const reservation = reservations.find((entry) => entry.id === reservationId && entry.venueId === currentVenueId);
     if (!reservation) return json(res, 404, { error: 'reservation_not_found' });
     if (reservation.status !== 'confirmed') return json(res, 409, { error: 'reservation_not_confirmed' });
+    if (orders.some((entry) => entry.venueId === currentVenueId && entry.reservationId === reservationId)) return json(res, 409, { error: 'reservation_linked_order_edit_forbidden' });
     const tableZone = floor.find((zone) => zone.tables.some((entry) => entry.id === input.tableId)); const table = tableZone?.tables.find((entry) => entry.id === input.tableId);
     if (!table || table.status === 'blocked') return json(res, 409, { error: 'table_unavailable' });
     if (Number(input.guests || 1) > Number(table.maxCapacity || table.capacity || 50)) return json(res, 400, { error: 'table_capacity_exceeded', maximumGuests: Number(table.maxCapacity || table.capacity || 50) });
