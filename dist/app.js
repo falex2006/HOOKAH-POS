@@ -350,6 +350,8 @@ const applyFloorPayload=(payload)=>{
   serverZones.flatMap((zone)=>zone.tables||[]).forEach((table)=>{tableMinimums[table.id]=Number(table.minimumOrderTotal||0);});
   selectedZoneId=serverZones.some((zone)=>String(zone.id)===selectedZoneId)?selectedZoneId:String(serverZones[0]?.id||'');
   floorTabs.innerHTML=serverZones.map((zone)=>`<button type="button" role="tab" data-zone-id="${escapeFloorText(zone.id)}" aria-selected="${String(zone.id)===selectedZoneId}" class="${String(zone.id)===selectedZoneId?'selected':''}">${escapeFloorText(zone.name||'Зал')}</button>`).join('');
+  floorTabs.hidden=serverZones.length<2;
+  floorTabs.setAttribute('aria-hidden',String(serverZones.length<2));
   floorTabs.removeAttribute('aria-busy');
   if(!serverZones.length){tables.classList.remove('vip-floor','has-map');tables.innerHTML='<div class="queue-empty">В этой точке пока нет залов. Обратитесь к управляющему для настройки схемы.</div>';}
   else renderZone(serverZones.find((zone)=>String(zone.id)===selectedZoneId));
