@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const { Client } = require('pg');
 const { chromium } = require(playwrightPath);
 const db = new Client({ connectionString: databaseUrl });
-const ids = { venue: randomUUID(), user: randomUUID(), zone: randomUUID(), source: randomUUID(), destination: randomUUID(), blocked: randomUUID(), occupied: randomUUID(), product: randomUUID(), order: randomUUID(), otherOrder: randomUUID() };
+const ids = { organization: randomUUID(), venue: randomUUID(), user: randomUUID(), zone: randomUUID(), source: randomUUID(), destination: randomUUID(), blocked: randomUUID(), occupied: randomUUID(), product: randomUUID(), order: randomUUID(), otherOrder: randomUUID() };
 const qaLogin = `pos-transfer-${ids.venue}`;
 const qaPassword = 'qa-browser-admin';
 const salt = randomBytes(16).toString('hex');
@@ -34,8 +34,10 @@ try {
   assertQaDatabaseIdentity(identity, target.database, Number(target.url.port || 5432), 'POS transfer browser QA database');
   await db.query('BEGIN');
   try {
-    await db.query("INSERT INTO venues (id,name,timezone) VALUES ($1,'Isolated POS transfer QA','Asia/Yekaterinburg')", [ids.venue]);
-    await db.query("INSERT INTO users (id,venue_id,full_name,login,password_hash,role) VALUES ($1,$2,'POS transfer QA',$3,$4,'admin')", [ids.user, ids.venue, qaLogin, passwordHash]);
+    await db.query("INSERT INTO organizations (id,name,slug,plan) VALUES ($1,'Isolated POS transfer QA',$2,'starter')", [ids.organization, `pos-transfer-${ids.organization}`]);
+    await db.query("INSERT INTO venues (id,organization_id,name,timezone) VALUES ($1,$2,'Isolated POS transfer QA','Asia/Yekaterinburg')", [ids.venue, ids.organization]);
+    await db.query("INSERT INTO users (id,venue_id,organization_id,full_name,login,password_hash,role) VALUES ($1,$2,$3,'POS transfer QA',$4,$5,'admin')", [ids.user, ids.venue, ids.organization, qaLogin, passwordHash]);
+    await db.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'admin','active')", [ids.organization, ids.user]);
     await db.query("INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,0)", [ids.venue, ids.user]);
     await db.query("INSERT INTO zones (id,venue_id,name) VALUES ($1,$2,'QA зал переноса')", [ids.zone, ids.venue]);
     for (const [id, name, status] of [[ids.source, 'QA исходный', 'occupied'], [ids.destination, 'QA целевой', 'free'], [ids.blocked, 'QA закрытый', 'blocked'], [ids.occupied, 'QA занятый', 'occupied']]) {
@@ -123,6 +125,7 @@ try {
         await db.query('DELETE FROM users WHERE venue_id=$1', [ids.venue]);
         await db.query('DELETE FROM zones WHERE venue_id=$1', [ids.venue]);
         await db.query('DELETE FROM venues WHERE id=$1', [ids.venue]);
+        await db.query('DELETE FROM organizations WHERE id=$1', [ids.organization]);
         await db.query('COMMIT');
       } catch (error) { await db.query('ROLLBACK'); throw error; }
       assert.equal(Number((await db.query('SELECT count(*) AS count FROM venues WHERE id=$1', [ids.venue])).rows[0].count), 0, 'QA venue removed');
