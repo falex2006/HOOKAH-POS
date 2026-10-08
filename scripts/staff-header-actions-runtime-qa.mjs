@@ -24,7 +24,7 @@ let click, choice={openingCash:'0'}, failing=false, mutationFailing=false, curre
 const requests=[],notices=[];
 const button={dataset:{},disabled:true,innerHTML:'',title:'',attributes:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(_event,fn){click=fn;}};
 const context={
-  staffNotificationCenter:null,currentShift:null,staffShiftReadable:true,staffShiftManageable:true,document:{querySelector:()=>button,addEventListener(){},visibilityState:'visible'},staffIcon:(name)=>`<svg>${name}</svg>`,
+  staffNotificationCenter:null,currentShift:null,currentOrder:null,staffShiftReadable:true,staffShiftManageable:true,document:{querySelector:()=>button,addEventListener(){},visibilityState:'visible'},staffIcon:(name)=>`<svg>${name}</svg>`,
   notice:(text)=>notices.push(text),window:{confirm:()=>true,addEventListener(){},setInterval(){return 1},HOOKAH_SHIFT_CLOSE:{checklistVersion:1,checklistItems:[{id:'ordersReviewed',label:'Проверить заказы'},{id:'cashCounted',label:'Пересчитать кассу'},{id:'inventoryReviewed',label:'Проверить склад'},{id:'externalFiscalReportsHandled',label:'Проверить внешние отчёты'}]}},requestStaffAction:async()=>choice,
   shiftCashCloseDescription:()=> 'Проверьте ожидаемую наличность и подтвердите четыре пункта.',shiftCloseResultMessage:()=> 'Смена закрыта',
   shiftCloseFailureMessage:()=> 'Смена осталась открытой',
