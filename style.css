@@ -3846,6 +3846,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .staff-theme .order-more-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 10px 10px}
 .staff-theme .order-more-list button{min-height:44px}
 .staff-theme .table-context-actions [data-table-action="close-panel"]{display:none}
+.staff-theme .table.blocked{cursor:not-allowed}
 @media(max-width:600px){.staff-theme .table-context-actions{display:grid;grid-template-columns:1fr 1fr}.staff-theme .table-context-actions button{justify-content:center}}
 @media(max-width:760px){.staff-theme .order{position:fixed;z-index:70;inset:68px 12px 12px 80px;width:auto!important;max-width:none!important;max-height:none!important;overflow:auto;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(10px);transition:opacity .18s ease,transform .18s ease,visibility .18s ease}.staff-theme.staff-order-open .order{opacity:1;visibility:visible;pointer-events:auto;transform:none}.staff-theme .table-context-actions [data-table-action="close-panel"]{display:inline-flex}.staff-theme .table-context-actions{position:sticky;top:0;z-index:2;background:linear-gradient(#17191d 78%,transparent);padding-bottom:8px}}
 
