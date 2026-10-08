@@ -89,6 +89,10 @@ assert.match(staffSource, /const normalizeTableId=\(value\)=>\{const raw=String\
 assert.match(staffSource, /JSON\.stringify\(\{tableId,minimumOrderTotal:tableMinimums\[tableId\]\|\|0\}\)/, 'opening an order must submit the original saved table id without adding a second prefix');
 assert.match(staffSource, /const floorTableLabel=\(id\)=>\{const raw=String\(id\?\?''\)\.trim\(\);const table=floorTableFor\(raw\);return table\?\.name/, 'the order panel and queue must use the saved human-readable table name');
 assert.match(staffSource, /const safeTableName=escapeFloorText\(String\(t\.name\|\|'Стол'\)\.replace\(\/\^Стол \/,''\)\)/, 'custom table names must render as text rather than executable markup');
+assert.match(staffSource, /tables\.addEventListener\('click',\(event\)=>\{[\s\S]*?card\.classList\.add\('sel'\);[\s\S]*?else\{currentOrder=null;drawOrder\(\{tableId:id,items:\[\]\}\);\}/, 'selecting a table only updates selection and the right-hand card');
+const tableSelectionBlock=staffSource.match(/tables\.addEventListener\('click',[\s\S]*?\n\}\);\ntableContextActions\?\.addEventListener/)?.[0]||'';
+assert.doesNotMatch(tableSelectionBlock, /apiJson\(['"]\/api\/orders/, 'selecting a table must not create an order before the user chooses an item');
+
 const normalizeDefinition = staffSource.match(/const normalizeTableId=\(value\)=>\{[\s\S]*?\};(?=\s*let serverZones)/)?.[0];
 if (!normalizeDefinition) throw new Error('Could not isolate the worker table-id normalizer');
 const normalizeTableId = new Function(`${normalizeDefinition}; return normalizeTableId;`)();
