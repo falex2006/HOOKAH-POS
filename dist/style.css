@@ -3833,5 +3833,11 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 
 .portal.velora-theme .staff-catalog :is(.staff-directory-row,.staff-table-row) .staff-card-actions button{flex:0 0 auto;height:auto;padding:10px 12px}
 
+.staff-theme .table-context-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px}
+.staff-theme .table-context-actions:empty{display:none}
+.staff-theme .table-context-actions button{min-height:40px;padding:9px 12px;display:inline-flex;align-items:center;gap:7px;border-radius:10px}
+.staff-theme .table-context-actions .icon{width:16px;height:16px}
+@media(max-width:600px){.staff-theme .table-context-actions{display:grid;grid-template-columns:1fr 1fr}.staff-theme .table-context-actions button{justify-content:center}}
+
 /* Keep the hookah-master navigation compact while leaving the full sidebar on small screens. */
 @media(min-width:901px){.staff-theme .portal-sidebar{width:210px;flex:0 0 210px}}
