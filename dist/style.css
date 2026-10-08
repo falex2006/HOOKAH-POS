@@ -1008,6 +1008,7 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 
 /* Shared workspace mode controls: staff and admin use the same hierarchy. */
 .staff-theme .user{display:flex;flex-direction:column;gap:0;min-width:0}
+.staff-theme .user .staff-self-avatar,.staff-theme .user .staff-self-identity{display:none}
 .staff-theme .user .current-mode{position:relative;display:grid;gap:5px;flex:0 0 auto;min-height:74px;margin:0;padding:13px 13px 13px 16px;border:1px solid #343b46;border-radius:14px;background:linear-gradient(145deg,#1d2229,#171a1f);box-shadow:0 8px 20px #00000024;overflow:hidden}
 .staff-theme .user .current-mode::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,#63e2ad,#ff7180);border-radius:3px}
 .staff-theme .user .current-mode-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -3878,3 +3879,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   .staff-theme .table-context-actions [data-table-action="close-panel"]{display:inline-flex}
   .staff-theme .table-context-actions{position:sticky;top:0;z-index:2;background:linear-gradient(#17191d 78%,transparent);padding-bottom:8px}
 }
+
+/* Staff POS layering: keep the order card opaque and above the floor plan. */
+.staff-theme .order{isolation:isolate;z-index:2;background-color:#171a1f}
+
