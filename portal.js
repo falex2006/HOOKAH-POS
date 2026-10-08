@@ -21,7 +21,7 @@ function getVenueLocalHour(date, timezone) { if (!timezone) return null; try { c
 let venueTimezone = String(portalUser.timezone || '');
 let dashboardGreetingTimer = null;
 function updateDashboardGreeting() { /* Dashboard keeps a stable title; no recurring greeting. */ }
-const adminSectionTitles = { '#staff': 'Персонал', '#permissions': 'Роли и права доступа', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'База знаний' };
+const adminSectionTitles = { '#staff': 'Персонал', '#permissions': 'Роли и права доступа', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки заведения', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'База знаний' };
 function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); if (title) title.textContent = adminSectionTitles[window.location.hash] || 'Главная'; if (document.body?.dataset.page === 'dashboard') {
   document.title = `Hookah POS — ${adminSectionTitles[window.location.hash] || 'Главная'}`;
   document.querySelectorAll('.portal-sidebar a[href]').forEach((link) => {
@@ -1684,6 +1684,9 @@ function getFinanceMetricPreferences() {
   try { return { ...defaults, ...(JSON.parse(localStorage.getItem(`crm_finance_metrics_${identity}`) || '{}')) }; } catch (_) { return defaults; }
 }
 
+const focusedAdminDashboardHashes = new Set(['#staff', '#permissions', '#tasks', '#shift-control', '#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit', '#diagnostics', '#help', '#notifications', '#loyalty']);
+const focusedAdminDashboardHash = () => window.location.pathname === '/admin' && focusedAdminDashboardHashes.has(window.location.hash) ? window.location.hash : '';
+
 function setupDashboardModules() {
   const settings = document.querySelector('#settings-dashboard-modules');
   if (!settings) return;
@@ -1705,10 +1708,13 @@ function setupDashboardModules() {
   const apply = () => {
     if (!current()) return;
     controls.forEach((input) => { input.checked = visible[input.dataset.dashboardModuleToggle] !== false; });
-    const focusedAdminPage = window.location.pathname === '/admin' && ['#staff', '#permissions', '#tasks'].includes(window.location.hash);
+    const focusedHash = focusedAdminDashboardHash();
+    const focusedAdminPage = Boolean(focusedHash);
     document.querySelectorAll('[data-dashboard-module]').forEach((node) => {
-      const pageOwnsModule = focusedAdminPage ? node.id === 'staff' : true;
-      const shiftFocus = window.location.hash === '#shift-control' && node.id === 'shift-control';
+      const pageOwnsModule = !focusedAdminPage
+        || (['#staff', '#permissions'].includes(focusedHash) && node.id === 'staff')
+        || (focusedHash === '#shift-control' && node.id === 'shift-control');
+      const shiftFocus = focusedHash === '#shift-control' && node.id === 'shift-control';
       node.hidden = !pageOwnsModule || (!shiftFocus && visible[node.dataset.dashboardModule] === false);
     });
   };
@@ -2495,12 +2501,12 @@ function renderDashboard() {
     });
   } else floorEditor.remove();
   const auditPanel = document.createElement('section'); auditPanel.className = 'panel audit-panel'; auditPanel.id = 'audit'; auditPanel.innerHTML = '<div class="panel-head audit-head"><div><h2>Журнал действий</h2><span class="muted">Кто, что и когда изменил в системе</span></div><span class="badge" id="audit-count">— событий</span></div><div class="audit-toolbar"><input id="audit-search" class="table-search" placeholder="Поиск по действию, объекту или исполнителю" aria-label="Поиск в журнале"><select id="audit-action" aria-label="Фильтр по действию"><option value="">Все действия</option></select><select id="audit-entity" aria-label="Фильтр по объекту"><option value="">Все объекты</option><option value="order">Заказы</option><option value="staff">Сотрудники</option><option value="inventory">Склад</option><option value="reservation">Бронирования</option><option value="discount">Скидки</option><option value="venue">Компания</option><option value="shift">Смена</option><option value="finance_report">Финансовый отчёт</option><option value="finance_category">Категория финансов</option><option value="product">Товар</option><option value="payment">Оплата</option><option value="order_item">Позиция заказа</option></select><label class="audit-date-field">С даты<input id="audit-from" type="date" aria-label="С даты"></label><label class="audit-date-field">По дату<input id="audit-to" type="date" aria-label="По дату"></label><button class="button small" id="audit-reset" type="button">Сбросить</button><button class="button small" id="audit-export" type="button">Экспорт CSV</button></div><div id="audit-list" class="audit-list" aria-live="polite"><div class="empty">Загрузка журнала…</div></div><dialog id="audit-detail" class="audit-detail"><div class="panel-head"><div><h2>Детали события</h2><span class="muted" id="audit-detail-meta"></span></div><button class="icon-button" id="audit-detail-close" type="button" aria-label="Закрыть"><svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#x"></use></svg></button></div><div class="audit-detail-grid"><section class="audit-detail-summary"><h3>Изменённые поля</h3><p id="audit-fields">—</p></section><section><h3>До изменения</h3><pre id="audit-before">—</pre></section><section><h3>После изменения</h3><pre id="audit-after">—</pre></section></div></dialog>'; if (canViewAudit) target.append(auditPanel);
-   const companyPanel = document.createElement('section'); companyPanel.className = 'panel company-panel'; companyPanel.id = 'company'; companyPanel.dataset.ownerOnly = ''; companyPanel.innerHTML = '<div class="panel-head"><div><h2 id="company-panel-title">Карточка компании</h2><span id="company-panel-description" class="muted">Единая карточка текущего заведения: название, адрес, контакты, формат, часовой пояс и правила VIP-зон. Список точек сети — в «Моя сеть».</span></div></div><form id="company-form" class="company-form"><label>Название заведения<input id="company-name" type="text" maxlength="120" placeholder="Название заведения" required></label><label>Город<input id="company-city" type="text" maxlength="80" placeholder="Город" required></label><label>Адрес<input id="company-address" type="text" maxlength="240" placeholder="Улица, дом" required></label><label>Формат<input id="company-format" type="text" maxlength="80" placeholder="кальян-бар"></label><label>Часовой пояс<select id="company-timezone" required>${russianTimezoneOptions()}</select></label><div class="staff-phone-list company-phone-list"><div class="staff-phone-list__header"><b>Телефоны</b><button type="button" class="staff-phone-list__add" id="company-add-phone">Добавить номер</button></div><div id="company-phone-list" class="staff-phone-list__rows"></div><small class="muted">До пяти номеров. Один номер можно назначить основным.</small></div><div class="vip-settings"><b>Депозит VIP-комнат</b><label>Комната 1<input id="vip-minimum-1" type="number" min="0" step="1"></label><label>Комната 2<input id="vip-minimum-2" type="number" min="0" step="1"></label></div><label class="logo-upload">Логотип<input id="company-logo" type="file" accept="image/png,image/jpeg,image/webp"><span>PNG, JPG или WebP до 1.5 МБ</span></label><button class="button primary" type="submit">Сохранить данные</button><small id="company-message" class="form-message"></small></form><section class="settings-dashboard-panel panel" id="settings-dashboard-modules"><div class="panel-head"><div><h2>Интерфейс и главная</h2><span class="muted">Персональные настройки рабочего профиля: блоки главной и вид выручки.</span></div></div><div class="settings-dashboard-grid"><div><b>Показывать на главной</b><label class="theme-preference"><input type="checkbox" data-theme-toggle> Светлая схема</label><label><input type="checkbox" data-dashboard-module-toggle="kpi" checked> Финансовые показатели</label><label><input type="checkbox" data-dashboard-module-toggle="insights" checked> Аналитика смены</label><label><input type="checkbox" data-dashboard-module-toggle="shift" checked> Контроль смены</label><label><input type="checkbox" data-dashboard-module-toggle="quick" checked> Быстрые действия</label><label><input type="checkbox" data-dashboard-module-toggle="staff" checked> Команда</label><div class="navigation-preferences"><b>Пункты бокового меню</b><label><input type="checkbox" data-interface-toggle="orders" checked> Заказы</label><label><input type="checkbox" data-interface-toggle="clients" checked> Гости</label><label><input type="checkbox" data-interface-toggle="reservations" checked> Бронирования</label><label><input type="checkbox" data-interface-toggle="floor" checked> Рабочий зал</label><label><input type="checkbox" data-interface-toggle="delivery" checked> Доставка</label><label><input type="checkbox" data-interface-toggle="inventory" checked> Склад</label><label><input type="checkbox" data-interface-toggle="finance" checked> Финансы</label><label><input type="checkbox" data-interface-toggle="loyalty" checked> Система лояльности</label><label><input type="checkbox" data-interface-toggle="staff" checked> Персонал</label><label><input type="checkbox" data-interface-toggle="integrations" checked> Интеграции</label></div></div><div class="settings-dashboard-select"><b>Показатель выручки</b><small>Единый вид главных показателей, чтобы карточки оставались понятными на любом экране.</small></div></div><div class="settings-dashboard-insights finance-preferences"><b>Динамика финансов</b><label><input type="checkbox" data-finance-metric-toggle="revenue" checked> Оборот заведения</label><label><input type="checkbox" data-finance-metric-toggle="profit" checked> Чистая прибыль</label><label><input type="checkbox" data-finance-metric-toggle="expenses" checked> Расходы</label><label><input type="checkbox" data-finance-metric-toggle="average" checked> Средний чек</label><label><input type="checkbox" data-finance-metric-toggle="median" checked> Медианный чек</label><label><input type="checkbox" data-finance-metric-toggle="tables" checked> Средние столы в день</label><small>Выбранные показатели будут доступны в разделе «Финансы».</small></div></section><section class="venue-layout-settings" id="venue-layout-settings"><div class="panel-head"><div><h2>Залы, этажи и столы</h2><span class="muted">Сначала создайте зал или этаж, затем добавьте в него столы и VIP-комнаты. Всё сразу появится в схеме зала, бронированиях и заказах.</span></div><div class="toolbar-row"><button type="button" class="button small" id="new-floor-zone">+ Зал / этаж</button><button type="button" class="button small" id="new-floor-table">+ Стол</button><button type="button" class="button small primary" id="new-vip-room">+ VIP-комната</button></div></div><div class="venue-layout-guide"><span class="venue-layout-guide__step"><b>1</b><span><strong>Зал или этаж</strong><small>Например, «Основной зал» или «Терраса»</small></span></span><span class="venue-layout-guide__arrow">→</span><span class="venue-layout-guide__step"><b>2</b><span><strong>Столы и комнаты</strong><small>Добавьте посадочные места внутрь зала</small></span></span><span class="venue-layout-guide__arrow">→</span><span class="venue-layout-guide__step"><b>3</b><span><strong>Схема зала</strong><small>Перетащите столы и сохраните размеры</small></span></span></div><div id="venue-zone-list"><div class="empty">Загрузка залов…</div></div><form id="venue-zone-form" class="stack-form" hidden><label>Название зала / этажа<span class="required-mark">*</span><input id="venue-zone-name" maxlength="80" required placeholder="Например, Основной зал или 2 этаж"></label><small class="muted">После сохранения мы предложим сразу добавить первый стол.</small><div class="toolbar-row"><button class="button primary" type="submit">Сохранить зал</button><button class="button" id="cancel-venue-zone" type="button">Отмена</button></div><p class="form-message" id="venue-zone-message"></p></form><form id="venue-room-form" class="stack-form" hidden><div class="panel-head"><div><h3 id="venue-room-form-title">Добавить стол</h3><span class="muted" id="venue-room-form-hint">Стол появится в выбранном зале и станет доступен сотрудникам.</span></div></div><label>Зал / этаж<span class="required-mark">*</span><select id="venue-room-zone" required></select></label><label>Название посадочного места<span class="required-mark">*</span><input id="venue-room-name" maxlength="80" required placeholder="Например, Стол 1"></label><div class="form-row"><label>Минимум гостей<input id="venue-room-min-capacity" type="number" min="1" max="100" value="2" required></label><label>Максимум гостей<input id="venue-room-max-capacity" type="number" min="1" max="100" value="4" required></label><input id="venue-room-capacity" type="hidden" value="4"><label>Минимальный депозит, ₽<input id="venue-room-minimum" type="number" min="0" step="1" value="0"></label></div><fieldset class="venue-amenities-fieldset"><legend>Оснащение стола</legend><div class="venue-amenities-toolbar"><label class="venue-amenity-option"><input id="venue-room-playstation" type="checkbox"><span class="venue-amenity-mark venue-amenity-mark--playstation">PS5</span><span><b>PlayStation 5</b><small>Игровая приставка</small></span></label><label class="venue-amenity-option"><input id="venue-room-television" type="checkbox"><span class="venue-amenity-mark venue-amenity-mark--tv">TV</span><span><b>Телевизор</b><small>Экран в зоне стола</small></span></label></div></fieldset><small class="muted">Для обычного стола депозит оставьте 0. Для VIP-комнаты укажите обязательный минимум.</small><div class="toolbar-row"><button class="button primary" id="venue-room-submit" type="submit">Добавить стол</button><button class="button" id="cancel-venue-room" type="button">Отмена</button></div><p class="form-message" id="venue-room-message"></p></form></section>'; target.append(companyPanel);
+   const companyPanel = document.createElement('section'); companyPanel.className = 'panel company-panel'; companyPanel.id = 'company'; companyPanel.dataset.ownerOnly = ''; companyPanel.innerHTML = '<div class="panel-head"><div><h2 id="company-panel-title">Карточка компании</h2><span id="company-panel-description" class="muted">Название, адрес, контакты и логотип текущего заведения. Список точек сети — в «Моя сеть».</span></div></div><form id="company-form" class="company-form"><fieldset class="company-fieldset"><legend>Основные данные</legend><div class="company-field-grid"><label><span>Название заведения<span class="required-mark">*</span></span><input id="company-name" type="text" maxlength="120" placeholder="Название заведения" required></label><label>Формат<input id="company-format" type="text" maxlength="80" placeholder="Например, кальян-бар"></label><label><span>Город<span class="required-mark">*</span></span><input id="company-city" type="text" maxlength="80" placeholder="Город" required></label><label><span>Адрес<span class="required-mark">*</span></span><input id="company-address" type="text" maxlength="240" placeholder="Улица, дом" required></label><label class="company-field-wide"><span>Часовой пояс<span class="required-mark">*</span></span><select id="company-timezone" required></select><small class="muted">По нему отображаются время бронирований и рабочие даты заведения.</small></label></div></fieldset><fieldset class="company-fieldset"><legend>Контакты</legend><div class="staff-phone-list company-phone-list"><div class="staff-phone-list__header"><b>Телефоны заведения</b><button type="button" class="staff-phone-list__add" id="company-add-phone">Добавить номер</button></div><div id="company-phone-list" class="staff-phone-list__rows"></div><small id="company-phone-hint" class="muted">До пяти номеров. Выберите один заполненный номер основным.</small></div></fieldset><fieldset class="company-fieldset"><legend>Логотип заведения</legend><div class="company-logo-row"><div id="company-logo-preview" class="company-logo-preview" aria-label="Предпросмотр логотипа"><span>Нет логотипа</span></div><div class="company-logo-controls"><label class="logo-upload">Выбрать изображение<input id="company-logo" type="file" accept="image/png,image/jpeg,image/webp"><small class="muted">PNG, JPG или WebP до 1.5 МБ</small></label><small id="company-logo-name" class="muted" aria-live="polite"></small><button id="company-remove-logo" class="button small" type="button" hidden>Удалить логотип</button></div></div></fieldset><div class="company-layout-note"><b>Столы и VIP-комнаты</b><p class="muted">Минимальный депозит задаётся отдельно для каждого стола или комнаты в настройках зала.</p><a class="button small" href="/admin#venue-layout-settings">Перейти к залам и рабочей зоне</a></div><div class="company-save-footer"><button class="button primary" type="submit">Сохранить данные</button><small id="company-message" class="form-message"></small></div></form><section class="settings-dashboard-panel panel" id="settings-dashboard-modules"><div class="panel-head"><div><h2>Интерфейс и главная</h2><span class="muted">Персональные настройки рабочего профиля: блоки главной и вид выручки.</span></div></div><div class="settings-dashboard-grid"><div><b>Показывать на главной</b><label class="theme-preference"><input type="checkbox" data-theme-toggle> Светлая схема</label><label><input type="checkbox" data-dashboard-module-toggle="kpi" checked> Финансовые показатели</label><label><input type="checkbox" data-dashboard-module-toggle="insights" checked> Аналитика смены</label><label><input type="checkbox" data-dashboard-module-toggle="shift" checked> Контроль смены</label><label><input type="checkbox" data-dashboard-module-toggle="quick" checked> Быстрые действия</label><label><input type="checkbox" data-dashboard-module-toggle="staff" checked> Команда</label><div class="navigation-preferences"><b>Пункты бокового меню</b><label><input type="checkbox" data-interface-toggle="orders" checked> Заказы</label><label><input type="checkbox" data-interface-toggle="clients" checked> Гости</label><label><input type="checkbox" data-interface-toggle="reservations" checked> Бронирования</label><label><input type="checkbox" data-interface-toggle="floor" checked> Рабочий зал</label><label><input type="checkbox" data-interface-toggle="delivery" checked> Доставка</label><label><input type="checkbox" data-interface-toggle="inventory" checked> Склад</label><label><input type="checkbox" data-interface-toggle="finance" checked> Финансы</label><label><input type="checkbox" data-interface-toggle="loyalty" checked> Система лояльности</label><label><input type="checkbox" data-interface-toggle="staff" checked> Персонал</label><label><input type="checkbox" data-interface-toggle="integrations" checked> Интеграции</label></div></div><div class="settings-dashboard-select"><b>Показатель выручки</b><small>Единый вид главных показателей, чтобы карточки оставались понятными на любом экране.</small></div></div><div class="settings-dashboard-insights finance-preferences"><b>Динамика финансов</b><label><input type="checkbox" data-finance-metric-toggle="revenue" checked> Оборот заведения</label><label><input type="checkbox" data-finance-metric-toggle="profit" checked> Чистая прибыль</label><label><input type="checkbox" data-finance-metric-toggle="expenses" checked> Расходы</label><label><input type="checkbox" data-finance-metric-toggle="average" checked> Средний чек</label><label><input type="checkbox" data-finance-metric-toggle="median" checked> Медианный чек</label><label><input type="checkbox" data-finance-metric-toggle="tables" checked> Средние столы в день</label><small>Выбранные показатели будут доступны в разделе «Финансы».</small></div></section><section class="venue-layout-settings" id="venue-layout-settings"><div class="panel-head"><div><h2>Залы, этажи и столы</h2><span class="muted">Сначала создайте зал или этаж, затем добавьте в него столы и VIP-комнаты. Всё сразу появится в схеме зала, бронированиях и заказах.</span></div><div class="toolbar-row"><button type="button" class="button small" id="new-floor-zone">+ Зал / этаж</button><button type="button" class="button small" id="new-floor-table">+ Стол</button><button type="button" class="button small primary" id="new-vip-room">+ VIP-комната</button></div></div><div class="venue-layout-guide"><span class="venue-layout-guide__step"><b>1</b><span><strong>Зал или этаж</strong><small>Например, «Основной зал» или «Терраса»</small></span></span><span class="venue-layout-guide__arrow">→</span><span class="venue-layout-guide__step"><b>2</b><span><strong>Столы и комнаты</strong><small>Добавьте посадочные места внутрь зала</small></span></span><span class="venue-layout-guide__arrow">→</span><span class="venue-layout-guide__step"><b>3</b><span><strong>Схема зала</strong><small>Перетащите столы и сохраните размеры</small></span></span></div><div id="venue-zone-list"><div class="empty">Загрузка залов…</div></div><form id="venue-zone-form" class="stack-form" hidden><label>Название зала / этажа<span class="required-mark">*</span><input id="venue-zone-name" maxlength="80" required placeholder="Например, Основной зал или 2 этаж"></label><small class="muted">После сохранения мы предложим сразу добавить первый стол.</small><div class="toolbar-row"><button class="button primary" type="submit">Сохранить зал</button><button class="button" id="cancel-venue-zone" type="button">Отмена</button></div><p class="form-message" id="venue-zone-message"></p></form><form id="venue-room-form" class="stack-form" hidden><div class="panel-head"><div><h3 id="venue-room-form-title">Добавить стол</h3><span class="muted" id="venue-room-form-hint">Стол появится в выбранном зале и станет доступен сотрудникам.</span></div></div><label>Зал / этаж<span class="required-mark">*</span><select id="venue-room-zone" required></select></label><label>Название посадочного места<span class="required-mark">*</span><input id="venue-room-name" maxlength="80" required placeholder="Например, Стол 1"></label><div class="form-row"><label>Минимум гостей<input id="venue-room-min-capacity" type="number" min="1" max="100" value="2" required></label><label>Максимум гостей<input id="venue-room-max-capacity" type="number" min="1" max="100" value="4" required></label><input id="venue-room-capacity" type="hidden" value="4"><label>Минимальный депозит, ₽<input id="venue-room-minimum" type="number" min="0" step="1" value="0"></label></div><fieldset class="venue-amenities-fieldset"><legend>Оснащение стола</legend><div class="venue-amenities-toolbar"><label class="venue-amenity-option"><input id="venue-room-playstation" type="checkbox"><span class="venue-amenity-mark venue-amenity-mark--playstation">PS5</span><span><b>PlayStation 5</b><small>Игровая приставка</small></span></label><label class="venue-amenity-option"><input id="venue-room-television" type="checkbox"><span class="venue-amenity-mark venue-amenity-mark--tv">TV</span><span><b>Телевизор</b><small>Экран в зоне стола</small></span></label></div></fieldset><small class="muted">Для обычного стола депозит оставьте 0. Для VIP-комнаты укажите обязательный минимум.</small><div class="toolbar-row"><button class="button primary" id="venue-room-submit" type="submit">Добавить стол</button><button class="button" id="cancel-venue-room" type="button">Отмена</button></div><p class="form-message" id="venue-room-message"></p></form></section>'; target.append(companyPanel);
    companyPanel.querySelector('#company-timezone').innerHTML = `<option value="">Выберите часовой пояс</option>${russianTimezoneOptions()}`;
    if (['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash) && hasPortalPermission('settings')) {
      const settingsHub = document.createElement('section');
      settingsHub.className = 'settings-hub';
-     settingsHub.innerHTML = `<div class="settings-hub-head"><div><p class="eyebrow">РАЗДЕЛЫ НАСТРОЕК</p><p class="muted">Разделы сгруппированы по задачам. Администратор управляет заведением и доступами, управляющий — рабочим процессом и интерфейсом смены.</p></div><span class="badge success">${portalUser.role === 'manager' ? 'Управляющий' : 'Расширенный доступ'}</span></div><nav class="settings-category-grid" aria-label="Категории настроек"><a class="settings-category-card" href="#company" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Заведение</b><small>Название, адрес, формат, контакты и VIP-депозиты</small></span></a><a class="settings-category-card" href="#settings-dashboard-modules"><span class="settings-category-icon">${icon('layout-dashboard')}</span><span><b>Интерфейс</b><small>Светлая схема, главная, боковое меню и показатели</small></span></a><a class="settings-category-card" href="#venue-layout-settings"><span class="settings-category-icon">${icon('package')}</span><span><b>Залы и рабочая зона</b><small>Залы, столы, VIP-комнаты и доступность объектов</small></span></a><a class="settings-category-card" href="#lock-security"><span class="settings-category-icon">${icon('settings')}</span><span><b>Безопасность</b><small>PIN блокировки экрана и автоматическая пауза</small></span></a><a class="settings-category-card" href="#audit" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('clipboard-list')}</span><span><b>Журнал изменений</b><small>Кто и когда менял данные, роли и настройки</small></span></a><a class="settings-category-card" href="/network" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Сеть заведений</b><small>Точки сети и переключение текущего заведения</small></span></a></nav>`;
+     settingsHub.innerHTML = `<div class="settings-hub-head"><div><p class="eyebrow">РАЗДЕЛЫ НАСТРОЕК</p><p class="muted">Разделы сгруппированы по задачам. Администратор управляет заведением и доступами, управляющий — рабочим процессом и интерфейсом смены.</p></div><span class="badge success">${portalUser.role === 'manager' ? 'Управляющий' : 'Расширенный доступ'}</span></div><nav class="settings-category-grid" aria-label="Категории настроек"><a class="settings-category-card" href="#company" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Заведение</b><small>Название, адрес, формат, контакты и часовой пояс</small></span></a><a class="settings-category-card" href="#settings-dashboard-modules"><span class="settings-category-icon">${icon('layout-dashboard')}</span><span><b>Интерфейс</b><small>Светлая схема, главная, боковое меню и показатели</small></span></a><a class="settings-category-card" href="#venue-layout-settings"><span class="settings-category-icon">${icon('package')}</span><span><b>Залы и рабочая зона</b><small>Залы, столы, VIP-комнаты и доступность объектов</small></span></a><a class="settings-category-card" href="#lock-security"><span class="settings-category-icon">${icon('settings')}</span><span><b>Безопасность</b><small>PIN блокировки экрана и автоматическая пауза</small></span></a><a class="settings-category-card" href="#audit" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('clipboard-list')}</span><span><b>Журнал изменений</b><small>Кто и когда менял данные, роли и настройки</small></span></a><a class="settings-category-card" href="/network" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Сеть заведений</b><small>Точки сети и переключение текущего заведения</small></span></a></nav>`;
      target.querySelector('.page-title')?.after(settingsHub);
      const securityPanel = document.createElement('section');
      securityPanel.className = 'panel settings-security-panel';
@@ -2518,7 +2524,7 @@ function renderDashboard() {
    setupVenueLayout();
   const reversalPolicySettings = document.createElement('section');
   reversalPolicySettings.className = 'panel purchase-reversal-settings';
-  reversalPolicySettings.innerHTML = '<div class="panel-head"><div><h2>Сторно приходов</h2><span class="muted">Правило заведения для новых приходов. В v1 доступно только полное сторно неоплаченного документа с доказуемым неиспользованным остатком.</span></div></div><label><input id="purchase-reversal-enabled" type="checkbox"> Разрешать безопасное сторно новых приходов</label><p class="muted">Нужны права склада и финансов. Оплату поставщику вносите через связанную накладную: ручной расход не подтверждает оплату конкретного прихода. Документы без включённого правила при проведении останутся недоступны; проведённые документы сохраняют свою версию правила. Сторно также блокируется, пока в заведении есть старые закупочные платежи без привязки к накладной.</p><div class="toolbar-row"><button class="button small primary" id="purchase-reversal-policy-save" type="button" disabled>Сохранить правило</button><span class="form-message" id="purchase-reversal-policy-message" role="status" aria-live="polite"></span></div>';
+  reversalPolicySettings.innerHTML = '<div class="panel-head"><div><h2>Сторно приходов</h2><span class="muted">Отмена ошибочного прихода с возвратом складских остатков. Правило применяется к новым документам.</span></div></div><label><input id="purchase-reversal-enabled" type="checkbox"> Разрешать безопасное сторно новых приходов</label><details class="company-policy-details"><summary>Условия отмены прихода</summary><p class="muted">Доступно только полное сторно неоплаченного документа с подтверждённым неиспользованным остатком. Нужны права склада и финансов. Оплату поставщику вносите через связанную накладную: ручной расход не подтверждает оплату конкретного прихода. Документы без включённого правила при проведении останутся недоступны; проведённые документы сохраняют свою версию правила. Сторно также блокируется, пока в заведении есть старые закупочные платежи без привязки к накладной.</p></details><div class="toolbar-row"><button class="button small primary" id="purchase-reversal-policy-save" type="button" disabled>Сохранить правило</button><span class="form-message" id="purchase-reversal-policy-message" role="status" aria-live="polite"></span></div>';
   companyPanel.insertBefore(reversalPolicySettings, companyPanel.querySelector('#settings-dashboard-modules'));
   const companyForm = document.querySelector('#company-form');
   const companyMessage = document.querySelector('#company-message');
@@ -2529,6 +2535,12 @@ function renderDashboard() {
     number: row.querySelector('input[type=tel]')?.value.trim() || '',
     primary: Boolean(row.querySelector('input[type=radio]')?.checked),
   })).filter((entry) => includeBlank || entry.number);
+  let companyControlsDisabled = true;
+  const refreshCompanyPhoneLimit = () => {
+    const full = companyPhoneRows().length >= 5;
+    companyForm.querySelector('#company-add-phone').disabled = companyControlsDisabled || full;
+    companyForm.querySelector('#company-phone-hint').textContent = full ? 'Добавлено пять номеров — максимум. Выберите один заполненный номер основным.' : 'До пяти номеров. Выберите один заполненный номер основным.';
+  };
   const renderCompanyPhones = (items) => {
     const phones = Array.isArray(items) && items.length ? items : [{ label: 'Основной', number: '', primary: true }];
     companyPhoneList.innerHTML = phones.map((phone, index) => `<div class="staff-phone-row company-phone-row"><select aria-label="Тип телефона"><option ${phone.label === 'Основной' ? 'selected' : ''}>Основной</option><option ${phone.label === 'Рабочий' ? 'selected' : ''}>Рабочий</option><option ${phone.label === 'Резервный' ? 'selected' : ''}>Резервный</option></select><input type="tel" inputmode="tel" value="${esc(phone.number || '')}" placeholder="+7 (___) ___-__-__" aria-label="Номер телефона"><label><input type="radio" name="company-primary-phone" ${phone.primary || (!phones.some((entry) => entry.primary) && index === 0) ? 'checked' : ''}> основной</label><button type="button" class="staff-phone-row__remove" aria-label="Удалить номер">×</button></div>`).join('');
@@ -2539,8 +2551,11 @@ function renderDashboard() {
         if (wasPrimary) companyPhoneList.querySelector('input[type=radio]').checked = true;
       } else {
         button.closest('.company-phone-row').querySelector('input[type=tel]').value = '';
+        button.closest('.company-phone-row').querySelector('input[type=radio]').checked = true;
       }
+      refreshCompanyPhoneLimit();
     }));
+    refreshCompanyPhoneLimit();
   };
   companyForm.querySelector('#company-add-phone')?.addEventListener('click', () => {
     const current = readCompanyPhones(true);
@@ -2556,10 +2571,49 @@ function renderDashboard() {
     companyMessage.classList.toggle('error-message', error);
   };
   const setCompanyDisabled = (disabled) => {
+    companyControlsDisabled = disabled;
     companyForm.querySelectorAll('input, select, textarea, button').forEach((control) => {
       control.disabled = disabled;
       control._customSelectRefresh?.();
     });
+    refreshCompanyPhoneLimit();
+  };
+  const companyLogoInput = companyForm.querySelector('#company-logo');
+  let companyPersistedLogo = '';
+  let companyLogoRemoved = false;
+  let companyLogoPreviewSequence = 0;
+  const renderCompanyLogo = (source, label) => {
+    const preview = companyForm.querySelector('#company-logo-preview');
+    preview.replaceChildren();
+    if (source) { const img = document.createElement('img'); img.src = source; img.alt = 'Логотип заведения'; preview.append(img); }
+    else { const empty = document.createElement('span'); empty.textContent = 'Нет логотипа'; preview.append(empty); }
+    companyForm.querySelector('#company-logo-name').textContent = label;
+    companyForm.querySelector('#company-remove-logo').hidden = !source;
+  };
+  companyLogoInput.addEventListener('change', () => {
+    const sequence = ++companyLogoPreviewSequence;
+    const file = companyLogoInput.files[0];
+    if (!file) { renderCompanyLogo(companyLogoRemoved ? '' : companyPersistedLogo, companyLogoRemoved ? 'Удаление будет сохранено вместе с карточкой' : companyPersistedLogo ? 'Сохранённый логотип' : ''); return; }
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 1_500_000) { companyLogoInput.value = ''; renderCompanyLogo(companyLogoRemoved ? '' : companyPersistedLogo, companyPersistedLogo && !companyLogoRemoved ? 'Сохранённый логотип' : ''); companyStatus('Логотип: PNG, JPG или WebP до 1.5 МБ', true); return; }
+    const reader = new FileReader();
+    reader.onload = () => { if (sequence !== companyLogoPreviewSequence || !companyForm.isConnected) return; renderCompanyLogo(String(reader.result || ''), file.name + ' · ещё не сохранён'); };
+    reader.onerror = () => { if (sequence === companyLogoPreviewSequence) companyStatus('Не удалось прочитать изображение', true); };
+    reader.readAsDataURL(file);
+  });
+  companyForm.querySelector('#company-remove-logo').addEventListener('click', () => {
+    ++companyLogoPreviewSequence; companyLogoInput.value = ''; companyLogoRemoved = true;
+    renderCompanyLogo('', 'Удаление будет сохранено вместе с карточкой');
+  });
+  const renderCompanyData = (data) => {
+    for (const field of ['name', 'city', 'address', 'format']) companyForm.querySelector('#company-' + field).value = data[field] || '';
+    const timezoneSelect = companyForm.querySelector('#company-timezone');
+    timezoneSelect.querySelectorAll('[data-saved-timezone]').forEach((option) => option.remove());
+    const timezone = String(data.timezone || '');
+    if (timezone && ![...timezoneSelect.options].some((option) => option.value === timezone)) { const option = document.createElement('option'); option.value = timezone; option.textContent = timezone; option.dataset.savedTimezone = ''; timezoneSelect.append(option); }
+    timezoneSelect.value = timezone; timezoneSelect._customSelectRefresh?.();
+    renderCompanyPhones(Array.isArray(data.phoneNumbers) && data.phoneNumbers.length ? data.phoneNumbers : (data.phone ? [{ label: 'Основной', number: data.phone, primary: true }] : []));
+    ++companyLogoPreviewSequence; companyLogoInput.value = ''; companyLogoRemoved = false; companyPersistedLogo = data.logoUrl || '';
+    renderCompanyLogo(companyPersistedLogo, companyPersistedLogo ? 'Сохранённый логотип' : '');
   };
   const reversalPolicyToggle = reversalPolicySettings.querySelector('#purchase-reversal-enabled');
   const reversalPolicySave = reversalPolicySettings.querySelector('#purchase-reversal-policy-save');
@@ -2580,10 +2634,10 @@ function renderDashboard() {
       reversalPolicyLoaded = true;
       reversalPolicyToggle.disabled = false;
       reversalPolicySave.disabled = true;
-      setReversalPolicyMessage(`Версия ${result.version}. Изменение применяется только к новым приходам.`);
+      setReversalPolicyMessage('Правило загружено. Изменение применяется только к новым приходам.');
     } catch (_) {
       reversalPolicy = null;
-      setReversalPolicyMessage('Правило недоступно без подключённой PostgreSQL базы.', true);
+      setReversalPolicyMessage('Не удалось загрузить правило заведения. Обновите страницу и повторите.', true);
     }
   };
   reversalPolicyToggle.addEventListener('change', () => { reversalPolicySave.disabled = !reversalPolicyLoaded || reversalPolicySaving || !reversalPolicy || reversalPolicyToggle.checked === Boolean(reversalPolicy.enabled); });
@@ -2592,11 +2646,11 @@ function renderDashboard() {
     reversalPolicySaving = true;
     reversalPolicySave.disabled = true;
     reversalPolicyToggle.disabled = true;
-    setReversalPolicyMessage('Сохраняем новую версию правила…');
+    setReversalPolicyMessage('Сохраняем правило…');
     try {
       reversalPolicy = await api('/api/venue/purchase-reversal-policy', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVersion: reversalPolicy.version, enabled: reversalPolicyToggle.checked }) });
       reversalPolicyToggle.checked = Boolean(reversalPolicy.enabled);
-      setReversalPolicyMessage(`Сохранена версия ${reversalPolicy.version}. Ранее проведённые документы сохраняют своё правило.`);
+      setReversalPolicyMessage('Правило сохранено. Ранее проведённые документы сохраняют прежние условия.');
     } catch (error) {
       const message = error.payload?.error === 'purchase_reversal_policy_version_conflict' ? 'Настройка уже изменена в другой вкладке. Перезагрузите правило.' : 'Не удалось сохранить правило заведения.';
       setReversalPolicyMessage(message, true);
@@ -2621,17 +2675,7 @@ function renderDashboard() {
       if (sequence !== companyReadSequence || document.querySelector('#company-form') !== companyForm || !samePreferenceSession(identity)) return;
       if (!data?.id) throw new Error('venue_identity_unavailable');
       companyLoadedVenueId = String(data.id);
-      document.querySelector('#company-name').value = data.name || '';
-      document.querySelector('#company-city').value = data.city || '';
-      document.querySelector('#company-address').value = data.address || '';
-      document.querySelector('#company-format').value = data.format || '';
-      const timezoneSelect = document.querySelector('#company-timezone');
-      timezoneSelect.value = data.timezone || '';
-      timezoneSelect._customSelectRefresh?.();
-      renderCompanyPhones(Array.isArray(data.phoneNumbers) && data.phoneNumbers.length ? data.phoneNumbers : (data.phone ? [{ label: 'Основной', number: data.phone, primary: true }] : []));
-      const vip = data.vipRoomMinimums || {};
-      document.querySelector('#vip-minimum-1').value = vip.vip_room_1 ?? 1500;
-      document.querySelector('#vip-minimum-2').value = vip.vip_room_2 ?? 2500;
+      renderCompanyData(data);
       companyLoaded = true;
       setCompanyDisabled(false);
       companyStatus('');
@@ -2660,20 +2704,17 @@ function renderDashboard() {
     const address = document.querySelector('#company-address').value.trim();
     const format = document.querySelector('#company-format').value.trim();
     const timezone = document.querySelector('#company-timezone').value.trim();
-    const vip1 = Number(document.querySelector('#vip-minimum-1').value);
-    const vip2 = Number(document.querySelector('#vip-minimum-2').value);
     const phoneNumbers = readCompanyPhones();
     if (!name || !city || !address || !timezone) { companyStatus('Укажите название, город, адрес и часовой пояс заведения', true); return; }
-    if (!Number.isFinite(vip1) || !Number.isFinite(vip2) || vip1 < 0 || vip2 < 0) { companyStatus('Депозиты VIP должны быть неотрицательными числами', true); return; }
-    if (companyPhoneRows().length > 5 || phoneNumbers.some((entry) => !/^\+7[0-9 ()-]{7,24}$/.test(entry.number)) || (phoneNumbers.length && phoneNumbers.filter((entry) => entry.primary).length !== 1)) { companyStatus('Проверьте телефоны: до пяти номеров, один основной', true); return; }
+    if (companyPhoneRows().length > 5 || phoneNumbers.some((entry) => !/^\+7[0-9 ()-]{7,24}$/.test(entry.number)) || (phoneNumbers.length && phoneNumbers.filter((entry) => entry.primary).length !== 1)) { companyStatus('Проверьте номера в формате +7 и назначьте один заполненный номер основным.', true); return; }
     if (file && (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 1_500_000)) { companyStatus('Логотип: PNG, JPG или WebP до 1.5 МБ', true); return; }
     const primaryPhone = phoneNumbers.find((entry) => entry.primary)?.number || '';
     companySaving = true;
     companyForm.dataset.submitting = '1';
     setCompanyDisabled(true);
     companyStatus('Сохраняем данные заведения…');
-    const image = file ? compressUploadedImage(file, 320) : Promise.resolve(undefined);
-    image.then((logoUrl) => { if (!samePreferenceSession(identity)) throw new Error('session_changed'); return api('/api/venue', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId, name, city, address, format, timezone, phone: primaryPhone, phoneNumbers, logoUrl, vipRoomMinimums: { vip_room_1: vip1, vip_room_2: vip2 } }) }); })
+    const image = file ? compressUploadedImage(file, 320) : Promise.resolve(companyLogoRemoved ? null : undefined);
+    image.then((logoUrl) => { if (!samePreferenceSession(identity)) throw new Error('session_changed'); return api('/api/venue', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId, name, city, address, format, timezone, phone: primaryPhone, phoneNumbers, logoUrl }) }); })
       .then(async (data) => {
         if (document.querySelector('#company-form') !== companyForm || !samePreferenceSession(identity)) return;
         if (String(data?.id || '') !== expectedVenueId) throw new Error('venue_context_changed');
@@ -2682,8 +2723,8 @@ function renderDashboard() {
         if (String(active?.id || '') !== expectedVenueId) throw new Error('venue_context_changed');
         document.querySelectorAll('[data-venue-name]').forEach((node) => { node.textContent = active.name || name; });
         document.querySelectorAll('[data-venue-address]').forEach((node) => { node.textContent = active.address || address; });
-        document.querySelector('#company-logo').value = '';
-        companyStatus('Данные компании сохранены');
+        renderCompanyData(active);
+        companyStatus('Данные заведения сохранены');
       }).catch((error) => {
         if (document.querySelector('#company-form') !== companyForm || !samePreferenceSession(identity)) return;
         const reason = String(error.payload?.error || error.message || '');
@@ -2698,7 +2739,7 @@ function renderDashboard() {
           companyMessage.append(retry);
           return;
         }
-        companyStatus(reason === 'invalid_phone' || reason === 'invalid_phone_numbers' || reason === 'one_primary_phone_required' ? 'Проверьте телефоны: до пяти номеров, один основной' : reason === 'invalid_vip_minimum' ? 'Депозит VIP должен быть неотрицательным числом' : reason.startsWith('venue_') ? 'Проверьте название, город и адрес' : 'Не удалось сохранить', true);
+        companyStatus(reason === 'invalid_phone' || reason === 'invalid_phone_numbers' || reason === 'one_primary_phone_required' ? 'Проверьте телефоны: до пяти номеров, один основной' : reason.startsWith('venue_') ? 'Проверьте название, город и адрес' : 'Не удалось сохранить', true);
       }).finally(() => {
         if (document.querySelector('#company-form') !== companyForm) return;
         companySaving = false;
@@ -2765,11 +2806,20 @@ function renderDashboard() {
     };
     return targets[hash] ? target.querySelector(targets[hash]) : target.querySelector('.page-title');
   };
-  const settingsHash = ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
-  const requestedDashboardFocus = settingsHash ? 'settings' : window.location.hash.slice(1);
+  const focusedDashboardHash = focusedAdminDashboardHash();
+  const settingsHash = ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(focusedDashboardHash);
+  const requestedDashboardFocus = settingsHash ? 'settings' : focusedDashboardHash ? focusedDashboardHash.slice(1) : window.location.hash.slice(1);
   const dashboardFocus = requestedDashboardFocus === 'permissions' && portalUser.role !== 'owner' ? 'staff' : requestedDashboardFocus;
   if (requestedDashboardFocus === 'permissions' && dashboardFocus !== requestedDashboardFocus) window.history.replaceState({}, '', '/admin#staff');
   const setDashboardPanelVisibility = (selector, visible) => target.querySelectorAll(selector).forEach((node) => { node.hidden = !visible; });
+  const isCompanyPage = () => focusedAdminDashboardHash() === '#company';
+  const syncCompanyPageClass = () => {
+    const active = isCompanyPage();
+    target.classList.toggle('company-page-active', active);
+    document.body.classList.toggle('company-page-active', active);
+    return active;
+  };
+  syncCompanyPageClass();
   setDashboardPanelVisibility('#help', dashboardFocus === 'help');
   setDashboardPanelVisibility('.dashboard-page-actions', !dashboardFocus);
   if (!dashboardFocus) {
@@ -2857,15 +2907,24 @@ function renderDashboard() {
     const applySettingsView = (hash = window.location.hash, shouldScroll = true) => {
       const settingsView = hash || '#settings';
       const focusedView = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(settingsView) ? settingsView : '#settings';
-      const focusedCompanyChild = focusedView === '#company' ? '#company-form' : focusedView === '#settings-dashboard-modules' ? '#settings-dashboard-modules' : focusedView === '#venue-layout-settings' ? '#venue-layout-settings' : '';
       const auditFocus = focusedView === '#audit';
+      syncCompanyPageClass();
+      const title = target.querySelector('.page-title');
+      const titleCopy = focusedView === '#company'
+        ? { eyebrow: 'ЗАВЕДЕНИЕ', heading: 'Настройки заведения', description: 'Название, адрес, контакты, формат и часовой пояс текущей точки.' }
+        : { eyebrow: 'ЦЕНТР НАСТРОЕК', heading: 'Настройки CRM', description: 'Управление заведением, интерфейсом, безопасностью и журналом изменений.' };
+      title?.querySelector('.eyebrow')?.replaceChildren(document.createTextNode(titleCopy.eyebrow));
+      title?.querySelector('h1')?.replaceChildren(document.createTextNode(titleCopy.heading));
+      title?.querySelector('.muted')?.replaceChildren(document.createTextNode(titleCopy.description));
       setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', false);
       setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff', false);
       setDashboardPanelVisibility('#audit', auditFocus && ['owner', 'admin'].includes(portalUser.role));
       setDashboardPanelVisibility('#company-form, #settings-dashboard-modules, #venue-layout-settings', false);
+      setDashboardPanelVisibility('#company > .panel-head', focusedView === '#company');
+      setDashboardPanelVisibility('.purchase-reversal-settings', focusedView === '#company');
       if (focusedView === '#company') {
         setDashboardPanelVisibility('#company', true);
-        setDashboardPanelVisibility('#company-form', true);
+        setDashboardPanelVisibility('#company-form', ['owner', 'admin'].includes(portalUser.role));
       } else if (focusedView === '#settings-dashboard-modules') {
         setDashboardPanelVisibility('#company', true);
         setDashboardPanelVisibility('#settings-dashboard-modules', true);
@@ -2888,6 +2947,7 @@ function renderDashboard() {
   }
   const dashboardHashChangeHandler = () => {
     disposeStaffDrawer();
+    syncCompanyPageClass();
     target.classList.toggle('staff-catalog-page', window.location.hash === '#staff');
     // The sidebar is normalized during portal bootstrap. Re-running the
     // structural grouping here can attempt to move an existing nav into one
@@ -2911,7 +2971,7 @@ function renderDashboard() {
   if (target._dashboardHashChangeHandler) window.removeEventListener('hashchange', target._dashboardHashChangeHandler);
   target._dashboardHashChangeHandler = dashboardHashChangeHandler;
   window.addEventListener('hashchange', dashboardHashChangeHandler);
-  const focusedSettingsHash = ['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
+  const focusedSettingsHash = ['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(focusedAdminDashboardHash());
   const hashTarget = window.location.hash ? (page === 'dashboard' ? (focusedSettingsHash ? target.querySelector(window.location.hash === '#company' ? '#company-form' : window.location.hash) : target.querySelector('.page-title')) : document.querySelector(window.location.hash)) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 

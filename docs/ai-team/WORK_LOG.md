@@ -5151,3 +5151,6 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 ## 09.10.2026 — выпуск рабочего интерфейса
 - Сведены employee shell, время за столом, уникальная основная кнопка, статичная availability метка и красный курсор двух ролей.
 - Release gates syntax/shell/design/navigation/header/permissions/deploy PASS; details docs/release/STAFF_UI_RELEASE_2026_10_09.md.
+
+## 09.10.2026 — Company page audit and polish
+Fixed late preference route visibility, grouped company form and compact navigation, logo lifecycle, timezone preservation, explicit phone limit, real-room deposit link, scoped8s page pulse. Architect/frontend/code-health approved; API31 and relevant contracts PASS, Edge local save/reload/navigation/light-dark desktop QA PASS. Details: docs/release/COMPANY_PAGE_RELEASE_2026_10_09.md.
