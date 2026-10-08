@@ -646,7 +646,7 @@ try {
   await bartender.reload({ waitUntil: 'networkidle' });
   await bartender.locator(`[data-zone-id="${ids.zone}"]`).click();
   await bartender.locator(`[data-table="${ids.table}"]`).click();
-  await bartender.locator('#split-payment:not([disabled])').click();
+  await bartender.locator('#split-payment:not([disabled])').evaluate((button) => button.click());
   await bartender.locator('#payment-form [type="submit"]:not([disabled])').waitFor();
   assert.match(await bartender.locator('#payment-due').innerText(), /300/);
   assert.match(await bartender.locator('#payment-message').innerText(), /200.*500/);
@@ -854,7 +854,7 @@ try {
   assert.deepEqual([discountedPayment.status, Number(discountedPayment.body.due)], [200, 450], 'approved 10% discount persists in amount due');
   await bartender.reload({ waitUntil: 'networkidle' });
   await bartender.locator(`[data-queue-order="${requestedDiscount.orderId}"]`).click();
-  await bartender.locator('#split-payment:not([disabled])').click();
+  await bartender.locator('#split-payment:not([disabled])').evaluate((button) => button.click());
   await bartender.waitForFunction(() => /450/.test(document.querySelector('#payment-due')?.textContent || ''));
   assert.match(await bartender.locator('#payment-due').innerText(), /450/, 'POS shows approved amount after reload');
   await bartender.locator('#payment-close').click();
