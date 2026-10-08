@@ -9,6 +9,8 @@ import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-s
 // Mutations are confined to synthetic UUID fixtures in an explicitly verified
 // localhost QA database. Never derive the target from the production DATABASE_URL.
 const target = validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL, 'Staff identity QA');
+assert.match(target.database, /^orders_qa_[a-f0-9]{16}$/i, 'Staff identity QA requires the runner-created fresh disposable database');
+assert.equal(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'hookah-full-regression-qa-20261001', 'Staff identity QA must run through the guarded disposable PostgreSQL runner');
 const pool = new pg.Pool({ connectionString: target.url.href, max: 3 });
 const org = randomUUID(), otherOrg = randomUUID(), venue = randomUUID(), otherVenue = randomUUID();
 const password = randomBytes(6).toString('hex').slice(0, 10);
@@ -17,7 +19,9 @@ const hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
 const reserved = 'qa_platform_' + randomUUID().slice(0, 8);
 const users = new Map();
 const triggerName = 'qa_identity_' + randomUUID().replaceAll('-', '');
-let child, base, touched = false, functionInstalled = false, triggerInstalled = false, checks = 0;
+let child, base, checks = 0;
+let functionalFailure = null;
+let shutdownFailures = [];
 const check = (value, label) => { checks++; assert.ok(value, label); };
 const equal = (actual, expected, label) => { checks++; assert.deepEqual(actual, expected, label); };
 const api = async (path, token, method = 'GET', data) => {
@@ -50,7 +54,6 @@ try {
   await pool.query(migration);
   await pool.query(migration);
   check((await pool.query("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name='contact_email'")).rowCount === 1, 'Migration57 contact_email is applied');
-  touched = true;
   for (const id of [org, otherOrg]) {
     await pool.query("INSERT INTO organizations(id,name,slug,plan) VALUES($1,'Synthetic staff identity QA',$2,'enterprise')", [id, 'qa-identity-' + id]);
     await pool.query("INSERT INTO organization_subscriptions(organization_id,plan,status,seats_limit,venues_limit) VALUES($1,'enterprise','active',50,5)", [id]);
@@ -135,17 +138,14 @@ try {
   // A fixture-scoped failure proves the login audit must participate in the
   // same transaction as profile writes and session revocation.
   await pool.query(`CREATE FUNCTION ${triggerName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.entity_id='${worker.id}'::uuid AND NEW.action='staff.login_updated' THEN RAISE EXCEPTION 'synthetic identity audit failure'; END IF; RETURN NEW; END $$`);
-  functionInstalled = true;
   await pool.query(`CREATE TRIGGER ${triggerName} BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION ${triggerName}()`);
-  triggerInstalled = true;
   const beforeFailure = await row('worker');
   expect(await patch('worker','owner',{ login:'AuditRollback_'+randomUUID().slice(0,8),name:'Audit must roll back',email:'atomic@example.invalid' }),503,'Failed audit rejects rename','staff_profile_save_failed');
   equal(await row('worker'),beforeFailure,'Audit failure rolls back profile/login/email');
   equal(await sessionsFor('worker'),2,'Audit failure rolls back session revocation');
   expect(await api('/api/session',worker.token),200,'Audit failure preserves cached token access');
   await pool.query(`DROP TRIGGER ${triggerName} ON audit_events`);
-  triggerInstalled = false;
-  await pool.query(`DROP FUNCTION ${triggerName}()`); functionInstalled = false;
+  await pool.query(`DROP FUNCTION ${triggerName}()`);
 
   const renamed = 'QaRoman_'+randomUUID().slice(0,8);
   const cardProfile = expect(await profile('worker'),200,'Card reads before identity update');
@@ -178,18 +178,16 @@ try {
   const caseLogin = renamed.toLowerCase();
   expect(await api('/api/staff',users.get('owner').token,'POST',{ ...createInput,login:caseLogin,email:'' }),201,'Exact-case uniqueness permits distinct lower-case login');
   console.log(`STAFF IDENTITY POSTGRES QA: PASS (${checks} assertions; email create/edit/clear; exact login; reserved and global collisions; RBAC/tenant/archive; transactional audit+revocation; original credentials preserved)`);
+} catch (error) {
+  functionalFailure = error;
 } finally {
-  if (child && child.exitCode === null && child.signalCode === null) { const stopped = new Promise(resolve=>child.once('close',resolve)); child.kill(); await stopped; }
-  if (triggerInstalled) {
-    await pool.query(`DROP TRIGGER IF EXISTS ${triggerName} ON audit_events`);
+  shutdownFailures = [];
+  if (child && child.exitCode === null && child.signalCode === null) {
+    try { const stopped = new Promise(resolve=>child.once('close',resolve)); child.kill(); await stopped; } catch (error) { shutdownFailures.push(error); }
   }
-  if (functionInstalled) await pool.query(`DROP FUNCTION IF EXISTS ${triggerName}()`);
-  if (touched) {
-    // Delete only rows owned by this test, including audit FK references.
-    await pool.query('DELETE FROM audit_events WHERE venue_id=ANY($1::uuid[])',[[venue,otherVenue]]);
-    await pool.query('DELETE FROM users WHERE organization_id=ANY($1::uuid[])',[[org,otherOrg]]);
-    await pool.query('DELETE FROM venues WHERE id=ANY($1::uuid[])',[[venue,otherVenue]]);
-    await pool.query('DELETE FROM organizations WHERE id=ANY($1::uuid[])',[[org,otherOrg]]);
-  }
-  await pool.end();
+  try { await pool.end(); } catch (error) { shutdownFailures.push(error); }
+  console.log('FIXTURE CLEANUP DEFERRED: guarded runner will drop its owned disposable database after this child exits');
 }
+if (functionalFailure && shutdownFailures.length) throw new AggregateError([functionalFailure, ...shutdownFailures], 'Functional QA and process cleanup both failed');
+if (functionalFailure) throw functionalFailure;
+if (shutdownFailures.length) throw new AggregateError(shutdownFailures, 'QA process cleanup failed');

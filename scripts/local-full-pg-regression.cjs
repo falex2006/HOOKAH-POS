@@ -177,6 +177,8 @@ async function runSuite(value) {
   fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, id: lockId })); fs.closeSync(lock);
   const ownedDatabases = new Set();
   let app;
+  let suiteFailure = null;
+  const cleanupFailures = [];
   const inherited = { ...process.env };
   for (const key of Object.keys(inherited)) if (/DATABASE_URL|^PG[A-Z_]+$|^SAAS_OWNER_|(?:PASSWORD|TOKEN|PASSPORT_KEY|SESSION_SECRET)$/.test(key)) delete inherited[key];
   const env = { ...inherited, DATABASE_URL: '', NODE_ENV: 'test', HOST: '127.0.0.1', DEMO_MODE: 'false',
@@ -340,21 +342,34 @@ async function runSuite(value) {
       assert.ok(base, 'Owned SaaS QA app did not start');
       await execute(name, { ...env, DATABASE_URL: saasDatabaseUrl, MIGRATIONS_PG_TEST_DATABASE_URL: saasDatabaseUrl, SAAS_OWNER_EMAIL: email, SAAS_OWNER_PASSWORD: password }, c, [base], [password]);
     } else await execute(name, env, c);
+  } catch (error) {
+    suiteFailure = error;
   } finally {
     if (app?.pid) {
       const close = app.exitCode === null && app.signalCode === null ? new Promise(resolve => app.once('close', resolve)) : Promise.resolve();
-      killOwnedChild(app); await close;
+      try { killOwnedChild(app); await close; } catch (error) { cleanupFailures.push(error); }
     }
-    try {
-      for (const database of ownedDatabases) {
+    for (const database of ownedDatabases) {
+      try {
         await verifyTarget(c);
         const pool = new Pool({ connectionString: urlFor(c), max: 1 });
-        try { await pool.query('DROP DATABASE "' + database + '"'); if (/^inventory_qa_[a-f0-9]+$/i.test(database) || name === 'owner-pin-lock-postgres-browser-qa.mjs' || name === 'staff-pin-card-postgres-browser-qa.mjs') console.log('CLEANUP PASS: dropped fresh QA database ' + database); } finally { await pool.end(); }
-      }
-    } finally {
-      if (JSON.parse(fs.readFileSync(lockPath, 'utf8')).id === lockId) fs.unlinkSync(lockPath);
+        try {
+          await pool.query('DROP DATABASE "' + database + '"');
+          const remaining = await pool.query('SELECT 1 FROM pg_database WHERE datname=$1', [database]);
+          assert.equal(remaining.rowCount, 0, 'Owned disposable QA database is absent after DROP DATABASE');
+          if (['staff-identity-postgres-qa.mjs', 'audit-privacy-postgres-qa.mjs', 'reservation-prepayment-postgres-qa.mjs', 'paid-order-balance-postgres-qa.mjs'].includes(name)) console.log('CLEANUP PASS: guarded runner verified drop of its owned disposable database ' + database);
+          else if (/^inventory_qa_[a-f0-9]+$/i.test(database) || name === 'owner-pin-lock-postgres-browser-qa.mjs' || name === 'staff-pin-card-postgres-browser-qa.mjs') console.log('CLEANUP PASS: dropped fresh QA database ' + database);
+        } finally { await pool.end(); }
+      } catch (error) { cleanupFailures.push(error); }
     }
+    try { if (JSON.parse(fs.readFileSync(lockPath, 'utf8')).id === lockId) fs.unlinkSync(lockPath); }
+    catch (error) { cleanupFailures.push(error); }
   }
+  if (suiteFailure && cleanupFailures.length) {
+    throw new Error(`Suite failure: ${safeText(suiteFailure.message, c)}; owned database/process cleanup failure(s): ${cleanupFailures.map(error => safeText(error.message, c)).join(' | ')}`);
+  }
+  if (suiteFailure) throw suiteFailure;
+  if (cleanupFailures.length) throw new Error(`Owned database/process cleanup failure(s): ${cleanupFailures.map(error => safeText(error.message, c)).join(' | ')}`);
 }
 function checkGuards() {
   const c = { database: 'hookah_local_qa', regressionPort: 31931, regressionContainer: 'hookah-full-regression-qa-20261001', dbPort: 31930, appPort: 31932, dbUser: 'qa_user', dbPassword: 'synthetic-qa-credential-only' };

@@ -18,13 +18,31 @@ const baseUrl = `http://127.0.0.1:${port}`;
 let output = '';
 child.stdout.on('data', (chunk) => { output += chunk.toString(); });
 child.stderr.on('data', (chunk) => { output += chunk.toString(); });
-const request = async (path, { method = 'GET', token, body } = {}) => {
-  const response = await fetch(`${baseUrl}${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+const request = async (path, { method = 'GET', token, cookieToken, body } = {}) => {
+  const response = await fetch(`${baseUrl}${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(cookieToken ? { Cookie: `crm_session=${encodeURIComponent(cookieToken)}` } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const payload = await response.json().catch(() => ({})); return { status: response.status, payload };
 };
 const login = async (username, password) => {
   const result = await request('/api/login', { method: 'POST', body: { username, password } });
   assert.equal(result.status, 200, `${username} login`); return result.payload.token;
+};
+let floorZoneId = null;
+let floorVenueId = null;
+const createTable = async (token, label) => {
+  const floor = await request('/api/floor', { token });
+  assert.equal(floor.status, 200, `floor lookup: ${floor.payload.error || floor.status}`);
+  if (!floorZoneId || floorVenueId !== floor.payload.venueId) {
+    floorVenueId = floor.payload.venueId;
+    floorZoneId = floor.payload.zones?.[0]?.id || null;
+    if (!floorZoneId) {
+      const zone = await request('/api/floor/zones', { method: 'POST', token, body: { name: `QA ${Date.now()}`, expectedVenueId: floorVenueId } });
+      assert.equal(zone.status, 201, `floor zone creation: ${zone.payload.error || zone.status}`);
+      floorZoneId = zone.payload.id;
+    }
+  }
+  const table = await request('/api/floor/tables', { method: 'POST', token, body: { zoneId: floorZoneId, expectedVenueId: floorVenueId, name: `QA ${label} ${Date.now()} ${Math.random().toString(36).slice(2, 7)}`, capacity: 2 } });
+  assert.equal(table.status, 201, `floor table creation: ${table.payload.error || table.status}`);
+  return table.payload.id;
 };
 try {
   await new Promise((resolve, reject) => {
@@ -49,8 +67,8 @@ try {
   assert.equal((await request('/api/notifications', { token: settingsAdmin })).status, 403, 'settings-only admin has no notification source permission');
   assert.equal((await request('/api/orders', { token: settingsAdmin })).status, 403, 'target orders API rejects a user without orders permission');
 
-  const created = await request('/api/orders', { method: 'POST', token: owner, body: { tableId: 'notification-qa-table' } });
-  assert.equal(created.status, 201);
+  const created = await request('/api/orders', { method: 'POST', token: owner, body: { tableId: await createTable(owner, 'notification-first') } });
+  assert.equal(created.status, 201, `first order: ${created.payload.error || created.status}`);
   const deleted = await request(`/api/orders/${encodeURIComponent(created.payload.id)}`, { method: 'DELETE', token: owner, body: { comment: 'Notification QA', writeoff: false } });
   assert.equal(deleted.status, 200);
   const deletedBusinessStatus = (await request('/api/orders', { token: owner })).payload.items.find((item) => item.id === created.payload.id)?.status;
@@ -93,24 +111,40 @@ try {
   assert.equal(venuesBefore.status, 200);
   const defaultVenue = venuesBefore.payload.items.find((item) => item.isCurrent);
   assert.ok(defaultVenue, 'owner starts in a selected venue');
+  const otherOwnerSession = await login('owner', 'demo');
+  const otherOwnerInitialVenueId = (await request('/api/session', { token: otherOwnerSession })).payload.user.venueId;
+  const archivedVenue = await request('/api/network/venues', { method: 'POST', token: owner, body: { name: 'Notification QA archived venue', city: 'Тюмень', address: 'QA archived' } });
+  assert.equal(archivedVenue.status, 201);
+  assert.equal((await request(`/api/network/venues/${archivedVenue.payload.id}`, { method: 'DELETE', token: owner })).status, 200);
   const secondVenue = await request('/api/network/venues', { method: 'POST', token: owner, body: { name: 'Notification QA second venue', city: 'Тюмень', address: 'QA street 2' } });
   assert.equal(secondVenue.status, 201, `second venue creation: ${JSON.stringify(secondVenue.payload)}`);
-  const switchVenue = async (venueId) => {
-    const switched = await request(`/api/network/venues/${encodeURIComponent(venueId)}/select`, { method: 'POST', token: owner });
+  const switchVenue = async (venueId, useCookie = false) => {
+    const auth = useCookie ? { cookieToken: owner } : { token: owner };
+    const switched = await request(`/api/network/venues/${encodeURIComponent(venueId)}/select`, { method: 'POST', ...auth });
     assert.equal(switched.status, 200, `venue switch to ${venueId}`);
+    assert.equal((await request('/api/session', auth)).payload.user.venueId, venueId, 'selected venue survives a fresh authenticated request');
   };
-  await switchVenue(secondVenue.payload.id);
+  await switchVenue(secondVenue.payload.id, true);
+  assert.equal((await request('/api/session', { token: otherOwnerSession })).payload.user.venueId, otherOwnerInitialVenueId, 'another token of the same owner retains its selected venue');
+  assert.ok((await request('/api/notifications', { token: otherOwnerSession })).payload.items.some((item) => item.id === event.id), 'same-owner second session still sees first-venue events');
+  for (const rejectedId of [archivedVenue.payload.id, 'unknown-notification-venue']) {
+    assert.equal((await request(`/api/network/venues/${rejectedId}/select`, { method: 'POST', token: owner })).status, 404);
+    assert.equal((await request('/api/session', { token: owner })).payload.user.venueId, secondVenue.payload.id, 'rejected selection preserves session venue');
+  }
+  assert.equal((await request(`/api/network/venues/${secondVenue.payload.id}/select`, { method: 'POST', token: staff })).status, 403, 'staff cannot switch venue without settings permission');
+  assert.equal((await request('/api/notifications', { method: 'POST', token: owner, body: { venueId: defaultVenue.id } })).status, 200, 'read-all uses selected venue despite a forged body');
   const secondVenueEmpty = await request('/api/notifications?venueId=00000000-0000-0000-0000-000000000001', { token: owner });
   assert.equal(secondVenueEmpty.status, 200);
   assert.equal(secondVenueEmpty.payload.items.some((item) => item.id === event.id), false, 'authenticated venue context excludes first-venue events even when client query forges venueId');
   const crossVenueRead = await request(`/api/notifications/${encodeURIComponent(event.id)}/read`, { method: 'PUT', token: owner });
   assert.equal(crossVenueRead.status, 404, 'event ID from another venue cannot be marked read');
-  const secondOrder = await request('/api/orders', { method: 'POST', token: owner, body: { tableId: 'notification-qa-second-venue-table' } });
+  const secondOrder = await request('/api/orders', { method: 'POST', token: owner, body: { tableId: await createTable(owner, 'notification-second-venue') } });
   assert.equal(secondOrder.status, 201, `second venue order: ${JSON.stringify(secondOrder.payload)}`);
   const secondDeleted = await request(`/api/orders/${encodeURIComponent(secondOrder.payload.id)}`, { method: 'DELETE', token: owner, body: { comment: 'Notification QA second venue', writeoff: false } });
   assert.equal(secondDeleted.status, 200);
   const secondVenueEvent = (await request('/api/notifications', { token: owner })).payload.items.find((item) => item.type === 'order_deleted');
   assert.ok(secondVenueEvent); assert.notEqual(secondVenueEvent.id, event.id);
+  assert.equal((await request('/api/notifications', { token: otherOwnerSession })).payload.items.some((item) => item.id === secondVenueEvent.id), false, 'same-user other token does not inherit the switched venue');
   const secondVenueRead = await request(`/api/notifications/${encodeURIComponent(secondVenueEvent.id)}/read`, { method: 'PUT', token: owner });
   assert.equal(secondVenueRead.status, 200);
   assert.equal((await request('/api/notifications', { token: admin })).payload.items.some((item) => item.id === secondVenueEvent.id), false, 'a second user still has only its own venue context');

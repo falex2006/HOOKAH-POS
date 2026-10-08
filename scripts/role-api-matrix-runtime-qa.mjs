@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const adminPassword = process.env.DEMO_ADMIN_PASSWORD || 'admin';
+const platformPassword = `qa-platform-${suffix}`;
+const platformLogin = `qa-platform-${suffix}@example.test`;
 const child = spawn(process.execPath, ['server.js'], {
   cwd: fileURLToPath(new URL('../', import.meta.url)),
   windowsHide: true,
@@ -16,6 +18,8 @@ const child = spawn(process.execPath, ['server.js'], {
     AUTH_REQUIRED: 'true',
     DEMO_ADMIN_PASSWORD: adminPassword,
     DEMO_OWNER_PASSWORD: process.env.DEMO_OWNER_PASSWORD || 'demo',
+    SAAS_OWNER_EMAIL: platformLogin,
+    SAAS_OWNER_PASSWORD: platformPassword,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -113,8 +117,55 @@ try {
   const currentShift = await request('/api/shifts', { method: 'POST', token: adminToken, body: { openingCash: 25 } });
   expectStatus(currentShift, 201, 'admin opens current test shift');
   const employeeShifts = await request('/api/shifts', { token: bartender.token });
-  assert.deepEqual(employeeShifts.data.items.map((shift) => shift.id), [currentShift.data.id], 'employee sees only current open shift');
-  assert.deepEqual(Object.keys(employeeShifts.data.current).sort(), ['closedAt', 'id', 'openedAt', 'openingCash'].sort(), 'employee shift omits reconciliation fields');
+  const employeeShiftFields = [
+    'id', 'openedAt', 'closedAt', 'openingCash', 'expectedCash', 'cashPreviewAt',
+    'unresolvedLegacyCashCount', 'unresolvedLegacyCashAmount',
+  ].sort();
+  assert.deepEqual(employeeShifts.data.items.map((shift) => shift.id), [currentShift.data.id], 'employee sees only the current open shift, without closed shift history');
+  assert.equal(employeeShifts.data.current.id, currentShift.data.id, 'employee current shift belongs to the authenticated venue');
+  assert.deepEqual(Object.keys(employeeShifts.data.current).sort(), employeeShiftFields, 'employee current shift matches the exact approved DTO whitelist');
+  assert.equal(employeeShifts.data.current.closedAt, null, 'current shift is open');
+  assert.ok(Number.isFinite(Date.parse(employeeShifts.data.current.openedAt)), 'current shift exposes its opening timestamp');
+  assert.ok(Number.isFinite(Number(employeeShifts.data.current.openingCash)), 'current shift exposes opening cash');
+  assert.ok(Number.isInteger(employeeShifts.data.current.unresolvedLegacyCashCount) && employeeShifts.data.current.unresolvedLegacyCashCount >= 0, 'legacy cash count is numeric and nonnegative');
+  assert.ok(Number.isFinite(Number(employeeShifts.data.current.unresolvedLegacyCashAmount)) && employeeShifts.data.current.unresolvedLegacyCashAmount >= 0, 'legacy cash amount is numeric and nonnegative');
+  assert.ok(Number.isFinite(Date.parse(employeeShifts.data.current.cashPreviewAt)), 'cash preview is timestamped');
+  if (employeeShifts.data.current.unresolvedLegacyCashCount > 0) {
+    assert.equal(employeeShifts.data.current.expectedCash, null, 'unresolved legacy cash suppresses expected cash rather than presenting an unreliable total');
+  } else {
+    assert.ok(Number.isFinite(Number(employeeShifts.data.current.expectedCash)) && employeeShifts.data.current.expectedCash >= 0, 'resolved current shift exposes expected cash');
+  }
+  assert.deepEqual(Object.keys(employeeShifts.data.items[0]).sort(), employeeShiftFields, 'current-shift list row uses the same exact whitelist');
+  const noShiftScope = await createAccount('manager', `qa_limited_${suffix}`, ['inventory_categories']);
+  const noShiftPermissions = await request('/api/session', { token: noShiftScope.token });
+  for (const scope of ['floor', 'orders', 'finance_read']) assert.ok(!noShiftPermissions.data.permissions.includes(scope), `limited role lacks ${scope}`);
+  expectStatus(await request('/api/shifts', { token: noShiftScope.token }), 403, 'role without floor/orders/finance_read cannot read shift data');
+  expectStatus(await request(`/api/shifts/${encodeURIComponent(currentShift.data.id)}/close`, { method: 'POST', token: noShiftScope.token, body: { closingCash: 25, checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } } } }), 403, 'role without shift scopes cannot close the current shift');
+  const shiftAfterDeniedClose = await request('/api/shifts', { token: bartender.token });
+  assert.equal(shiftAfterDeniedClose.data.current.id, currentShift.data.id, 'denied close leaves the current shift open');
+  const platform = await request('/api/login', { method: 'POST', body: { username: platformLogin, password: platformPassword } });
+  expectStatus(platform, 200, 'isolated platform owner login for second-venue fixture');
+  const secondOwnerLogin = `qa_shift_other_${suffix}@example.test`;
+  const secondOwnerPassword = `qa-owner-${suffix}`;
+  const secondOrganization = await request('/api/platform/organizations', { method: 'POST', token: platform.data.token, body: {
+    name: `QA second shift venue ${suffix}`, slug: `qa-second-shift-${suffix}`,
+    ownerName: 'QA Second Venue Owner', ownerLogin: secondOwnerLogin, ownerPassword: secondOwnerPassword,
+    plan: 'enterprise', timezone: 'Asia/Yekaterinburg',
+  } });
+  expectStatus(secondOrganization, 201, 'create isolated second-venue shift fixture');
+  const secondOwnerAuth = await request('/api/login', { method: 'POST', body: { username: secondOwnerLogin, password: secondOwnerPassword } });
+  expectStatus(secondOwnerAuth, 200, 'second-venue owner login');
+  const secondVenue = await request('/api/venue', { token: secondOwnerAuth.data.token });
+  expectStatus(secondVenue, 200, 'second-venue owner reads own venue');
+  const secondShift = await request('/api/shifts', { method: 'POST', token: secondOwnerAuth.data.token, body: { openingCash: 99 } });
+  expectStatus(secondShift, 201, 'second venue has an actual open shift fixture');
+  const secondVenueShifts = await request('/api/shifts', { token: secondOwnerAuth.data.token });
+  assert.deepEqual(secondVenueShifts.data.items.map((shift) => shift.id), [secondShift.data.id], 'second venue owner reads its own shift');
+  const foreignVenueShiftRead = await request(`/api/shifts?venueId=${encodeURIComponent(secondVenue.data.id)}`, { token: bartender.token });
+  expectStatus(foreignVenueShiftRead, 200, 'employee shift endpoint ignores caller-supplied venue scope');
+  assert.deepEqual(foreignVenueShiftRead.data.items.map((shift) => shift.id), [currentShift.data.id], 'caller cannot use a venue query to select foreign shift data');
+  assert.equal(foreignVenueShiftRead.data.current.id, currentShift.data.id, 'caller venue selector leaves the authenticated current shift unchanged');
+  assert.deepEqual(Object.keys(foreignVenueShiftRead.data.current).sort(), employeeShiftFields, 'venue selector cannot add reconciliation or history fields');
   const managerShifts = await request('/api/shifts', { token: manager.token });
   assert.ok(managerShifts.data.items.some((shift) => shift.id === oldShift.data.id && 'cashVariance' in shift), 'manager retains historical cash reconciliation');
   const managerSession = await request('/api/session', { token: manager.token });

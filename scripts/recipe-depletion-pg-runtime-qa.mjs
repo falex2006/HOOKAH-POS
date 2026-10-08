@@ -930,6 +930,52 @@ try {
   assert.equal(Number(duplicateCloseFacts.depleted), 1, 'the single same-order recipe movement records one portion'); checks += 2;
   assert.equal(duplicateRaceStartBalance - await getBalance(raceStock.id), 1, 'concurrent duplicate close depletes exactly one recipe portion'); checks++;
 
+  // FIX-04.1: repair the actual rejection cause, then retry the same order.
+  // Keep this after finance totals: these recoveries intentionally add paid sales.
+  async function paymentStockFacts(orderId) {
+    const result = await client.query(`SELECT o.status,
+      (SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT COALESCE(SUM(p.amount),0)::numeric FROM payments p WHERE p.order_id=o.id) AS paid,
+      (SELECT COUNT(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs,
+      (SELECT COUNT(*)::int FROM stock_movements m WHERE m.order_id=o.id AND m.direction='out') AS depletions
+      FROM orders o WHERE o.id=$1 AND o.venue_id=$2`, [orderId, venueId]);
+    return result.rows[0];
+  }
+  const cardShortageBefore = await paymentStockFacts(shortageOrderId);
+  const cardShortage = await req(base, `/api/orders/${shortageOrderId}/close`, 'POST', { paymentMethod: 'card' }, 409);
+  assert.equal(cardShortage.error, 'insufficient_recipe_stock');
+  assert.deepEqual(await paymentStockFacts(shortageOrderId), cardShortageBefore,
+    'card close with stock shortage leaves the prior partial payment and stock effects unchanged'); checks += 2;
+  await req(base, '/api/inventory/movements', 'POST', {
+    itemId: stockItem.id, delta: 4000, unit: 'мл', reason: 'FIX-04.1 repair shortage before retry',
+  }, 201);
+  const repairedStockBefore = await getBalance(stockItem.id);
+  await req(base, `/api/orders/${shortageOrderId}/payments`, 'POST', { amount: 60, method: 'card' }, 201);
+  const recoveredShortage = await paymentStockFacts(shortageOrderId);
+  assert.deepEqual(recoveredShortage, { status: 'closed', payments: 2, paid: '90.00', cogs: 1, depletions: 1 },
+    'replenishment permits retry: exactly the prior cash payment plus the new card payment and one depletion');
+  assert.equal(repairedStockBefore - await getBalance(stockItem.id), 4000,
+    'repair retry consumes one recipe portion after rejected attempts'); checks += 2;
+  await req(base, `/api/orders/${shortageOrderId}/payments`, 'POST', { amount: 60, method: 'card' }, 409);
+  assert.deepEqual(await paymentStockFacts(shortageOrderId), recoveredShortage,
+    'duplicate final card payment creates no second payment or depletion'); checks++;
+
+  await req(base, '/api/inventory/movements', 'POST', {
+    itemId: raceStock.id, delta: 1, unit: 'шт', reason: 'FIX-04.1 stock for repaired recipe',
+  }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    productId: unconfiguredProduct.id, name: unconfiguredProduct.name,
+    ingredients: [{ ingredientId: raceStock.id, name: raceStock.name, quantity: '1 шт' }],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  }, 201);
+  await req(base, `/api/orders/${unconfiguredPaymentId}/payments`, 'POST', { amount: 100, method: 'cash' }, 201);
+  const recoveredRecipe = await paymentStockFacts(unconfiguredPaymentId);
+  assert.deepEqual(recoveredRecipe, { status: 'closed', payments: 2, paid: '150.00', cogs: 1, depletions: 1 },
+    'binding a valid recipe permits final cash retry without repeating the earlier partial payment'); checks++;
+  await req(base, `/api/orders/${unconfiguredPaymentId}/payments`, 'POST', { amount: 100, method: 'cash' }, 409);
+  assert.deepEqual(await paymentStockFacts(unconfiguredPaymentId), recoveredRecipe,
+    'duplicate final cash payment cannot repeat payment or depletion'); checks++;
+
   console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase/payment→stock→pack/bottle conversions→tobacco and cocktail recipes→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {
   if (server && server.exitCode === null) {

@@ -8,7 +8,8 @@ const end = portal.indexOf('; };', start);
 assert.ok(start >= 0 && end > start, 'stock row renderer must be discoverable');
 const rendererSource = portal.slice(start, end + 4);
 const rows = { innerHTML: '' };
-const document = { querySelector: (selector) => selector === '#inventory-rows' ? rows : null };
+const visibleCount = { textContent: '' };
+const document = { querySelector: (selector) => selector === '#inventory-rows' ? rows : selector === '#stock-visible-count' ? visibleCount : null };
 const items = [
   { id: 'untracked-empty', name: 'Вода', category: 'Напитки', department: 'Бар', unit: 'л', onHand: 0, minLevel: 0, cost: 0 },
   { id: 'tracked-empty', name: 'Сироп', category: 'Сиропы', department: 'Бар', unit: 'л', onHand: 0, minLevel: 2, cost: 0 },
@@ -19,6 +20,11 @@ assert.match(rows.innerHTML, /Порог не задан/, 'zero minimum explain
 assert.match(rows.innerHTML, /data-label="Порог пополнения"/, 'mobile row label matches the threshold column heading');
 assert.match(rows.innerHTML, /Нужно пополнить/, 'positive minimum plus low stock must request replenishment');
 assert.match(rows.innerHTML, /В норме/, 'positive minimum plus sufficient stock must remain normal');
+assert.equal(visibleCount.textContent, 3, 'unfiltered stock count matches all visible positions');
+const filteredCountDocument = { querySelector: (selector) => selector === '#inventory-rows' ? rows : selector === '#stock-visible-count' ? visibleCount : null,
+  querySelectorAll: () => [] };
+new Function('allItems', 'canWriteInventory', 'document', 'normalizeInventorySearch', 'esc', 'displayName', 'money', 'alcoholProfileById', 'alcoholItemLabel', `${rendererSource}; draw('Сироп'); return document.querySelector('#inventory-rows').innerHTML;`)(items, false, filteredCountDocument, (value) => String(value || '').toLocaleLowerCase('ru-RU'), String, String, (value) => `${Number(value || 0)} ₽`, () => null, () => '');
+assert.equal(visibleCount.textContent, '1 / 3', 'filtered visible count reflects the search result and total');
 
 const lowStockMatcher = server.match(/const isBelowInventoryMinimum = ([^;]+);/);
 assert.ok(lowStockMatcher, 'server must share an explicit stock-monitoring rule');

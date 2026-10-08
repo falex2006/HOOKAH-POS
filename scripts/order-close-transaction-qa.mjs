@@ -27,7 +27,7 @@ const close = at(/UPDATE orders SET status=\$1,closed_at=now\(\)/, 'order closes
 const loyalty = at(/accrueGuestOrderBonus\(client,[\s\S]*?eligibleBase: Math\.max\(0, net - Number\(redeemedRows\.rows\[0\]\?\.amount \|\| 0\)\)/, 'loyalty accrual excludes both VIP uplift and bonus-redeemed amounts');
 const orderCost = at(/INSERT INTO order_costs \(venue_id,order_id,cost\)/, 'COGS snapshot is inserted transactionally');
 const payment = at(/INSERT INTO payments \(order_id,method,amount,status,shift_id\)/, 'payment is inserted transactionally and assigned to the active shift');
-const table = at(/UPDATE tables t SET status=CASE/, 'table release is transactional');
+const table = at(/await refreshTableReservationStatus\(client, persisted\.tableId, venueDbId\)/, 'table release uses the active transaction client');
 const commit = at(/await client\.query\('COMMIT'\)/, 'transaction commits');
 const audit = at(/recordAudit\(req, 'order\.closed'/, 'audit event is emitted');
 
@@ -59,7 +59,7 @@ const paymentDepletion = paymentAt(/depleteRecipeForOrder\(repositories\.pool, p
 const paymentClose = paymentAt(/UPDATE orders SET status=\\'closed\\',closed_at=now\(\)/, 'final payment closes order transactionally');
 const paymentLoyalty = paymentAt(/accrueGuestOrderBonus\(client,[\s\S]*?eligibleBase: Math\.max\(0, net - Number\(redeemedRows\.rows\[0\]\?\.amount \|\| 0\)\)/, 'final payment accrual excludes VIP uplift and bonus-redeemed amounts');
 const paymentCost = paymentAt(/INSERT INTO order_costs \(venue_id,order_id,cost\)/, 'final payment records COGS transactionally');
-const paymentTable = paymentAt(/UPDATE tables t SET status=CASE/, 'final payment releases table transactionally');
+const paymentTable = paymentAt(/await refreshTableReservationStatus\(client, persisted\.tableId, venueDbId\)/, 'final payment releases table through the active transaction client');
 const paymentCommit = paymentPost.lastIndexOf("await client.query('COMMIT')");
 assert.ok(paymentCommit >= 0, 'payment transaction commit is present');
 const paymentAudit = paymentAt(/recordAudit\(req, 'order\.payment_added'/, 'payment audit emits after transaction');

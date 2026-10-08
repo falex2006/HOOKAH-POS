@@ -16,18 +16,29 @@ const base = await new Promise((resolve, reject) => {
   child.once('error', reject);
   child.stdout.on('data', () => { const match = output.match(/CRM running on http:\/\/localhost:(\d+)/); if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`); } });
 });
-async function call(path, method = 'GET', body, expected = 200) {
-  const response = await fetch(`${base}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+async function call(path, method = 'GET', body, expected = 200, token = null) {
+  const response = await fetch(`${base}${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   const data = await response.json();
   assert.equal(response.status, expected, `${method} ${path}: ${JSON.stringify(data)}`);
   return data;
 }
+let floorZoneId = null;
+let floorVenueId = null;
+async function createTableId(label) {
+  if (!floorZoneId) {
+    const floor = await call('/api/floor'); floorVenueId = floor.venueId; floorZoneId = floor.zones?.[0]?.id || null;
+    if (!floorZoneId) floorZoneId = (await call('/api/floor/zones', 'POST', { name: `QA ${Date.now()}`, expectedVenueId: floorVenueId }, 201)).id;
+  }
+  return (await call('/api/floor/tables', 'POST', { zoneId: floorZoneId, expectedVenueId: floorVenueId, name: `QA ${label} ${Date.now()} ${Math.random().toString(36).slice(2,7)}`, capacity: 2 }, 201)).id;
+}
 try {
+  const staffSession = await call('/api/login', 'POST', { username: 'staff', password: 'demo' });
+  const staffToken = staffSession.token;
   assert.equal((await call('/api/health')).database, 'memory');
   const defaultPolicy = await call('/api/loyalty/settings');
   assert.deepEqual([defaultPolicy.version, defaultPolicy.bonusRublesPerPoint, defaultPolicy.maxRedemptionPercent, defaultPolicy.minimumRedemptionPoints, defaultPolicy.source], [0, 1, 100, 1, 'legacy_default']);
   await call('/api/shifts', 'POST', { openingCash: 0 }, 201);
-  const prePolicyOrder = await call('/api/orders', 'POST', { tableId: 'paid-order-policy-old-qa' }, 201);
+  const prePolicyOrder = await call('/api/orders', 'POST', { tableId: await createTableId('policy-old') }, 201);
 
   const policyV1 = await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 0, bonusRublesPerPoint: 1, maxRedemptionPercent: 5, minimumRedemptionPoints: 2 }, 201);
   assert.equal(policyV1.version, 1);
@@ -40,8 +51,8 @@ try {
   assert.equal((await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 1, bonusRublesPerPoint: 2, maxRedemptionPercent: 5, minimumRedemptionPoints: 2 }, 400)).error, 'invalid_loyalty_settings', 'conversion rate stays fixed until bonus tender units are separated');
   assert.equal((await call('/api/loyalty/settings', 'PATCH', { expectedVenueId: defaultPolicy.venueId, expectedVersion: 1, bonusRublesPerPoint: 1, maxRedemptionPercent: 5, minimumRedemptionPoints: 2, bonusExpirationDays: 30 }, 400)).error, 'unknown_loyalty_setting', 'expiry stays disabled until accrual lots exist');
   const product = await call('/api/products', 'POST', { name: 'QA paid order service', category: 'Услуги', price: 100, inventoryMode: 'non_stock' }, 201);
-  const order = await call('/api/orders', 'POST', { tableId: 'paid-order-balance-qa' }, 201);
-  const item = await call(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 2 }, 201);
+  const order = await call('/api/orders', 'POST', { tableId: await createTableId('balance') }, 201);
+  const item = await call(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 2 }, 201, staffToken);
   assert.equal((await call(`/api/orders/${order.id}`, 'PATCH', { clientId: 'missing-client', notes: 'must rollback' }, 404)).error, 'client_not_found');
   assert.equal((await call('/api/orders')).items.find((entry) => entry.id === order.id)?.notes, '', 'rejected guest edit leaves memory notes unchanged');
   for (const quantity of [1.5, 1000]) assert.equal((await call(`/api/orders/${order.id}/items/${item.id}`, 'PATCH', { quantity }, 400)).error, 'quantity_must_be_positive');
@@ -71,8 +82,8 @@ try {
 
   const group = await call('/api/discount-groups', 'POST', { name: 'QA accrual 5%', discountPercent: 10, bonusPercent: 5 }, 201);
   const guest = await call('/api/clients', 'POST', { name: 'QA loyalty guest', discountGroupId: group.id }, 201);
-  const loyaltyOrder = await call('/api/orders', 'POST', { tableId: 'paid-order-loyalty-qa' }, 201);
-  await call(`/api/orders/${loyaltyOrder.id}/items`, 'POST', { productId: product.id, quantity: 2 }, 201);
+  const loyaltyOrder = await call('/api/orders', 'POST', { tableId: await createTableId('loyalty') }, 201);
+  await call(`/api/orders/${loyaltyOrder.id}/items`, 'POST', { productId: product.id, quantity: 2 }, 201, staffToken);
   await call(`/api/orders/${loyaltyOrder.id}`, 'PATCH', { clientId: guest.id }, 200);
   const groupQuote = await call(`/api/orders/${loyaltyOrder.id}/summary`);
   assert.equal(groupQuote.due, 180);
@@ -103,8 +114,8 @@ try {
   const guestLedger = await call(`/api/clients/${guest.id}/account-entries`);
   assert.equal(guestLedger.items.filter((entry) => entry.sourceId === loyaltyOrder.id).length, 1, 'one ledger movement is stored for the order');
   assert.equal((await call(`/api/orders/${loyaltyOrder.id}/payments`, 'POST', { amount: 1, method: 'cash' }, 409)).error, 'order_already_final');
-  const redeemOrder = await call('/api/orders', 'POST', { tableId: 'paid-order-bonus-redeem-qa' }, 201);
-  await call(`/api/orders/${redeemOrder.id}/items`, 'POST', { productId: product.id, quantity: 2 }, 201);
+  const redeemOrder = await call('/api/orders', 'POST', { tableId: await createTableId('bonus-redeem') }, 201);
+  await call(`/api/orders/${redeemOrder.id}/items`, 'POST', { productId: product.id, quantity: 2 }, 201, staffToken);
   await call(`/api/orders/${redeemOrder.id}`, 'PATCH', { clientId: guest.id }, 200);
   const redeemQuote = await call(`/api/orders/${redeemOrder.id}/payments`);
   assert.equal(redeemQuote.guestAccount.bonusBalance, 9);
@@ -143,8 +154,8 @@ try {
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`)).guestAccount.bonusBalance, 9, 'balance reread includes debit and excludes points earned on the redeemed share');
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`)).guestAccount.depositBalance, 9.5, 'stored-value balance is available after payment reread');
 
-  const vipOrder = await call('/api/orders', 'POST', { tableId: 'paid-order-loyalty-vip-qa', minimumOrderTotal: 250 }, 201);
-  await call(`/api/orders/${vipOrder.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201);
+  const vipOrder = await call('/api/orders', 'POST', { tableId: await createTableId('vip'), minimumOrderTotal: 250 }, 201);
+  await call(`/api/orders/${vipOrder.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201, staffToken);
   await call(`/api/orders/${vipOrder.id}`, 'PATCH', { clientId: guest.id }, 200);
   const vipDiscount = await call(`/api/orders/${vipOrder.id}/discount-requests`, 'POST', { type: 'percent', value: 10, reason: 'QA loyalty base' }, 201);
   await call(`/api/discount-requests/${vipDiscount.id}/approve`, 'POST', {}, 200);
@@ -165,8 +176,8 @@ try {
   const shiftCash = await call(`/api/shifts/${shift.id}/close`, 'POST', { checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } }, closingCash: cashPayments + topupCash }, 200);
   assert.equal(shiftCash.expectedCash, cashPayments + topupCash, 'cash deposit top-ups enter shift cash while remaining outside order payments');
 
-  const discountOrder = await call('/api/orders', 'POST', { tableId: 'paid-order-discount-policy-qa' }, 201);
-  await call(`/api/orders/${discountOrder.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201);
+  const discountOrder = await call('/api/orders', 'POST', { tableId: await createTableId('discount-policy') }, 201);
+  await call(`/api/orders/${discountOrder.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201, staffToken);
   await call(`/api/orders/${discountOrder.id}`, 'PATCH', { clientId: guest.id }, 200);
   const firstDiscount = await call(`/api/orders/${discountOrder.id}/discount-requests`, 'POST', { type: 'percent', value: 100, reason: 'QA one approved discount per order' }, 201);
   await call(`/api/discount-requests/${firstDiscount.id}/approve`, 'POST', {}, 200);

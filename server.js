@@ -3,6 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createRepositories, allocatePremixBatchConsumption } = require('./db');
+const { handleOrderPreparation, refreshPgPreparation, refreshMemoryPreparation, preparationItems } = require('./order-preparation');
+const { venueTimezoneSql, refreshTableReservationStatus, reservationDateTimeIsFuture } = require('./reservation-calendar');
+const { createPermissionResolver } = require('./effective-permissions');
 const { orderAttentionReasons } = require('./order-attention');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
 const { validateDataUrl: validatePurchasePaymentDocument } = require('./purchase-document-validation');
@@ -323,13 +326,11 @@ const systemRoleScopeDefaults = {
   technician: [],
   other_staff: []
 };
-const effectivePermissions = (user) => {
-  const base = rolePermissions[user?.role] || [];
-  const hasRoleOverride = user?.rolePermissionOverrideActive === true || (Array.isArray(user?.rolePermissionScopes) && user.rolePermissionScopes.length > 0);
-  const scopes = normalizePermissionScopes(hasRoleOverride ? user.rolePermissionScopes : (user?.customRolePermissionScopes?.length ? user.customRolePermissionScopes : user?.permissionScopes));
-  if (!scopes.length) return base;
-  const restricted = new Set(Object.values(scopedPermissionMap).flat());
-  return [...new Set([...base.filter((permission) => !restricted.has(permission)), ...scopes.flatMap((scope) => scopedPermissionMap[scope] || [])])];
+const resolvePermissionPolicy = createPermissionResolver({ rolePermissions, scopedPermissionMap, normalizePermissionScopes });
+const effectivePermissions = (user) => resolvePermissionPolicy(user).permissions;
+const withEffectivePermissions = (user) => {
+  const resolved = resolvePermissionPolicy(user);
+  return { ...user, workspacePermissions: resolved.permissions, permissionPolicy: resolved.policy };
 };
 
 const json = (res, status, data) => {
@@ -598,7 +599,11 @@ async function pgOrderPricing(client, orderId, minimumOrderTotal = 0) {
   if (canonical.rows[0]) {
     const s=canonical.rows[0]; const lines=s.lines||[];
     const subtotal=Number(s.subtotal_minor)/100, discount=Number(s.discount_minor)/100, net=subtotal-discount;
-    return {subtotal,discount,net,due:Number(s.final_total_minor)/100,paid:Number((await client.query("SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status IN ('paid','partially_paid')",[orderId])).rows[0]?.paid||0),minimumAdjustment:Number(s.minimum_adjustment_minor)/100,source:s.discount_source,offers:s.frozen_terms?.offers||[],selectedPromotion:s.discount_source==='promotion'?s.winner_terms:null,groupDiscountGroupId:s.frozen_terms?.groupDiscountGroupId||null,groupDiscountName:s.frozen_terms?.groupDiscountName||null,groupDiscountPercent:s.frozen_terms?.groupDiscountPercent??null,lineAllocations:lines.map((line)=>({orderItemId:line.orderItemId,grossCents:Number(line.grossCents),discountCents:Number(line.discountCents),netCents:Number(line.netCents),gross:Number(line.grossCents)/100,discount:Number(line.discountCents)/100,net:Number(line.netCents)/100,eligibleForSelectedOffer:line.eligibleForSelectedOffer})),pricingLines:lines.map((line)=>({orderItemId:line.orderItemId,quantity:line.quantity,unitPrice:line.unitPrice,sellerId:line.sellerId,soldAt:line.soldAt,...line.productFacts})),lineSnapshotStatus:'complete'};
+    // Restore group metadata from frozen facts; current policies must not reprice a locked order.
+    const hasGroup = Boolean(s.frozen_terms?.groupDiscountGroupId);
+    const groupDiscountBase = hasGroup ? subtotal : null;
+    const groupDiscountAmount = s.discount_source === 'guest_group' ? discount : hasGroup ? 0 : null;
+    return {groupDiscountBase,groupDiscountAmount,subtotal,discount,net,due:Number(s.final_total_minor)/100,paid:Number((await client.query("SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status IN ('paid','partially_paid')",[orderId])).rows[0]?.paid||0),minimumAdjustment:Number(s.minimum_adjustment_minor)/100,source:s.discount_source,offers:s.frozen_terms?.offers||[],selectedPromotion:s.discount_source==='promotion'?s.winner_terms:null,groupDiscountGroupId:s.frozen_terms?.groupDiscountGroupId||null,groupDiscountName:s.frozen_terms?.groupDiscountName||null,groupDiscountPercent:s.frozen_terms?.groupDiscountPercent??null,lineAllocations:lines.map((line)=>({orderItemId:line.orderItemId,grossCents:Number(line.grossCents),discountCents:Number(line.discountCents),netCents:Number(line.netCents),gross:Number(line.grossCents)/100,discount:Number(line.discountCents)/100,net:Number(line.netCents)/100,eligibleForSelectedOffer:line.eligibleForSelectedOffer})),pricingLines:lines.map((line)=>({orderItemId:line.orderItemId,quantity:line.quantity,unitPrice:line.unitPrice,sellerId:line.sellerId,soldAt:line.soldAt,...line.productFacts})),lineSnapshotStatus:'complete'};
   }
   const { rows: itemRows } = await client.query('SELECT oi.id AS "orderItemId",oi.product_id AS "productId",oi.quantity,oi.unit_price AS "unitPrice",COALESCE(ROUND(SUM(oi.quantity*oi.unit_price) OVER (),2),0)::text AS subtotal,p.name AS "productName",p.category,p.is_active AS "productActive",oi.station,oi.sales_employee_id AS "sellerId",oi.sold_at::text AS "soldAt" FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id AND p.venue_id=$2 WHERE oi.order_id=$1 ORDER BY oi.id', [orderId, order.venueId]);
   const subtotal = itemRows.length ? itemRows[0].subtotal : '0.00';
@@ -879,7 +884,7 @@ const metrics = () => ({
   closedOrders: orders.filter((order) => order.status === 'closed').length,
   discountRequests: discountRequests.filter((request) => request.status === 'requested').length,
   staffActive: staff.filter((person) => person.active).length,
-  reservationsToday: reservations.filter((reservation) => reservation.date === today()).length,
+  reservationsToday: reservations.filter((reservation) => reservation.date === reservationToday()).length,
   lowStock: inventory.filter(isBelowInventoryMinimum).length
 });
 const visibleMetrics = (req, values) => {
@@ -893,7 +898,8 @@ const visibleMetrics = (req, values) => {
   return visible;
 };
 const setMemoryTableStatus = (tableId, status) => { const table = floor.flatMap((zone) => zone.tables).find((entry) => entry.id === tableId); if (table && table.status !== 'blocked') table.status = status; };
-const releaseMemoryTableIfIdle = (tableId) => { const hasActiveOrder = orders.some((order) => order.tableId === tableId && ['open', 'in_progress', 'ready'].includes(order.status)); const hasReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === today()); if (!hasActiveOrder) setMemoryTableStatus(tableId, hasReservation ? 'reserved' : 'free'); };
+const reservationToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: resolveIanaTimezone(venue.timezone, saasAccount.timezone, businessTimezone), year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+const releaseMemoryTableIfIdle = (tableId) => { const hasActiveOrder = orders.some((order) => order.tableId === tableId && ['open', 'in_progress', 'ready'].includes(order.status)); const hasReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === reservationToday()); setMemoryTableStatus(tableId, hasActiveOrder ? 'occupied' : hasReservation ? 'reserved' : 'free'); };
 const memoryPremixRemaining = (batch) => batch.status === 'voided' ? 0 : Number(Math.max(0, Number(batch.outputQuantity || 0) + (batch.lotMovements || []).reduce((sum, row) => sum + Number(row.quantityDelta || 0), 0)).toFixed(6));
 const allocateMemoryPremixConsumption = (ingredientId, quantity, onHandBefore, movementId, reason, { apply = true } = {}) => {
   const lots = stockMovements.filter((item) => item.type === 'premix' && String(item.outputItemId) === String(ingredientId) && item.status !== 'voided' && memoryPremixRemaining(item) > 0)
@@ -980,7 +986,17 @@ const sessionFromRequest = async (req) => {
     if (sessionRepository) {
       try {
         const persisted = await sessionRepository.get(hashToken(token));
-        if (persisted) { let rolePermissionScopes = []; let rolePermissionOverrideActive = false; if (typeof repositories !== 'undefined' && repositories?.pool && persisted.venueId && persisted.role && persisted.role !== 'owner') { try { const override = await repositories.pool.query('SELECT permission_scopes AS "permissionScopes" FROM system_role_permission_overrides WHERE venue_id=$1 AND role=$2 LIMIT 1', [persisted.venueId, persisted.role]); rolePermissionOverrideActive = Boolean(override.rows[0]); rolePermissionScopes = normalizePermissionScopes(override.rows[0]?.permissionScopes || []); } catch (_) {} } return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, customRoleId: persisted.customRoleId || null, customRolePermissionScopes: normalizePermissionScopes(persisted.customRolePermissionScopes), rolePermissionScopes, rolePermissionOverrideActive, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) }, createdAt: persisted.createdAt, expiresAt: persisted.expiresAt, trustedDevice: isTrustedSession(persisted) }; }
+        if (persisted) {
+          const user = withEffectivePermissions({
+            id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null,
+            name: persisted.name, role: persisted.role, customRoleId: persisted.customRoleId || null,
+            customRoleActive: Boolean(persisted.customRoleActive), customRolePermissionScopes: normalizePermissionScopes(persisted.customRolePermissionScopes),
+            rolePermissionScopes: normalizePermissionScopes(persisted.rolePermissionScopes), rolePermissionOverrideActive: Boolean(persisted.rolePermissionOverrideActive),
+            avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [],
+            permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt)
+          });
+          return { user, createdAt: persisted.createdAt, expiresAt: persisted.expiresAt, trustedDevice: isTrustedSession(persisted) };
+        }
       } catch (_) { return null; }
     }
     const memorySession = sessions.get(token);
@@ -991,7 +1007,13 @@ const sessionFromRequest = async (req) => {
     return null;
   }
   const memorySession = sessions.get(token);
-  if (memorySession) { if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; } return memorySession; }
+  if (memorySession) {
+    if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; }
+    const person = staff.find((entry) => String(entry.id) === String(memorySession.user?.id));
+    if (person?.active === false) return null;
+    const user = person ? { ...memorySession.user, role: person.role, permissionScopes: person.permissionScopes } : memorySession.user;
+    return { ...memorySession, user: withEffectivePermissions(user) };
+  }
   return null;
 };
 const recordAudit = (req, action, entityType, entityId, beforeData, afterData) => {
@@ -1327,12 +1349,12 @@ async function api(req, res) {
     }
     if (!account && repositories?.pool) {
       try {
-        const { rows } = await repositories.pool.query('SELECT u.id,u.login,u.organization_id AS "organizationId",u.venue_id AS "venueId",u.full_name AS name,u.role,u.custom_role_id AS "customRoleId",cr.permission_scopes AS "customRolePermissionScopes",sro.permission_scopes AS "rolePermissionScopes",(sro.role IS NOT NULL) AS "rolePermissionOverrideActive",u.password_hash AS "passwordHash",u.pin_hash,u.pin_updated_at,u.preferences,u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes" FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.venue_id=u.venue_id AND cr.is_active=true LEFT JOIN system_role_permission_overrides sro ON sro.venue_id=u.venue_id AND sro.role=u.role::text WHERE u.login=$1 AND u.is_active=true LIMIT 1', [input.username]);
+        const { rows } = await repositories.pool.query('SELECT u.id,u.login,u.organization_id AS "organizationId",u.venue_id AS "venueId",u.full_name AS name,u.role,u.custom_role_id AS "customRoleId",cr.permission_scopes AS "customRolePermissionScopes",(cr.id IS NOT NULL) AS "customRoleActive",sro.permission_scopes AS "rolePermissionScopes",(sro.role IS NOT NULL) AS "rolePermissionOverrideActive",u.password_hash AS "passwordHash",u.pin_hash,u.pin_updated_at,u.preferences,u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes" FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.organization_id=u.organization_id AND cr.venue_id=u.venue_id AND cr.is_active=true LEFT JOIN system_role_permission_overrides sro ON sro.venue_id=u.venue_id AND sro.role=u.role::text WHERE u.login=$1 AND u.is_active=true LIMIT 1', [input.username]);
         const row = rows[0]; const credential = input.password; if (row && credential && await verifyPassword(credential, row.passwordHash)) {
           if (!row.organizationId || !/^[0-9a-f-]{36}$/i.test(row.organizationId)) return json(res, 403, { error: 'organization_context_required' });
           const accessError = await enforceOrganizationAccess({ id: row.id, organizationId: row.organizationId, role: row.role });
           if (accessError) return json(res, accessError.status, { error: accessError.error });
-          account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, customRoleId: row.customRoleId || null, customRolePermissionScopes: row.customRolePermissionScopes || [], rolePermissionScopes: row.rolePermissionScopes || [], rolePermissionOverrideActive: Boolean(row.rolePermissionOverrideActive), avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
+          account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, customRoleId: row.customRoleId || null, customRoleActive: Boolean(row.customRoleActive), customRolePermissionScopes: row.customRolePermissionScopes || [], rolePermissionScopes: row.rolePermissionScopes || [], rolePermissionOverrideActive: Boolean(row.rolePermissionOverrideActive), avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
         }
       } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); }
     }
@@ -1360,10 +1382,11 @@ async function api(req, res) {
     // process memory; tenant users continue to use persisted PostgreSQL sessions.
     if (sessionRepository && account.role !== 'platform_owner') { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
     if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
-    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, customRoleId: account.customRoleId || null, customRolePermissionScopes: normalizePermissionScopes(account.customRolePermissionScopes), rolePermissionScopes: normalizePermissionScopes(account.rolePermissionScopes), rolePermissionOverrideActive: Boolean(account.rolePermissionOverrideActive), avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt, trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
+    const sessionUser = withEffectivePermissions({ id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, customRoleId: account.customRoleId || null, customRoleActive: Boolean(account.customRoleActive), customRolePermissionScopes: normalizePermissionScopes(account.customRolePermissionScopes), rolePermissionScopes: normalizePermissionScopes(account.rolePermissionScopes), rolePermissionOverrideActive: Boolean(account.rolePermissionOverrideActive), avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) });
+    sessions.set(token, { user: sessionUser, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt, trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
     [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
     res.setHeader('Set-Cookie', [`crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionTtlSeconds(ttlMs)}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`, `crm_device_id=${encodeURIComponent(deviceId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`]);
-    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, customRoleId: account.customRoleId || null, customRolePermissionScopes: normalizePermissionScopes(account.customRolePermissionScopes), rolePermissionScopes: normalizePermissionScopes(account.rolePermissionScopes), rolePermissionOverrideActive: Boolean(account.rolePermissionOverrideActive), avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, rolePermissionScopes: account.rolePermissionScopes, rolePermissionOverrideActive: account.rolePermissionOverrideActive, customRolePermissionScopes: account.customRolePermissionScopes, permissionScopes: account.permissionScopes }), expiresIn: sessionTtlSeconds(ttlMs), trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
+    return json(res, 200, { token, user: sessionUser, permissions: sessionUser.workspacePermissions, permissionPolicy: sessionUser.permissionPolicy, expiresIn: sessionTtlSeconds(ttlMs), trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
@@ -1451,8 +1474,8 @@ async function api(req, res) {
     pinUnlockAttempts.delete(attemptKey);
     if (memorySession) { memorySession.unlockHash = unlockHash; memorySession.user.pinConfigured = true; }
     if (req.user) req.user.pinConfigured = true;
-    const user = memorySession?.user || req.user;
-    return json(res, 200, { token, user, permissions: effectivePermissions(user), expiresIn: sessionTtlSeconds(TRUSTED_SESSION_TTL_MS), trustedDevice: true });
+    const user = withEffectivePermissions(req.user || memorySession?.user);
+    return json(res, 200, { token, user, permissions: user.workspacePermissions, permissionPolicy: user.permissionPolicy, expiresIn: sessionTtlSeconds(TRUSTED_SESSION_TTL_MS), trustedDevice: true });
   }
   if (pathname === '/api/session/preferences' && (req.method === 'GET' || req.method === 'PATCH')) {
     const allowed = new Set(['lockTimeoutMinutes', 'dashboardModules', 'dashboardRevenueStyle', 'insights', 'deliveryEnabled', 'integrationsEnabled', 'navigationVisibility', 'financeMetrics', 'theme', 'staffDirectory']);
@@ -2194,6 +2217,10 @@ async function api(req, res) {
       } catch (_) { return json(res, 503, { error: 'venue_select_failed' }); }
     }
     const item = networkVenues.find((entry) => entry.id === networkVenueSelect[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
+    const memorySession = sessions.get(requestAuthToken(req));
+    if (req.user && (!memorySession || memorySession.user?.id !== req.user.id)) return json(res, 401, { error: 'session_required' });
+    // Persist the selection on this token; authenticated request users are copies.
+    if (memorySession) memorySession.user = { ...memorySession.user, venueId: item.id };
     const before = networkVenues.find((entry) => entry.id === currentVenueId); floorByVenueId.set(currentVenueId, floor); currentVenueId = item.id; floor = floorByVenueId.get(currentVenueId) || []; floorByVenueId.set(currentVenueId, floor); Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, phoneNumbers: item.phoneNumbers || [], logoUrl: item.logoUrl || null, timezone: item.timezone, format: item.format, vipRoomMinimums: { ...(item.vipRoomMinimums || { vip_room_1: 1500, vip_room_2: 2500 }) } }); if (req.user) req.user.venueId = item.id;
     recordAudit(req, 'venue.selected', 'venue', item.id, { currentVenueId: before?.id || null }, { currentVenueId: item.id }); return json(res, 200, { ...item, isCurrent: true });
   }
@@ -2282,7 +2309,7 @@ async function api(req, res) {
           repositories.pool.query(`WITH ${orderPricingSqlCtes}, paid_totals AS (SELECT order_id, COALESCE(SUM(amount) FILTER (WHERE status IN ('paid','partially_paid')),0) AS paid FROM payments GROUP BY order_id) SELECT COUNT(*) FILTER (WHERE o.status IN ('open','in_progress','ready'))::int AS open_orders, COUNT(*) FILTER (WHERE o.status='closed')::int AS closed_orders, COALESCE(SUM(CASE WHEN o.status IN ('open','in_progress','ready') THEN GREATEST(0,GREATEST(COALESCE(o.vip_minimum,0),COALESCE(i.subtotal,0)-COALESCE(d.discount,0))-COALESCE(p.paid,0)) ELSE 0 END),0) AS pending_revenue FROM orders o LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN discount_totals d ON d.order_id=o.id LEFT JOIN paid_totals p ON p.order_id=o.id WHERE o.venue_id=$1`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE venue_id=$1 AND is_active=true`, [venueDbId]),
-          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.venue_id=$1 AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date AND r.status='confirmed'`, [venueDbId]),
+          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.venue_id=$1 AND (r.starts_at AT TIME ZONE ${venueTimezoneSql('$1')})::date=(now() AT TIME ZONE ${venueTimezoneSql('$1')})::date AND r.status='confirmed'`, [venueDbId]),
           repositories.pool.query(`WITH stock_balances AS (
             SELECT venue_id,ingredient_id,COALESCE(SUM(CASE WHEN direction IN ('in','transfer','adjustment') THEN quantity WHEN direction IN ('out','waste') THEN -quantity ELSE 0 END),0) AS on_hand
             FROM stock_movements WHERE venue_id=$1 GROUP BY venue_id,ingredient_id
@@ -2487,7 +2514,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
           if (expectedArchivedAt !== null) return { status: 409, body: { error: 'table_archive_state_changed', archivedAt: null, archiveVersion } };
           const activity = await client.query(`SELECT
             EXISTS(SELECT 1 FROM orders WHERE table_id=$1 AND venue_id=$2 AND status IN ('open','in_progress','ready')) OR
-            EXISTS(SELECT 1 FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date) AS active`, [tableId, venueDbId]);
+            EXISTS(SELECT 1 FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE ${venueTimezoneSql('$2')})::date=(now() AT TIME ZONE ${venueTimezoneSql('$2')})::date) AS active`, [tableId, venueDbId]);
           if (activity.rows[0]?.active) return { status: 409, body: { error: 'table_has_live_activity' } };
           const archived = await client.query(`UPDATE tables SET archived_at=date_trunc('milliseconds',now()),archive_version=archive_version+1 WHERE id=$1 AND archived_at IS NULL AND archive_version=$2 RETURNING id,name,zone_id AS "zoneId",archived_at AS "archivedAt",archive_version AS "archiveVersion"`, [tableId, archiveVersion]);
           if (!archived.rows[0]) return { status: 409, body: { error: 'table_archive_state_changed' } };
@@ -2518,7 +2545,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         if (expectedArchiveVersion !== table.archiveVersion) return { status: 409, body: { error: 'table_archive_state_changed', archivedAt, archiveVersion: table.archiveVersion } };
         if (expectedArchivedAt !== null) return { status: 409, body: { error: 'table_archive_state_changed', archivedAt: null, archiveVersion: table.archiveVersion } };
         const activeOrder = orders.some((order) => order.tableId === tableId && ['open', 'in_progress', 'ready'].includes(order.status));
-        const activeReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === today());
+        const activeReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === reservationToday());
         if (activeOrder || activeReservation) return { status: 409, body: { error: 'table_has_live_activity' } };
         table.archivedAt = now;
         table.archiveVersion += 1;
@@ -2581,7 +2608,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         if (!locked.rows[0]) return { status: 404, body: { error: 'table_not_found' } };
         if (locked.rows[0].archivedAt) return { status: 409, body: { error: 'table_archived' } };
         if (changes.status === 'blocked') {
-          const activity = await client.query("SELECT EXISTS(SELECT 1 FROM orders WHERE table_id=$1 AND status IN ('open','in_progress','ready')) OR EXISTS(SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF((SELECT timezone FROM venues WHERE id=$2),''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF((SELECT timezone FROM venues WHERE id=$2),''),'Asia/Yekaterinburg'))::date) AS active", [tableId, venueDbId]);
+          const activity = await client.query(`SELECT EXISTS(SELECT 1 FROM orders WHERE table_id=$1 AND venue_id=$2 AND status IN ('open','in_progress','ready')) OR EXISTS(SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE ${venueTimezoneSql('$2')})::date=(now() AT TIME ZONE ${venueTimezoneSql('$2')})::date) AS active`, [tableId, venueDbId]);
           if (activity.rows[0]?.active) return { status: 409, body: { error: 'table_has_live_activity' } };
         }
         const fields = [];
@@ -2603,7 +2630,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
       if (table.archivedAt) return { status: 409, body: { error: 'table_archived' } };
       if (changes.status === 'blocked') {
         const activeOrder = orders.some((order) => order.tableId === tableId && ['open', 'in_progress', 'ready'].includes(order.status));
-        const activeReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === today());
+        const activeReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === reservationToday());
         if (activeOrder || activeReservation) return { status: 409, body: { error: 'table_has_live_activity' } };
       }
       const before = { ...table, layout: { ...(table.layout || {}) } };
@@ -2658,8 +2685,8 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         if (!selected.rows[0]) return json(res, 404, { error: 'venue_not_found' });
       } catch (_) { return json(res, 503, { error: 'floor_unavailable' }); }
     }
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,t.archived_at AS "archivedAt",t.archive_version AS "archiveVersion",CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' WHEN EXISTS (SELECT 1 FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.table_id=t.id AND r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date) THEN 'reserved' ELSE CASE WHEN t.status='reserved'::table_status THEN 'free'::table_status ELSE t.status END END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z LEFT JOIN tables t ON t.zone_id=z.id AND ($2::boolean OR t.archived_at IS NULL) WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId, includeArchived]); const { rows: reservationRows } = await repositories.pool.query(`SELECT r.id,r.table_id AS "tableId",r.guests_count AS guests,COALESCE(g.full_name,'Гость') AS "guestName",to_char(r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'),'YYYY-MM-DD') AS date,to_char(r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'),'HH24:MI') AS time FROM reservations r JOIN venues v ON v.id=r.venue_id LEFT JOIN guests g ON g.id=r.guest_id AND g.venue_id=r.venue_id WHERE r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date ORDER BY r.starts_at,r.id`, [venueDbId]); const reservationsByTable = new Map(reservationRows.map((reservation) => [String(reservation.tableId), reservation])); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } if (row.id) { const reservation = reservationsByTable.get(String(row.id)); zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {}, archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null, archiveVersion: Number(row.archiveVersion || 0), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, guests: Number(reservation.guests || 0), date: reservation.date, time: reservation.time } : null }); } } return json(res, 200, { venueId: venueDbId, zones }); } catch (_) { return json(res, 503, { error: 'floor_unavailable' }); } }
-    const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.filter((table) => includeArchived || !table.archivedAt).map((table) => { const reservation = reservations.find((entry) => entry.tableId === table.id && entry.status === 'confirmed' && entry.date === today()); const occupied = orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)); return { ...table, archivedAt: table.archivedAt || null, archiveVersion: Number(table.archiveVersion || 0), status: table.status === 'blocked' ? 'blocked' : (occupied ? 'occupied' : reservation ? 'reserved' : table.status === 'reserved' ? 'free' : table.status), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, date: reservation.date, time: reservation.time, createdByName: reservation.createdByName || 'Сотрудник', createdByRole: reservation.createdByRole || 'Сотрудник' } : null }; }) }));
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,t.archived_at AS "archivedAt",t.archive_version AS "archiveVersion",CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' WHEN EXISTS (SELECT 1 FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.table_id=t.id AND r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE ${venueTimezoneSql('$1')})::date=(now() AT TIME ZONE ${venueTimezoneSql('$1')})::date) THEN 'reserved' ELSE CASE WHEN t.status='reserved'::table_status THEN 'free'::table_status ELSE t.status END END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z LEFT JOIN tables t ON t.zone_id=z.id AND ($2::boolean OR t.archived_at IS NULL) WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId, includeArchived]); const { rows: reservationRows } = await repositories.pool.query(`SELECT r.id,r.table_id AS "tableId",r.guests_count AS guests,COALESCE(g.full_name,'Гость') AS "guestName",to_char(r.starts_at AT TIME ZONE ${venueTimezoneSql('$1')},'YYYY-MM-DD') AS date,to_char(r.starts_at AT TIME ZONE ${venueTimezoneSql('$1')},'HH24:MI') AS time FROM reservations r JOIN venues v ON v.id=r.venue_id LEFT JOIN guests g ON g.id=r.guest_id AND g.venue_id=r.venue_id WHERE r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE ${venueTimezoneSql('$1')})::date=(now() AT TIME ZONE ${venueTimezoneSql('$1')})::date ORDER BY r.starts_at,r.id`, [venueDbId]); const reservationsByTable = new Map(reservationRows.map((reservation) => [String(reservation.tableId), reservation])); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } if (row.id) { const reservation = reservationsByTable.get(String(row.id)); zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {}, archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null, archiveVersion: Number(row.archiveVersion || 0), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, guests: Number(reservation.guests || 0), date: reservation.date, time: reservation.time } : null }); } } return json(res, 200, { venueId: venueDbId, zones }); } catch (_) { return json(res, 503, { error: 'floor_unavailable' }); } }
+    const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.filter((table) => includeArchived || !table.archivedAt).map((table) => { const reservation = reservations.find((entry) => entry.tableId === table.id && entry.status === 'confirmed' && entry.date === reservationToday()); const occupied = orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)); return { ...table, archivedAt: table.archivedAt || null, archiveVersion: Number(table.archiveVersion || 0), status: table.status === 'blocked' ? 'blocked' : (occupied ? 'occupied' : reservation ? 'reserved' : table.status === 'reserved' ? 'free' : table.status), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, date: reservation.date, time: reservation.time, createdByName: reservation.createdByName || 'Сотрудник', createdByRole: reservation.createdByRole || 'Сотрудник' } : null }; }) }));
     return json(res, 200, { venueId: currentVenueId, zones: derivedFloor });
   }
   const tobaccoCatalogPath = pathname.match(/^\/api\/tobacco-catalog\/([^/]+)$/);
@@ -3036,6 +3063,13 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     category.active = true; recordAudit(req, 'product_category.restored', 'product_category', category.id, { active: false }, category); return json(res, 200, category);
   }
   if (pathname === '/api/products' && req.method === 'GET') {
+    // Product availability and price are operational inputs for active POS sales.
+    // Do not let browser or intermediary caches outlive an admin catalog edit.
+    res.setHeader('Cache-Control', 'no-store');
+    const expectedVenueId = url.searchParams.get('expectedVenueId');
+    const selectedVenueId = repositories?.pool ? venueDbId : currentVenueId;
+    if (!selectedVenueId) return json(res, 409, { error: 'venue_context_required' });
+    if (expectedVenueId && String(expectedVenueId) !== String(selectedVenueId)) return json(res, 409, { error: 'venue_context_changed' });
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'floor') && !hasPermission(req, 'inventory_read') && !hasPermission(req, 'inventory')) return json(res, 403, { error: 'forbidden', permission: 'floor' });
     if (repositories?.products) {
       try { return json(res, 200, { items: await repositories.products.list(venueDbId) }); }
@@ -3171,17 +3205,19 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   if (pathname === '/api/products' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim(); const category = String(input.category || input.station || '').trim(); const price = Number(input.price); const inventoryMode = String(input.inventoryMode || 'tracked');
+    if (input.preparationStation !== undefined && input.preparationStation !== null && !['bar','hookah'].includes(input.preparationStation)) return json(res,400,{error:'invalid_preparation_station'});
     const aliases = Array.isArray(input.aliases) ? input.aliases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [];
     if (!name || name.length > 120 || !category || category.length > 80 || !Number.isFinite(price) || price < 0 || price > 10000000 || !['tracked','non_stock'].includes(inventoryMode)) return json(res, 400, { error: 'invalid_product' });
     if (input.imageUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(input.imageUrl)) || String(input.imageUrl).length > 1500000)) return json(res, 400, { error: 'invalid_image' });
-    if (repositories?.products) { try { const product = await repositories.products.create({ venueId: venueDbId, name, category, price, aliases, imageUrl: input.imageUrl, inventoryMode }); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product); } catch (error) { return json(res, 409, { error: 'product_create_failed', detail: error.message }); } }
-    const product = { id: `product-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, category, station: category, price, aliases, imageUrl: input.imageUrl || null, inventoryMode };
+    if (repositories?.products) { try { const product = await repositories.products.create({ venueId: venueDbId, name, category, price, aliases, imageUrl: input.imageUrl, inventoryMode, preparationStation: input.preparationStation }); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product); } catch (error) { return json(res, 409, { error: 'product_create_failed', detail: error.message }); } }
+    const product = { id: `product-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, category, station: category, price, aliases, imageUrl: input.imageUrl || null, inventoryMode, preparationStation: input.preparationStation || null };
     products.push(product); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product);
   }
   const productProfile = pathname.match(/^\/api\/products\/([^/]+)$/);
   if (productProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = input.name === undefined ? undefined : String(input.name || '').trim(); const category = input.category === undefined && input.station === undefined ? undefined : String(input.category ?? input.station ?? '').trim(); const price = input.price === undefined ? undefined : Number(input.price); const inventoryMode = input.inventoryMode === undefined ? undefined : String(input.inventoryMode);
+    if (input.preparationStation !== undefined && input.preparationStation !== null && !['bar','hookah'].includes(input.preparationStation)) return json(res,400,{error:'invalid_preparation_station'});
     const aliases = input.aliases === undefined ? undefined : (Array.isArray(input.aliases) ? input.aliases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : null);
     if (name !== undefined && (!name || name.length > 120) || category !== undefined && (!category || category.length > 80) || price !== undefined && (!Number.isFinite(price) || price < 0 || price > 10000000) || aliases === null || inventoryMode !== undefined && !['tracked','non_stock','needs_review'].includes(inventoryMode)) return json(res, 400, { error: 'invalid_product' });
     if (input.imageUrl !== undefined && input.imageUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(input.imageUrl)) || String(input.imageUrl).length > 1500000)) return json(res, 400, { error: 'invalid_image' });
@@ -3189,7 +3225,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
       const client = await repositories.pool.connect();
       try {
         await client.query('BEGIN');
-        const { rows } = await client.query('SELECT id,name,category,sale_price AS price,search_aliases AS aliases,image_url AS "imageUrl",inventory_mode AS "inventoryMode" FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [productProfile[1], venueDbId]);
+        const { rows } = await client.query('SELECT id,name,category,sale_price AS price,search_aliases AS aliases,image_url AS "imageUrl",inventory_mode AS "inventoryMode",preparation_station AS "preparationStation" FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [productProfile[1], venueDbId]);
         const before = rows[0] && { ...rows[0], price: Number(rows[0].price), aliases: rows[0].aliases || [] };
         if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'product_not_found' }); }
         if (inventoryMode === 'non_stock') {
@@ -3198,14 +3234,14 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
           const openOrder = await client.query("SELECT 1 FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND oi.product_id=$2 AND o.status IN ('open','in_progress','ready') LIMIT 1", [venueDbId, productProfile[1]]);
           if (openOrder.rowCount) { await client.query('ROLLBACK'); return json(res, 409, { error: 'product_has_open_orders' }); }
         }
-        const product = await repositories.products.update(venueDbId, productProfile[1], { name, category, price, aliases, imageUrl: input.imageUrl, inventoryMode }, client);
+        const product = await repositories.products.update(venueDbId, productProfile[1], { name, category, price, aliases, imageUrl: input.imageUrl, inventoryMode, preparationStation: input.preparationStation }, client);
         await client.query('COMMIT');
         recordAudit(req, 'product.updated', 'product', product.id, before, product);
         return json(res, 200, product);
       } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'product_update_failed', detail: error.message }); }
       finally { client.release(); }
     }
-    const product = products.find((entry) => entry.id === productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); if (inventoryMode === 'non_stock') { const nextName = name || product.name; if (recipes.some((recipe) => recipe.active !== false && recipe.recipeType !== 'premix' && (recipe.productId === product.id || (!recipe.productId && String(recipe.name || '').toLocaleLowerCase('ru-RU') === String(nextName).toLocaleLowerCase('ru-RU'))))) return json(res, 409, { error: 'non_stock_product_has_recipe' }); if (orders.some((order) => ['open','in_progress','ready'].includes(order.status) && (order.items || []).some((item) => item.productId === product.id))) return json(res, 409, { error: 'product_has_open_orders' }); } const before = { ...product }; if (name !== undefined) product.name = name; if (category !== undefined) { product.category = category; product.station = category; } if (price !== undefined) product.price = price; if (aliases !== undefined) product.aliases = aliases; if (inventoryMode !== undefined) product.inventoryMode = inventoryMode; if (input.imageUrl !== undefined) product.imageUrl = input.imageUrl || null; recordAudit(req, 'product.updated', 'product', product.id, before, product); return json(res, 200, product);
+    const product = products.find((entry) => entry.id === productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); if (inventoryMode === 'non_stock') { const nextName = name || product.name; if (recipes.some((recipe) => recipe.active !== false && recipe.recipeType !== 'premix' && (recipe.productId === product.id || (!recipe.productId && String(recipe.name || '').toLocaleLowerCase('ru-RU') === String(nextName).toLocaleLowerCase('ru-RU'))))) return json(res, 409, { error: 'non_stock_product_has_recipe' }); if (orders.some((order) => ['open','in_progress','ready'].includes(order.status) && (order.items || []).some((item) => item.productId === product.id))) return json(res, 409, { error: 'product_has_open_orders' }); } const before = { ...product }; if (input.preparationStation !== undefined) product.preparationStation = input.preparationStation; if (name !== undefined) product.name = name; if (category !== undefined) { product.category = category; product.station = category; } if (price !== undefined) product.price = price; if (aliases !== undefined) product.aliases = aliases; if (inventoryMode !== undefined) product.inventoryMode = inventoryMode; if (input.imageUrl !== undefined) product.imageUrl = input.imageUrl || null; recordAudit(req, 'product.updated', 'product', product.id, before, product); return json(res, 200, product);
   }
   if (productProfile && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -3452,9 +3488,9 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         SELECT
           (SELECT COUNT(*)::int FROM closed_sales) AS sale_count,
           (SELECT COUNT(*)::int FROM closed_sales WHERE canonical_gross IS NULL) AS unsnapshotted_sale_count,
-          COALESCE((SELECT SUM(COALESCE(canonical_gross,subtotal_snapshot)) FROM closed_sales),0)::numeric AS sale_gross,
+          COALESCE((SELECT SUM(COALESCE(canonical_gross,subtotal_snapshot,legacy_gross)) FROM closed_sales),0)::numeric AS sale_gross,
           COALESCE((SELECT SUM(COALESCE(canonical_discount,discount_total_snapshot)) FROM closed_sales),0)::numeric AS discounts_total,
-          COALESCE((SELECT SUM(COALESCE(canonical_final_total,final_total_snapshot)) FROM closed_sales),0)::numeric AS sale_net,
+          COALESCE((SELECT SUM(COALESCE(canonical_final_total,final_total_snapshot,legacy_paid)) FROM closed_sales),0)::numeric AS sale_net,
           COALESCE((SELECT SUM(COALESCE(canonical_minimum_adjustment,minimum_adjustment_snapshot)) FROM closed_sales),0)::numeric AS minimum_adjustment,
           COALESCE((SELECT jsonb_object_agg(source,amount) FROM (SELECT COALESCE(effective_discount_source,'none') source,SUM(COALESCE(discount_total_snapshot,0)) amount FROM closed_sales GROUP BY 1) x),'{}'::jsonb) AS discounts_by_source,
           COALESCE((SELECT jsonb_object_agg(group_name,amount) FROM (SELECT COALESCE(group_discount_name,'Без группы') group_name,SUM(COALESCE(group_discount_amount,0)) amount FROM closed_sales WHERE COALESCE(group_discount_amount,0)>0 GROUP BY 1) x),'{}'::jsonb) AS discounts_by_group,
@@ -3692,7 +3728,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         if (!guest.rows[0]) return json(res, 404, { error: 'client_not_found' });
         const [orderRows, reservationRows] = await Promise.all([
           repositories.pool.query(`SELECT o.id,o.table_id AS "tableId",o.status,o.created_at AS "createdAt",o.closed_at AS "closedAt",o.vip_minimum AS "minimumOrderTotal",COALESCE(SUM(p.amount) FILTER (WHERE p.status IN ('paid','partially_paid')),0)::numeric AS total FROM orders o LEFT JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.guest_id=$2 GROUP BY o.id ORDER BY o.created_at DESC LIMIT 50`, [venueDbId, clientId]),
-          repositories.pool.query(`SELECT r.id,r.table_id AS "tableId",r.starts_at AS "startsAt",to_char(r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'),'YYYY-MM-DD') AS date,to_char(r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'),'HH24:MI') AS time,r.status,r.deposit_paid AS deposit,r.deposit_paid AS "depositPaid",r.deposit_paid AS "legacyDepositPaid",r.deposit_required AS "depositRequired",r.verified_deposit_paid AS "verifiedDepositPaid",r.guests_count AS guests,r.notes,COALESCE(prepayments.receipts,'[]'::jsonb) AS "prepaymentReceipts" FROM reservations r JOIN venues v ON v.id=r.venue_id LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('id',p.id,'amount',p.amount,'refundedAmount',COALESCE(refunds.amount,0),'netAmount',GREATEST(0,p.amount-COALESCE(refunds.amount,0)),'method',p.payment_method,'reason',p.reason,'shiftId',p.shift_id,'createdAt',p.created_at,'actorName',u.full_name) ORDER BY p.created_at,p.id) AS receipts FROM reservation_pre_payment_receipts p LEFT JOIN users u ON u.id=p.actor_id LEFT JOIN LATERAL (SELECT SUM(rr.amount) AS amount FROM reservation_pre_payment_receipt_reversals rr WHERE rr.venue_id=p.venue_id AND rr.receipt_id=p.id) refunds ON true WHERE p.venue_id=r.venue_id AND p.reservation_id=r.id) prepayments ON true WHERE r.venue_id=$1 AND r.guest_id=$2 ORDER BY r.starts_at DESC LIMIT 50`, [venueDbId, clientId])
+          repositories.pool.query(`SELECT r.id,r.table_id AS "tableId",r.starts_at AS "startsAt",to_char(r.starts_at AT TIME ZONE ${venueTimezoneSql('$1')},'YYYY-MM-DD') AS date,to_char(r.starts_at AT TIME ZONE ${venueTimezoneSql('$1')},'HH24:MI') AS time,r.status,r.deposit_paid AS deposit,r.deposit_paid AS "depositPaid",r.deposit_paid AS "legacyDepositPaid",r.deposit_required AS "depositRequired",r.verified_deposit_paid AS "verifiedDepositPaid",r.guests_count AS guests,r.notes,COALESCE(prepayments.receipts,'[]'::jsonb) AS "prepaymentReceipts" FROM reservations r JOIN venues v ON v.id=r.venue_id LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('id',p.id,'amount',p.amount,'refundedAmount',COALESCE(refunds.amount,0),'netAmount',GREATEST(0,p.amount-COALESCE(refunds.amount,0)),'method',p.payment_method,'reason',p.reason,'shiftId',p.shift_id,'createdAt',p.created_at,'actorName',u.full_name) ORDER BY p.created_at,p.id) AS receipts FROM reservation_pre_payment_receipts p LEFT JOIN users u ON u.id=p.actor_id LEFT JOIN LATERAL (SELECT SUM(rr.amount) AS amount FROM reservation_pre_payment_receipt_reversals rr WHERE rr.venue_id=p.venue_id AND rr.receipt_id=p.id) refunds ON true WHERE p.venue_id=r.venue_id AND p.reservation_id=r.id) prepayments ON true WHERE r.venue_id=$1 AND r.guest_id=$2 ORDER BY r.starts_at DESC LIMIT 50`, [venueDbId, clientId])
         ]);
         return json(res, 200, { orders: orderRows.rows.map((row) => ({ ...row, total: Number(row.total || 0), minimumOrderTotal: Number(row.minimumOrderTotal || 0) })), reservations: reservationRows.rows.map((row) => ({ id: row.id, tableId: row.tableId, startsAt: row.startsAt, date: row.date, time: row.time, status: row.status, guests: Number(row.guests || 0), ...(reservationPaymentsVisible ? { deposit: Number(row.deposit || 0), depositPaid: Number(row.depositPaid || 0), legacyDepositPaid: Number(row.legacyDepositPaid || 0), depositRequired: Number(row.depositRequired || 0), verifiedDepositPaid: Number(row.verifiedDepositPaid || 0), prepaymentReceipts: row.prepaymentReceipts || [], notes: row.notes || '' } : {}) })), reservationPaymentsVisible });
       } catch (error) { return json(res, 503, { error: 'client_history_unavailable', detail: error.message }); }
@@ -3899,8 +3935,8 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/session') {
     const persistedSession = await sessionFromRequest(req);
-    const user = req.user || persistedSession?.user || { name: 'Демо сотрудник', role: 'bartender' };
-    return json(res, 200, { user, permissions: effectivePermissions(user), permissionScopes: normalizePermissionScopes(user.permissionScopes), trustedDevice: Boolean(persistedSession?.trustedDevice) });
+    const user = withEffectivePermissions(req.user || persistedSession?.user || { name: 'Демо сотрудник', role: 'bartender' });
+    return json(res, 200, { user, permissions: user.workspacePermissions, permissionPolicy: user.permissionPolicy, permissionScopes: normalizePermissionScopes(user.permissionScopes), trustedDevice: Boolean(persistedSession?.trustedDevice) });
   }
   const systemRolePath = pathname.match(/^\/api\/staff\/system-roles(?:\/([^/]+))?$/);
   if (systemRolePath) {
@@ -3988,7 +4024,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT u.id,u.full_name AS name,u.login,u.contact_email AS email,u.role,u.is_active AS active,u.avatar_url AS "avatarUrl",u.photo_url AS "photoUrl",u.birth_date::text AS "birthDate",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.custom_role_id AS "customRoleId",cr.name AS "customRoleName",u.employment_started_at::text AS "employmentStartedAt",u.work_notes AS "workNotes",u.pin_updated_at AS "pinUpdatedAt" FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.venue_id=u.venue_id AND cr.is_active=true WHERE u.venue_id=$1 AND u.deleted_at IS NULL ORDER BY u.full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT u.id,u.full_name AS name,u.login,u.contact_email AS email,u.role,u.is_active AS active,u.avatar_url AS "avatarUrl",u.photo_url AS "photoUrl",u.birth_date::text AS "birthDate",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.custom_role_id AS "customRoleId",cr.name AS "customRoleName",u.employment_started_at::text AS "employmentStartedAt",u.work_notes AS "workNotes",u.pin_updated_at AS "pinUpdatedAt" FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.organization_id=u.organization_id AND cr.venue_id=u.venue_id AND cr.is_active=true WHERE u.venue_id=$1 AND u.deleted_at IS NULL ORDER BY u.full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
     return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { person.pinConfigured = Boolean(person.pinCode || person.pinHash || person.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
@@ -4000,7 +4036,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (!nonCrmRole && input.password !== undefined && (String(input.password).length < 4 || String(input.password).length > 11)) return json(res, 400, { error: 'password_length_invalid' });
         if (!canCreateStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
     const requestedScopes = normalizePermissionScopes(input.permissionScopes);
-    if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || requestedScopes.length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
+    if (input.permissionScopes !== undefined && input.permissionScopes !== null && (!Array.isArray(input.permissionScopes) || requestedScopes.length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
     if (input.permissionScopes !== undefined && process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'permission_scopes_owner_required' });
     const assignedScopes = input.permissionScopes === undefined ? [] : requestedScopes;
     if (!validBirthDate(input.birthDate)) return json(res, 400, { error: 'birth_date_required' });
@@ -4167,35 +4203,21 @@ if (staffProfile && req.method === 'GET') {
   if (!canRead) return json(res, 403, { error: 'forbidden', permission: 'staff_view' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      const { rows } = await repositories.pool.query('SELECT u.id,u.full_name AS name,u.login,u.contact_email AS email,u.role,u.is_active AS active,u.avatar_url AS "avatarUrl",u.photo_url AS "photoUrl",u.birth_date::text AS "birthDate",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.custom_role_id AS "customRoleId",cr.name AS "customRoleName",u.employment_started_at::text AS "employmentStartedAt",u.work_notes AS "workNotes",u.pin_updated_at AS "pinUpdatedAt",u.passport_data_encrypted,u.passport_data_iv,u.passport_data_tag FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.venue_id=u.venue_id AND cr.is_active=true WHERE u.id=$1 AND u.venue_id=$2 AND u.deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
+      const { rows } = await repositories.pool.query('SELECT u.id,u.full_name AS name,u.login,u.contact_email AS email,u.role,u.is_active AS active,u.avatar_url AS "avatarUrl",u.photo_url AS "photoUrl",u.birth_date::text AS "birthDate",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.custom_role_id AS "customRoleId",cr.name AS "customRoleName",cr.permission_scopes AS "customRolePermissionScopes",(cr.id IS NOT NULL) AS "customRoleActive",sro.permission_scopes AS "rolePermissionScopes",(sro.role IS NOT NULL) AS "rolePermissionOverrideActive",u.employment_started_at::text AS "employmentStartedAt",u.work_notes AS "workNotes",u.pin_updated_at AS "pinUpdatedAt",u.passport_data_encrypted,u.passport_data_iv,u.passport_data_tag FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.organization_id=u.organization_id AND cr.venue_id=u.venue_id AND cr.is_active=true LEFT JOIN system_role_permission_overrides sro ON sro.venue_id=u.venue_id AND sro.role=u.role::text WHERE u.id=$1 AND u.venue_id=$2 AND u.deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
       if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
-      const profile = { ...rows[0], pinConfigured: Boolean(rows[0].pinUpdatedAt), workspacePermissions: effectivePermissions({ role: rows[0].role, customRolePermissionScopes: rows[0].customRolePermissionScopes, permissionScopes: rows[0].permissionScopes }) };
+      const profile = withEffectivePermissions({ ...rows[0], pinConfigured: Boolean(rows[0].pinUpdatedAt) });
       if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
       if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
       delete profile.passport_data_encrypted; delete profile.passport_data_iv; delete profile.passport_data_tag;
       return json(res, 200, profile);
     } catch (error) {
-      // Keep migration 002 contact data available when the employment migration is not applied yet.
-      try {
-        const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
-        if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
-        const profile = { ...rows[0], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) };
-        if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
-        if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
-        delete profile.passport_data_encrypted; delete profile.passport_data_iv; delete profile.passport_data_tag;
-        return json(res, 200, profile);
-      } catch (_) {
-        try {
-          const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
-          if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
-          return json(res, 200, { ...rows[0], telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) });
-        } catch (fallbackError) { return json(res, 409, { error: 'staff_profile_read_failed', detail: fallbackError.message }); }
-      }
+      // Incomplete role data must never be presented as effective base access.
+      return json(res, 503, { error: 'staff_profile_permissions_unavailable' });
     }
   }
   const person = staff.find((entry) => entry.id === personId);
   if (!person) return json(res, 404, { error: 'staff_not_found' });
-  const profile = { ...person, workspacePermissions: effectivePermissions(person) }; if (!canSeeSensitiveStaff(req)) delete profile.passportData; if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
+  const profile = withEffectivePermissions(person); if (!canSeeSensitiveStaff(req)) delete profile.passportData; if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
   return json(res, 200, profile);
 }
 if (staffProfile && req.method === 'PATCH') {
@@ -4237,7 +4259,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.name !== undefined && (!String(input.name).trim() || String(input.name).trim().length > 120)) return json(res, 400, { error: 'invalid_staff_name' });
   if (input.role !== undefined && (!rolePermissions[input.role] || input.role === 'owner')) return json(res, 400, { error: 'invalid_staff_role' });
   if (input.role !== undefined && !canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
-  if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || normalizePermissionScopes(input.permissionScopes).length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
+  if (input.permissionScopes !== undefined && input.permissionScopes !== null && (!Array.isArray(input.permissionScopes) || normalizePermissionScopes(input.permissionScopes).length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
   if (input.permissionScopes !== undefined && process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'permission_scopes_owner_required' });
   if (input.customRoleId !== undefined && (req.user?.role !== 'owner' || before.role === 'owner')) return json(res, 403, { error: 'custom_role_owner_required' });
   if (input.customRoleId !== undefined && input.customRoleId !== null && !/^[0-9a-f-]{36}$/i.test(String(input.customRoleId))) return json(res, 400, { error: 'custom_role_id_invalid' });
@@ -5573,7 +5595,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!input.guestName || !input.date || !input.time || !input.tableId) return json(res, 400, { error: 'guest_date_time_table_required' });
     if (String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (input.notes !== undefined && String(input.notes).length > 2000) return json(res, 400, { error: 'reservation_notes_too_long' });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) || !/^\d{2}:\d{2}$/.test(String(input.time)) || Number.isNaN(Date.parse(`${input.date}T${input.time}:00`)) || Date.parse(`${input.date}T${input.time}:00`) <= Date.now()) return json(res, 400, { error: 'invalid_reservation_datetime' });
+    try { if (!await reservationDateTimeIsFuture(repositories?.pool, venueDbId, input.date, input.time, resolveIanaTimezone(venue.timezone, saasAccount.timezone, businessTimezone))) return json(res, 400, { error: 'invalid_reservation_datetime' }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
     if (input.phone && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
     if (!Number.isInteger(Number(input.guests || 1)) || Number(input.guests || 1) < 1 || Number(input.guests || 1) > 50) return json(res, 400, { error: 'invalid_guest_count' });
     if (!Number.isFinite(Number(input.deposit || 0)) || Number(input.deposit || 0) < 0) return json(res, 400, { error: 'invalid_reservation_deposit' });
@@ -5589,7 +5611,10 @@ if (staffProfile && req.method === 'PATCH') {
     if (!table || table.status === 'blocked') return json(res, 409, { error: 'table_unavailable' });
     if (Number(input.guests || 1) > Number(table.maxCapacity || table.capacity || 50)) return json(res, 400, { error: 'table_capacity_exceeded', maximumGuests: Number(table.maxCapacity || table.capacity || 50) });
     if (reservations.some((entry) => entry.id !== reservationId && entry.status === 'confirmed' && entry.tableId === input.tableId && entry.date === input.date && entry.time === input.time)) return json(res, 409, { error: 'table_already_reserved' });
+    const previousTableId = reservation.tableId;
     Object.assign(reservation, { guestName: String(input.guestName).trim(), phone: String(input.phone || '').trim(), date: input.date, time: input.time, tableId: input.tableId, tableName: table.name, zoneName: tableZone.name, guests: Number(input.guests || 1), depositRequired: Number(input.deposit || 0), notes: String(input.notes || '') });
+    releaseMemoryTableIfIdle(previousTableId);
+    releaseMemoryTableIfIdle(reservation.tableId);
     recordAudit(req, 'reservation.updated', 'reservation', reservationId, null, reservation); return json(res, 200, reservation);
   }
   if (pathname === '/api/reservations' && req.method === 'POST') {
@@ -5598,7 +5623,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!input.guestName || !input.date || !input.time || !input.tableId) return json(res, 400, { error: 'guest_date_time_table_required' });
     if (String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (input.notes !== undefined && String(input.notes).length > 2000) return json(res, 400, { error: 'reservation_notes_too_long' });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) || !/^\d{2}:\d{2}$/.test(String(input.time)) || Number.isNaN(Date.parse(`${input.date}T${input.time}:00`)) || Date.parse(`${input.date}T${input.time}:00`) <= Date.now()) return json(res, 400, { error: 'invalid_reservation_datetime' });
+    try { if (!await reservationDateTimeIsFuture(repositories?.pool, venueDbId, input.date, input.time, resolveIanaTimezone(venue.timezone, saasAccount.timezone, businessTimezone))) return json(res, 400, { error: 'invalid_reservation_datetime' }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
     if (input.phone && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
     if (!Number.isInteger(Number(input.guests || 1)) || Number(input.guests || 1) < 1 || Number(input.guests || 1) > 50) return json(res, 400, { error: 'invalid_guest_count' });
     let tableMinimum = 0;
@@ -5631,7 +5656,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!Number.isFinite(deposit) || deposit < tableMinimum) return json(res, 409, { error: 'vip_deposit_below_minimum', requiredDeposit: tableMinimum, providedDeposit: deposit });
     if (repositories?.pool) {
       try {
-        const conflict = await repositories.pool.query(`SELECT r.id FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.venue_id=$1 AND r.table_id=$2 AND r.starts_at=($3::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg')) AND r.status='confirmed' LIMIT 1`, [venueDbId, input.tableId, `${input.date}T${input.time}:00`]);
+        const conflict = await repositories.pool.query(`SELECT r.id FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.venue_id=$1 AND r.table_id=$2 AND r.starts_at=($3::timestamp AT TIME ZONE ${venueTimezoneSql('$1')}) AND r.status='confirmed' LIMIT 1`, [venueDbId, input.tableId, `${input.date}T${input.time}:00`]);
         if (conflict.rows[0]) return json(res, 409, { error: 'table_already_reserved', reservationId: conflict.rows[0].id });
       } catch (error) { return json(res, 409, { error: 'reservation_conflict_check_failed', detail: error.message }); }
     } else if (reservations.some((entry) => entry.status === 'confirmed' && entry.tableId === input.tableId && entry.date === input.date && entry.time === input.time)) {
@@ -5640,7 +5665,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (repositories?.pool) { try { const reservation = await repositories.reservations.create({ ...input, tableName, zoneName, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
     const reservation = { id: `res-${Date.now()}`, venueId: currentVenueId, clientId: input.clientId || null, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, zoneName, guests: Number(input.guests || 1), status: 'confirmed', deposit, depositRequired: deposit, depositPaid: 0, legacyDepositPaid: 0, verifiedDepositPaid: 0, prepaymentReceipts: [], notes: input.notes || '', createdBy: req.user?.id || null, createdByName: String(input.createdByName || req.user?.name || 'Сотрудник').slice(0, 120), createdByRole: String(input.createdByRole || (req.user?.role === 'owner' ? 'Владелец' : req.user?.role === 'admin' ? 'Администратор' : 'Сотрудник')).slice(0, 40), createdAt: new Date().toISOString() };
     reservations.push(reservation);
-    if (input.date === today()) table.status = 'reserved';
+    releaseMemoryTableIfIdle(input.tableId);
     recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation);
     return json(res, 201, reservation);
   }
@@ -5811,7 +5836,7 @@ if (staffProfile && req.method === 'PATCH') {
         if(Number(outstanding.rows[0]?.amount||0)>0.000001){await client.query('ROLLBACK');return json(res,409,{error:'reservation_pre_payment_refund_required',outstanding:Number(outstanding.rows[0].amount)});}
         const { rows } = await client.query(`UPDATE reservations SET status='cancelled' WHERE id=$1 AND venue_id=$2 AND status='confirmed' RETURNING id,table_id AS "tableId",starts_at AS "startsAt",status`, [reservationId, venueDbId]);
         if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'reservation_not_found_or_cancelled' }); }
-        await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready')) THEN 'occupied'::table_status ELSE 'free'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM reservations WHERE table_id=$1 AND venue_id=$2 AND status='confirmed' AND starts_at::date=$3::date)`, [rows[0].tableId, venueDbId, rows[0].startsAt]);
+        await refreshTableReservationStatus(client, rows[0].tableId, venueDbId);
         await client.query('COMMIT');
         recordAudit(req, 'reservation.cancelled', 'reservation', rows[0].id, { status: 'confirmed' }, rows[0]);
         return json(res, 200, rows[0]);
@@ -5823,8 +5848,7 @@ if (staffProfile && req.method === 'PATCH') {
     const memoryPrepaymentOutstanding = Math.max(0, Number(reservation.verifiedDepositPaid || 0) - (reservation.prepaymentRefunds || []).reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
     if (memoryPrepaymentOutstanding > 0) return json(res,409,{error:'reservation_pre_payment_refund_required',outstanding:memoryPrepaymentOutstanding});
     reservation.status = 'cancelled';
-    const stillReserved = reservations.some((entry) => entry.id !== reservation.id && entry.status === 'confirmed' && entry.tableId === reservation.tableId && entry.date === reservation.date);
-    if (!stillReserved) { const activeOrder = orders.some((order) => order.tableId === reservation.tableId && ['open', 'in_progress', 'ready'].includes(order.status)); setMemoryTableStatus(reservation.tableId, activeOrder ? 'occupied' : 'free'); }
+    releaseMemoryTableIfIdle(reservation.tableId);
     recordAudit(req, 'reservation.cancelled', 'reservation', reservation.id, { status: 'confirmed' }, reservation);
     return json(res, 200, reservation);
   }
@@ -5965,7 +5989,7 @@ if (staffProfile && req.method === 'PATCH') {
         const note = `${String(persisted.notes || '').trim()}${persisted.notes ? '\n' : ''}Удаление: ${comment}`.slice(0, 4000);
         const { rows } = await client.query('UPDATE orders SET status=\'cancelled\',closed_at=COALESCE(closed_at,now()),notes=$1 WHERE id=$2 AND venue_id=$3 AND status IN (\'open\',\'in_progress\',\'ready\') RETURNING id,status,table_id AS "tableId",notes,closed_at AS "closedAt"', [note, orderDelete[1], venueDbId]);
         if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_deletable' }); }
-        if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved'::table_status ELSE 'free'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready'))`, [persisted.tableId, venueDbId]);
+        if (persisted.tableId) await refreshTableReservationStatus(client, persisted.tableId, venueDbId);
         await client.query('COMMIT');
         const notification = { type: 'order_deleted', orderId: rows[0].id, comment, writeoff: Boolean(input.writeoff), deletedItems: itemRows, totalCost: Number(depletion.totalCost || 0), createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin', 'manager'] };
         recordAudit(req, 'order.deleted', 'order', rows[0].id, { status: persisted.status, items: itemRows }, { ...rows[0], ...notification });
@@ -5983,6 +6007,7 @@ if (staffProfile && req.method === 'PATCH') {
     releaseMemoryTableIfIdle(order.tableId); staffNotifications.push({ id: `order-deleted-${crypto.randomUUID()}`, venueId: notificationVenueScope(req, venueDbId), ...notification }); recordAudit(req, 'order.deleted', 'order', order.id, { status: 'open', items: order.items || [] }, notification);
     return json(res, 200, { ...order, deleted: true, comment, writeoff: Boolean(input.writeoff), totalCost: Number(depletion.totalCost || 0), notification });
   }
+  if (await handleOrderPreparation({ req, res, pathname, pool: repositories?.pool, orders, venueId: venueDbId, body, json, hasPermission, requireOpenShift, recordAudit, tableName: (id) => floor.flatMap((zone) => zone.tables).find((table) => table.id === id)?.name || id })) return;
   const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
   if (orderAction && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
@@ -6000,6 +6025,7 @@ if (staffProfile && req.method === 'PATCH') {
               await client.query('BEGIN');
               const { rows: currentRows } = await client.query('SELECT id,status,table_id AS "tableId" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderAction[1], venueDbId]);
               if (!currentRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+              if (['open','in_progress','ready'].includes(input.status) && (await client.query('SELECT 1 FROM order_item_execution e JOIN order_items oi ON oi.id=e.order_item_id WHERE oi.order_id=$1 LIMIT 1',[orderAction[1]])).rowCount) { await client.query('ROLLBACK'); return json(res,409,{error:'order_preparation_managed'}); }
               if (!validOrderTransition(currentRows[0].status, input.status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'invalid_order_transition', from: currentRows[0].status, to: input.status }); }
               if (input.status === 'cancelled') { const balance = await pgOrderBalance(client, orderAction[1]); if (Math.round(balance.paid * 100) > 0) { await client.query('ROLLBACK'); return json(res, 409, { error: 'paid_order_cannot_cancel', paid: balance.paid }); } }
               const updateOrderStatusSql = input.status === 'cancelled'
@@ -6007,7 +6033,7 @@ if (staffProfile && req.method === 'PATCH') {
                 : 'UPDATE orders SET status=$1 WHERE id=$2 AND venue_id=$3 AND status=$4 RETURNING id,status,table_id AS "tableId"';
               const { rows } = await client.query(updateOrderStatusSql, [input.status, orderAction[1], venueDbId, currentRows[0].status]);
               if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_state_changed' }); }
-              if (['closed', 'cancelled'].includes(input.status) && rows[0].tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved'::table_status ELSE 'free'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready'))`, [rows[0].tableId, venueDbId]);
+              if (['closed', 'cancelled'].includes(input.status) && rows[0].tableId) await refreshTableReservationStatus(client, rows[0].tableId, venueDbId);
               await client.query('COMMIT');
               recordAudit(req, 'order.status_changed', 'order', rows[0].id, { status: currentRows[0].status, tableId: rows[0].tableId }, rows[0]); return json(res, 200, rows[0]);
             } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client?.release(); }
@@ -6026,7 +6052,7 @@ if (staffProfile && req.method === 'PATCH') {
           if (occupied.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'target_table_has_active_order' }); }
           const { rows } = await client.query('UPDATE orders SET table_id=$1 WHERE id=$2 AND venue_id=$3 AND status=$4 RETURNING id,status,table_id AS "tableId"', [input.tableId, orderAction[1], venueDbId, beforeRows[0].status]);
           if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_state_changed' }); }
-          if (beforeRows[0].tableId && beforeRows[0].tableId !== rows[0].tableId) { await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved'::table_status ELSE 'free'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders WHERE table_id=$1 AND venue_id=$2 AND status IN ('open','in_progress','ready'))`, [beforeRows[0].tableId, venueDbId]); await client.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [rows[0].tableId, venueDbId]); }
+          if (beforeRows[0].tableId && beforeRows[0].tableId !== rows[0].tableId) { await refreshTableReservationStatus(client, beforeRows[0].tableId, venueDbId); await client.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [rows[0].tableId, venueDbId]); }
           await client.query('COMMIT');
           recordAudit(req, 'order.transferred', 'order', rows[0].id, beforeRows[0], rows[0]); return json(res, 200, rows[0]);
         } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client?.release(); }
@@ -6037,6 +6063,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (orderAction[2] === 'status') {
        if (!['open', 'in_progress', 'ready', 'closed', 'cancelled'].includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
        if (input.status === 'closed') return json(res, 409, { error: 'order_close_requires_payment', action: 'POST /api/orders/:id/close' });
+       if (['open','in_progress','ready'].includes(input.status) && order.items.some(item=>item.preparationStatus)) return json(res,409,{error:'order_preparation_managed'});
        if (!validOrderTransition(order.status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: order.status, to: input.status });
       if (input.status === 'cancelled' && Math.round(receivedOrderPayments(order) * 100) > 0) return json(res, 409, { error: 'paid_order_cannot_cancel', paid: receivedOrderPayments(order) });
       const before = { status: order.status, tableId: order.tableId }; order.status = input.status; if (input.status === 'closed') order.closedAt = new Date().toISOString();
@@ -6075,13 +6102,15 @@ if (staffProfile && req.method === 'PATCH') {
           if (!employee.rows[0]) { await client.query('ROLLBACK'); return json(res, 403, { error: 'order_item_sales_employee_unavailable' }); }
           salesEmployeeName = employee.rows[0].full_name;
         }
-        const { rows: productRows } = await client.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [input.productId, venueDbId]);
+        const { rows: productRows } = await client.query('SELECT id,name,sale_price AS "unitPrice",category AS station,preparation_station AS "preparationStation" FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [input.productId, venueDbId]);
         const product = productRows[0];
         if (!product) { await client.query('ROLLBACK'); return json(res, 400, { error: 'product_not_found' }); }
         const { rows } = await client.query(`INSERT INTO order_items (order_id,product_id,quantity,unit_price,station,sales_employee_id,sold_at)
           VALUES ($1,$2,$3,$4,$5,$6,CASE WHEN $6::uuid IS NULL THEN NULL ELSE now() END)
           RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station,sales_employee_id AS "salesEmployeeId",sold_at AS "soldAt"`, [itemMatch[1], product.id, quantity, product.unitPrice, product.station, salesEmployeeId]);
-        const result = { ...rows[0], quantity: Number(rows[0].quantity), unitPrice: Number(rows[0].unitPrice), name: product.name, salesEmployeeName };
+        await client.query('INSERT INTO order_item_execution(order_item_id,station) VALUES($1,$2)',[rows[0].id,product.preparationStation]);
+        const result = { ...rows[0], quantity: Number(rows[0].quantity), unitPrice: Number(rows[0].unitPrice), name: product.name, salesEmployeeName, preparationStation: product.preparationStation, preparationStatus: 'new', preparationDispatchedAt: null, preparationStartedAt: null, preparationReadyAt: null };
+        await refreshPgPreparation(client,itemMatch[1],venueDbId);
         const balance = await pgOrderBalance(client, itemMatch[1], orderRows[0].minimumOrderTotal);
         if (orderBalanceConflict(balance)) { await client.query('ROLLBACK'); return json(res, 409, orderBalanceConflictBody(balance)); }
         await client.query('COMMIT');
@@ -6100,9 +6129,10 @@ if (staffProfile && req.method === 'PATCH') {
     if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' });
     const salesEmployee = req.user?.id ? { salesEmployeeId: req.user.id, salesEmployeeName: req.user.name || req.user.fullName || null } : { salesEmployeeId: null, salesEmployeeName: null };
     if (!salesEmployee.salesEmployeeId) return json(res, 401, { error: 'sales_employee_session_required' });
-    const item = { id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, productId: product.id, name: product.name, quantity, unitPrice: product.price, station: product.station, ...salesEmployee, soldAt: salesEmployee.salesEmployeeId ? new Date().toISOString() : null };
+    const item = { id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, productId: product.id, name: product.name, quantity, unitPrice: product.price, station: product.station, preparationStation: product.preparationStation || null, preparationStatus: 'new', preparationDispatchedAt: null, preparationStartedAt: null, preparationReadyAt: null, ...salesEmployee, soldAt: salesEmployee.salesEmployeeId ? new Date().toISOString() : null };
     order.items.push(item);
     const balance = memoryOrderBalance(order); if (orderBalanceConflict(balance)) { order.items.pop(); return json(res, 409, orderBalanceConflictBody(balance)); }
+    refreshMemoryPreparation(order);
     recordAudit(req, 'order.item_added', 'order_item', item.id, null, item);
     return json(res, 201, item);
   }
@@ -6122,6 +6152,8 @@ if (staffProfile && req.method === 'PATCH') {
         if (!orderRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
         if (orderRows[0].pricingLockedAt) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: orderRows[0].pricingLockedAt }); }
         if (!['open', 'in_progress', 'ready'].includes(orderRows[0].status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_editable' }); }
+        const execution = await client.query('SELECT e.status FROM order_items oi JOIN order_item_execution e ON e.order_item_id=oi.id WHERE oi.id=$1 AND oi.order_id=$2',[itemAction[2],itemAction[1]]);
+        if (execution.rows[0] && execution.rows[0].status !== 'new') { await client.query('ROLLBACK'); return json(res,409,{error:'order_item_already_dispatched'}); }
         if (req.method === 'PATCH') {
           const { rows: currentRows } = await client.query('SELECT quantity FROM order_items WHERE id=$1 AND order_id=$2 FOR UPDATE', [itemAction[2], itemAction[1]]);
           if (!currentRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_item_not_found' }); }
@@ -6137,14 +6169,17 @@ if (staffProfile && req.method === 'PATCH') {
         } else if (req.method === 'PATCH') query.rows[0].salesEmployeeName = null;
         const balance = await pgOrderBalance(client, itemAction[1], orderRows[0].minimumOrderTotal);
         if (orderBalanceConflict(balance)) { await client.query('ROLLBACK'); return json(res, 409, orderBalanceConflictBody(balance)); }
+        await refreshPgPreparation(client,itemAction[1],venueDbId);
+        if (req.method === 'PATCH') Object.assign(query.rows[0],(await preparationItems(client,itemAction[1])).find(item=>item.id===itemAction[2]) || {});
         await client.query('COMMIT');
         recordAudit(req, req.method === 'DELETE' ? 'order.item_removed' : 'order.item_quantity_changed', 'order_item', query.rows[0].id, null, req.method === 'DELETE' ? null : query.rows[0]);
         return json(res, 200, { ...query.rows[0], quantity: Number(query.rows[0].quantity), unitPrice: Number(query.rows[0].unitPrice) });
       } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'order_item_update_failed', detail: error.message }); } finally { client?.release(); }
     }
     const order = orders.find((entry) => entry.id === itemAction[1]); if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' }); if (order?.pricingLockedAt) return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: order.pricingLockedAt }); const item = order?.items?.find((entry) => entry.id === itemAction[2]); if (!item) return json(res, 404, { error: 'order_item_not_found' });
-    if (req.method === 'DELETE') { const beforeItems = order.items; order.items = order.items.filter((entry) => entry.id !== item.id); const balance = memoryOrderBalance(order); if (orderBalanceConflict(balance)) { order.items = beforeItems; return json(res, 409, orderBalanceConflictBody(balance)); } recordAudit(req, 'order.item_removed', 'order_item', item.id, item, null); return json(res, 200, { id: item.id }); }
-    const input = await body(req); const quantity = Number(input.quantity); if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) return json(res, 400, { error: 'quantity_must_be_positive' }); const beforeQuantity = item.quantity; if (quantity > beforeQuantity) return json(res, 409, { error: 'quantity_increase_requires_new_line' }); item.quantity = quantity; const balance = memoryOrderBalance(order); if (orderBalanceConflict(balance)) { item.quantity = beforeQuantity; return json(res, 409, orderBalanceConflictBody(balance)); } recordAudit(req, 'order.item_quantity_changed', 'order_item', item.id, { quantity: beforeQuantity }, item); return json(res, 200, item);
+    if (item.preparationStatus && item.preparationStatus !== 'new') return json(res,409,{error:'order_item_already_dispatched'});
+    if (req.method === 'DELETE') { const beforeItems = order.items; order.items = order.items.filter((entry) => entry.id !== item.id); const balance = memoryOrderBalance(order); if (orderBalanceConflict(balance)) { order.items = beforeItems; return json(res, 409, orderBalanceConflictBody(balance)); } refreshMemoryPreparation(order); recordAudit(req, 'order.item_removed', 'order_item', item.id, item, null); return json(res, 200, { id: item.id }); }
+    const input = await body(req); const quantity = Number(input.quantity); if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) return json(res, 400, { error: 'quantity_must_be_positive' }); const beforeQuantity = item.quantity; if (quantity > beforeQuantity) return json(res, 409, { error: 'quantity_increase_requires_new_line' }); item.quantity = quantity; const balance = memoryOrderBalance(order); if (orderBalanceConflict(balance)) { item.quantity = beforeQuantity; return json(res, 409, orderBalanceConflictBody(balance)); } refreshMemoryPreparation(order); recordAudit(req, 'order.item_quantity_changed', 'order_item', item.id, { quantity: beforeQuantity }, item); return json(res, 200, item);
   }
   const orderRefundsPath = pathname.match(/^\/api\/finance\/orders\/([^/]+)\/refunds$/);
   if (orderRefundsPath && ['GET','POST'].includes(req.method)) {
@@ -6331,7 +6366,7 @@ if (staffProfile && req.method === 'PATCH') {
           const { rows: closedRows } = await client.query('UPDATE orders SET status=\'closed\',closed_at=now(),closed_in_shift_id=$3,loyalty_bonus_percent=$4,loyalty_bonus_base=$5,loyalty_bonus_earned=$6,group_discount_base=$7,group_discount_amount=$8,effective_discount_source=$9,subtotal_snapshot=$10,discount_total_snapshot=$11,minimum_adjustment_snapshot=$12,final_total_snapshot=$13,pricing_version=1,pricing_offers_snapshot=$14,selected_promotion_id=$15,selected_promotion_version=$16,selected_promotion_name=$17,selected_promotion_benefit_kind=$18,selected_promotion_benefit_value=$19,selected_promotion_basis=$20,selected_promotion_amount=$21,pricing_locked_at=COALESCE(pricing_locked_at,now()) WHERE id=$1 AND venue_id=$2 AND status NOT IN (\'closed\',\'cancelled\') RETURNING id', [paymentPath[1], venueDbId, activeShiftId, loyaltyAccrual.percent, loyaltyAccrual.base, loyaltyAccrual.earned, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, due, JSON.stringify(pricing.offers || []), promotion?.promotionId || null, promotion?.version || null, promotion?.label || null, promotion?.benefitKind || null, promotion?.benefitValue ?? null, promotion?.eligibleBasis ?? null, promotion?.amount ?? null]);
           if (!closedRows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
           await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]);
-          if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]);
+          if (persisted.tableId) await refreshTableReservationStatus(client, persisted.tableId, venueDbId);
         }
         await repositories.audit.record({venueId:venueDbId,actorId:/^[0-9a-f-]{36}$/i.test(req.user?.id||'')?req.user.id:null,action:'order.payment_added',entityType:'payment',entityId:rows[0].id,afterData:{...rows[0],orderId:paymentPath[1],...(method==='reservation'?{receiptId,reservationId:persisted.reservationId}:{}),paid:nextPaid,due,closed}},client);
         const response = { ...rows[0], guestAccount: accountGuest ? { guestId: persisted.guestId, bonusBalance: accountBalances?.bonusBalance ?? Number(accountGuest.bonusBalance||0), depositBalance: accountBalances?.depositBalance ?? Number(accountGuest.depositBalance||0), conversionRate: 1 } : undefined, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...finalMeta, ...(closed ? { loyaltyBonusPercent: loyaltyAccrual.percent, loyaltyBonusBase: loyaltyAccrual.base, loyaltyBonusEarned: loyaltyAccrual.earned, loyaltyBonusBalance: loyaltyAccrual.balance } : {}) };
@@ -6416,7 +6451,7 @@ if (staffProfile && req.method === 'PATCH') {
         if (!rows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
         await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]);
         if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id) VALUES ($1,$2,$3,$4,$5)', [orderPath[1], paymentMethod, remaining, 'paid', activeShiftId]);
-        if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]);
+        if (persisted.tableId) await refreshTableReservationStatus(client, persisted.tableId, venueDbId);
         result = { ...rows[0], ...pricing, subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: pricing.minimumAdjustment, paymentMethod, loyaltyBonusPercent: loyaltyAccrual.percent, loyaltyBonusBase: loyaltyAccrual.base, loyaltyBonusEarned: loyaltyAccrual.earned, loyaltyBonusBalance: loyaltyAccrual.balance };
         await client.query('COMMIT');
         // Audit is intentionally emitted after commit so it never describes a rolled-back close.
@@ -6475,8 +6510,11 @@ if (staffProfile && req.method === 'PATCH') {
         const balance = await pgOrderBalance(client, source.id, source.vip_minimum);
         if (orderBalanceConflict(balance)) { await client.query('ROLLBACK'); return json(res, 409, orderBalanceConflictBody(balance)); }
         if (moved.length >= countRows[0].count) { await client.query('ROLLBACK'); return json(res, 409, { error: 'split_requires_remaining_item' }); }
+        await refreshPgPreparation(client,source.id,venueDbId);
+        target.status = await refreshPgPreparation(client,target.id,venueDbId);
+        const executionItems = await preparationItems(client,target.id);
         await client.query('COMMIT');
-        const result = { ...target, items: moved, splitFrom: source.id }; recordAudit(req, 'order.split', 'order', source.id, { itemCount: moved.length }, { itemCount: moved.length, newOrderId: target.id }); return json(res, 201, result);
+        const result = { ...target, items: executionItems, splitFrom: source.id }; recordAudit(req, 'order.split', 'order', source.id, { itemCount: moved.length }, { itemCount: moved.length, newOrderId: target.id }); return json(res, 201, result);
       } catch (error) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_split_failed', detail: error.message }); } finally { client.release(); }
     }
     const source = orders.find((entry) => entry.id === orderPath[1]);
@@ -6491,7 +6529,8 @@ if (staffProfile && req.method === 'PATCH') {
     const beforeItems = source.items; source.items = source.items.filter((item) => !ids.has(item.id));
     const balance = memoryOrderBalance(source); if (orderBalanceConflict(balance)) { source.items = beforeItems; return json(res, 409, orderBalanceConflictBody(balance)); }
     if (moved.length >= beforeItems.length) { source.items = beforeItems; return json(res, 409, { error: 'split_requires_remaining_item' }); }
-    const target = { id: `ord-${Date.now()}`, tableId: source.tableId, status: 'open', items: moved, clientId: source.clientId || null, guestName: source.guestName || null, guestPhone: source.guestPhone || null, notes: source.notes || '', openedBy: source.openedBy || source.openedById || null, loyaltyRedemptionPolicyVersion:source.loyaltyRedemptionPolicyVersion??0,loyaltyRedemptionRate:source.loyaltyRedemptionRate||1,loyaltyRedemptionCapPercent:source.loyaltyRedemptionCapPercent??100,loyaltyRedemptionMinPoints:source.loyaltyRedemptionMinPoints??1,loyaltyRedemptionBase:source.loyaltyRedemptionBase??null,splitFrom: source.id, createdAt: new Date().toISOString() };
+    const target = { id: `ord-${Date.now()}`, venueId: source.venueId || venueDbId, tableId: source.tableId, status: 'open', items: moved, clientId: source.clientId || null, guestName: source.guestName || null, guestPhone: source.guestPhone || null, notes: source.notes || '', openedBy: source.openedBy || source.openedById || null, loyaltyRedemptionPolicyVersion:source.loyaltyRedemptionPolicyVersion??0,loyaltyRedemptionRate:source.loyaltyRedemptionRate||1,loyaltyRedemptionCapPercent:source.loyaltyRedemptionCapPercent??100,loyaltyRedemptionMinPoints:source.loyaltyRedemptionMinPoints??1,loyaltyRedemptionBase:source.loyaltyRedemptionBase??null,splitFrom: source.id, createdAt: new Date().toISOString() };
+    refreshMemoryPreparation(source); refreshMemoryPreparation(target);
     orders.push(target); recordAudit(req, 'order.split', 'order', source.id, { itemCount: source.items.length + moved.length }, { itemCount: source.items.length, newOrderId: target.id }); return json(res, 201, target);
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'discount-requests') {
@@ -6580,7 +6619,7 @@ function staticFile(req, res) {
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     '/phone-format.js',
-    ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
+    ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/portal.js', '/portal-session.js', '/header-shell.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js', '/shift-close-contract.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js', '/notification-center.js', '/audit-privacy.js', '/staff-identity.js',

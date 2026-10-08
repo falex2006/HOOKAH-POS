@@ -5,6 +5,10 @@ const source = readFileSync(new URL('../app.js', import.meta.url), 'utf8').repla
 const start = source.indexOf("const paymentModal=document.querySelector('#payment-modal')");
 const end = source.indexOf("\ndocument.querySelectorAll('.chips button')", start);
 assert.ok(start >= 0 && end > start);
+const formatterStart=source.indexOf('const staffStockErrorMessage=');
+const formatterEnd=source.indexOf("\ndocument.querySelector('.close')",formatterStart);
+assert.ok(formatterStart>=0&&formatterEnd>formatterStart);
+const formatter=source.slice(formatterStart,formatterEnd);
 const listeners = new Map();
 const node = (id) => ({
   id, value: '0', textContent: '', disabled: false,
@@ -27,15 +31,16 @@ const document = { querySelector: (selector) => elements[selector] || null, crea
 const requests = [];
 const apiJson = (path, options) => new Promise((resolve, reject) => requests.push({ path, options, resolve, reject }));
 const notices = [];
-const setup = new Function('document', 'apiJson', 'notice', 'orderHeaders',
-  `let currentOrder={id:'order-1',status:'open',items:[{unitPrice:500,quantity:1}]};
+const setup = new Function('document', 'apiJson', 'notice', 'orderHeaders','refreshOrderPricingSummary',
+  `let currentOrder={id:'order-1',status:'open',items:[{unitPrice:500,quantity:1}]};let floorVenueId='venue-1';
    let openOrders=[currentOrder];let queueDraws=0,orderLoads=0;
    let onLoadOrders=()=>{};
    const drawQueue=()=>{queueDraws+=1;};const drawOrder=()=>{};
    const loadOrders=async()=>{orderLoads+=1;onLoadOrders();};const refreshFloor=async()=>{};
+   ${formatter}
    ${source.slice(start, end)}
    return {state:()=>({currentOrder,openOrders,paymentState,queueDraws,orderLoads}),setOrder:(order)=>{currentOrder=order;},setOnLoadOrders:(callback)=>{onLoadOrders=callback;}};`);
-const runtime = setup(document, apiJson, (message) => notices.push(message), () => ({}));
+const runtime = setup(document, apiJson, (message) => notices.push(message), () => ({}),()=>{});
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const open = () => listeners.get('split-payment:click')();
 const submitPayment = () => listeners.get('payment-form:submit')({ preventDefault() {} });
@@ -71,7 +76,7 @@ requests[3].resolve({ due: 500, paid: 200, remaining: 300, closed: false });
 await settle();
 assert.equal(elements['#payment-cash'].value, '0', 'saved method is cleared before next POST');
 assert.equal(requests[4].path, '/api/orders/order-2/payments');
-requests[4].reject(new Error('payment_create_failed'));
+requests[4].reject(Object.assign(new Error('product_recipe_required'),{payload:{error:'product_recipe_required',productName:'Тестовая позиция'}}));
 await settle();
 assert.equal(requests[5].options, undefined, 'failure reloads authoritative payments');
 requests[5].resolve({ due: 500, paid: 200, remaining: 300, items: [{ amount: 200, method: 'cash' }] });
@@ -80,6 +85,8 @@ assert.equal(elements['#payment-card'].value, '0', 'ambiguous failed method requ
 assert.equal(elements['#payment-due'].textContent, '300 ₽');
 assert.equal(submit.disabled, false);
 assert.ok(modalClasses.has('open'));
+assert.match(elements['#payment-message'].textContent,/нет активной техкарты продажи/);
+assert.match(elements['#payment-message'].textContent,/Учтено платежей: 200 ₽. Осталось: 300 ₽/);
 const staleOpen = open();
 const latestOpen = open();
 requests[7].resolve({ due: 500, paid: 250, remaining: 250, items: [] });
@@ -126,4 +133,36 @@ requests[13].resolve({ due: 500, paid: 500, remaining: 0, closed: true });
 await lateFinalPayment;
 assert.equal(modalClasses.has('open'), false, 'late final POST closes stale same-order modal before order refresh');
 assert.equal(runtime.state().currentOrder.id, undefined);
-console.log('STAFF PARTIAL PAYMENT PENDING QA: PASS (balance, overpay, close, partial failure reconciliation, stale GET/POST, same-order reopen/final close)');
+runtime.setOnLoadOrders(()=>{});
+for(const [code,reason] of Object.entries({
+  product_recipe_required:'нет активной техкарты',product_recipe_ambiguous:'несколько техкарт',
+  product_inventory_mode_required:'не настроен складской учёт',product_inventory_mode_invalid:'неверно настроен складской учёт',
+  recipe_invalid:'ошибка в составе',recipe_ingredient_not_found:'не найден на складе',
+  recipe_ingredient_unit_mismatch:'не совпадают',invalid_recipe_quantity:'неверно указано количество',
+  insufficient_recipe_stock:'Недостаточно ингредиентов',expired_premix_stock:'Истёк срок годности',
+  recipe_depletion_failed:'Не удалось выполнить списание'
+})){
+  runtime.setOrder({id:code,status:'open',items:[{unitPrice:500,quantity:1}]});
+  const offset=requests.length,opening=open();
+  requests[offset].resolve({due:500,paid:200,remaining:300,items:[{method:'cash',amount:200}]});await opening;
+  elements['#payment-card'].value='300';
+  const failing=submitPayment();
+  const attempt=JSON.parse(requests[offset+1].options.body).idempotencyKey;
+  await submitPayment();assert.equal(requests.length,offset+2,'double click does not repeat POST');
+  requests[offset+1].reject({payload:{error:code,productName:'Тестовая позиция',detail:'SECRET_COST',missing:[{stock:{cost:'SECRET_COST'}}]}});
+  await settle();
+  requests[offset+2].resolve({due:500,paid:200,remaining:300,items:[{method:'cash',amount:200}]});await failing;
+  const text=elements['#payment-message'].textContent;
+  assert.ok(text.includes(reason),`${code} explains the actual cause`);
+  assert.match(text,/управляющего/);assert.match(text,/Учтено платежей: 200 ₽. Осталось: 300 ₽/);
+  assert.ok(!text.includes('SECRET_COST'),'internal payload never becomes employee text');
+  assert.equal(runtime.state().currentOrder.status,'open');assert.equal(submit.disabled,false);
+  elements['#payment-card'].value='300';const retry=submitPayment();
+  assert.equal(JSON.parse(requests[offset+3].options.body).idempotencyKey,attempt,'retry retains the same payment intent');
+  requests[offset+3].resolve({due:500,paid:500,remaining:0,closed:true});await retry;
+  assert.equal(modalClasses.has('open'),false,'successful retry completes payment');
+}
+const format=new Function(`${formatter};return staffStockErrorMessage;`)();
+assert.equal(format({payload:{error:'unknown',detail:'SECRET_COST'}}),'');
+assert.equal(format({payload:{error:'toString'}}),'');
+console.log('STAFF PARTIAL PAYMENT PENDING QA: PASS (balance, mixed failure reconciliation, 11 stock/recipe reasons, safe text, retry idempotency, pending and stale GET/POST guards)');

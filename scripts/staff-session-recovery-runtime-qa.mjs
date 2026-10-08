@@ -8,7 +8,7 @@ const fetchEnd = source.indexOf('\nconst staffRoleLabels=', fetchStart);
 assert.ok(fetchStart >= 0 && fetchEnd > fetchStart, 'staffFetchJson must remain extractable');
 const fetchSource = source.slice(fetchStart, fetchEnd);
 const verifyStart = source.indexOf('const verifyStaffSession=()=>{');
-const verifyEnd = source.indexOf('\ndocument.addEventListener(\'click\',(event)=>{if(event.target.closest(\'[data-staff-session-retry]\'))', verifyStart);
+const verifyEnd = source.indexOf('\nconst revalidateStaffSession=', verifyStart);
 assert.ok(verifyStart >= 0 && verifyEnd > verifyStart, 'verifyStaffSession must remain extractable');
 const verifySource = source.slice(verifyStart, verifyEnd);
 
@@ -25,6 +25,7 @@ const runFetch = async ({ response, method = 'GET', delay = false }) => {
   let noticeText = '';
   const controller = { signal: {}, abort() { aborts += 1; } };
   const context = {
+    staffAccessRevision: 0,
     AbortController: function AbortController() { return controller; },
     window: {
       setTimeout(callback) { timerCallback = callback; return 1; },
@@ -84,6 +85,8 @@ const runVerify = async ({ outcome, retry = false, concurrent = false }) => {
     return makeResponse(200, { user: { id: 'roman', name: 'Печеников Роман Андреевич', role: 'hookah_master' }, permissions: ['floor', 'orders'] });
   };
   const context = {
+    staffAccessRevision: 0, staffSessionSignature: '', staffShiftReadable: true, staffShiftManageable: true, staffSessionPermissions: new Set(),
+    clearStaffAccessState() {}, clearPreparationQueue(){},loadPreparationQueue(){},applyStaffWorkAccess() {}, staffCanWork: () => true, applyStaffHeader() {},
     AbortController: function AbortController() { return { signal: {}, abort() {} }; },
     window: { setTimeout: () => 1, clearTimeout: () => {}, location: { replace: (url) => redirects.push(url) } },
     localStorage: { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) },
@@ -114,7 +117,7 @@ for (const outcome of ['503', 'malformed']) {
 const recovered = await runVerify({ outcome: '200', retry: true });
 assert.equal(recovered.result, true); assert.equal(recovered.requestCount, 2, 'retry should perform a fresh session check');
 
-assert.match(source, /applyStaffSession\(session\);[\s\S]*?staffSessionVerified=true/, 'server permissions must be applied before verification');
+assert.match(source, /if\(changed\)applyStaffSession\(session\);[\s\S]*?applyStaffWorkAccess\(\)/, 'server permissions must be applied before revealing work controls');
 assert.match(source, /if\(error\.status===401\)\{localStorage\.removeItem\('crm_session_token'\);localStorage\.removeItem\('crm_session_user'\)/, '401 must clear cached identity');
 assert.match(source, /showFloorUnavailable\(error\?\.name==='AbortError'\?'Схема зала отвечает слишком долго'/, 'floor timeout must expose retryable error state');
 assert.match(source, /if\(retry\)\{if\(staffSessionVerified\)refreshFloor\(\);else verifyStaffSession\(\);return;\}/, 'floor failure must expose retry path');

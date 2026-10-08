@@ -27,6 +27,7 @@ const matches = (patterns, path) => patterns.some((pattern) => pattern.test(path
 const normalize = (path) => path.replaceAll('\\', '/').replace(/^\.\//, '');
 const classify = (path) => {
   const normalized = normalize(path);
+  if (normalized === 'scripts/saas-pos-boundary-contract.mjs') return 'shared';
   if (matches(saasOwned, normalized)) return 'saas';
   if (matches(posOwned, normalized)) return 'pos';
   return 'shared';
@@ -44,7 +45,30 @@ function isPortalCacheRevisionOnly(before, after) {
   return normalizePortalRevision(before) === normalizePortalRevision(after);
 }
 
+function isSaasSharedCssRevisionOnly(path, before, after) {
+  if (!['platform.html', 'dist/platform.html', 'dist/platform/index.html'].includes(path)) return false;
+  // Compare Git text, independent of Windows checkout line endings.
+  before = before.replace(/\r\n/g, '\n');
+  after = after.replace(/\r\n/g, '\n');
+  const url = /\/style\.css\?rev=\d+(?=["'])/g;
+  if (!before.match(url)?.length || !after.match(url)?.length || before === after) return false;
+  return before.replace(url, '/style.css?rev=<revision>') === after.replace(url, '/style.css?rev=<revision>');
+}
+
 function selfTest() {
+  assert.equal(classify('scripts/saas-pos-boundary-contract.mjs'), 'shared');
+  assert.equal(isSaasSharedCssRevisionOnly('platform.html', '<link href="/style.css?rev=403">\n', '<link href="/style.css?rev=405">\r\n'), true);
+  const oldCss = '<link href="/style.css?rev=403"><main></main>';
+  const newCss = '<link href="/style.css?rev=405"><main></main>';
+  for (const path of ['platform.html', 'dist/platform.html', 'dist/platform/index.html']) {
+    assert.equal(isSaasSharedCssRevisionOnly(path, oldCss, newCss), true);
+    for (const changed of [oldCss, newCss + ' ', newCss.replace('<main>', '<main hidden>'), newCss.replace('/style.css', '/platform.css'), newCss.replace('405', '405evil')]) {
+      assert.equal(isSaasSharedCssRevisionOnly(path, oldCss, changed), false);
+    }
+  }
+  assert.equal(isSaasSharedCssRevisionOnly('dist/platform/other.html', oldCss, newCss), false);
+  assert.equal(isSaasSharedCssRevisionOnly('platform.js', oldCss, newCss), false);
+  assert.equal(isSaasSharedCssRevisionOnly('platform.html', oldCss + '<script src="/platform.js?rev=8"></script>', newCss + '<script src="/platform.js?rev=9"></script>'), false);
   for (const file of sharedExamples) assert.equal(classify(file), 'shared', `${file} must remain explicitly shared`);
   assert.equal(classify('platform.html'), 'saas');
   assert.equal(classify('dist/platform/index.html'), 'saas');
@@ -105,16 +129,23 @@ const cacheOnlyPosPaths = posPaths.filter((path) => {
   return before.status === 0 && after.status === 0 && isPortalCacheRevisionOnly(before.stdout, after.stdout);
 });
 const behaviorPosPaths = posPaths.filter((path) => !cacheOnlyPosPaths.includes(path));
+const cacheOnlySaasPaths = saasPaths.filter((path) => {
+  const before = readAtRevision(base, path);
+  const after = readAtRevision(head, path);
+  return before.status === 0 && after.status === 0 && isSaasSharedCssRevisionOnly(path, before.stdout, after.stdout);
+});
+const behaviorSaasPaths = saasPaths.filter((path) => !cacheOnlySaasPaths.includes(path));
 
-if (saasPaths.length && behaviorPosPaths.length) {
+if (behaviorSaasPaths.length && behaviorPosPaths.length) {
   console.error('SAAS/POS BOUNDARY: FAIL — one change touches SaaS-owned and POS-owned UI files.');
-  console.error(`SaaS-owned: ${saasPaths.join(', ')}`);
+  console.error(`SaaS-owned content changes: ${behaviorSaasPaths.join(', ')}`);
   console.error(`POS-owned with content changes: ${behaviorPosPaths.join(', ')}`);
   console.error('Split the change or explicitly redesign the ownership contract before combining these zones.');
   process.exit(1);
 }
 
 console.log(`SAAS/POS BOUNDARY: PASS (${saasPaths.length} SaaS-owned, ${behaviorPosPaths.length} POS-owned content changes, ${cacheOnlyPosPaths.length} POS cache-only, ${sharedPaths.length} shared/other paths)`);
+console.log(`SaaS shared CSS cache-only: ${cacheOnlySaasPaths.length}`);
 if (saasPaths.length && sharedPaths.length) {
   console.log('Shared paths are allowed, but must retain SaaS and POS API/auth/model regression coverage.');
 }

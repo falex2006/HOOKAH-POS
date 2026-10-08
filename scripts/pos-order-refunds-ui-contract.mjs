@@ -15,13 +15,15 @@ const distEnd=published.indexOf('\nfunction ',distStart+start.length);
 const sourceBlock=source.slice(sourceStart,sourceEnd);
 const distBlock=published.slice(distStart,distEnd);
 
-assert.match(sourceBlock,/portalPermissions\.has\('finance_read'\)\s*\|\|\s*portalPermissions\.has\('finance'\)/,'finance_read and finance can open history');
-assert.match(sourceBlock,/const canCreateOrderRefunds = portalPermissions\.has\('finance'\)/,'only finance permission renders write controls');
-assert.match(sourceBlock,/canLoadPaymentSources = portalPermissions\.has\('orders'\) && \(!order\.reservationId \|\| portalPermissions\.has\('reservations'\)\)/,'refund action is hidden where order payment reads are forbidden');
+assert.match(sourceBlock,/hasPortalPermission\('finance_read'\)\s*\|\|\s*hasPortalPermission\('finance'\)/,'finance_read and finance can open history');
+assert.match(sourceBlock,/const canCreateOrderRefunds = hasPortalPermission\('finance'\)/,'only finance permission renders write controls');
+assert.match(sourceBlock,/canLoadPaymentSources = hasPortalPermission\('orders'\) && \(!order\.reservationId \|\| hasPortalPermission\('reservations'\)\)/,'refund action is hidden where order payment reads are forbidden');
 assert.match(sourceBlock,/data-order-refunds=/,'history entry point is rendered for readers');
 assert.match(sourceBlock,/data-order-refund-form/,'write form is rendered for finance');
 assert.match(sourceBlock,/const paymentRowsSection = `[^`]*\$\{rows/,'allocation payment rows are assembled as one reusable section');
 assert.match(sourceBlock,/refundFormAvailable \? `<form data-order-refund-form>\$\{paymentRowsSection\}/,'finance allocation rows are descendants of the refund form');
+assert.match(sourceBlock,/\$\{refundFormAvailable \? `<form data-order-refund-form>\$\{paymentRowsSection\}[\s\S]*?` : `\$\{paymentRowsSection\}\$\{itemRowsSection\}`\}/,'payment rows are rendered exactly once for both write-capable and read-only dialogs');
+assert.doesNotMatch(sourceBlock,/refundFormAvailable \? '' : paymentRowsSection/,'read-only dialogs do not prepend a duplicate payment section');
 assert.match(sourceBlock,/itemAttributionStatus === 'complete'.*itemAttributionStatus === 'not_applicable'.*не распределены по строкам/,'history distinguishes attributed, not applicable, and legacy-unattributed refunds');
 assert.match(sourceBlock,/data-refund-item=/,'refund form exposes snapshot-backed item quantity controls');
 assert.match(sourceBlock,/noItemReturn/,'refund form supports an explicit no merchandise return');
@@ -43,7 +45,7 @@ assert.match(sourceBlock,/idempotencyKey: intent\.idempotencyKey/,'a retry reuse
 assert.match(sourceBlock,/await renderRefundOrder\(order\)/,'successful write reloads history and payment balances');
 assert.match(source,/order_refund:\s*'Возврат по POS-заказу'/,'Finance report gives POS refunds a user-facing source label');
 assert.match(source,/payoutSourceLabels=\{[^\n]*order_refund:'Возврат по POS-заказу'/,'period business reconciliation labels POS refund payouts');
-assert.match(source,/const api = \(url, options = \{\}\) => \{ if \(staticDemo\(\)\) return demoJson\(url, options\); return window\.fetch\(url/,'live API requests dispatch through the page fetch implementation');
+assert.match(source,/const api = \(url, options = \{\}\) => \{ if \(staticDemo\(\)\) return demoJson\(url, options\);[\s\S]*?return window\.fetch\(url/,'live API requests dispatch through the page fetch implementation');
 const financeStart=source.indexOf('function renderFinanceReport()'),financeDistStart=published.indexOf('function renderFinanceReport()');
 const financeEnd=source.indexOf('\nfunction ',financeStart+24),financeDistEnd=published.indexOf('\nfunction ',financeDistStart+24);
 assert.notEqual(financeStart,-1,'finance report has source renderer');
