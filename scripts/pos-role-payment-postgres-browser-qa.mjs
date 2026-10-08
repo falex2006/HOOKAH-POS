@@ -472,7 +472,7 @@ try {
   await bartender.locator(`.order-item-row[data-item-id="${uiRecipeLineItem.id}"]`).waitFor();
   await bartender.locator('#catalog').waitFor({ state: 'hidden' });
   const bartenderClose = bartender.waitForResponse((response) => response.request().method() === 'POST' && /\/api\/orders\/[0-9a-f-]+\/close$/.test(response.url()));
-  await bartender.locator('.close:not([disabled])').click();
+  await bartender.locator('.order > .close:not([disabled])').click();
   await bartender.locator('#staff-action-submit').click();
   const bartenderCloseResponse=await bartenderClose;
   assert.equal(bartenderCloseResponse.status(), 200, `bartender POS closes the tracked sale through the warehouse-aware endpoint: ${await bartenderCloseResponse.text()}`);
@@ -886,7 +886,7 @@ try {
   assert.equal(await bartender.evaluate(() => currentOrder?.status), 'open', 'late status response does not corrupt selected order in memory');
   await bartender.waitForFunction(() => floorReady && !document.querySelector('.order')?.inert);
   await bartender.locator(`[data-queue-order="${ids.splitOrder}"]`).evaluate((button) => button.click());
-  await bartender.locator('.close:not([disabled])').click();
+  await bartender.locator('.order > .close:not([disabled])').click();
   await bartender.evaluate((id) => document.querySelector(`[data-queue-order="${id}"]`).click(), splitTarget.id);
   await bartender.locator('#staff-action-submit').click();
   assert.match(await bartender.locator('#staff-notice').innerText(), /Заказ изменился/, 'close dialog rejects stale selection');
