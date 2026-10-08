@@ -1330,6 +1330,17 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   .staff-theme .order{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 108px);overflow:auto;padding:18px}
   .staff-theme .order .actions{position:sticky;bottom:0;padding-top:10px;background:linear-gradient(transparent,#17191d 18%)}
 }
+
+/* Orders is a focused POS queue; the floor map remains in its own view. */
+.staff-theme.staff-orders-view .workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,420px);align-items:start;gap:16px;padding-inline:28px}
+.staff-theme.staff-orders-view .tables{display:none}
+.staff-theme.staff-orders-view .order{grid-column:2;grid-row:1;position:sticky;top:14px;max-height:calc(100vh - 108px);overflow:auto;padding:18px}
+.staff-theme.staff-orders-view .queue{display:block;grid-column:1;grid-row:1;padding:0 28px 28px;margin:0;min-width:0}
+.staff-theme.staff-orders-view .queue-list{max-width:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.staff-theme.staff-orders-view .queue-card{min-height:76px;padding:16px;align-items:flex-start;gap:12px}
+.staff-theme.staff-orders-view .queue-card b{font-size:18px;color:#f7f8fa}
+.staff-theme.staff-orders-view .queue-card small{line-height:1.45}
+@media(max-width:900px){.staff-theme.staff-orders-view .workspace{display:block;padding-inline:14px}.staff-theme.staff-orders-view .order{position:static;max-height:none;margin-top:14px}.staff-theme.staff-orders-view .queue{padding:0}.staff-theme.staff-orders-view .queue-list{grid-template-columns:1fr}}
 .velora-theme .staff-row.inactive .staff-avatar{grid-column:1;grid-row:1}
 .velora-theme .staff-row.inactive>div{grid-column:2;grid-row:1}
 .velora-theme .staff-row.inactive>.badge{grid-column:3;grid-row:1}
