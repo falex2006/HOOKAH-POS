@@ -154,6 +154,9 @@ try {
   await page.locator(`[data-zone-id="${hall.id}"]`).waitFor();
   await page.locator(`[data-zone-id="${hall.id}"]`).click();
   await page.locator(`[data-table="${table.id}"]`).click();
+  await page.locator('#table-context-actions [data-table-action="close-panel"]').evaluate((node) => node.click());
+  assert.equal(await page.locator(`[data-table="${table.id}"]`).evaluate((node) => node.classList.contains('sel')), true, 'closing the table card preserves the selected table'); checks++;
+  await page.locator(`[data-table="${table.id}"]`).click();
   const orderCreatePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/orders'));
   await page.locator('.order > .primary').click();
   await page.locator(`[data-name="${productName}"]`).waitFor({ state: 'visible' });
