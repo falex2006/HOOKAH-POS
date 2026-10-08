@@ -392,6 +392,7 @@ tables.addEventListener('click',(event)=>{
   const found=openOrders.find((order)=>String(order.tableId)===id||String(order.tableId)===String(card.dataset.table));
   if(found)drawOrder(found);
   else{currentOrder=null;drawOrder({tableId:id,items:[]});}
+  document.querySelector('.order')?.scrollIntoView({behavior:'smooth',block:'start'});
 });
 tableContextActions?.addEventListener('click',(event)=>{const button=event.target.closest('[data-table-action]');if(!button)return;const action=button.dataset.tableAction;const tableId=normalizeTableId(currentOrder?.tableId||document.querySelector('.table.sel')?.dataset.table||'');if(!tableId)return;if(action==='new-order'||action==='add-position'){document.querySelector('.order > .primary')?.click();return;}if(action==='reserve'||action==='open-reservation'||action==='seat-guest'){window.location.href=preserveWorkspaceRoute('/reservations');return;}if(action==='transfer'){document.querySelector('#transfer-order')?.click();return;}if(action==='open-order'){document.querySelector('.order')?.scrollIntoView({behavior:'smooth',block:'start'});}});
 const catalog=document.querySelector('#catalog'), grid=document.querySelector('#catalog-grid'), search=document.querySelector('#product-search');
