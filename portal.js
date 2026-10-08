@@ -445,6 +445,8 @@ const normalizeManagementSidebar = ({ routeChange = false } = {}) => {
     const routes = new Set([...nav.querySelectorAll('a')].map((link) => link.getAttribute('href')));
     if (routes.has('/reservations') && routes.has('/orders') && routes.has('/')) nav.remove();
   });
+  const operationGroups = [...sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group="operations"]')];
+  operationGroups.slice(1).forEach((group) => group.remove());
   window.__applyInterfacePreferences?.();
 };
 normalizeManagementSidebar();
