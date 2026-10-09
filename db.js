@@ -1,5 +1,6 @@
 'use strict';
 const { venueTimezoneSql, refreshTableReservationStatus } = require('./reservation-calendar');
+const { tableMinimumForTime } = require('./table-minimum-schedule');
 const { sanitizeAuditEvent } = require('./audit-privacy');
 const crypto = require('crypto');
 
@@ -82,7 +83,7 @@ class OrderRepository {
       const { rows: loyaltyRows } = await client.query('SELECT version,bonus_ruble_rate AS "rate",max_redemption_percent AS "capPercent",min_redemption_points AS "minimumPoints" FROM loyalty_program_settings WHERE venue_id=$1 ORDER BY version DESC LIMIT 1', [input.venueId]);
       const loyaltyPolicy = loyaltyRows[0] || { version: 0, rate: 1, capPercent: 100, minimumPoints: 1 };
       let tableMinimum = 0;
-      if (input.tableId) { const target = await client.query("SELECT t.id,t.min_order_total FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' AND t.archived_at IS NULL FOR UPDATE OF t", [input.tableId, input.venueId]); if (!target.rows[0]) throw new Error('table_not_found_or_unavailable'); tableMinimum = Number(target.rows[0].min_order_total || 0); const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) { if(input.reservationId){const linked=await client.query('SELECT 1 FROM orders WHERE venue_id=$1 AND reservation_id=$2 LIMIT 1',[input.venueId,input.reservationId]);if(linked.rows[0])throw new Error('reservation_already_linked');} throw new Error('table_has_active_order'); } }
+      if (input.tableId) { const target = await client.query("SELECT t.id,t.min_order_total AS \"minOrderTotal\",to_char(t.minimum_order_start_time,'HH24:MI') AS \"minimumOrderStartTime\",to_char(t.minimum_order_end_time,'HH24:MI') AS \"minimumOrderEndTime\",v.timezone FROM tables t JOIN zones z ON z.id=t.zone_id JOIN venues v ON v.id=z.venue_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' AND t.archived_at IS NULL FOR UPDATE OF t", [input.tableId, input.venueId]); if (!target.rows[0]) throw new Error('table_not_found_or_unavailable'); tableMinimum = tableMinimumForTime(target.rows[0], target.rows[0].timezone); const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) { if(input.reservationId){const linked=await client.query('SELECT 1 FROM orders WHERE venue_id=$1 AND reservation_id=$2 LIMIT 1',[input.venueId,input.reservationId]);if(linked.rows[0])throw new Error('reservation_already_linked');} throw new Error('table_has_active_order'); } }
       let reservationId = null, guestId = input.guestId || null;
       if (input.reservationId) {
         const reservation = await client.query('SELECT id,status,table_id AS "tableId",guest_id AS "guestId",deposit_paid AS "legacyDepositPaid" FROM reservations WHERE id=$1 AND venue_id=$2 FOR UPDATE', [input.reservationId,input.venueId]);
@@ -101,7 +102,7 @@ class OrderRepository {
           WHERE g.id=$1 AND g.venue_id=$2`, [guestId,input.venueId]);
         guestDiscountGroup = rows[0] || null;
       }
-      const vipMinimum = Math.max(Number(input.vipMinimum || 0), tableMinimum);
+      const vipMinimum = tableMinimum;
       const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, guest_id, group_discount_group_id, group_discount_name, group_discount_percent, vip_minimum, notes,loyalty_redemption_policy_version,loyalty_redemption_rate,loyalty_redemption_cap_percent,loyalty_redemption_min_points) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id, table_id AS "tableId", reservation_id AS "reservationId", guest_id AS "guestId", group_discount_group_id AS "groupDiscountGroupId", group_discount_name AS "groupDiscountName", group_discount_percent AS "groupDiscountPercent", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt",loyalty_redemption_policy_version AS "redemptionPolicyVersion",loyalty_redemption_rate AS "redemptionRate",loyalty_redemption_cap_percent AS "redemptionCapPercent",loyalty_redemption_min_points AS "redemptionMinPoints"', [input.venueId, input.tableId || null, input.openedBy, reservationId, guestId, guestDiscountGroup?.groupId || null, guestDiscountGroup?.groupName || null, guestDiscountGroup?.discountPercent ?? null, vipMinimum, input.notes || null,Number(loyaltyPolicy.version),Number(loyaltyPolicy.rate),Number(loyaltyPolicy.capPercent),Number(loyaltyPolicy.minimumPoints)]);
       if (input.tableId) await client.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [input.tableId, input.venueId]);
       await client.query('COMMIT');

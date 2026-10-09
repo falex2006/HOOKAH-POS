@@ -187,3 +187,7 @@
 Общая готовность активного заказа выводится из готовности строк; добавление новой строки снимает ready, старые готовые работы сохраняются. Legacy endpoint общего ready не должен обходить этот контроль. Изменение количества/удаление отправленной работы отклоняется409. Передача и исполнение не создают оплат, списаний сырья или повторных pricing snapshots.
 
 Для обеих мутаций исполнения `expectedVenueId` необязателен: клиент передаёт зафиксированную точку, несовпадение при наличии поля даёт409. Сервер всегда проверяет фактическую принадлежность заказа/строки независимо от этого поля.
+
+## Table minimum schedule API
+
+`POST /api/floor/tables` and `PATCH /api/floor/tables/:id` accept `minimumOrderStartTime` and `minimumOrderEndTime` in `HH:mm` format. Supply both values or both as `null`; equal or malformed times return `invalid_table_minimum_schedule`. `GET /api/floor` includes both fields. New-order minimums are calculated server-side in the venue timezone; client-supplied minimum amounts do not override the table policy. Reservation create/update validates the deposit against the schedule at the reservation's local start time.
