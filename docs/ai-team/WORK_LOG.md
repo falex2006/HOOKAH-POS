@@ -5211,3 +5211,5 @@ reservation-form-qa, reservations-polish-qa, reservation-wizard-qa, design419, h
 Проверка: `node --check server.js`, `db.js`, `portal.js`, `table-minimum-schedule.js`; `node scripts/table-minimum-schedule-qa.mjs` — PASS. Миграция `100_table_minimum_schedule.sql` аддитивна. Production не менялся.
 
 Дополнительная проверка контракта выявила, что мастер бронирования всё ещё применял минимум статически. Форма теперь читает окно на варианте стола и пересчитывает сумму при изменении времени; подсказка показывает часы действия. Валидация времени отклоняет лишние символы после `HH:mm`. QA проверяет границы расписания и согласованность формы с API.
+
+GitHub CRM contracts выявил, что серверный модуль не был включён в явный список `COPY` Dockerfile. Добавлено копирование `table-minimum-schedule.js`; CI перезапускается на исправленном коммите.
