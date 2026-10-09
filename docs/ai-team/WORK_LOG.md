@@ -5157,3 +5157,6 @@ Fixed late preference route visibility, grouped company form and compact navigat
 
 ## 09.10.2026 — Compact table elapsed timer
 Visible seating duration now uses unbounded HH:MM in a centered compact badge, no text labels. Unknown remains —:—; title and accessible label preserve duration meaning. Saved opening timestamps, role guards,30-second updates and rotation layout unchanged. Timer regression covers100+hours, invalid timestamps, clock skew, reuse and source/dist. Syntax/design/staff shell/permissions/timer QA PASS. CSS410/app214. User explicitly authorized Git/VPS.
+
+## 09.10.2026 — Reservations polish
+Scoped reservations workspace: compact form, wider readable cards, explicit date/search labels, responsive stacking at1200px. Fixed edit→New reset, pending guards, failed-edit caption and selected-table/capacity refresh without changing saved deposit. API, permission and financial handlers unchanged; no migrations. Code-health baseline/final PASS. Nine relevant syntax/contracts/VM checks PASS. Edge disposable memory API: create, edit22:00, reload persisted, New reset and selected table PASS; desktop1366, light/dark and narrow390 no horizontal overflow. Production data untouched during QA. Assets CSS411/portal478/app214.

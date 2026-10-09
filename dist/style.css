@@ -4051,3 +4051,53 @@ body.velora-theme.light-theme:has(#page-content.company-page-active) .modal.open
 .portal.light-theme #company .company-form .logo-upload:hover{background:#fff;border-color:#526672}
 .portal.light-theme #company .company-form .logo-upload::after,.portal.light-theme #company .company-form .logo-upload input[type=file]::file-selector-button{background:#fff;border-color:#d6e1e6;color:#20313d}
 .portal.light-theme #company .company-form .logo-upload:hover::after{border-color:#526672;color:#20313d}
+/* Reservations: readable creation form and cards with separate details/actions. */
+body[data-page="reservations"] .reservations-workspace{display:grid;grid-template-columns:minmax(380px,420px) minmax(450px,1fr);gap:24px;align-items:start}
+body[data-page="reservations"] .reservations-workspace>.panel{min-width:0;padding:24px}
+body[data-page="reservations"] .reservation-create-panel .panel-head{margin-bottom:20px}
+body[data-page="reservations"] .reservation-create-panel .panel-head small{display:block;margin-top:6px;line-height:1.5}
+body[data-page="reservations"] #reservation-form{gap:18px}
+body[data-page="reservations"] #reservation-form label{min-width:0;gap:8px;color:#c1c8d0;font-size:13px}
+body[data-page="reservations"] #reservation-form .form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+body[data-page="reservations"] #reservation-form :is(input:not([type=hidden]),select,textarea,.custom-select-trigger){width:100%;min-width:0;min-height:44px;box-sizing:border-box}
+body[data-page="reservations"] #reservation-form .muted{color:#9aa3ae;font-size:11px;line-height:1.5}
+body[data-page="reservations"] .reservation-save-footer{display:flex;flex-wrap:wrap;gap:12px;padding-top:18px;border-top:1px solid #363d48}
+body[data-page="reservations"] .reservation-save-footer>.button{min-height:44px;flex:1 1 auto}
+body[data-page="reservations"] #reservation-cancel-edit[hidden]{display:none}
+body[data-page="reservations"] .reservation-save-footer>.form-message{flex:1 1 100%;margin:0;line-height:1.5}
+body[data-page="reservations"] .reservation-panel>.panel-head{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+body[data-page="reservations"] .reservation-list-heading small{display:block;margin-top:6px;color:#9aa3ae;line-height:1.5}
+body[data-page="reservations"] .reservation-filters{display:grid;grid-template-columns:minmax(0,1fr) 176px;gap:12px}
+body[data-page="reservations"] .reservation-filters label{display:grid;gap:8px;min-width:0;color:#c1c8d0;font-size:12px}
+body[data-page="reservations"] .reservation-filters input{min-height:44px;font:inherit}
+body[data-page="reservations"] .reservation-list{display:grid;gap:14px}
+body[data-page="reservations"] .reservation-list .reservation-row{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:16px;margin:0;padding:18px;border:1px solid #363d48;border-radius:12px;background:#15181d;min-width:0}
+body[data-page="reservations"] .reservation-row .reservation-identity{display:grid;gap:8px;min-width:0}
+body[data-page="reservations"] .reservation-identity>b{font-size:16px;line-height:1.4;color:#f3f5f7;overflow-wrap:anywhere}
+body[data-page="reservations"] .reservation-identity>small{display:block;color:#9aa3ae;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+body[data-page="reservations"] .reservation-row .reservation-details{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:10px;min-width:0;padding-top:14px;border-top:1px solid #363d48;text-align:left}
+body[data-page="reservations"] .reservation-details>.reservation-deposit-summary{flex:1 1 100%;font-size:13px;font-weight:600;color:#c1c8d0;line-height:1.6;overflow-wrap:anywhere}
+body[data-page="reservations"] .reservation-details>.badge{flex:0 0 auto;max-width:100%;font-size:11px}
+body[data-page="reservations"] .reservation-details>.button{min-height:44px;max-width:100%;white-space:normal;line-height:1.4;padding:10px 12px;font-size:12px}
+body[data-page="reservations"] .reservation-details>small{flex:1 1 100%;display:block;color:#9aa3ae;line-height:1.5;overflow-wrap:anywhere}
+body[data-page="reservations"] .reservation-details>:is(.reservation-legacy-warning,.reservation-prepayment-warning){padding:10px 12px;border:1px solid #8b6428;border-radius:8px;color:#ffc65d;background:#302719}
+body[data-page="reservations"].light-theme #reservation-form label,body[data-page="reservations"].light-theme .reservation-filters label,body[data-page="reservations"].light-theme .reservation-identity>b,body[data-page="reservations"].light-theme .reservation-deposit-summary{color:#20313d}
+body[data-page="reservations"].light-theme :is(#reservation-form .muted,.reservation-list-heading small,.reservation-identity>small,.reservation-details>small){color:#526672}
+body[data-page="reservations"].light-theme :is(.reservation-list .reservation-row,.reservation-save-footer,.reservation-row .reservation-details){border-color:#d6e1e6}
+body[data-page="reservations"].light-theme .reservation-list .reservation-row{background:#f8fbfc}
+body[data-page="reservations"].light-theme #reservation-form :is(input:not([type=hidden]),select,textarea,.custom-select-trigger,.custom-select-menu),body[data-page="reservations"].light-theme .reservation-filters input{background:#fff;border-color:#d6e1e6;color:#20313d;color-scheme:light}
+body[data-page="reservations"].light-theme #reservation-form .custom-select-option{background:transparent;color:#20313d}
+body[data-page="reservations"].light-theme #reservation-form .custom-select-option:is(:hover,:focus-visible,[aria-selected="true"]){background:#edf2f5;color:#20313d}
+body[data-page="reservations"].light-theme .reservation-details>:is(.reservation-legacy-warning,.reservation-prepayment-warning){color:#805400;background:#fff2d9;border-color:#ce8a18}
+@media(max-width:1200px){body[data-page="reservations"] .reservations-workspace{grid-template-columns:minmax(0,1fr)}body[data-page="reservations"] .reservation-create-panel{max-width:none}}
+@media(max-width:650px){body[data-page="reservations"] .reservations-workspace>.panel{padding:18px}body[data-page="reservations"] .reservation-filters{grid-template-columns:minmax(0,1fr)}body[data-page="reservations"] .reservation-list .reservation-row{padding:14px}body[data-page="reservations"] .reservation-details>.button{flex:1 1 160px}}
+@media(max-width:420px){body[data-page="reservations"] #reservation-form .form-row{grid-template-columns:minmax(0,1fr)}}
+/* Light reservation cards keep secondary and destructive actions distinct. */
+body[data-page="reservations"].light-theme .reservation-details>.button:not(.primary){background:#fff;border:1px solid #d6e1e6;color:#20313d;box-shadow:none}
+body[data-page="reservations"].light-theme .reservation-details>.button:not(.primary):hover{background:#edf2f5;border-color:#526672}
+body[data-page="reservations"].light-theme .reservation-details>.button.danger-outline{background:#fff0ef;border-color:#d24c49;color:#a52d38}
+body[data-page="reservations"].light-theme .reservation-details>.button.danger-outline:hover{background:#ffe4e2;border-color:#a52d38;color:#8a202b}
+body[data-page="reservations"].light-theme .reservation-details>.badge.success{background:#e0f8ef;color:#176747;border:1px solid #9bcdb8}
+body[data-page="reservations"].light-theme .reservation-details>.badge.danger{background:#fff0ef;color:#a52d38;border:1px solid #dfb0b6}
+body[data-page="reservations"].light-theme :is(#reservation-date,#reservation-time,#reservation-list-date){color-scheme:light}
+body[data-page="reservations"].light-theme :is(#reservation-date,#reservation-time,#reservation-list-date)::-webkit-calendar-picker-indicator{filter:none;opacity:.8}
