@@ -4245,3 +4245,42 @@ body[data-page="reservations"].light-theme :is(#reservation-date,#reservation-ti
 /* Single-zone staff floors do not need a zone switcher or its reserved space. */
 .staff-theme main>.tabs[hidden]{display:none!important}
 .staff-theme main>.tabs[hidden]+.workspace{padding-top:16px}
+
+/* Reservations: a bounded list workspace and a compact, native booking wizard. */
+body[data-page="reservations"] .reservations-workspace{grid-template-columns:minmax(0,1fr);min-height:0}
+body[data-page="reservations"] .reservation-create-cta{min-height:56px;min-width:220px;font-size:16px;padding:16px 24px}
+body[data-page="reservations"] .reservation-dialog{box-sizing:border-box;width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:24px;border:1px solid #363d48;border-radius:16px;background:#1b1f25;color:#f3f5f7;overflow-y:auto;overscroll-behavior:contain;color-scheme:dark}
+body[data-page="reservations"] .reservation-dialog::backdrop{background:rgba(0,0,0,.65)}
+body[data-page="reservations"] .reservation-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px}
+body[data-page="reservations"] .reservation-dialog-head h2{margin:0;font-size:20px}
+body[data-page="reservations"] .reservation-dialog-head p{margin:8px 0 0;font-size:12px}
+body[data-page="reservations"] .reservation-dialog-head .button{flex:0 0 auto;min-height:44px}
+body[data-page="reservations"] .reservation-step{display:grid;gap:18px;min-width:0}
+body[data-page="reservations"] #reservation-form [hidden]{display:none!important}
+body[data-page="reservations"] #reservation-form :is(input:not([type=hidden]),select,textarea,.custom-select-trigger,.custom-select-menu){background:#15181d;border:1px solid #363d48;border-radius:8px;color:#f3f5f7;font:inherit;padding:12px;color-scheme:dark}
+body[data-page="reservations"] #reservation-form .custom-select-menu{padding:6px}
+body[data-page="reservations"] #reservation-form .custom-select.is-open .custom-select-menu{position:static;max-height:200px;overflow-y:auto}
+body[data-page="reservations"] #reservation-form .custom-select-option{min-height:44px;color:inherit}
+body[data-page="reservations"] #reservation-form .native-select-source{position:absolute;width:1px;min-height:0;padding:0;border:0;opacity:0;pointer-events:none}
+body[data-page="reservations"] #reservation-form textarea{resize:vertical;max-height:160px}
+body[data-page="reservations"] .reservation-review{padding:14px;border:1px solid #363d48;border-radius:8px;white-space:pre-line;overflow-wrap:anywhere;font-size:13px;line-height:1.6}
+body[data-page="reservations"] .reservation-save-footer{margin-top:0}
+body[data-page="reservations"].light-theme .reservation-dialog{background:#fff;border-color:#d6e1e6;color:#20313d;color-scheme:light}
+body[data-page="reservations"].light-theme #reservation-form :is(input:not([type=hidden]),select,textarea,.custom-select-trigger,.custom-select-menu){background:#fff;border-color:#d6e1e6;color:#20313d;color-scheme:light}
+body[data-page="reservations"].light-theme .reservation-review{background:#f8fbfc;border-color:#d6e1e6}
+@media(min-width:901px){
+  body[data-page="reservations"] .portal-main{display:flex;flex-direction:column;overflow:hidden!important;height:100dvh}
+  body[data-page="reservations"] .portal-header{flex:0 0 auto}
+  body[data-page="reservations"] #page-content{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;box-sizing:border-box}
+  body[data-page="reservations"] #page-content>.page-title{flex:0 0 auto}
+  body[data-page="reservations"] .reservations-workspace{flex:1;overflow:hidden}
+  body[data-page="reservations"] .reservation-panel{display:flex;flex-direction:column;min-height:0;height:100%;box-sizing:border-box}
+  body[data-page="reservations"] .reservation-panel>.panel-head{flex:0 0 auto;grid-template-columns:minmax(0,1fr) minmax(320px,1fr)}
+  body[data-page="reservations"] .reservation-list{min-height:0;overflow-y:auto;align-content:start;padding-right:4px;overscroll-behavior:contain}
+}
+@media(max-width:650px){
+  body[data-page="reservations"] .reservation-create-cta{width:100%;min-width:0}
+  body[data-page="reservations"] .reservation-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:18px}
+  body[data-page="reservations"] .reservation-dialog-head{gap:12px;margin-bottom:18px}
+  body[data-page="reservations"] .reservation-dialog-head h2{font-size:18px}
+}

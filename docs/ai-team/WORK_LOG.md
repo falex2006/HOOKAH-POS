@@ -5195,3 +5195,11 @@ Edge локально: один зал display:none/height0, workspace начи�
 ### 2026-10-09 — Полный комплект курсоров
 
 По уточнению пользователя приведены все6состояний (arrow/hand/text/grab/wait/not-allowed) к общему48px SVG стилю: тёмная середина, светлый контур, красное свечение. Нативные semantic fallback, роли бармен/кальянщик, fine-pointer media и порядок состояний сохранены. Нет изменений API/БД/разметки. CSS418, app220. Code health baseline/final PASS; decoded SVG/source-dist/roles/state tests и syntax/diff PASS. SVG комплект отрендерен Sharp и визуально проверен (tmp/staff-cursor-set.png); это preview ассетов, не снимок системного курсора.
+
+### 2026-10-09 — Бронирование в пошаговом диалоге
+
+Страница теперь содержит список, поиск/дату и одну заметную CTA. Существующая форма переиспользована в native dialog:гость→визит→подтверждение. Сохранены POST/PATCH/финансовые действия и права. Явная валидация открывает ошибочный шаг; pending блокирует повтор/закрытие, ошибка сохраняет данные; успех закрывает окно и показывает дату записи. tableId-only открывает создание, reservationId/action=seat сохраняют старые сценарии.
+
+Роли: system_architect — reservation_modal_contract (контракт принят после guard fix); frontend/design — reservation_dialog_impl; code health — cursor_zone_health. Edge в локальной memory среде с временным управляющим:создание будущей брони, редактирование2→3гостя, reload/дата, обязательное имя, вместимость6, Escape/dropdown, закрытие/фокус и возврат черновика PASS. 1366×710:шаг2height588px без scroll;390×844 горизонтального overflow нет. Actual production кальянщик проверяется отдельно без тестовых броней.
+
+reservation-form-qa, reservations-polish-qa, reservation-wizard-qa, design419, header-shell, syntax/diff/source-dist PASS. CSS419/portal481. Миграций/серверных правок нет. Детальный контракт docs/design/RESERVATION_DIALOG.md.

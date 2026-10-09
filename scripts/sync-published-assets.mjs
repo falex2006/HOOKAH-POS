@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '418';
-const portalRevision = '480';
+const cssRevision = '419';
+const portalRevision = '481';
 const portalSessionRevision = '1';
 const lockRevision = '22';
 const appRevision = '220';
