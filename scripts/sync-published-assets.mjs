@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '411';
-const portalRevision = '478';
+const cssRevision = '412';
+const portalRevision = '479';
 const portalSessionRevision = '1';
 const lockRevision = '22';
-const appRevision = '214';
+const appRevision = '215';
 const platformRevision = '8';
 const platformCssRevision = '3';
 const staffProfileRevision = '6';
@@ -103,6 +103,10 @@ for (const path of htmlFiles) {
     .replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
   const versionedHtml = html.replace(/purchase-document-validation\.js\?rev=\d+/g, `purchase-document-validation.js?rev=${purchaseDocumentValidationRevision}`);
   let outputHtml = versionedHtml.replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
+  if (usesPortal || /app\.js\?rev=/.test(outputHtml)) {
+    outputHtml = outputHtml.replace(/<script src="\/staff-display-name\.js\?rev=\d+"><\/script>/g, '');
+    outputHtml = outputHtml.replace(/<script src="\/(?:app|portal-session)\.js\?rev=\d+"><\/script>/, (tag) => '<script src="/staff-display-name.js?rev=1"></script>' + tag);
+  }
   if (usesPortal) {
     outputHtml = outputHtml.replace(/<html([^>]*)>/, (_, attrs) => `<html${attrs.replace(/ data-portal-access="[^"]*"/g, '')} data-portal-access="checking">`);
     if (!outputHtml.includes('id="portal-session-style"')) outputHtml = outputHtml.replace('</head>', '<style id="portal-session-style">html[data-portal-access="checking"] body> :not(#portal-session-guard):not(script):not(style){display:none!important}#portal-session-guard{max-width:600px;margin:12vh auto;padding:32px;color:#202632;background:#f7f9fc;border:1px solid #dfe5ec;border-radius:16px;font:16px/1.6 system-ui}#portal-session-guard a{color:#2359a8}#portal-session-guard button{padding:10px 16px;cursor:pointer}</style></head>');
@@ -135,3 +139,5 @@ cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'asset
 cpSync(resolve(root, 'assets', 'login-background.mp4'), resolve(root, 'dist', 'assets', 'login-background.mp4'));
 cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'), { recursive: true });
 cpSync(resolve(root, 'header-shell.js'), resolve(root, 'dist', 'header-shell.js'));
+
+cpSync(resolve(root, 'staff-display-name.js'), resolve(root, 'dist', 'staff-display-name.js'));

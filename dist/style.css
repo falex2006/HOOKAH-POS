@@ -4101,3 +4101,51 @@ body[data-page="reservations"].light-theme .reservation-details>.badge.success{b
 body[data-page="reservations"].light-theme .reservation-details>.badge.danger{background:#fff0ef;color:#a52d38;border:1px solid #dfb0b6}
 body[data-page="reservations"].light-theme :is(#reservation-date,#reservation-time,#reservation-list-date){color-scheme:light}
 body[data-page="reservations"].light-theme :is(#reservation-date,#reservation-time,#reservation-list-date)::-webkit-calendar-picker-indicator{filter:none;opacity:.8}
+
+/* Staff workspace: consistent identity and a readable selected-order card. */
+.staff-theme header .staff-header-copy b,.employee-portal .employee-header .header-user-copy b{font-size:15px;font-weight:700;line-height:1.25;max-width:180px;letter-spacing:normal}
+.staff-theme header .staff-header-copy small,.employee-portal .employee-header .header-user-copy small{font-size:12px;line-height:1.25;color:#9aa3ae}
+.staff-theme .order h2{font-size:22px;line-height:1.2;overflow-wrap:anywhere}
+.staff-theme .order-head{gap:12px;align-items:flex-start}
+.staff-theme .order-head .status{flex-shrink:0;line-height:1.5}
+.staff-theme .order .meta{font-size:13px;line-height:1.5;margin:8px 0 14px;overflow-wrap:anywhere}
+.staff-theme .order .order-pricing-summary{display:grid;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid #30343c;font-size:13px;color:#c1c8d0}
+.staff-theme .order .items{min-height:0;padding:12px 0;gap:0}
+.staff-theme .items>.order-item-row{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:10px;align-items:center;padding:14px 0}
+.staff-theme .items>.order-item-row>span:first-child{grid-column:1/-1;font-size:15px;line-height:1.4;color:#f3f5f7}
+.staff-theme .order .order-item-attribution{display:block;margin-top:5px;font-size:12px;line-height:1.5;color:#9aa3ae;overflow-wrap:anywhere}
+.staff-theme .order .quantity-control{justify-self:start;gap:10px}
+.staff-theme .order .quantity-control button{width:44px;height:44px;background:#202329;border-color:#3b424d;color:#ffb08f}
+.staff-theme .order .quantity-control b{min-width:18px;text-align:center;color:#f3f5f7}
+.staff-theme .items>.order-item-row>b[data-line-total]{font-size:18px;text-align:right}
+.staff-theme .order .empty-order{padding:28px 0;font-size:14px;line-height:1.5}
+.staff-theme .order .order-total{font-size:18px;gap:16px;align-items:baseline}
+.staff-theme .order .order-total b{font-size:22px;white-space:nowrap}
+.staff-theme .order .actions{position:static;gap:8px;padding-top:0;margin-top:12px;background:none}
+.staff-theme .order .actions button{min-height:44px;font-size:13px;line-height:1.4}
+.staff-theme .order-more-list button{margin-top:0;line-height:1.4}
+.staff-theme .order-more summary{min-height:44px}
+@media(min-width:1181px){
+  .staff-theme .workspace,.staff-theme.staff-orders-view .workspace,.staff-theme.staff-orders-view main{grid-template-columns:minmax(0,1fr) minmax(380px,440px)}
+  .staff-theme .order{scrollbar-width:thin;scrollbar-gutter:stable;padding:20px}
+  .staff-theme .order .order-head{top:-20px;padding-top:20px;background:linear-gradient(#1b1e23 82%,transparent)}
+  .staff-theme .order .table-context-actions{position:static;background:none;padding-bottom:0}
+}
+.staff-theme.light-theme header .staff-header-copy small,.employee-portal.light-theme .employee-header .header-user-copy small{color:#667782}
+.staff-theme.light-theme .order .order-pricing-summary{color:#405762;border-color:#d6e1e6}
+.staff-theme.light-theme .items>.order-item-row{border-color:#d6e1e6}
+.staff-theme.light-theme .items>.order-item-row>span:first-child,.staff-theme.light-theme .order .quantity-control b{color:#20313d}
+.staff-theme.light-theme .order .order-item-attribution,.staff-theme.light-theme .order .empty-order{color:#526672}
+.staff-theme.light-theme .order .quantity-control button{background:#f8fbfc;border-color:#cbd9e0;color:#a52d38}
+.staff-theme.light-theme .order .items b,.staff-theme.light-theme .order .order-total b{color:#a52d38}
+.staff-theme.light-theme .order-more{background:#f8fbfc;border-color:#d6e1e6}
+.staff-theme.light-theme .order-more summary{color:#304651}
+.staff-theme.light-theme .order-more summary::after{color:#a52d38}
+@media(min-width:1181px){.staff-theme.light-theme .order .order-head{background:linear-gradient(#fff 82%,transparent)}}
+
+.staff-theme .order{scrollbar-color:#4a515d #171a1f;scrollbar-width:thin}
+.staff-theme .order::-webkit-scrollbar{width:6px;height:6px}
+.staff-theme .order::-webkit-scrollbar-track{background:transparent}
+.staff-theme .order::-webkit-scrollbar-thumb{background:#4a515d;border-radius:999px}
+.staff-theme.light-theme .order{scrollbar-color:#82939b #fff}
+.staff-theme.light-theme .order::-webkit-scrollbar-thumb{background:#82939b}

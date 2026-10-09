@@ -11,7 +11,7 @@ COPY audit-privacy.js ./
 COPY effective-permissions.js order-preparation.js reservation-calendar.js ./
 COPY staff-identity.js ./
 COPY auth-smoke.js auth-smoke.css ./
-COPY platform.js staff-profile.js staff-audit.js staff-phone-fields.js staff-sensitive-fields.js staff-admin-card.js staff-telegram-link.js vip-deposit.js vip-deposit-ui.js ./
+COPY platform.js staff-profile.js staff-display-name.js staff-audit.js staff-phone-fields.js staff-sensitive-fields.js staff-admin-card.js staff-telegram-link.js vip-deposit.js vip-deposit-ui.js ./
 COPY scripts ./scripts
 COPY migrations ./migrations
 EXPOSE 3000

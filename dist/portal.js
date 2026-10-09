@@ -651,7 +651,7 @@ const displayName = (value) => { const text = String(value ?? '').trim(); return
 const portalHeaderName = displayName(portalUser.name || portalUser.fullName || portalRole[0]);
 const portalHeaderInitials = portalHeaderName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('ru-RU') || 'С';
 const refreshPortalHeaderAvatar = (avatarUrl) => { portalUser.avatarUrl = avatarUrl || null; document.querySelectorAll('[data-user-avatar],[data-sidebar-avatar]').forEach((node) => { if (portalUser.avatarUrl) { const image = document.createElement('img'); image.src = portalUser.avatarUrl; image.alt = portalHeaderName; node.replaceChildren(image); } else node.textContent = portalHeaderInitials; }); };
-document.querySelectorAll('[data-user-name]').forEach((node) => { node.textContent = portalHeaderName; });
+document.querySelectorAll('[data-user-name]').forEach((node) => { node.textContent = displayName(window.HookahStaffDisplayName?.(portalUser) || portalHeaderName); node.title = portalHeaderName; });
 document.querySelectorAll('[data-user-role]').forEach((node) => { node.textContent = portalRole[0]; });
 document.querySelectorAll('[data-user-avatar]').forEach((node) => {
   node.title = `${portalHeaderName} · ${portalRole[0]}`;
