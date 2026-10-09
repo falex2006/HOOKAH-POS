@@ -24,12 +24,16 @@ const occupiedHeight = (result, count) => {
 };
 const laptop = calculate(630, 520, 10, 'fit', 100);
 assert.equal(laptop.columns, 3);
-assert.ok(laptop.tileHeight >= 118);
+assert.ok(laptop.tileHeight >= 108);
 assert.ok(occupiedHeight(laptop, 10) <= 520);
 assert.equal(laptop.overflows, false);
 const shorterLaptop = calculate(630, 480, 10, 'fit', 100);
 assert.equal(shorterLaptop.columns, 3);
-assert.equal(shorterLaptop.overflows, true, 'insufficient height is reported, never hidden by shrinking below readable minimum');
+assert.equal(shorterLaptop.overflows, false, 'ten tables fit the actual laptop content height');
+assert.ok(occupiedHeight(shorterLaptop, 10) <= 480);
+const insufficientLaptop = calculate(630, 420, 10, 'fit', 100);
+assert.equal(insufficientLaptop.overflows, true, 'insufficient height is reported, never hidden by shrinking below readable minimum');
+assert.equal(insufficientLaptop.tileHeight, 108);
 for (const [width, height] of [[1000, 780], [1250, 820], [790, 480]]) {
   const result = calculate(width, height, 10, 'fit', 100);
   assert.equal(result.overflows, false);
@@ -39,7 +43,7 @@ for (const width of [320, 630, 1000, 1250]) {
   let previous;
   for (let scale = 70; scale <= 130; scale += 5) {
     const result = calculate(width, 520, 10, 'manual', scale);
-    assert.ok(result.tileHeight >= 118);
+    assert.ok(result.tileHeight >= 108);
     assert.ok(Number.isInteger(result.columns) && result.columns >= 1 && result.columns <= 10);
     assert.equal(result.overflows, occupiedHeight(result, 10) > 520);
     if (previous) {
@@ -51,7 +55,7 @@ for (const width of [320, 630, 1000, 1250]) {
 }
 const largeHall = calculate(630, 520, 100, 'fit', 100);
 assert.equal(largeHall.overflows, true);
-assert.equal(largeHall.tileHeight, 118);
+assert.equal(largeHall.tileHeight, 108);
 assert.equal(calculate(170, 520, 1, 'fit', 100).columns, 1, 'narrow viewport retains one accessible card');
 subject.loadFloorDensity();
 const userOneKey = subject.key;

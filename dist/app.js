@@ -367,7 +367,7 @@ const loadFloorDensity=()=>{
 const saveFloorDensity=()=>{if(floorDensityKey)try{localStorage.setItem(floorDensityKey,JSON.stringify(floorDensity));}catch(_){};};
 // Readable dimensions are a lower bound; large halls keep normal vertical scroll.
 const calculateFloorDensity=(width,height,count,mode,scale)=>{
-  const gap=10,minWidth=190,minHeight=118;
+  const gap=10,minWidth=190,minHeight=108;
   const maxColumns=Math.max(1,Math.min(count,Math.floor((width+gap)/(minWidth+gap))));
   let columns=maxColumns,tileHeight=minHeight;
   if(mode==='fit'){
