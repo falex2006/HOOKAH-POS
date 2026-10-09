@@ -1263,6 +1263,9 @@ CREATE TABLE IF NOT EXISTS pos_order_item_return_balances (
 );
 
 -- This mutable row is a serialization/cap guard only. Append-only return rows remain the evidence.
+-- The migration runner replays all files. Suspend only the balance-row guard for this
+-- idempotent seed; the migration is applied atomically, then the guard is recreated below.
+DROP TRIGGER IF EXISTS pos_order_item_return_balance_internal ON pos_order_item_return_balances;
 INSERT INTO pos_order_item_return_balances (venue_id,snapshot_id,order_id,order_item_id)
 SELECT venue_id,snapshot_id,order_id,order_item_id FROM pos_order_pricing_snapshot_lines
 ON CONFLICT DO NOTHING;
@@ -1274,7 +1277,6 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS pos_order_item_return_balance_internal ON pos_order_item_return_balances;
 CREATE TRIGGER pos_order_item_return_balance_internal BEFORE INSERT OR UPDATE OR DELETE ON pos_order_item_return_balances
   FOR EACH ROW EXECUTE FUNCTION guard_pos_order_item_return_balance();
 DROP TRIGGER IF EXISTS pos_order_item_return_balance_no_truncate ON pos_order_item_return_balances;
