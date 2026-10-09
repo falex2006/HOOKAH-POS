@@ -471,6 +471,8 @@ const showFloorUnavailable=(message)=>{
   serverZones=[];
   clearTableMinimums();
   floorTabs.replaceChildren();
+  floorTabs.hidden=true;
+  floorTabs.setAttribute('aria-hidden','true');
   floorTabs.removeAttribute('aria-busy');
   tables.classList.remove('vip-floor','has-map','compact-map');
   tables.innerHTML=`<div class="staff-floor-unavailable" role="alert"><strong>${escapeFloorText(message)}</strong><button type="button" class="secondary" data-staff-floor-retry>Повторить загрузку</button></div>`;
