@@ -27,6 +27,10 @@ const itemReturnSequenceMirror=schema.indexOf('-- Mirror of additive 092 POS ite
 assert.equal(migration.trim(),schema.slice(snapshotStart,refundMirror).trim(),'fresh schema snapshot DDL matches migration 090');
 assert.equal(refundMigration.trim(),schema.slice(refundMirror+'-- Mirror of additive 088 Finance payout ledger for fresh-schema parity.'.length,itemReturnMirror).trim(),'fresh schema Finance refund DDL matches migration 088');
 assert.equal(itemReturnMigration.trim(),schema.slice(itemReturnMirror+'-- Mirror of additive 091 POS item return facts and database guards.'.length,itemReturnSequenceMirror).trim(),'fresh schema item-return DDL matches migration 091');
+const balanceGuardDrop=itemReturnMigration.indexOf('DROP TRIGGER IF EXISTS pos_order_item_return_balance_internal ON pos_order_item_return_balances;');
+const balanceSeed=itemReturnMigration.indexOf('INSERT INTO pos_order_item_return_balances (venue_id,snapshot_id,order_id,order_item_id)');
+const balanceGuardRecreate=itemReturnMigration.indexOf('CREATE TRIGGER pos_order_item_return_balance_internal BEFORE INSERT OR UPDATE OR DELETE ON pos_order_item_return_balances');
+assert.ok(balanceGuardDrop>=0 && balanceGuardDrop<balanceSeed && balanceSeed<balanceGuardRecreate,'091 suspends only the balance guard before replay-safe backfill and reinstalls it afterward');
 assert.equal(itemReturnSequenceMigration.trim(),schema.slice(itemReturnSequenceMirror+'-- Mirror of additive 092 POS item return ordering facts for fresh-schema parity.'.length).trim(),'fresh schema item-return sequence DDL matches migration 092');
 assert.match(itemReturnMigration,/round\(line\.net_minor::numeric\*\(b\.returned_quantity\+NEW\.returned_quantity\)\/line\.quantity,0\)/,'item return uses cumulative numeric half-up value');
 assert.match(itemReturnMigration,/pos_order_item_return_balance_internal_only/,'direct counter mutation is blocked outside the row trigger');
