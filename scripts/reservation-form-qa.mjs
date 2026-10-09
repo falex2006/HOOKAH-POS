@@ -73,7 +73,7 @@ assert.match(submit, /if \(form\.dataset\.submitting === '1'\) return/, 'pending
 assert.match(submit, /submit\.disabled = true; submit\.textContent = form\.dataset\.editingId \? 'Сохранение…' : 'Подтверждение…'/, 'pending state names create versus edit correctly');
 assert.match(submit, /const controls = \[\.\.\.form\.querySelectorAll\('input, select, textarea'\)\]/, 'pending request locks draft fields');
 assert.match(submit, /control\.disabled = disabled/, 'request completion restores original field states');
-assert.match(submit, /form\.dataset\.submitting = '0'; if \(submit\) submit\.disabled = false; syncReservationFormMode\(\); if \(reservationSaved\) loadTables\(\)/, 'completion restores truthful mode before reloading tables');
+assert.match(submit, /form\.dataset\.submitting = '0'; if \(submit\) submit\.disabled = false; syncReservationFormMode\(\); if \(reservationSaved\) \{/, 'completion restores truthful mode before closing and reloading');
 
 const start = portal.indexOf("  api('/api/clients').then((data) => {", submitEnd);
 const endMarker = '  }).catch(() => {}); loadTables(); load();';
@@ -131,10 +131,11 @@ values.set('#reservation-message', { textContent: '', className: '' });
 const submitButton = { disabled: false, textContent: 'Подтвердить бронь' };
 const form = { addEventListener: (_event, callback) => { onSubmit = callback; }, dataset: {}, querySelector: () => submitButton, querySelectorAll: () => [...values.values()].filter((item) => 'value' in item) };
 let onSubmit;
-for (const id of ['reservation-form-title', 'reservation-cancel-edit', 'focus-reservation']) values.set('#' + id, { textContent: '', disabled: false, hidden: false });
+for (const id of ['reservation-form-title', 'reservation-cancel-edit', 'focus-reservation', 'reservation-close', 'reservation-back', 'reservation-next', 'reservation-retry-tables']) values.set('#' + id, { textContent: '', disabled: false, hidden: false });
 const mode = portal.slice(portal.indexOf('  const syncReservationFormMode ='), portal.indexOf('  const startNewReservation ='));
 vm.runInNewContext(mode + submit, {
-  document: { querySelector: (selector) => selector === '#reservation-form' ? form : values.get(selector) },
+  document: { querySelector: (selector) => selector === '#reservation-form' ? form : values.get(selector), getElementById: (id) => values.get('#' + id) },
+  reservationStep: 2, reservationTablesLoading: false, validateReservationStep: () => true,
   api: () => Promise.reject({ payload: { error: 'invalid_guest_phone' } }),
   portalUser: { name: 'QA' },
   portalRole: ['owner'],

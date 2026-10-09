@@ -6,14 +6,16 @@ const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 const reservations = source.slice(source.indexOf('function renderReservations() {'), source.indexOf("\nif (page === 'dashboard' && location.hash === '#loyalty')"));
 const elements = new Map();
 const node = () => ({ value: '', textContent: '', className: '', disabled: false, hidden: false, dataset: {}, events: {}, addEventListener(type, callback) { this.events[type] = callback; }, focus() {}, scrollIntoView() {} });
-for (const id of ['guest', 'phone', 'client-id', 'date', 'time', 'table', 'guests', 'deposit', 'notes', 'message', 'form-title', 'cancel-edit', 'guest-match-hint']) elements.set('#reservation-' + id, node());
+for (const id of ['guest', 'phone', 'client-id', 'date', 'time', 'table', 'guests', 'deposit', 'notes', 'message', 'form-title', 'cancel-edit', 'guest-match-hint', 'close', 'back', 'next', 'retry-tables', 'list-date', 'filter']) elements.set('#reservation-' + id, node());
 elements.set('#focus-reservation', node());
 const fields = ['guest', 'phone', 'client-id', 'date', 'time', 'table', 'guests', 'deposit', 'notes'].map((id) => elements.get('#reservation-' + id));
 const submit = node(); let resets = 0;
 const form = { ...node(), querySelector: () => submit, querySelectorAll: () => fields, reset() { resets++; fields.forEach((field) => { field.value = ''; }); } };
 elements.set('#reservation-form', form);
 const pending = []; const requests = [];
-const context = vm.createContext({ document: { querySelector: (id) => elements.get(id) }, localDateKey: () => '2026-10-09', loadTables() {}, load() {}, portalUser: { name: 'Test' }, portalRole: ['Test role'], api(url, options) { requests.push({ url, options }); return new Promise((resolve, reject) => pending.push({ resolve, reject })); } });
+
+let dialogClosed = 0; let dialogOpened = 0; const notices = [];
+const context = vm.createContext({ document: { querySelector: (id) => elements.get(id), getElementById: (id) => elements.get('#' + id) }, reservationStep: 2, reservationTablesLoading: false, validateReservationStep: () => true, openReservationDialog() { dialogOpened++; }, closeReservationDialog() { assert.notEqual(form.dataset.submitting, '1'); dialogClosed++; }, portalNotice: (...args) => notices.push(args), localDateKey: () => '2026-10-09', loadTables() {}, load() {}, portalUser: { name: 'Test' }, portalRole: ['Test role'], api(url, options) { requests.push({ url, options }); return new Promise((resolve, reject) => pending.push({ resolve, reject })); } });
 const code = reservations.slice(reservations.indexOf('  const syncReservationFormMode ='), reservations.indexOf("  api('/api/clients')"));
 assert(code.includes('const startNewReservation'));
 vm.runInContext(code + '\n globalThis.startNew = startNewReservation; globalThis.syncMode = syncReservationFormMode;', context);
@@ -21,12 +23,16 @@ form.dataset.editingId = 'old-reservation'; elements.get('#reservation-client-id
 assert.equal(submit.textContent, 'Сохранить изменения');
 context.startNew(); assert.equal(form.dataset.editingId, undefined); assert.equal(elements.get('#reservation-client-id').value, ''); assert.equal(elements.get('#reservation-form-title').textContent, 'Новая бронь'); assert.equal(elements.get('#reservation-cancel-edit').hidden, true);
 elements.get('#reservation-guest').value = 'Unsaved draft'; context.startNew(); assert.equal(elements.get('#reservation-guest').value, 'Unsaved draft'); assert.equal(resets, 1);
+context.reservationStep = 2; elements.get('#reservation-date').value = '2026-11-01'; elements.get('#reservation-filter').value = 'Old query';
 form.events.submit({ preventDefault() {}, target: form }); assert.equal(requests.at(-1).options.method, 'POST'); assert.equal(requests.at(-1).url, '/api/reservations'); pending.at(-1).resolve({});
 for (let i = 0; i < 6; i++) await Promise.resolve();
+assert.equal(dialogClosed, 1); assert.equal(elements.get('#reservation-list-date').value, '2026-11-01'); assert.equal(elements.get('#reservation-filter').value, ''); assert.equal(notices.at(-1)[1], 'success'); context.reservationStep = 2;
 form.dataset.editingId = 'r2'; elements.get('#reservation-guest').value = 'Edited guest'; context.syncMode(); form.events.submit({ preventDefault() {}, target: form });
 assert.equal(requests.at(-1).options.method, 'PATCH'); assert.equal(requests.at(-1).url, '/api/reservations/r2'); assert.equal(elements.get('#focus-reservation').disabled, true); assert.equal(elements.get('#reservation-cancel-edit').disabled, true);
 const before = resets; context.startNew(); assert.equal(resets, before); assert.equal(form.dataset.editingId, 'r2');
+const requestCount = requests.length; form.events.submit({ preventDefault() {}, target: form }); assert.equal(requests.length, requestCount, 'pending PATCH is never duplicated');
 pending.at(-1).reject(new Error('write_failed')); for (let i = 0; i < 6; i++) await Promise.resolve();
+assert.equal(dialogClosed, 1, 'failed PATCH keeps the editor open');
 assert.equal(form.dataset.editingId, 'r2'); assert.equal(submit.textContent, 'Сохранить изменения'); assert.equal(elements.get('#reservation-guest').value, 'Edited guest'); assert.equal(elements.get('#focus-reservation').disabled, false);
 elements.get('#reservation-cancel-edit').events.click(); assert.equal(form.dataset.editingId, undefined);
 assert(reservations.includes('children[1]')); assert(reservations.includes("details.querySelector('strong')"));
@@ -34,7 +40,8 @@ assert(reservations.includes('class="reservation-identity"')); assert(reservatio
 for (const marker of ['reservation-legacy-warning', 'reservation-prepayment-history', 'reservation-prepayment-warning', 'data-reservation', 'canRefundReservationPrepayment']) assert(reservations.includes(marker), marker);
 for (const id of ['reservation-guest', 'reservation-phone', 'reservation-date', 'reservation-time', 'reservation-table', 'reservation-guests', 'reservation-deposit', 'reservation-notes', 'reservation-filter', 'reservation-list-date', 'reservation-list']) assert(reservations.includes('id="' + id + '"'));
 assert(reservations.includes('Брони на выбранную дату')); assert(reservations.includes('label for="reservation-filter"')); assert(reservations.includes('label for="reservation-list-date"'));
-assert(css.includes('grid-template-columns:minmax(380px,420px) minmax(450px,1fr)')); assert(css.includes('@media(max-width:1200px){body[data-page="reservations"]'));
+assert(css.includes('body[data-page="reservations"] .reservations-workspace{grid-template-columns:minmax(0,1fr)'));
+assert.match(reservations, /<dialog id="reservation-dialog"[^>]*>/); assert.doesNotMatch(reservations.match(/<dialog id="reservation-dialog"[^>]*>/)[0], /\bopen(?:\s|=|>)/);
 
 // Editing refreshes the enhanced select and its hints without changing saved money.
 const place = elements.get('#reservation-table'); let selectRefreshes = 0; let rulesOptions;
@@ -48,6 +55,7 @@ const editEnd = reservations.indexOf('const retry = event.target.closest', editS
 const editCode = reservations.slice(editStart, editEnd);
 context.event = { target: { closest: () => ({ dataset: { reservationEdit: 'r3' } }) } };
 vm.runInContext('(function () { ' + editCode + ' })()', context);
+assert.ok(dialogOpened >= 3, 'editing opens the reusable dialog'); assert.equal(context.reservationStep, 0, 'editing starts at the guest step');
 assert.equal(place.value, 'table-8'); assert.equal(selectRefreshes, 1); assert.equal(rulesOptions.preserveDeposit, true);
 assert.equal(elements.get('#reservation-message').textContent, ''); assert.equal(elements.get('#reservation-message').className, 'form-message'); assert.equal(elements.get('#reservation-deposit').value, 700);
 const selectedPlace = { selectedOptions: [{ value: 'table-8', dataset: { minimum: '500', maxGuests: '8' } }] };
