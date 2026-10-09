@@ -70,6 +70,24 @@ assert.ok(Number(arrow[2]) < width && Number(arrow[3]) < height, 'hotspot lies w
 assert.match(svg, /feGaussianBlur/, 'cursor has soft glow');
 assert.match(svg, /stroke="#ff304c"[^>]*filter="url\(#glow\)"/, 'glow is red');
 assert.match(svg, /fill="#251016"[^>]*stroke="#fff1f3"[^>]*stroke-linejoin="round"/, 'dark arrow has rounded light outline');
-for (const state of ['hand', 'text']) assert.match(css, new RegExp(`cursor:var\\(--staff-cursor-${state}\\)`), `${state} remains distinct`);
-for (const state of ['grab', 'not-allowed', 'wait']) assert.ok(css.includes(`cursor:${state}!important`), `${state} remains available`);
+const cursorScope = css.match(/@media \(hover:hover\) and \(pointer:fine\)\{([\s\S]*?)\n\}/)?.[1];
+assert.ok(cursorScope, 'custom cursors remain limited to fine pointers with hover');
+for (const [state, fallback, hotspot] of [
+  ['arrow', 'auto', [10, 9]], ['hand', 'pointer', [20, 9]], ['text', 'text', [24, 24]],
+  ['grab', 'grab', [24, 24]], ['not-allowed', 'not-allowed', [24, 24]], ['wait', 'wait', [24, 24]],
+]) {
+  const token = cursorScope.match(new RegExp(`--staff-cursor-${state}:url\\("data:image/svg\\+xml,([^"\\n]+)"\\)\\s+(\\d+)\\s+(\\d+),${fallback}(?:;|})`));
+  assert.ok(token, `${state}: SVG, explicit hotspot and semantic fallback`);
+  const decoded = decodeURIComponent(token[1]);
+  assert.deepEqual([Number(token[2]), Number(token[3])], hotspot, `${state}: hotspot matches visible symbol`);
+  assert.match(decoded, /width="48" height="48" viewBox="0 0 48 48"/, `${state}: consistent cursor canvas`);
+  assert.match(decoded, /feGaussianBlur/, `${state}: soft glow`);
+  assert.match(decoded, /stroke="#ff304c"[^>]*filter="url\(#glow\)"/, `${state}: red glow`);
+  assert.match(decoded, /fill="#251016"[^>]*stroke="#fff1f3"[^>]*stroke-linejoin="round"/, `${state}: dark symbol and rounded light outline`);
+  assert.match(cursorScope, new RegExp(`cursor:var\\(--staff-cursor-${state}\\)!important`), `${state}: selector uses token`);
+}
+for (const rule of css.matchAll(/([^{}]+)\{([^{}]*cursor:var\(--staff-cursor-[^{}]+)\}/g)) {
+  assert.ok(rule[1].trim().startsWith('body.staff-red-cursor'), 'cursor rule begins with the operational role scope');
+  assert.ok(cursorScope.includes(rule[0]), 'custom cursor declarations stay within the staff media block');
+}
 console.log('Staff cursor/zone QA passed: transitions, role scope, SVG contract, hidden layout rule and source/dist sync.');
