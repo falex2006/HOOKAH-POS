@@ -12,7 +12,7 @@
 - Syntax and diff hygiene PASS.
 - Existing table elapsed, design, workspace polish, guest/editor/history/race, task recovery/deadline, memory task CRUD, finance, header and shell checks PASS.
 - Updated three stale harnesses without removing behavior coverage; task recovery adds visibility/concurrency/interaction/failure cases.
-- New staff-tasks-release-qa --postgres: 79 assertions PASS. Executes shipped handlers against memory and real isolated PostgreSQL; includes bartender/hookah_master, management scopes, tenant isolation, forbidden cancellation/revival and injected assignment/cancellation races. Transaction cleanup verified. This is handler/SQL acceptance, not full HTTP PostgreSQL middleware testing.
+- New staff-tasks-release-qa --postgres: 79 assertions PASS. Executes shipped handlers against memory and real isolated PostgreSQL; includes bartender/hookah_master, management scopes, tenant isolation, forbidden cancellation/revival and injected assignment/cancellation races. Transaction cleanup verified. Additional --http acceptance: 59 checks PASS using actual login/session/RBAC/API, a fresh PostgreSQL database, direct persisted-row read and repeated GET for bartender and hookah_master. Fresh database removed and owned server stopped.
 - Edge local real HTTP: employee login, task open→in_progress→reload, no employee cancel choice, cancelled readonly; owner management choices and logout; finance caption; tasks390px document scrollWidth==clientWidth. Full Fold redesign remains deferred.
 - Earlier local tile light/dark screenshots reviewed; no production order/task mutation during acceptance.
 

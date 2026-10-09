@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, scryptSync } from 'node:crypto';
 import { assertQaDatabaseIdentity, validateQaDatabaseUrl } from './postgres-qa-safety.mjs';
 
 // Execute the shipped task route unchanged. This isolates its policy from HTTP
@@ -131,3 +131,86 @@ if (process.argv.includes('--postgres')) {
   }
 }
 console.log(`STAFF TASK RELEASE QA: PASS (${checks} policy assertions; no production access)`);
+
+// Full middleware/session -> HTTP API -> PG -> fresh GET coverage, using a new
+// database owned exclusively by this run. Never point this mode at a live app.
+if (process.argv.includes('--http')) {
+  const require = createRequire(import.meta.url);
+  const { Pool } = require('pg');
+  const guards = require('./local-full-pg-regression.cjs');
+  const config = guards.validateConfig(JSON.parse(fs.readFileSync(new URL('tmp/full-local-qa/runtime.json', root), 'utf8')));
+  const guard = () => assert.equal(spawnSync(process.execPath, ['scripts/local-full-pg-regression.cjs', '--guard'], { cwd: root, encoding: 'utf8', windowsHide: true }).status, 0, 'owned disposable target verified');
+  guard();
+  const database = 'tasks_qa_' + randomBytes(8).toString('hex');
+  const connectionString = name => `postgresql://${encodeURIComponent(config.dbUser)}:${encodeURIComponent(config.dbPassword)}@127.0.0.1:31931/${name}`;
+  const admin = new Pool({ connectionString: connectionString(config.database), max: 1 });
+  let db, app, created = false;
+  const httpStartCount = checks;
+  try {
+    assert.equal((await admin.query('SELECT 1 FROM pg_database WHERE datname=$1', [database])).rowCount, 0);
+    await admin.query(`CREATE DATABASE "${database}"`); created = true;
+    db = new Pool({ connectionString: connectionString(database), max: 2 });
+    await db.query(fs.readFileSync(new URL('schema.sql', root), 'utf8'));
+    for (const file of fs.readdirSync(new URL('migrations/', root)).filter(name => name.endsWith('.sql')).sort()) await db.query(fs.readFileSync(new URL('migrations/' + file, root), 'utf8'));
+    const org = randomUUID(), venue = randomUUID(), foreignOrg = randomUUID(), foreignVenue = randomUUID();
+    for (const [organizationId, venueId] of [[org, venue], [foreignOrg, foreignVenue]]) {
+      await db.query('INSERT INTO organizations(id,name,slug) VALUES($1,$2,$3)', [organizationId, 'Tasks release QA', 'qa-' + organizationId]);
+      await db.query("INSERT INTO organization_subscriptions(organization_id,plan,status,seats_limit,venues_limit) VALUES($1,'enterprise','active',50,5)", [organizationId]);
+      await db.query('INSERT INTO venues(id,organization_id,name) VALUES($1,$2,$3)', [venueId, organizationId, 'Tasks release QA venue']);
+    }
+    const password = randomBytes(24).toString('hex'), salt = randomBytes(16).toString('hex');
+    const hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
+    const actors = {};
+    for (const role of ['owner', 'manager', 'bartender', 'hookah_master', 'foreign']) {
+      const id = randomUUID(), foreign = role === 'foreign'; actors[role] = id;
+      await db.query('INSERT INTO users(id,venue_id,organization_id,full_name,login,password_hash,role) VALUES($1,$2,$3,$4,$5,$6,$7)', [id, foreign ? foreignVenue : venue, foreign ? foreignOrg : org, 'Tasks QA ' + role, 'qa_' + id, hash, foreign ? 'owner' : role]);
+      await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role,status) VALUES($1,$2,'member','active')", [foreign ? foreignOrg : org, id]);
+    }
+    const env = { ...process.env };
+    for (const key of Object.keys(env)) if (/DATABASE_URL|^PG[A-Z_]+$|^SAAS_OWNER_|(?:PASSWORD|TOKEN|PASSPORT_KEY|SESSION_SECRET)$/.test(key)) delete env[key];
+    app = spawn(process.execPath, ['server.js'], { cwd: root, windowsHide: true, env: { ...env, HOST: '127.0.0.1', PORT: '0', NODE_ENV: 'test', AUTH_REQUIRED: 'true', DEMO_MODE: 'false', DATABASE_URL: connectionString(database), VENUE_ID: venue, API_RATE_LIMIT: '10000' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const base = await new Promise((resolve, reject) => {
+      let output = ''; const timeout = setTimeout(() => reject(Error('Owned HTTP QA startup timeout')), 20000);
+      app.once('error', reject); app.once('exit', () => { clearTimeout(timeout); reject(Error('Owned HTTP QA app exited')); });
+      app.stdout.on('data', chunk => { output += chunk; const port = output.match(/CRM running on http:\/\/localhost:(\d+)/)?.[1]; if (port) { clearTimeout(timeout); resolve('http://127.0.0.1:' + port); } });
+      app.stderr.on('data', () => {});
+    });
+    const http = async (path, token, method = 'GET', body, expected = 200) => {
+      const response = await fetch(base + path, { method, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const data = await response.json(); assert.equal(response.status, expected, `${method} ${path}: ${data.error || 'unexpected response'}`); checks++; return data;
+    };
+    const tokens = {};
+    for (const [role, id] of Object.entries(actors)) tokens[role] = (await http('/api/login', '', 'POST', { username: 'qa_' + id, password })).token;
+    for (const role of ['bartender', 'hookah_master']) {
+      const otherRole = role === 'bartender' ? 'hookah_master' : 'bartender';
+      const task = await http('/api/tasks', tokens.manager, 'POST', { title: 'Assigned ' + role, assigneeId: actors[role] }, 201);
+      assert.ok((await http('/api/tasks', tokens[role])).items.some(item => item.id === task.id)); checks++;
+      assert.ok(!(await http('/api/tasks', tokens[otherRole])).items.some(item => item.id === task.id)); checks++;
+      await http('/api/tasks/' + task.id, tokens[otherRole], 'PATCH', { status: 'done' }, 403);
+      await http('/api/tasks/' + task.id, tokens[role], 'DELETE', undefined, 403);
+      await http('/api/tasks/' + task.id, tokens[role], 'PATCH', { status: 'cancelled' }, 403);
+      for (const status of ['in_progress', 'done']) {
+        await http('/api/tasks/' + task.id, tokens[role], 'PATCH', { status });
+        assert.equal((await http('/api/tasks', tokens.manager)).items.find(item => item.id === task.id)?.status, status); checks++;
+        assert.equal((await db.query('SELECT status FROM tasks WHERE id=$1 AND venue_id=$2', [task.id, venue])).rows[0].status, status); checks++;
+      }
+      await http('/api/tasks/' + task.id, tokens.manager, 'PATCH', { status: 'cancelled' });
+      for (const status of ['open', 'in_progress', 'done']) await http('/api/tasks/' + task.id, tokens[role], 'PATCH', { status }, 403);
+      assert.equal((await http('/api/tasks', tokens[role])).items.find(item => item.id === task.id)?.status, 'cancelled'); checks++;
+      await http('/api/tasks/' + task.id, tokens.foreign, 'PATCH', { status: 'done' }, 404);
+      assert.ok(!(await http('/api/tasks', tokens.foreign)).items.some(item => item.id === task.id)); checks++;
+      await http('/api/tasks/' + task.id, tokens.owner, 'PATCH', { status: 'open' });
+      await http('/api/tasks/' + task.id, tokens.manager, 'DELETE');
+    }
+    console.log(`STAFF TASK HTTP POSTGRES QA: PASS (${checks - httpStartCount} checks; actual login/session/RBAC/API/DB/fresh GET for bartender and hookah master)`);
+  } catch (error) {
+    throw new Error(guards.safeText(error.message, config));
+  } finally {
+    if (app && app.exitCode === null) { const closed = new Promise(resolve => app.once('exit', resolve)); app.kill(); await closed; }
+    if (db) await db.end();
+    try {
+      if (created) { guard(); assert.match(database, /^tasks_qa_[a-f0-9]{16}$/); await admin.query(`DROP DATABASE "${database}"`); assert.equal((await admin.query('SELECT 1 FROM pg_database WHERE datname=$1', [database])).rowCount, 0); }
+    } finally { await admin.end(); }
+    console.log('STAFF TASK HTTP QA CLEANUP: PASS (owned server stopped, fresh database removed)');
+  }
+}
