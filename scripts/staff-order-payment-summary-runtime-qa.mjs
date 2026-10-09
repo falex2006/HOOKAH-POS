@@ -11,9 +11,9 @@ function setup(){
   const requests=[];let currentOrder={id:'order-a'};let floorVenueId='venue-a',orderPricingRevision=0;
   const total={textContent:''};let pricingNote=null;
   const meta={querySelector:(selector)=>selector==='[data-order-pricing]'?pricingNote:null,append:(node)=>{pricingNote=node;}};
-  const document={querySelector:(selector)=>selector==='.meta'?meta:selector==='#order-total'?total:null,createElement:()=>({dataset:{},style:{},textContent:''})};
+  const document={querySelector:(selector)=>selector==='.meta'?meta:selector==='#order-total'?total:null,createElement:()=>({dataset:{},style:{},textContent:'',children:[],replaceChildren(...children){this.children=children;this.textContent=children.map((child)=>child.textContent).join('');}})};
   const apiJson=(url)=>{const request=deferred();requests.push({url,...request});return request.promise;};
-  const runtime=new Function('apiJson','document',`let currentOrder={id:'order-a'};let floorVenueId='venue-a';let orderPricingRevision=0;${renderer};return{refreshOrderPricingSummary,get:()=>({currentOrder,floorVenueId}),setOrder:(order,venue=floorVenueId)=>{currentOrder=order;floorVenueId=venue;},getView:()=>({total:document.querySelector('#order-total').textContent,note:document.querySelector('.meta').querySelector('[data-order-pricing]')?.textContent||''})}`)(apiJson,document);
+  const runtime=new Function('apiJson','document',`let currentOrder={id:'order-a'};let floorVenueId='venue-a';let orderPricingRevision=0;${renderer};return{refreshOrderPricingSummary,get:()=>({currentOrder,floorVenueId}),setOrder:(order,venue=floorVenueId)=>{currentOrder=order;floorVenueId=venue;},getView:()=>({total:document.querySelector('#order-total').textContent,note:document.querySelector('.meta').querySelector('[data-order-pricing]')?.children.map((child)=>child.textContent).join(' · ')||'',lines:document.querySelector('.meta').querySelector('[data-order-pricing]')?.children.map((child)=>child.textContent)||[]})}`)(apiJson,document);
   return{runtime,requests};
 }
 const pricing={due:475,discount:0,minimumAdjustment:0};
@@ -22,6 +22,7 @@ const initial=first.runtime.refreshOrderPricingSummary(first.runtime.get().curre
 assert.match(first.requests[0].url,/\/summary$/);assert.match(first.requests[1].url,/\/payments$/);
 first.requests[0].resolve(pricing);first.requests[1].resolve({due:475,paid:200,remaining:275});await initial;
 assert.equal(first.runtime.getView().total,'475 ₽');
+assert.deepEqual(first.runtime.getView().lines,['Итого 475 ₽','Оплачено 200 ₽','Осталось 275 ₽'],'payment amounts are separate readable lines');
 assert.match(first.runtime.getView().note,/Итого 475 ₽ · Оплачено 200 ₽ · Осталось 275 ₽/);
 
 const partial=setup();
@@ -32,6 +33,7 @@ assert.match(partial.runtime.getView().note,/475 ₽ · Оплачено 200 ₽
 const complete=partial.runtime.refreshOrderPricingSummary(partial.runtime.get().currentOrder,{due:475,paid:475,remaining:0});
 partial.requests[1].resolve(pricing);await complete;
 assert.match(partial.runtime.getView().note,/Итого 475 ₽ · Оплачено 475 ₽ · Осталось 0 ₽/);
+assert.deepEqual(partial.runtime.getView().lines,['Итого 475 ₽','Оплачено 475 ₽','Осталось 0 ₽']);
 
 const reload=setup();
 const reopened=reload.runtime.refreshOrderPricingSummary(reload.runtime.get().currentOrder);
