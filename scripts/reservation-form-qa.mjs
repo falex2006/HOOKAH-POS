@@ -19,8 +19,8 @@ assert.equal(distApp, app, 'published POS app includes the reservation allocatio
 assert.equal(distPortal, portal, 'published guest portal includes current loyalty and privacy rules');
 assert.match(app, /method==='reservation'/, 'payment UI can post the reservation tender');
 assert.match(app, /reservationPrepaymentReceipts/, 'payment UI renders available booking receipts');
-assert.match(portal, /Требуемый депозит<input id="reservation-deposit"/, 'reservation form identifies the venue requirement, not a collected payment');
-assert.match(portal, /полученные деньги учитываются отдельно/, 'reservation form explains payment is recorded separately');
+assert.match(portal, /Требуемый депозит, ₽<input id="reservation-deposit"/, 'reservation form identifies the venue requirement, not a collected payment');
+assert.match(portal, /Предоплата учитывается отдельно/, 'reservation form explains payment is recorded separately');
 assert.match(portal, /status: 'confirmed', tableName: input\.tableId, deposit: 0, depositRequired: deposit, depositPaid: 0/, 'demo reservation preserves the required amount without faking collection');
 const historyReservation = portal.slice(portal.indexOf('const reservations = (data.reservations || []).map'), portal.indexOf('const accountEntries =', portal.indexOf('const reservations = (data.reservations || []).map')));
 assert.match(portal.slice(portal.indexOf('const reservationHistoryPaymentLabel'), portal.indexOf('\n};', portal.indexOf('const reservationHistoryPaymentLabel'))), /reservation\.depositRequired \?\? reservation\.deposit/, 'guest history keeps reading legacy reservation requirement amounts');
@@ -70,9 +70,10 @@ const submitEnd = portal.indexOf("  api('/api/clients').then((data) => {", submi
 assert.ok(submitStart >= 0 && submitEnd > submitStart);
 const submit = portal.slice(submitStart, submitEnd);
 assert.match(submit, /if \(form\.dataset\.submitting === '1'\) return/, 'pending request blocks duplicate submit');
-assert.match(submit, /submit\.disabled = true; submit\.textContent = 'Подтверждение…'/, 'pending state is visible');
+assert.match(submit, /submit\.disabled = true; submit\.textContent = form\.dataset\.editingId \? 'Сохранение…' : 'Подтверждение…'/, 'pending state names create versus edit correctly');
 assert.match(submit, /const controls = \[\.\.\.form\.querySelectorAll\('input, select, textarea'\)\]/, 'pending request locks draft fields');
-assert.match(submit, /\.finally\(\(\) => \{ controls\.forEach\(\(\{ control, disabled \}\) => \{ control\.disabled = disabled; control\._customSelectRefresh\?\.\(\); \}\); form\.dataset\.submitting = '0'; if \(submit\) \{ submit\.disabled = false; submit\.textContent = 'Подтвердить бронь'; \} if \(reservationSaved\) loadTables\(\); \}\)/, 'request completion restores original field states before reloading tables');
+assert.match(submit, /control\.disabled = disabled/, 'request completion restores original field states');
+assert.match(submit, /form\.dataset\.submitting = '0'; if \(submit\) submit\.disabled = false; syncReservationFormMode\(\); if \(reservationSaved\) loadTables\(\)/, 'completion restores truthful mode before reloading tables');
 
 const start = portal.indexOf("  api('/api/clients').then((data) => {", submitEnd);
 const endMarker = '  }).catch(() => {}); loadTables(); load();';
@@ -128,10 +129,12 @@ const values = new Map();
 for (const id of ['reservation-guest', 'reservation-client-id', 'reservation-phone', 'reservation-date', 'reservation-time', 'reservation-table', 'reservation-guests', 'reservation-deposit', 'reservation-notes']) values.set(`#${id}`, { value: '', disabled: id === 'reservation-table' });
 values.set('#reservation-message', { textContent: '', className: '' });
 const submitButton = { disabled: false, textContent: 'Подтвердить бронь' };
-const form = { dataset: {}, querySelector: () => submitButton, querySelectorAll: () => [...values.values()].filter((item) => 'value' in item) };
+const form = { addEventListener: (_event, callback) => { onSubmit = callback; }, dataset: {}, querySelector: () => submitButton, querySelectorAll: () => [...values.values()].filter((item) => 'value' in item) };
 let onSubmit;
-vm.runInNewContext(submit, {
-  document: { querySelector: (selector) => selector === '#reservation-form' ? { addEventListener: (_event, callback) => { onSubmit = callback; } } : values.get(selector) },
+for (const id of ['reservation-form-title', 'reservation-cancel-edit', 'focus-reservation']) values.set('#' + id, { textContent: '', disabled: false, hidden: false });
+const mode = portal.slice(portal.indexOf('  const syncReservationFormMode ='), portal.indexOf('  const startNewReservation ='));
+vm.runInNewContext(mode + submit, {
+  document: { querySelector: (selector) => selector === '#reservation-form' ? form : values.get(selector) },
   api: () => Promise.reject({ payload: { error: 'invalid_guest_phone' } }),
   portalUser: { name: 'QA' },
   portalRole: ['owner'],
