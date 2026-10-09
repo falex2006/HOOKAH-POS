@@ -34,6 +34,7 @@ const mountStaffSidebarDrawer=()=>{
 };
 mountStaffSidebarDrawer();
 let staffSessionVerified=staticStaffDemo();
+let staffFloorActorId='';
 let staffSessionRequest=null;
 let staffAccessRevision=0,staffSessionSignature="";
 const staffCanWork=()=>staffSessionVerified&&staffSessionPermissions.has("floor")&&staffSessionPermissions.has("orders");
@@ -60,7 +61,7 @@ const canOpenStaffAdmin=(permissions)=>['staff','staff_view','staff_manage','set
 const staffPermissionAliases={inventory_read:'inventory',finance_read:'finance'};
 const hasStaffPermission=(required,permissions)=>permissions.has(required)||Boolean(staffPermissionAliases[required]&&permissions.has(staffPermissionAliases[required]));
 let staffShiftReadable=false,staffShiftManageable=false,staffNotificationCenter=null,staffSessionPermissions=new Set();
-const applyStaffSession=(s)=>{if(!s?.user)return;const actor=s.user;document.body.classList.toggle('staff-red-cursor',['bartender','hookah_master'].includes(actor.role));applyStaffHeader(actor);const permissions=new Set(Array.isArray(s.permissions)?s.permissions:[]);staffSessionPermissions=permissions;staffNotificationCenter?.dispose();staffNotificationCenter=window.mountCrmNotifications({user:actor,permissions,api:(url,options)=>staticStaffDemo()?staticShiftNotificationsApi(url,options):staffFetchJson(url,options),bellHost:document.querySelector('.staff-header-user')});staffNotificationCenter.refresh();staffShiftReadable=['floor','orders','finance_read','finance'].some(p=>permissions.has(p));staffShiftManageable=['floor','orders'].some(p=>permissions.has(p));const shiftControl=document.querySelector('#shift-toggle');if(shiftControl)shiftControl.hidden=!staffShiftReadable;const navItems=[...document.querySelectorAll('.portal-sidebar .portal-nav [data-permission]')];navItems.forEach((item)=>{item.hidden=!hasStaffPermission(item.dataset.permission,permissions);});document.querySelectorAll('.portal-sidebar .portal-nav:not(.staff-admin-nav)').forEach((nav)=>{const hasVisibleItem=[...nav.querySelectorAll('[data-permission]')].some((item)=>!item.hidden);nav.hidden=!hasVisibleItem;const label=nav.previousElementSibling;if(label?.classList.contains('side-label'))label.hidden=!hasVisibleItem;});document.querySelectorAll('.portal-sidebar .portal-nav:not([hidden])').forEach((nav)=>nav.removeAttribute('aria-busy'));document.querySelectorAll('.portal-sidebar .portal-nav').forEach((nav)=>nav.removeAttribute('data-session-pending'));
+const applyStaffSession=(s)=>{if(!s?.user)return;const actor=s.user;staffFloorActorId=String(actor.id||'');document.body.classList.toggle('staff-red-cursor',['bartender','hookah_master'].includes(actor.role));applyStaffHeader(actor);const permissions=new Set(Array.isArray(s.permissions)?s.permissions:[]);staffSessionPermissions=permissions;staffNotificationCenter?.dispose();staffNotificationCenter=window.mountCrmNotifications({user:actor,permissions,api:(url,options)=>staticStaffDemo()?staticShiftNotificationsApi(url,options):staffFetchJson(url,options),bellHost:document.querySelector('.staff-header-user')});staffNotificationCenter.refresh();staffShiftReadable=['floor','orders','finance_read','finance'].some(p=>permissions.has(p));staffShiftManageable=['floor','orders'].some(p=>permissions.has(p));const shiftControl=document.querySelector('#shift-toggle');if(shiftControl)shiftControl.hidden=!staffShiftReadable;const navItems=[...document.querySelectorAll('.portal-sidebar .portal-nav [data-permission]')];navItems.forEach((item)=>{item.hidden=!hasStaffPermission(item.dataset.permission,permissions);});document.querySelectorAll('.portal-sidebar .portal-nav:not(.staff-admin-nav)').forEach((nav)=>{const hasVisibleItem=[...nav.querySelectorAll('[data-permission]')].some((item)=>!item.hidden);nav.hidden=!hasVisibleItem;const label=nav.previousElementSibling;if(label?.classList.contains('side-label'))label.hidden=!hasVisibleItem;});document.querySelectorAll('.portal-sidebar .portal-nav:not([hidden])').forEach((nav)=>nav.removeAttribute('aria-busy'));document.querySelectorAll('.portal-sidebar .portal-nav').forEach((nav)=>nav.removeAttribute('data-session-pending'));
 const canOpenAdmin=canOpenStaffAdmin(permissions);document.querySelectorAll('.staff-admin-nav,.staff-admin-nav-label').forEach(node=>{node.hidden=!canOpenAdmin;});const ensureAdminPanelLink=()=>{if(!canOpenAdmin)return;const sidebar=document.querySelector('.portal-sidebar');const operationNav=sidebar?.querySelector('.portal-nav');if(!sidebar||!operationNav||sidebar.querySelector('a.staff-admin-nav-link'))return;const label=document.createElement('div');label.className='side-label staff-admin-nav-label';label.textContent=actor.role==='manager'?'УПРАВЛЕНИЕ':'АДМИНИСТРИРОВАНИЕ';const nav=document.createElement('nav');nav.className='portal-nav staff-admin-nav';const link=document.createElement('a');link.className='staff-admin-nav-link';link.href=preserveWorkspaceRoute('/admin');link.title=actor.role==='manager'?'Открыть панель управления':'Открыть панель администратора';link.innerHTML='<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6-6 6 6 6M4 12h16"></path></svg><span><strong>'+(actor.role==='manager'?'Панель управления':'Панель администратора')+'</strong></span>';nav.append(link);const footer=sidebar.querySelector('.sidebar-footer,.user,.logout-button');if(footer){sidebar.insertBefore(label,footer);sidebar.insertBefore(nav,footer);}else sidebar.append(label,nav);};ensureAdminPanelLink();const loyaltyLink=document.querySelector('#staff-loyalty-link');if(loyaltyLink)loyaltyLink.onclick=()=>{if(staffSessionPermissions.has('loyalty'))window.location.href=preserveWorkspaceRoute('/admin#loyalty');};const guestsLink=document.querySelector('#staff-guests-link');if(guestsLink)guestsLink.onclick=()=>{if(staffSessionPermissions.has('orders'))window.location.href=preserveWorkspaceRoute('/clients');};const user=document.querySelector('.user');if(user){user.innerHTML='<label class="staff-self-avatar" title="Изменить свой аватар"><span aria-hidden="true">'+(String(actor.name||'Сотрудник').split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]).join('')||'С').toLocaleUpperCase('ru-RU')+'</span><input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Изменить свой аватар"></label><div class="staff-self-identity"><b>'+escapeStaffHtml(actor.name||'Сотрудник')+'</b><small>'+escapeStaffHtml(staffRoleLabels[actor.role]||'Персонал')+'</small></div><button class="staff-logout" id="logout" type="button">'+staffIcon('logout')+'<span>Выйти</span></button>';applyStaffHeader(actor);const picker=user.querySelector('.staff-self-avatar input');const headerAvatar=document.querySelector('.staff-header-avatar');if(headerAvatar&&picker){headerAvatar.setAttribute('role','button');headerAvatar.setAttribute('tabindex','0');headerAvatar.setAttribute('aria-label','Изменить свой аватар');headerAvatar.onclick=()=>picker.click();headerAvatar.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();picker.click();}};}picker?.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;if(!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)||file.size>1500000){notice('Аватар: PNG, JPG или WebP до 1.5 МБ');picker.value='';return;}const reader=new FileReader();reader.onerror=()=>notice('Не удалось прочитать аватар');reader.onload=()=>fetch('/api/staff/'+encodeURIComponent(actor.id)+'/avatar',{method:'POST',headers:{...sessionHeaders(),'Content-Type':'application/json'},body:JSON.stringify({imageData:reader.result})}).then((response)=>response.ok?response.json():Promise.reject(new Error('avatar_failed'))).then((person)=>{actor.avatarUrl=person.avatarUrl||reader.result;localStorage.setItem('crm_session_user',JSON.stringify(actor));applyStaffSession(s);notice('Аватар обновлён');}).catch(()=>notice('Не удалось обновить аватар'));reader.readAsDataURL(file);});}};
 const resolveStaticStaffPermissions=(role)=>({owner:['floor','orders','reservations','inventory','finance','loyalty'],admin:['floor','orders','reservations','inventory','finance','loyalty'],manager:['floor','orders','reservations','inventory_read','finance_read','loyalty'],senior_bartender:['floor','orders','finance_read'],senior_hookah_master:['floor','orders','finance_read'],bartender:['floor','orders','finance_read'],hookah_master:['floor','orders','finance_read'],cleaner:[],security:[],technician:[],other_staff:[],developer:['floor','orders','reservations','inventory_read','finance_read']})[role]||[];
 if(staticStaffDemo()){try{const localUser=JSON.parse(localStorage.getItem('crm_session_user')||'{}');if(localUser.role)applyStaffSession({user:localUser,permissions:resolveStaticStaffPermissions(localUser.role)});}catch(_){}}
@@ -99,7 +100,7 @@ const verifyStaffSession=()=>{
     return true;
   }).catch((error)=>{
     if(requestedToken!==localStorage.getItem('crm_session_token'))return false;
-    staffSessionVerified=false;staffSessionSignature='';staffSessionPermissions=new Set();staffShiftReadable=false;staffShiftManageable=false;
+    staffSessionVerified=false;staffFloorActorId='';staffSessionSignature='';staffSessionPermissions=new Set();staffShiftReadable=false;staffShiftManageable=false;
     clearStaffAccessState();applyStaffWorkAccess();
     document.querySelectorAll('.portal-sidebar .portal-nav,.staff-admin-nav-label').forEach(nav=>{nav.hidden=true;nav.removeAttribute('aria-busy');});
     if(error.status===401){localStorage.removeItem('crm_session_token');localStorage.removeItem('crm_session_user');window.location.replace('/login');return false;}
@@ -343,37 +344,87 @@ const floorTabs=document.querySelector('.tabs');
 let selectedZoneId='';
 let floorRequestRevision=0;
 const clearTableMinimums=()=>{for(const key of Object.keys(tableMinimums))delete tableMinimums[key];};
+// Device-local density: identity comes only from the verified session and floor.
+const floorDensityShell=document.createElement('div');
+floorDensityShell.className='floor-workspace';
+tables.before(floorDensityShell);
+floorDensityShell.append(tables);
+const floorDensityToolbar=document.createElement('div');
+floorDensityToolbar.className='floor-density-toolbar';
+floorDensityToolbar.hidden=true;
+floorDensityToolbar.innerHTML='<label for="floor-density-range">Размер столов</label><input id="floor-density-range" type="range" min="70" max="130" step="5" value="100" aria-describedby="floor-density-output"><output id="floor-density-output" for="floor-density-range">Авто</output><button type="button" class="secondary" data-floor-fit aria-pressed="true">Вместить</button><span class="floor-density-status" role="status"></span>';
+floorDensityShell.prepend(floorDensityToolbar);
+const floorDensityRange=floorDensityToolbar.querySelector('input');
+const floorDensityOutput=floorDensityToolbar.querySelector('output');
+const floorDensityFit=floorDensityToolbar.querySelector('[data-floor-fit]');
+let floorDensityKey='',floorDensity={mode:'fit',scale:100},floorDensityFrame=0;
+const loadFloorDensity=()=>{
+  const key=staffSessionVerified&&staffFloorActorId&&floorVenueId?`hookah_floor_density_v1:${encodeURIComponent(staffFloorActorId)}:${encodeURIComponent(floorVenueId)}`:'';
+  if(key===floorDensityKey)return;
+  floorDensityKey=key;floorDensity={mode:'fit',scale:100};
+  if(key)try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(saved&&['fit','manual'].includes(saved.mode)&&Number.isFinite(saved.scale)&&saved.scale>=70&&saved.scale<=130)floorDensity={mode:saved.mode,scale:saved.scale};}catch(_){}
+};
+const saveFloorDensity=()=>{if(floorDensityKey)try{localStorage.setItem(floorDensityKey,JSON.stringify(floorDensity));}catch(_){};};
+// Readable dimensions are a lower bound; large halls keep normal vertical scroll.
+const calculateFloorDensity=(width,height,count,mode,scale)=>{
+  const gap=10,minWidth=190,minHeight=118;
+  const maxColumns=Math.max(1,Math.min(count,Math.floor((width+gap)/(minWidth+gap))));
+  let columns=maxColumns,tileHeight=minHeight;
+  if(mode==='fit'){
+    for(let candidate=1;candidate<=maxColumns;candidate++){
+      const rows=Math.ceil(count/candidate);
+      if(rows*minHeight+(rows-1)*gap<=height){columns=candidate;break;}
+    }
+    const rows=Math.ceil(count/columns);
+    tileHeight=Math.max(minHeight,Math.min(164,Math.floor((height-(rows-1)*gap)/rows)));
+  }else{
+    const preferredWidth=Math.max(minWidth,250*scale/100);
+    columns=Math.max(1,Math.min(count,Math.floor((width+gap)/(preferredWidth+gap))));
+    tileHeight=Math.max(minHeight,Math.round(146*scale/100));
+  }
+  const rows=Math.ceil(count/columns);
+  return{columns,tileHeight,overflows:rows*tileHeight+(rows-1)*gap>height};
+};
 const updateFloorMapMode=()=>{
   const stage=tables.querySelector('.floor-map-stage');
-  if(!stage){tables.classList.remove('compact-map');return;}
-  tables.classList.remove('compact-map');
-  if(window.innerWidth<=1100)return;
-  const compact=[...stage.querySelectorAll('.table')].some((table)=>{
-    const box=table.getBoundingClientRect();
-    // The name, status and equipment/time row need a readable desktop target.
-    if(table.clientWidth<280||table.clientHeight<172)return true;
-    const rotation=Number.parseFloat(table.style.getPropertyValue('--table-rotation'))||0;
-    const radians=rotation*Math.PI/180,cos=Math.cos(radians),sin=Math.sin(radians);
-    const halfWidth=table.clientWidth/2-6,halfHeight=table.clientHeight/2-6;
-    const curved=table.classList.contains('shape-circle')||table.classList.contains('shape-oval');
-    return[...table.children].some((child)=>{
-      const label=child.getBoundingClientRect();
-      if(child.scrollWidth>child.clientWidth+1)return true;
-      // Compare upright text corners in the rotated table's own coordinate space.
-      return[[label.left,label.top],[label.right,label.top],[label.left,label.bottom],[label.right,label.bottom]].some(([x,y])=>{
-        const dx=x-(box.left+box.width/2),dy=y-(box.top+box.height/2);
-        const localX=dx*cos+dy*sin,localY=-dx*sin+dy*cos;
-        return curved?(localX/halfWidth)**2+(localY/halfHeight)**2>1:Math.abs(localX)>halfWidth||Math.abs(localY)>halfHeight;
-      });
-    });
-  });
-  tables.classList.toggle('compact-map',compact);
+  const count=stage?.querySelectorAll('.table').length||0;
+  floorDensityToolbar.hidden=!count||!floorReady;
+  if(!count){tables.classList.remove('compact-map','density-map');return;}
+  loadFloorDensity();
+  tables.classList.add('compact-map','density-map');
+  floorDensityRange.value=String(floorDensity.scale);
+  floorDensityOutput.textContent=floorDensity.mode==='fit'?'Авто':`${floorDensity.scale}%`;
+  floorDensityRange.setAttribute('aria-valuetext',floorDensity.mode==='fit'?'Автоматический размер':`${floorDensity.scale} процентов`);
+  floorDensityFit.setAttribute('aria-pressed',String(floorDensity.mode==='fit'));
+  const main=tables.closest('main');
+  // Compensate the existing main scroll: resizing while scrolled must not enlarge cards.
+  const densityStatus=floorDensityToolbar.querySelector('.floor-density-status');
+  const previousStatusHeight=floorDensity.mode==='fit'&&densityStatus.textContent?densityStatus.getBoundingClientRect().height+10:0;
+  const naturalTop=tables.getBoundingClientRect().top+(main?.scrollTop||0)+(window.scrollY||0)-previousStatusHeight;
+  const availableHeight=Math.max(0,window.innerHeight-naturalTop-28);
+  const availableWidth=Math.max(1,tables.clientWidth-26);
+  const layout=calculateFloorDensity(availableWidth,availableHeight,count,floorDensity.mode,floorDensity.scale);
+  tables.style.setProperty('--floor-density-columns',String(layout.columns));
+  tables.style.setProperty('--floor-density-height',`${layout.tileHeight}px`);
+  tables.style.setProperty('--floor-density-title',`${Math.min(28,Math.max(22,22+(layout.tileHeight-118)/10))}px`);
+  const tileWidth=(availableWidth-(layout.columns-1)*10)/layout.columns;
+  tables.style.setProperty('--floor-density-time',`${Math.min(tileWidth<230?18:24,Math.max(18,18+(layout.tileHeight-118)/8))}px`);
+  const status=floorDensityToolbar.querySelector('.floor-density-status');
+  const statusText=layout.overflows?'Все столы доступны при прокрутке':'';
+  if(status.textContent!==statusText)status.textContent=statusText;
 };
-window.addEventListener('resize',updateFloorMapMode);
+const scheduleFloorDensity=()=>{if(floorDensityFrame)return;floorDensityFrame=requestAnimationFrame(()=>{floorDensityFrame=0;updateFloorMapMode();});};
+floorDensityRange.addEventListener('input',()=>{loadFloorDensity();floorDensity={mode:'manual',scale:Number(floorDensityRange.value)};saveFloorDensity();updateFloorMapMode();});
+floorDensityFit.addEventListener('click',()=>{loadFloorDensity();floorDensity={mode:'fit',scale:100};saveFloorDensity();updateFloorMapMode();});
+window.addEventListener('resize',scheduleFloorDensity,{passive:true});
+if(typeof ResizeObserver!=='undefined'){
+  let lastFloorWidth=0;
+  new ResizeObserver(([entry])=>{const width=Math.round(entry.contentRect.width);if(width!==lastFloorWidth){lastFloorWidth=width;scheduleFloorDensity();}}).observe(floorDensityShell);
+}
 const renderZone=(zone)=>{
   tables.classList.toggle('vip-floor',/vip/i.test(String(zone?.name||'')));
   const serverTables=zone?.tables||[];
-  if(!serverTables.length){tables.classList.remove('has-map','compact-map');tables.innerHTML='<div class="queue-empty">В этой зоне пока нет столов</div>';return;}
+  if(!serverTables.length){floorDensityToolbar.hidden=true;tables.classList.remove('has-map','compact-map','density-map');tables.innerHTML='<div class="queue-empty">В этой зоне пока нет столов</div>';return;}
   const placements=serverTables.map((table,index)=>floorPixelPlacement(table,index));
   const bounds=placements.map((place)=>{
     const radians=place.rotation*Math.PI/180;
@@ -410,6 +461,7 @@ const renderZone=(zone)=>{
 };
 const showFloorUnavailable=(message)=>{
   floorReady=false;
+  floorDensityToolbar.hidden=true;
   catalogRequestRevision++;catalogRequest=null;catalogRequestContext='';catalogLoaded=false;products=[];catalogState='error';
   ordersRequestRevision++;
   const orderPanel=document.querySelector('.order');
@@ -452,7 +504,7 @@ const applyFloorPayload=(payload)=>{
   floorTabs.hidden=serverZones.length<2;
   floorTabs.setAttribute('aria-hidden',String(serverZones.length<2));
   floorTabs.removeAttribute('aria-busy');
-  if(!serverZones.length){tables.classList.remove('vip-floor','has-map');tables.innerHTML='<div class="queue-empty">В этой точке пока нет залов. Обратитесь к управляющему для настройки схемы.</div>';}
+  if(!serverZones.length){floorDensityToolbar.hidden=true;tables.classList.remove('vip-floor','has-map','density-map');tables.innerHTML='<div class="queue-empty">В этой точке пока нет залов. Обратитесь к управляющему для настройки схемы.</div>';}
   else renderZone(serverZones.find((zone)=>String(zone.id)===selectedZoneId));
   drawQueue();
   if(currentOrder?.tableId)drawOrder(currentOrder);
