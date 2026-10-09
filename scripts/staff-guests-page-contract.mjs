@@ -32,7 +32,7 @@ for(const [bonusPresent,depositPresent] of [[false,false],[true,true],[false,tru
     if(!fields.has(selector))fields.set(selector,{value:'',innerHTML:'',textContent:'',classList:{toggle(){}},dataset:{}});
     return fields.get(selector);
   },querySelectorAll(){return [];}};
-  const context={document,clientInitials:()=> 'QA',esc:v=>String(v??''),discountGroups:[]};
+  const context={historyGeneration:0,document,clientInitials:()=> 'QA',esc:v=>String(v??''),discountGroups:[]};
   vm.createContext(context);vm.runInContext(fill,context);
   context.runFill({id:'guest-qa',name:'Гость QA',bonusBalance:12,depositBalance:400});
   assert.equal(fields.get('#client-id').value,'guest-qa');

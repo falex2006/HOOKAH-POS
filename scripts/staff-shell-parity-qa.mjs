@@ -103,7 +103,7 @@ const scoped = harness('staff', ['staff_view'], '/clients'); scoped.subject.rend
 
 assert.match(app, /setStaffWorkspaceView\(new URLSearchParams\(location.search\).get\('view'\),\{updateUrl:false\}\)/);
 assert.match(app, /url.searchParams.set\('view','orders'\)/);
-const workspaceSource = between(app, 'const setStaffWorkspaceView=', '// Orders view uses');
+const workspaceSource = between(app, 'const setStaffWorkspaceView=', '// Queue ages share');
 const makeNode = (label) => {
   const attributes = new Map(label ? [['aria-label', label]] : []), classes = new Set();
   return { dataset: {}, classes, classList: { toggle(name, on) { if (on) classes.add(name); else classes.delete(name); } }, getAttribute: (key) => attributes.get(key) ?? null, setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key), replaceChildren(value) { this.text = value; } };

@@ -5163,3 +5163,17 @@ Scoped reservations workspace: compact form, wider readable cards, explicit date
 
 ## 09.10.2026 — Employee header and order panel
 Approved first UX package: shared display-only employee name helper, full-name title and identity retained, management names unchanged, ambiguous free-form names retained. Shared helper served by exact static allowlist and Docker COPY. Removed duplicate table-context transfer menu; all six original More actions retained. Readable order row grid/44px quantity controls/financial explanation lines; scoped light-dark CSS and wider desktop order column. No API or schema/permission changes except public static asset declaration. Architect and code-health reviews PASS. Edge local hookah-master login, Roman POS/tasks parity, real transfer to table2, reopening/reload and total1500 preserved; production orders never used for mutations. Relevant header/shell/design/name/financial-summary and pending contracts PASS. Assets CSS412/portal479/app215.
+
+## 2026-10-09 — Дизайн плиток столов
+- Цель: крупное имя, ясные статусы, оборудование слева снизу, время справа снизу. Подробное задание: docs/design/TABLE_TILES_DESIGN_PROMPT.md.
+- Реализация: app.js (разметка оборудования, вместимость брони, полный заголовок, проверка вместимости геометрии), style.css (сетка, SVG-бейджи, пять состояний, выделение, тёмная/светлая темы), синхронизация опубликованных копий CSS413/app216.
+- Участники: design_lead/frontend — table_tiles_design; code_health_engineer — table_tiles_health; координатор — интеграция и визуальный просмотр.
+- Независимый обзор выявил специфичность цветов светлой темы; исправлено. node --check app.js и git diff --check завершились успешно. Автоматические тесты не запускались; перед публикацией требуется релизная приёмка.
+- В Edge просмотрен реальный локальный POS с временными данными memory API: свободные, бронь, занятые, TV/PS5, время 00:00→00:02. Снимки tmp/table-tiles-design-dark.jpg, tmp/table-tiles-design-equipment.jpg, tmp/table-tiles-design-light.jpg. Светлая тема включалась временно в локальном HTML, исходник восстановлен до sync. Отдельная проверка всех размеров/геометрий не выполнялась.
+- Данные сервера, API, роли, деньги, вычисление таймера не менялись. Изменения перенесены точным проверенным патчем из изолированной копии, прочие изменения рабочего дерева сохранены. GitHub/VPS в этом этапе не публиковались.
+
+## 2026-10-09 — Оставшиеся пакеты рабочего места
+Реализованы очередь часов/минут, задачи (серверный запрет отмены исполнителем + защищённое автообновление), операционный порядок гостей/защита истории и точные финансовые подписи. Подробно docs/qa/STAFF_REMAINING_PACKAGES_RESULT.md. Участники remaining_health, remaining_tasks_contract, remaining_portal; финальный review без блокеров. Синтаксис и diff check успешны, Edge локальные задачи/гость просмотрены; автоматическая и PostgreSQL приёмка не выполнялись. CSS414/portal480/app217. Изолированный diff перенесён проверенным патчем без посторонних изменений. Публикация не выполнялась.
+
+## 2026-10-09 — Приёмка общего рабочего релиза
+Пользователь разрешил GitHub/VPS. Code-health и SQL policy79 assertions PASS; Edge login/status-save/reload/owner controls/logout/narrow390 PASS. Детали и границы: docs/release/STAFF_REMAINING_RELEASE_2026_10_09.md. Три устаревшие тестовые обвязки обновлены, новый сценарий задач с безопасной PostgreSQL rollback очисткой включён. Публикация только после зелёного CI и backup restore gate.

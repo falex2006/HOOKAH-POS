@@ -270,7 +270,6 @@ async function refreshOrderPricingSummary(order,knownPayment=null){
   const note=noteFor();note.replaceChildren(...pieces.map((text)=>{const line=document.createElement('span');line.textContent=text;return line;}));
 }
 let queueFilter='all';
-function drawQueue(filter=queueFilter){queueFilter=filter;const chips=document.querySelectorAll('.chips button');if(chips.length<4)return;const all=openOrders.filter((order)=>order.status!=='closed'&&order.status!=='cancelled').length;const fresh=openOrders.filter((order)=>order.status==='open').length;const cooking=openOrders.filter((order)=>order.status==='in_progress').length;const ready=openOrders.filter((order)=>order.status==='ready').length;[all,fresh,cooking,ready].forEach((value,index)=>{const labels=['Все','Новый заказ','Готовится','Готово'];chips[index].textContent=`${labels[index]} ${value}`;chips[index].classList.toggle('active',chips[index].dataset.filter===queueFilter);chips[index].setAttribute('aria-pressed',String(chips[index].dataset.filter===queueFilter));});const list=document.querySelector('#queue-list');if(!list)return;const visible=openOrders.filter((order)=>{if(order.status==='closed'||order.status==='cancelled')return false;return queueFilter==='all'||order.status===queueFilter;});list.innerHTML=visible.length?visible.map((order)=>{const label=order.status==='ready'?'Готово':order.status==='in_progress'?'Готовится':'Новый заказ';const table=floorTableLabel(order.tableId);const total=(order.items||[]).reduce((sum,item)=>sum+Number(item.unitPrice??item.price??0)*Number(item.quantity||1),0);return `<button type="button" class="queue-card" data-queue-table="${escapeFloorText(order.tableId||'')}" data-queue-order="${escapeFloorText(order.id||'')}"><span><b>${escapeFloorText(table)}</b><small>${(order.items||[]).length} поз. · ${total.toLocaleString('ru-RU')} ₽${order.guestName?` · ${escapeFloorText(order.guestName)}`:''}</small></span><em>${label}</em></button>`;}).join(''):'<div class="queue-empty">В этом разделе пока нет заказов</div>';}
 
 // Elapsed seating time comes from the saved order, never from a page-local clock.
 function tableElapsedLabel(order, now=Date.now()) {
@@ -351,11 +350,21 @@ const updateFloorMapMode=()=>{
   if(window.innerWidth<=1100)return;
   const compact=[...stage.querySelectorAll('.table')].some((table)=>{
     const box=table.getBoundingClientRect();
-    if(box.width<110||box.height<64)return true;
-    if(table.classList.contains('is-rotated'))return false;
+    // The name, status and equipment/time row need a readable desktop target.
+    if(table.clientWidth<280||table.clientHeight<172)return true;
+    const rotation=Number.parseFloat(table.style.getPropertyValue('--table-rotation'))||0;
+    const radians=rotation*Math.PI/180,cos=Math.cos(radians),sin=Math.sin(radians);
+    const halfWidth=table.clientWidth/2-6,halfHeight=table.clientHeight/2-6;
+    const curved=table.classList.contains('shape-circle')||table.classList.contains('shape-oval');
     return[...table.children].some((child)=>{
       const label=child.getBoundingClientRect();
-      return label.top<box.top+3||label.bottom>box.bottom-3;
+      if(child.scrollWidth>child.clientWidth+1)return true;
+      // Compare upright text corners in the rotated table's own coordinate space.
+      return[[label.left,label.top],[label.right,label.top],[label.left,label.bottom],[label.right,label.bottom]].some(([x,y])=>{
+        const dx=x-(box.left+box.width/2),dy=y-(box.top+box.height/2);
+        const localX=dx*cos+dy*sin,localY=-dx*sin+dy*cos;
+        return curved?(localX/halfWidth)**2+(localY/halfHeight)**2>1:Math.abs(localX)>halfWidth||Math.abs(localY)>halfHeight;
+      });
     });
   });
   tables.classList.toggle('compact-map',compact);
@@ -385,12 +394,14 @@ const renderZone=(zone)=>{
     const capacityText=hasCapacity?(minCapacity===maxCapacity?`${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`:`${minCapacity}–${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`):'Вместимость не указана';
     const place=placements[index];
     const style=`--floor-left:${(place.x-sceneLeft)/sceneWidth*100}%;--floor-top:${(place.y-sceneTop)/sceneHeight*100}%;--floor-width:${place.width/sceneWidth*100}%;--floor-height:${place.height/sceneHeight*100}%;--table-rotation:${place.rotation}deg;--table-counter-rotation:${-place.rotation}deg`;
-    const safeTableName=escapeFloorText(String(t.name||'Стол').replace(/^Стол /,''));
-    const safeLabel=escapeFloorText(label);
+    const safeTableName=escapeFloorText(String(t.name||'Стол'));
+    const safeLabel=escapeFloorText(t.status==='reserved'?'Бронь':label);
     const ariaLabel=escapeFloorText(`${t.name||'Стол'}: ${label}`);
-    const smallText=t.status==='reserved'&&t.reservation?.createdByRole?`Оформил: ${t.reservation.createdByRole}`:capacityText;
+    const smallText=capacityText;
     const amenities=t.layout?.amenities||{};
-    const amenityMarkup=(amenities.playstation5||amenities.television)?`<span class="table-amenities" aria-label="Оснащение стола">${amenities.playstation5?'<b class="table-amenity table-amenity--playstation">PS5</b>':''}${amenities.television?'<b class="table-amenity table-amenity--tv">TV</b>':''}</span>`:'';
+    const controllerIcon='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7h8c2 0 3 1.4 3.5 3.5l1 5c.5 2.4-1.7 3.5-3.2 1.8L15 15H9l-2.3 2.3C5.2 19 3 17.9 3.5 15.5l1-5C5 8.4 6 7 8 7Z"/><path d="M8 9.5v5M5.5 12h5M16 10.5h.01M18 13h.01"/></svg>';
+    const televisionIcon='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M9 21h6M12 17v4"/></svg>';
+    const amenityMarkup=(amenities.playstation5||amenities.television)?`<span class="table-amenities" aria-label="Оснащение стола">${amenities.playstation5?`<b class="table-amenity table-amenity--playstation" title="PlayStation 5">${controllerIcon}<span>PS5</span></b>`:''}${amenities.television?`<b class="table-amenity table-amenity--tv" title="Телевизор">${televisionIcon}<span>ТВ</span></b>`:''}</span>`:'';
     const blockedAttributes=t.status==='blocked'?'aria-disabled="true" data-blocked="true"':'';
     return `<button type="button" class="table shape-${place.shape} ${place.rotation%180?'is-rotated':''} ${t.status==='occupied'?'busy':t.status==='reserved'?'reserve':t.status==='awaiting_payment'?'awaiting':t.status==='blocked'?'blocked':'free'} ${String(currentOrder?.tableId||'')===String(t.id)?'sel':''}" style="${style}" data-table="${escapeFloorText(t.id)}" data-status="${escapeFloorText(t.status||'free')}" data-layout-x="${place.x}" data-layout-y="${place.y}" data-layout-width="${place.width}" data-layout-height="${place.height}" aria-label="${ariaLabel}" title="${ariaLabel}" ${blockedAttributes}><strong>${safeTableName}</strong><em>${safeLabel}</em><small>${escapeFloorText(smallText)}</small>${amenityMarkup}</button>`;
   }).join('')+'</div>';
@@ -693,8 +704,24 @@ document.querySelector('#discount-request')?.addEventListener('click',async()=>{
 const setStaffWorkspaceView=(view,{updateUrl=true}={})=>{const root=document.querySelector('.staff-theme');if(!root)return;const next=view==='orders'?'orders':'floor';root.classList.toggle('staff-orders-view',next==='orders');root.dataset.staffView=next;document.querySelector('.staff-header-title b')?.replaceChildren(document.createTextNode(next==='orders'?'Заказы':'Рабочий зал'));document.querySelectorAll('aside nav button').forEach((button)=>{const label=button.getAttribute('aria-label');const active=label===(next==='orders'?'Заказы':'Рабочий зал');button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});if(updateUrl){const url=new URL(location.href);if(next==='orders')url.searchParams.set('view','orders');else url.searchParams.delete('view');history.replaceState(null,'',url.pathname+url.search+url.hash);}};
 setStaffWorkspaceView(new URLSearchParams(location.search).get('view'),{updateUrl:false});
 window.addEventListener('popstate',()=>setStaffWorkspaceView(new URLSearchParams(location.search).get('view'),{updateUrl:false}));
+// Queue ages share the persisted opening clock with table tiles.
+function queueElapsedLabel(order){
+  const elapsed=tableElapsedLabel(order);
+  if(elapsed==='—:—')return 'Время неизвестно';
+  const [hours,minutes]=elapsed.split(':').map(Number);
+  return hours?`${hours} ч ${String(minutes).padStart(2,'0')} мин`:`${minutes} мин`;
+}
+function updateQueueElapsedTimes(){
+  if(!floorReady||(!staticStaffDemo()&&!staffCanWork()))return;
+  document.querySelectorAll('[data-queue-age]').forEach((node)=>{
+    const order=openOrders.find((entry)=>String(entry.id)===node.dataset.queueAge);
+    if(order)node.textContent=queueElapsedLabel(order);
+  });
+}
+window.setInterval(()=>{if(document.visibilityState==='visible')updateQueueElapsedTimes();},30000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateQueueElapsedTimes();});
 // Orders view uses concise operational cards so the hookah master can scan table, guest and wait time at a glance.
-function drawQueue(filter=queueFilter){queueFilter=filter;const chips=document.querySelectorAll('.chips button');if(chips.length<4)return;const counts=['all','open','in_progress','ready'].map((status)=>status==='all'?openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)).length:openOrders.filter((order)=>order.status===status).length);const labels=['Все','Новый заказ','Готовится','Готово'];counts.forEach((value,index)=>{chips[index].textContent=`${labels[index]} ${value}`;chips[index].classList.toggle('active',chips[index].dataset.filter===queueFilter);chips[index].setAttribute('aria-pressed',String(chips[index].dataset.filter===queueFilter));});const list=document.querySelector('#queue-list');if(!list)return;const visible=openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)&&(queueFilter==='all'||order.status===queueFilter));const age=(order)=>{const raw=order.createdAt||order.openedAt||order.updatedAt;const time=raw?Date.now()-new Date(raw).getTime():0;return Number.isFinite(time)&&time>0?`${Math.floor(time/60000)} мин`:'';};list.innerHTML=visible.length?visible.map((order)=>{const label=order.status==='ready'?'Готово':order.status==='in_progress'?'Готовится':'Новый заказ';const table=floorTableLabel(order.tableId);const total=(order.items||[]).reduce((sum,item)=>sum+Number(item.unitPrice??item.price??0)*Number(item.quantity||1),0);const items=(order.items||[]).slice(0,3).map((item)=>`${escapeFloorText(item.name||item.title||'Позиция')} × ${Number(item.quantity||1)}`).join(', ');const note=order.note||order.notes||order.guestNote||'';return `<button type="button" class="queue-card" data-queue-table="${escapeFloorText(order.tableId||'')}" data-queue-order="${escapeFloorText(order.id||'')}"><span><b>${escapeFloorText(table)}${order.guestName?` · ${escapeFloorText(order.guestName)}`:''}</b><small>${age(order)?`${age(order)} · `:''}${items||`${(order.items||[]).length} поз.`} · ${total.toLocaleString('ru-RU')} ₽${note?` · ${escapeFloorText(note)}`:''}</small></span><em>${label}</em></button>`;}).join(''):'<div class="queue-empty">В этом разделе пока нет заказов</div>';}
+function drawQueue(filter=queueFilter){queueFilter=filter;const chips=document.querySelectorAll('.chips button');if(chips.length<4)return;const counts=['all','open','in_progress','ready'].map((status)=>status==='all'?openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)).length:openOrders.filter((order)=>order.status===status).length);const labels=['Все','Новый заказ','Готовится','Готово'];counts.forEach((value,index)=>{chips[index].textContent=`${labels[index]} ${value}`;chips[index].classList.toggle('active',chips[index].dataset.filter===queueFilter);chips[index].setAttribute('aria-pressed',String(chips[index].dataset.filter===queueFilter));});const list=document.querySelector('#queue-list');if(!list)return;const visible=openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)&&(queueFilter==='all'||order.status===queueFilter));list.innerHTML=visible.length?visible.map((order)=>{const label=order.status==='ready'?'Готово':order.status==='in_progress'?'Готовится':'Новый заказ';const table=floorTableLabel(order.tableId);const total=(order.items||[]).reduce((sum,item)=>sum+Number(item.unitPrice??item.price??0)*Number(item.quantity||1),0);const items=(order.items||[]).slice(0,3).map((item)=>`${escapeFloorText(item.name||item.title||'Позиция')} × ${Number(item.quantity||1)}`).join(', ');const note=order.note||order.notes||order.guestNote||'';return `<button type="button" class="queue-card" data-queue-table="${escapeFloorText(order.tableId||'')}" data-queue-order="${escapeFloorText(order.id||'')}"><span><b>${escapeFloorText(table)}${order.guestName?` · ${escapeFloorText(order.guestName)}`:''}</b><small><span data-queue-age="${escapeFloorText(order.id)}">${queueElapsedLabel(order)}</span> · ${items||`${(order.items||[]).length} поз.`} · ${total.toLocaleString('ru-RU')} ₽${note?` · ${escapeFloorText(note)}`:''}</small></span><em>${label}</em></button>`;}).join(''):'<div class="queue-empty">В этом разделе пока нет заказов</div>';}
 document.querySelectorAll('aside nav button').forEach((button)=>button.addEventListener('click',()=>{
   const label=(button.dataset.staffRoute||button.getAttribute('aria-label')||button.textContent||'').trim();
   if(label.includes('Бронирования')&&!hasStaffPermission('reservations',staffSessionPermissions)){notice('Бронирования недоступны для вашей роли');return;}
