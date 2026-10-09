@@ -35,3 +35,7 @@ docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < migration
 Повторный запуск безопасен: DDL IF NOT EXISTS и backfill ON CONFLICT DO NOTHING. Переносится только активная история: точные legacy station bar/hookah распознаются, прочие становятся null; order ready→execution ready, in_progress→queued, open→new. Историческое время передачи не выдумывается. Закрытая старая история не заполняется; новые оплаченные работы сохраняются до исполнения.
 
 Порядок выпуска: backup и проверка миграции в изолированной БД, затем099, совместимый API и UI. Старый код может не читать новые поля, но откат приложения требует отдельно учитывать уже созданные работы и ограничить несовместимые изменения. Разрушительный rollback с DROP таблицы/колонки не предусмотрен: он удалил бы факты исполнения. При проблеме сохранять данные, останавливать затронутый функционал и выпускать совместимую исправляющую миграцию. Само наличие документа не означает production-развёртывание.
+
+## Migration 100 — table minimum schedule
+
+`migrations/100_table_minimum_schedule.sql` adds nullable `minimum_order_start_time` and `minimum_order_end_time` to `tables`. Both must be set together and cannot be equal. Null values preserve the existing always-on minimum behavior. The release workflow must apply migration 100 before the updated API starts.

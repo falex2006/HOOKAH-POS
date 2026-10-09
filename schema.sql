@@ -115,9 +115,13 @@ CREATE TABLE tables (
   status table_status NOT NULL DEFAULT 'free',
   min_deposit numeric(12,2) NOT NULL DEFAULT 0,
   min_order_total numeric(12,2) NOT NULL DEFAULT 0,
+  minimum_order_start_time time,
+  minimum_order_end_time time,
   layout jsonb NOT NULL DEFAULT '{}'::jsonb,
   archived_at timestamptz,
-  archive_version bigint NOT NULL DEFAULT 0
+  archive_version bigint NOT NULL DEFAULT 0,
+  CHECK ((minimum_order_start_time IS NULL) = (minimum_order_end_time IS NULL)),
+  CHECK (minimum_order_start_time IS NULL OR minimum_order_start_time <> minimum_order_end_time)
 );
 CREATE INDEX IF NOT EXISTS tables_active_zone_idx ON tables (zone_id) WHERE archived_at IS NULL;
 
