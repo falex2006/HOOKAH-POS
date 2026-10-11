@@ -5251,3 +5251,6 @@ API, права, маршруты и БД не менялись. Проверк�
 ## 2026-10-11 — MT-03: общие компоненты управленческой темы
 
 Локально реализованы scoped management-theme.css/js с фирменной палитрой, общими контролами, панелями/таблицами/окнами и gate по verified session. Подключены shared UI, legacy action и обе реализации notification tray. Сохранены области исключения сотрудника/зала/столов/персонала/profile/lock. Актуальный origin/main принят до интеграции. Code health source/diff PASS; syntax, source/dist parity и сфокусированный owner desktop browser PASS в локальном in-memory окружении без клиентской БД. Результаты и явные ограничения — docs/design/management-theme/MT03_RESULT.md. Native directory editor и notice callers требуют привязки на MT-04. GitHub/production выпуск — MT-05; сервер и база заведения на этом этапе не менялись.
+## 2026-10-11 — MT-04: управленческие страницы
+
+Локально применены scoped consumers к управленческим страницам, exact roots native editors, async tickets и 51 notice binder. Найден и исправлен disconnected receipt opener после toolbar remount. Source/diff и route review без блокеров; syntax/parity и focused owner desktop browser выполнены. Пределы окружения и payroll API явно записаны в docs/design/management-theme/MT04_RESULT.md. Персонал/зал исключены. GitHub/сервер/клиентская база не менялись; далее MT-05.

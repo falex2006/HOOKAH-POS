@@ -6,8 +6,8 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '2026101106';
-const portalRevision = '2026101107';
-const portalSessionRevision = '2026101107';
+const portalRevision = '2026101108';
+const portalSessionRevision = '2026101108';
 const lockRevision = '2026101103';
 const appRevision = '2026101106';
 const platformRevision = '2026101102';
