@@ -55,6 +55,18 @@ function isSaasSharedCssRevisionOnly(path, before, after) {
   return before.replace(url, '/style.css?rev=<revision>') === after.replace(url, '/style.css?rev=<revision>');
 }
 
+function isSharedBrandHeadOnly(path, before, after) {
+  if (!path.endsWith('.html') || before === after) return false;
+  before = before.replace(/\r\n/g, '\n');
+  after = after.replace(/\r\n/g, '\n');
+  const block = /<!-- Hookah POS brand icons -->[\s\S]*?<!-- \/Hookah POS brand icons -->/g;
+  const beforeBlocks = before.match(block) || [];
+  const afterBlocks = after.match(block) || [];
+  if (beforeBlocks.length !== 1 || afterBlocks.length !== 1) return false;
+  return before.replace(block, '<!-- Hookah POS shared brand head -->')
+    === after.replace(block, '<!-- Hookah POS shared brand head -->');
+}
+
 function selfTest() {
   assert.equal(classify('scripts/saas-pos-boundary-contract.mjs'), 'shared');
   assert.equal(isSaasSharedCssRevisionOnly('platform.html', '<link href="/style.css?rev=403">\n', '<link href="/style.css?rev=405">\r\n'), true);
@@ -69,6 +81,16 @@ function selfTest() {
   assert.equal(isSaasSharedCssRevisionOnly('dist/platform/other.html', oldCss, newCss), false);
   assert.equal(isSaasSharedCssRevisionOnly('platform.js', oldCss, newCss), false);
   assert.equal(isSaasSharedCssRevisionOnly('platform.html', oldCss + '<script src="/platform.js?rev=8"></script>', newCss + '<script src="/platform.js?rev=9"></script>'), false);
+  const oldBrand = '<head><!-- Hookah POS brand icons -->\n<link rel="icon" href="old.png">\n<!-- /Hookah POS brand icons --></head>';
+  const newBrand = '<head><!-- Hookah POS brand icons -->\r\n<link rel="icon" href="new.png">\r\n<!-- /Hookah POS brand icons --></head>';
+  assert.equal(isSharedBrandHeadOnly('platform.html', oldBrand, newBrand), true,
+    'the shared brand head may be synchronized across SaaS and POS pages');
+  assert.equal(isSharedBrandHeadOnly('orders.html', oldBrand, newBrand), true);
+  assert.equal(isSharedBrandHeadOnly('platform.js', oldBrand, newBrand), false);
+  assert.equal(isSharedBrandHeadOnly('platform.html', oldBrand, newBrand.replace('</head>', '<main></main></head>')), false,
+    'markup outside the shared brand block remains owned by its page');
+  assert.equal(isSharedBrandHeadOnly('platform.html', oldBrand, newBrand + newBrand), false,
+    'duplicated brand blocks are not treated as a shared-only change');
   for (const file of sharedExamples) assert.equal(classify(file), 'shared', `${file} must remain explicitly shared`);
   assert.equal(classify('platform.html'), 'saas');
   assert.equal(classify('dist/platform/index.html'), 'saas');
@@ -126,13 +148,17 @@ const readAtRevision = (revision, path) => workingTree && revision === 'WORKTREE
 const cacheOnlyPosPaths = posPaths.filter((path) => {
   const before = readAtRevision(base, path);
   const after = readAtRevision(head, path);
-  return before.status === 0 && after.status === 0 && isPortalCacheRevisionOnly(before.stdout, after.stdout);
+  return before.status === 0 && after.status === 0
+    && (isPortalCacheRevisionOnly(before.stdout, after.stdout)
+      || isSharedBrandHeadOnly(path, before.stdout, after.stdout));
 });
 const behaviorPosPaths = posPaths.filter((path) => !cacheOnlyPosPaths.includes(path));
 const cacheOnlySaasPaths = saasPaths.filter((path) => {
   const before = readAtRevision(base, path);
   const after = readAtRevision(head, path);
-  return before.status === 0 && after.status === 0 && isSaasSharedCssRevisionOnly(path, before.stdout, after.stdout);
+  return before.status === 0 && after.status === 0
+    && (isSaasSharedCssRevisionOnly(path, before.stdout, after.stdout)
+      || isSharedBrandHeadOnly(path, before.stdout, after.stdout));
 });
 const behaviorSaasPaths = saasPaths.filter((path) => !cacheOnlySaasPaths.includes(path));
 
