@@ -176,7 +176,7 @@ const localOrderDue=(order,items=order.items)=>localOrderPricing(order,items).du
 const localAssertPaidCovered=(order,items=order.items)=>{const paid=localReceivedPayments(order),due=localOrderDue(order,items);if(localMoneyCents(paid)>localMoneyCents(due)){const error=new Error('order_total_below_paid');error.payload={error:'order_total_below_paid',paid,proposedDue:due};throw error;}};
 const staticAuditEvent=(action,entityId,details={})=>{if(!staticStaffDemo())return;let events=[];try{events=JSON.parse(localStorage.getItem('territory_crm_demo_audits')||'[]');}catch(_){events=[];}const user=JSON.parse(localStorage.getItem('crm_session_user')||'{}');events.push({id:`local-audit-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,action,entity:'order',entityType:'order',entityId,actor:user.name||'сотрудник',createdAt:new Date().toISOString(),details});localStorage.setItem('territory_crm_demo_audits',JSON.stringify(events.slice(-300)));};
 const localOrderStatusTransitions={open:['open','in_progress','cancelled'],in_progress:['in_progress','ready','open','cancelled'],ready:['ready','closed','in_progress','cancelled'],closed:['closed'],cancelled:['cancelled']};
-const staticOrderApi=async(url,options={})=>{const path=new URL(url,location.origin).pathname;const method=options.method||'GET';const input=options.body?JSON.parse(options.body):{};let list=localOrders();const orderEdit=path.match(/^\/api\/orders\/([^/]+)$/);if(orderEdit&&method==='PATCH'){const order=list.find(x=>x.id===orderEdit[1]);if(!order)throw new Error('HTTP 404');if(input.notes!==undefined)order.notes=String(input.notes||'').slice(0,2000);if(input.clientId===null||input.detachGuest===true){order.clientId=null;order.guestName='';order.guestPhone='';}else if(input.clientId!==undefined&&String(input.clientId).trim()){const clients=localStaffClients();const client=clients.find(x=>x.id===String(input.clientId));if(!client)throw new Error('client_not_found');order.clientId=client.id;order.guestName=client.name;order.guestPhone=(client.phoneNumbers||[]).find(x=>x.primary)?.number||(client.phoneNumbers||[])[0]?.number||'';}else if(input.guestName!==undefined||input.phone!==undefined){const phone=String(input.phone||'').trim();if(phone&&!/^\+7[0-9 ()-]{7,24}$/.test(phone))throw new Error('invalid_guest_phone');order.clientId=null;order.guestName=String(input.guestName||'').trim().slice(0,120);order.guestPhone=phone;}saveLocalOrders(list);return {...order,guestName:order.guestName,phone:order.guestPhone};}if(path==='/api/orders'&&method==='GET')return{items:list};if(path==='/api/orders'&&method==='POST'){const minimumOrderTotal=Number(input.minimumOrderTotal||0);const tableId=normalizeTableId(input.tableId);if(!tableId||tableId.length>80)throw new Error('table_id_required');if(!Number.isFinite(minimumOrderTotal)||minimumOrderTotal<0)throw new Error('invalid_vip_minimum');const duplicate=list.find((candidate)=>normalizeTableId(candidate.tableId)===tableId&&!['closed','cancelled'].includes(candidate.status));if(duplicate)throw new Error('table_has_active_order');const order={id:`local-order-${Date.now()}`,tableId,minimumOrderTotal,status:'open',items:[]};list.push(order);staticAuditEvent('order.created',order.id,{tableId:order.tableId,minimumOrderTotal:order.minimumOrderTotal});saveLocalOrders(list);return order;}if(orderEdit&&method==='DELETE'){
+const staticOrderApi=async(url,options={})=>{const path=new URL(url,location.origin).pathname;const method=options.method||'GET';const input=options.body?JSON.parse(options.body):{};let list=localOrders();const orderEdit=path.match(/^\/api\/orders\/([^/]+)$/);if(orderEdit&&method==='PATCH'){const order=list.find(x=>x.id===orderEdit[1]);if(!order)throw new Error('HTTP 404');if(input.notes!==undefined)order.notes=String(input.notes||'').slice(0,2000);if(input.clientId===null||input.detachGuest===true){order.clientId=null;order.guestName='';order.guestPhone='';}else if(input.clientId!==undefined&&String(input.clientId).trim()){const clients=localStaffClients();const client=clients.find(x=>x.id===String(input.clientId));if(!client)throw new Error('client_not_found');order.clientId=client.id;order.guestName=client.name;order.guestPhone=(client.phoneNumbers||[]).find(x=>x.primary)?.number||(client.phoneNumbers||[])[0]?.number||'';}else if(input.guestName!==undefined||input.phone!==undefined){const phone=String(input.phone||'').trim();if(phone&&!/^\+7[0-9 ()-]{7,24}$/.test(phone))throw new Error('invalid_guest_phone');order.clientId=null;order.guestName=String(input.guestName||'').trim().slice(0,120);order.guestPhone=phone;}saveLocalOrders(list);return {...order,guestName:order.guestName,phone:order.guestPhone};}if(path==='/api/orders'&&method==='GET')return{items:new URL(url,location.origin).searchParams.get('withPricing')==='1'?list.map(order=>({...order,pricingTotal:localOrderPricing(order).due})):list};if(path==='/api/orders'&&method==='POST'){const minimumOrderTotal=Number(input.minimumOrderTotal||0);const tableId=normalizeTableId(input.tableId);if(!tableId||tableId.length>80)throw new Error('table_id_required');if(!Number.isFinite(minimumOrderTotal)||minimumOrderTotal<0)throw new Error('invalid_vip_minimum');const duplicate=list.find((candidate)=>normalizeTableId(candidate.tableId)===tableId&&!['closed','cancelled'].includes(candidate.status));if(duplicate)throw new Error('table_has_active_order');const order={id:`local-order-${Date.now()}`,tableId,minimumOrderTotal,status:'open',items:[]};list.push(order);staticAuditEvent('order.created',order.id,{tableId:order.tableId,minimumOrderTotal:order.minimumOrderTotal});saveLocalOrders(list);return order;}if(orderEdit&&method==='DELETE'){
 const order=list.find(x=>x.id===orderEdit[1]);
 const comment=String(input.comment||'').trim();
 if(!order)throw new Error('HTTP 404');
@@ -304,6 +304,7 @@ async function refreshOrderPricingSummary(order,knownPayment=null){
   const total=payment&&hasAmount(payment.due)?Number(payment.due):pricing&&hasAmount(pricing.due)?Number(pricing.due):null;
   const totalNode=document.querySelector('#order-total');
   if(totalNode)totalNode.textContent=total===null?'—':`${total.toLocaleString('ru-RU')} ₽`;
+  const listedOrder=openOrders.find(entry=>entry.id===id);if(listedOrder){listedOrder.pricingTotal=total;updateTableElapsedTimes();}
   const pieces=[];
   if(pricing&&Number(pricing.discount||0)>0)pieces.push(pricing.source==='guest_group'?`Группа «${pricing.groupDiscountName||'лояльности'}» ${Number(pricing.groupDiscountPercent||0)}%: −${Number(pricing.discount).toLocaleString('ru-RU')} ₽`:`Одобренная скидка: −${Number(pricing.discount).toLocaleString('ru-RU')} ₽`);
   if(pricing&&Number(pricing.minimumAdjustment||0)>0)pieces.push(`доплата до минимума VIP ${Number(pricing.minimumAdjustment).toLocaleString('ru-RU')} ₽`);
@@ -323,21 +324,32 @@ function tableElapsedLabel(order, now=Date.now()) {
   const minutes=Math.floor(Math.max(0,now-started)/60000);
   return String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
 }
+function tableOrderTotalLabel(orders){
+  const active=orders.filter(order=>['open','in_progress','ready','awaiting_payment'].includes(order.status));
+  if(!active.length)return '';
+  if(active.some(order=>order.pricingTotal===null||order.pricingTotal===undefined||!Number.isFinite(Number(order.pricingTotal))||Number(order.pricingTotal)<0))return 'Заказ —';
+  const total=active.reduce((sum,order)=>sum+Math.round(Number(order.pricingTotal)*100),0)/100;
+  return `Заказ ${total.toLocaleString('ru-RU')} ₽`;
+}
 function updateTableElapsedTimes(){
   if(!floorReady||(!staticStaffDemo()&&!staffCanWork()))return;
   const now=Date.now();
   tables.querySelectorAll('.table').forEach((node)=>{
     const occupied=['occupied','awaiting_payment'].includes(node.dataset.status);
     let timer=node.querySelector('.table-elapsed');
-    if(!occupied){timer?.remove();if(node.dataset.elapsedBaseLabel){node.setAttribute('aria-label',node.dataset.elapsedBaseLabel);delete node.dataset.elapsedBaseLabel;}return;}
+    if(!occupied){timer?.remove();node.querySelector('.table-order-total')?.remove();delete node.dataset.orderTotalLabel;if(node.dataset.tableBaseLabel){node.setAttribute('aria-label',node.dataset.tableBaseLabel);delete node.dataset.elapsedBaseLabel;}return;}
     const matches=openOrders.filter(order=>!['closed','cancelled'].includes(order.status)&&normalizeTableId(order.tableId)===normalizeTableId(node.dataset.table));
     const valid=matches.filter(order=>Number.isFinite(new Date(order.openedAt||order.createdAt||NaN).getTime()));
     const order=valid.sort((a,b)=>new Date(a.openedAt||a.createdAt)-new Date(b.openedAt||b.createdAt))[0];
+    const totalLabel=tableOrderTotalLabel(matches);
+    let total=node.querySelector('.table-order-total');
+    if(totalLabel){if(!total){total=document.createElement('span');total.className='table-order-total';node.append(total);}total.textContent=totalLabel.replace(/^Заказ /,'');total.title=totalLabel==='Заказ —'?'Итог заказа недоступен. Обновите список заказов.':'Итог заказа с учётом скидок и минимального чека. Включает уже оплаченную часть.';total.setAttribute?.('aria-hidden','true');node.dataset.orderTotalLabel=totalLabel;}
+    else{total?.remove();delete node.dataset.orderTotalLabel;}
     if(!timer){timer=document.createElement('span');timer.className='table-elapsed';node.append(timer);}
     timer.textContent=tableElapsedLabel(order,now);
-    const baseLabel=node.dataset.elapsedBaseLabel||node.getAttribute('aria-label')||'';
+    const baseLabel=node.dataset.tableBaseLabel||node.dataset.elapsedBaseLabel||node.getAttribute('aria-label')||'';
     node.dataset.elapsedBaseLabel=baseLabel;
-    node.setAttribute('aria-label',baseLabel+' · '+(order?'Время за столом '+timer.textContent.replace(':',' часов ')+' минут':'Время за столом неизвестно'));
+    node.setAttribute('aria-label',baseLabel+(totalLabel?' · '+totalLabel:'')+' · '+(order?'Время за столом '+timer.textContent.replace(':',' часов ')+' минут':'Время за столом неизвестно'));
     timer.title=order?'Время за столом · часы:минуты · от открытия заказа':'Время за столом неизвестно';
   });
 }
@@ -352,7 +364,7 @@ function loadOrders(){
   const requestedOrderId=new URLSearchParams(location.search).get('order');
   ordersReadState='loading';drawQueue();
   const unavailable=(message)=>{drawOrder({items:[]});const title=document.querySelector('.order h2');if(title)title.textContent=message;const meta=document.querySelector('.meta');if(meta)meta.textContent='Вернитесь в журнал заказов или обновите страницу, чтобы повторить загрузку.';notice(message);};
-  return apiJson(requestedOrderId?'/api/orders?scope=all':'/api/orders').then(payload=>{
+  return apiJson(requestedOrderId?'/api/orders?scope=all&withPricing=1':'/api/orders?withPricing=1').then(payload=>{
     if(requestRevision!==ordersRequestRevision||!floorReady||floorVenueId!==requestedVenueId)return;
     const availableOrders=payload.items||[];
     ordersReadState='ready';
@@ -500,7 +512,7 @@ const renderZone=(zone)=>{
     const televisionIcon='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M9 21h6M12 17v4"/></svg>';
     const amenityMarkup=(amenities.playstation5||amenities.television)?`<span class="table-amenities" aria-label="Оснащение стола">${amenities.playstation5?`<b class="table-amenity table-amenity--playstation" title="PlayStation 5">${controllerIcon}<span>PS5</span></b>`:''}${amenities.television?`<b class="table-amenity table-amenity--tv" title="Телевизор">${televisionIcon}<span>ТВ</span></b>`:''}</span>`:'';
     const blockedAttributes=t.status==='blocked'?'aria-disabled="true" data-blocked="true"':'';
-    return `<button type="button" class="table shape-${place.shape} ${place.rotation%180?'is-rotated':''} ${t.status==='occupied'?'busy':t.status==='reserved'?'reserve':t.status==='awaiting_payment'?'awaiting':t.status==='blocked'?'blocked':'free'} ${String(currentOrder?.tableId||'')===String(t.id)?'sel':''}" style="${style}" data-table="${escapeFloorText(t.id)}" data-status="${escapeFloorText(t.status||'free')}" data-layout-x="${place.x}" data-layout-y="${place.y}" data-layout-width="${place.width}" data-layout-height="${place.height}" aria-label="${ariaLabel}" title="${ariaLabel}" ${blockedAttributes}><strong>${safeTableName}</strong><em>${safeLabel}</em><small>${escapeFloorText(smallText)}</small>${amenityMarkup}</button>`;
+    return `<button type="button" class="table shape-${place.shape} ${place.rotation%180?'is-rotated':''} ${t.status==='occupied'?'busy':t.status==='reserved'?'reserve':t.status==='awaiting_payment'?'awaiting':t.status==='blocked'?'blocked':'free'} ${String(currentOrder?.tableId||'')===String(t.id)?'sel':''}" style="${style}" data-table="${escapeFloorText(t.id)}" data-status="${escapeFloorText(t.status||'free')}" data-table-base-label="${ariaLabel}" data-layout-x="${place.x}" data-layout-y="${place.y}" data-layout-width="${place.width}" data-layout-height="${place.height}" aria-label="${ariaLabel}" title="${ariaLabel}" ${blockedAttributes}><strong>${safeTableName}</strong><em>${safeLabel}</em><small>${escapeFloorText(smallText)}</small>${amenityMarkup}</button>`;
   }).join('')+'</div>';
   updateTableElapsedTimes();
   updateFloorMapMode();
@@ -1073,7 +1085,7 @@ async function dispatchPreparation(station,button){
     const result=await apiJson(`/api/orders/${encodeURIComponent(order.id)}/dispatch`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({station,itemIds,expectedVenueId:venue})});
     if(revision!==staffAccessRevision)return;
     Object.assign(order,{status:result.status,items:result.items});
-    if(currentOrder?.id===order.id)drawOrder(order);drawQueue();notice('Позиции отправлены: '+preparationLabel(station));preparationRevision++;preparationRequest=null;await loadPreparationQueue();
+    if(currentOrder?.id===order.id)drawOrder(order);drawQueue();notice(`Передано на ${preparationLabel(station).toLocaleLowerCase('ru-RU')} · ${itemIds.length} ${pluralRu(itemIds.length,'позиция','позиции','позиций')}. Исполнитель увидит их в очереди.`);preparationRevision++;preparationRequest=null;await loadPreparationQueue();
   }catch(error){if(revision===staffAccessRevision){notice(preparationError(error));await loadOrders();await loadPreparationQueue();}}
   finally{preparationPending.delete(key);button.disabled=false;}
 }
@@ -1103,7 +1115,7 @@ document.querySelector('#preparation-list')?.addEventListener('click',async even
   const access=staffAccessRevision,venue=floorVenueId;preparationPending.add(item.id);button.disabled=true;
   try{
     await apiJson(`/api/orders/${encodeURIComponent(item.orderId)}/items/${encodeURIComponent(item.id)}/preparation`,{method:'PATCH',headers:orderHeaders(),body:JSON.stringify({status:item.preparationStatus==='queued'?'in_progress':'ready',expectedStatus:item.preparationStatus,expectedVenueId:venue})});
-    if(access===staffAccessRevision){notice(item.preparationStatus==='queued'?'Работа принята':'Позиция готова');preparationRevision++;preparationRequest=null;await loadPreparationQueue();await loadOrders();}
+    if(access===staffAccessRevision){notice(item.preparationStatus==='queued'?`Заказ принят в работу · ${item.tableName||floorTableLabel(item.tableId)} · ${item.name}`:`Готово · ${item.tableName||floorTableLabel(item.tableId)} · ${item.name}`);preparationRevision++;preparationRequest=null;await loadPreparationQueue();await loadOrders();}
   }catch(error){if(access===staffAccessRevision){notice(preparationError(error));await loadPreparationQueue();}}
   finally{preparationPending.delete(item.id);if(access===staffAccessRevision)drawPreparationQueue();}
 });

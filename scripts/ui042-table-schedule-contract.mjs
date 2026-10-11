@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {createRequire} from 'node:module';
-const source=readFileSync(new URL('../portal.js', import.meta.url),'utf8');const section=source.slice(source.indexOf('key: `table:${table.id}`'),source.indexOf("} else if (",source.indexOf('key: `table:${table.id}`'))>0?source.indexOf("} else if (",source.indexOf('key: `table:${table.id}`')):source.indexOf('function disposeStaffDrawer'));
+const source=readFileSync(new URL('../portal.js', import.meta.url),'utf8').replace(/\r\n/g,'\n');const section=source.slice(source.indexOf('key: `table:${table.id}`'),source.indexOf("} else if (",source.indexOf('key: `table:${table.id}`'))>0?source.indexOf("} else if (",source.indexOf('key: `table:${table.id}`')):source.indexOf('function disposeStaffDrawer'));
 for(const field of ['minimumOrderStartTime','minimumOrderEndTime'])assert.match(section,new RegExp("name: '"+field+"'[^}]+required: false"));
 const begin=section.indexOf('onSubmit: ')+10,end=section.indexOf(',\n        errorMessage:',begin);assert.ok(begin>10&&end>begin);
 let captured;const submit=new Function('api','actionVenueId','table','return ('+section.slice(begin,end)+');')((path,options)=>{captured={path,body:JSON.parse(options.body)};return Promise.resolve({});},'venue',{id:'table'});
@@ -8,3 +8,14 @@ assert.equal(captured.body.minimumOrderStartTime,null);assert.equal(captured.bod
 const require=createRequire(import.meta.url);const {normalizeTableMinimumSchedule}=require('../table-minimum-schedule');
 assert.equal(normalizeTableMinimumSchedule('18:00',''),null);assert.equal(normalizeTableMinimumSchedule('18:00','18:00'),null);assert.ok(normalizeTableMinimumSchedule('18:00','09:00'));
 console.log('TABLE OPTIONAL SCHEDULE: PASS (optional blank controls, unchanged null/null payload and invalid partial/equal schedule server normalizer)');
+
+const validateStart=section.indexOf('validate: ')+10,validateEnd=section.indexOf(',\n        onSubmit:',validateStart);
+assert.ok(validateStart>10 && validateEnd>validateStart);
+const validate=new Function('return ('+section.slice(validateStart,validateEnd)+');')();
+const valid={name:'Table',minCapacity:'2',maxCapacity:'4',minimumOrderTotal:'1200',minimumOrderStartTime:'18:00',minimumOrderEndTime:'09:00'};
+assert.equal(validate(valid),null);
+assert.equal(validate({...valid,minimumOrderTotal:'-1'}).field,'minimumOrderTotal');
+assert.equal(validate({...valid,minimumOrderTotal:'Infinity'}).field,'minimumOrderTotal');
+assert.equal(validate({...valid,minimumOrderEndTime:''}).field,'minimumOrderEndTime');
+assert.equal(validate({...valid,minimumOrderEndTime:'18:00'}).field,'minimumOrderEndTime');
+console.log('TABLE EDIT VALIDATION: PASS (valid overnight; negative/nonfinite minimum; partial/equal schedule)');

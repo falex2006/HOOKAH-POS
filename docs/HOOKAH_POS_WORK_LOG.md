@@ -46,3 +46,9 @@ ode scripts/local-full-pg-regression.cjs — PASS; локальная disposable
 - Dedicated staff/permissions routes retain roster and authorization; owner home no longer renders or loads roster. Old home-module preference does not hide the directory. Portal/source/dist revisions synchronized.
 - Focused desktop browser QA, role API matrix, shift deep-link contract, syntax/parity and independent architecture/code-health review passed. Three obsolete baseline sidebar/visual contracts documented separately; no mobile/Fold checks by user decision.
 - Release contains no database/catalog mutation; guarded deployment must skip menu seed and preserve PostgreSQL volume.
+
+## 2026-10-11 — consolidated POS integration
+
+- Integrated useful remaining old WIP directly on current main: canonical table order totals, contextual preparation notices and minimum-order form validation/error wording. Existing preparation status/focus, scheduled minimum, button layouts and owner roster removal retained. Unsafe/obsolete changes rejected and reasoned in the release audit.
+- Focused memory, PostgreSQL, desktop browser, price-label, schedule, preparation and source/dist contracts passed; guarded QA databases cleaned. Details in `docs/release/CONSOLIDATED_POS_RELEASE_2026_10_11.md`.
+- Previous PR #28 deployed 878761b1 with successful backup restore test; six client/catalog/stock aggregate hashes and counts unchanged. Final integration preserves the same database boundary.

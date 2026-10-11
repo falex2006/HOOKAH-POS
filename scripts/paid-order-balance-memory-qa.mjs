@@ -22,14 +22,26 @@ async function call(path, method = 'GET', body, expected = 200, token = null) {
   assert.equal(response.status, expected, `${method} ${path}: ${JSON.stringify(data)}`);
   return data;
 }
+async function assertPricedOrderList(orderId, expectedDue) {
+  const before = await call(`/api/orders/${orderId}/payments`);
+  const legacy = (await call('/api/orders')).items.find((entry) => entry.id === orderId);
+  assert.ok(legacy, 'legacy order list contains the active order');
+  assert.equal(Object.hasOwn(legacy, 'pricingTotal'), false, 'legacy list does not add pricing fields');
+  const priced = (await call('/api/orders?withPricing=1')).items.find((entry) => entry.id === orderId);
+  assert.ok(priced, 'priced order list contains the active order');
+  assert.equal(priced.pricingTotal, expectedDue, 'floor price matches the canonical summary due');
+  assert.equal((await call(`/api/orders/${orderId}/summary`)).due, expectedDue, 'priced list does not change the order total');
+  const after = await call(`/api/orders/${orderId}/payments`);
+  assert.deepEqual([after.due, after.paid, after.items.length], [before.due, before.paid, before.items.length], 'priced read does not create a payment or change totals');
+}
 let floorZoneId = null;
 let floorVenueId = null;
-async function createTableId(label) {
+async function createTableId(label, minimumOrderTotal = 0) {
   if (!floorZoneId) {
     const floor = await call('/api/floor'); floorVenueId = floor.venueId; floorZoneId = floor.zones?.[0]?.id || null;
     if (!floorZoneId) floorZoneId = (await call('/api/floor/zones', 'POST', { name: `QA ${Date.now()}`, expectedVenueId: floorVenueId }, 201)).id;
   }
-  return (await call('/api/floor/tables', 'POST', { zoneId: floorZoneId, expectedVenueId: floorVenueId, name: `QA ${label} ${Date.now()} ${Math.random().toString(36).slice(2,7)}`, capacity: 2 }, 201)).id;
+  return (await call('/api/floor/tables', 'POST', { zoneId: floorZoneId, expectedVenueId: floorVenueId, name: `QA ${label} ${Date.now()} ${Math.random().toString(36).slice(2,7)}`, capacity: 2, minimumOrderTotal }, 201)).id;
 }
 try {
   const staffSession = await call('/api/login', 'POST', { username: 'staff', password: 'demo' });
@@ -89,16 +101,19 @@ try {
   assert.equal(groupQuote.due, 180);
   assert.equal(groupQuote.discount, 20);
   assert.equal(groupQuote.source, 'guest_group');
+  await assertPricedOrderList(loyaltyOrder.id, groupQuote.due);
   await call(`/api/discount-groups/${group.id}`, 'PATCH', { discountPercent: 40 }, 200);
   assert.equal((await call(`/api/orders/${loyaltyOrder.id}/summary`)).groupDiscountPercent, 10, 'summary retains the captured group rate');
   assert.equal((await call(`/api/orders/${loyaltyOrder.id}/payments`)).due, 180, 'an open order keeps the group rate captured when its guest was attached');
   const loyaltyPartial = await call(`/api/orders/${loyaltyOrder.id}/payments`, 'POST', { amount: 150, method: 'cash' }, 201);
   assert.equal(loyaltyPartial.closed, false);
+  await assertPricedOrderList(loyaltyOrder.id, groupQuote.due);
   assert.equal((await call(`/api/orders/${loyaltyOrder.id}`, 'PATCH', { clientId: null }, 409)).error, 'order_pricing_locked', 'guest cannot be transferred after a partial payment');
   assert.equal(guest.loyaltyPoints, 0, 'partial payment never earns points');
   assert.equal((await call(`/api/clients/${guest.id}/account-entries`)).items.length, 0, 'partial payment leaves the loyalty ledger unchanged');
   const loyaltyFinal = await call(`/api/orders/${loyaltyOrder.id}/payments`, 'POST', { amount: 30, method: 'card' }, 201);
   assert.equal(loyaltyFinal.closed, true);
+  assert.equal(Object.hasOwn((await call('/api/orders?withPricing=1')).items.find((entry) => entry.id === loyaltyOrder.id), 'pricingTotal'), false, 'closed memory order is not repriced for the floor');
   assert.equal(loyaltyFinal.groupDiscountAmount, 20);
   assert.equal(loyaltyFinal.effectiveDiscountSource, 'guest_group');
   assert.equal(loyaltyFinal.finalTotalSnapshot, 180);
@@ -154,11 +169,12 @@ try {
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`)).guestAccount.bonusBalance, 9, 'balance reread includes debit and excludes points earned on the redeemed share');
   assert.equal((await call(`/api/orders/${redeemOrder.id}/payments`)).guestAccount.depositBalance, 9.5, 'stored-value balance is available after payment reread');
 
-  const vipOrder = await call('/api/orders', 'POST', { tableId: await createTableId('vip'), minimumOrderTotal: 250 }, 201);
+  const vipOrder = await call('/api/orders', 'POST', { tableId: await createTableId('vip', 250), minimumOrderTotal: 250 }, 201);
   await call(`/api/orders/${vipOrder.id}/items`, 'POST', { productId: product.id, quantity: 1 }, 201, staffToken);
   await call(`/api/orders/${vipOrder.id}`, 'PATCH', { clientId: guest.id }, 200);
   const vipDiscount = await call(`/api/orders/${vipOrder.id}/discount-requests`, 'POST', { type: 'percent', value: 10, reason: 'QA loyalty base' }, 201);
   await call(`/api/discount-requests/${vipDiscount.id}/approve`, 'POST', {}, 200);
+  await assertPricedOrderList(vipOrder.id, (await call(`/api/orders/${vipOrder.id}/summary`)).due);
   const vipClosed = await call(`/api/orders/${vipOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(vipClosed.finalTotal, 250);
   assert.equal(vipClosed.loyaltyBonusBase, 60, 'the group discount reduces the earning base and VIP uplift remains excluded');
