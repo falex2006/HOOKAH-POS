@@ -37,11 +37,11 @@ for (const id of ['owner-modal', 'owner-password-modal', 'owner-access-modal', '
 assert.match(js, /session\.user\?\.role === 'platform_owner'/, 'SaaS page must reject non-platform roles after session lookup');
 assert.match(js, /\/owners\/\$\{encodeURIComponent\(owner\.id\)\}\/reset/, 'recovery action must use the current reset-token endpoint');
 assert.match(js, /#reset=\$\{encodeURIComponent\(token\)\}/, 'recovery token must be shared as a login fragment');
-assert.match(js, /const closeAccess = \(\) => \{ setModal\(accessModal, false\); \$\('#owner-access-link'\)\.value = '';/, 'closing the recovery dialog must clear its one-time token');
+assert.match(js, /const closeAccess = \(\) => \{ if \(modalPending\(accessModal\)\) return; setModal\(accessModal, false\); \$\('#owner-access-link'\)\.value = '';/, 'closing the recovery dialog must clear its one-time token');
 assert.match(js, /document\.querySelectorAll\('\[data-close-owner-access\]'\)/, 'both recovery dialog close controls must work');
 assert.match(js, /owner-password-form/, 'password entry must use a dedicated dialog');
 assert.match(js, /password !== passwordForm\.elements\.passwordConfirm\.value/, 'password change must verify its confirmation');
-assert.match(js, /finally \{ setBusy\(submit, false\); \} if \(saved\) \{ closePassword\(\);/, 'password submit control must be restored before a successful close');
+assert.match(js, /finally \{ passwordForm\.dataset\.submitting = 'false'; passwordForm\.removeAttribute\('aria-busy'\); setPending\(passwordModal,false\); setBusy\(submit,false\); \}\s*if \(saved\) \{ closePassword\(\);/, 'password submit control must be restored before a successful close');
 assert.match(js, /detailModal\.inert = nestedOwnerDialogOpen/, 'underlying organization dialog must be removed from interaction while a nested owner dialog is active');
 assert.match(js, /detailModal\.setAttribute\('aria-hidden', 'true'\)/, 'nested owner dialogs must be the only active modal for assistive technology');
 assert.match(js, /const modalOpeners = new WeakMap\(\)/, 'each SaaS dialog must remember its opener for focus restoration');
@@ -69,7 +69,7 @@ assert.match(js, /window\.addEventListener\('hashchange', syncPlatformNav\)/, 'c
 assert.match(js, /links\.find\(\(link\) => link\.hash === location\.hash\)/, 'current SaaS section must initialize from the URL hash');
 assert.match(js, /#start-create-company'\)\.addEventListener\('click', \(\) => setModal\(modal, true\)\)/, 'onboarding create action must open the organization form');
 assert.match(js, /ownerForm\.dataset\.submitting === 'true'/, 'owner form must reject duplicate submits');
-assert.match(js, /button\.disabled = true;[\s\S]*?finally \{ button\.disabled = false; \}/, 'owner actions must reject duplicate in-flight requests');
+assert.match(js, /button\.disabled = true;[\s\S]*?finally \{ if \(mutation && modalPending\(detailModal\)\) setPending\(detailModal,false\); button\.disabled = false; \}/, 'owner actions must reject duplicate in-flight requests');
 for (const action of ["addEventListener('click'", "addEventListener('change'", "addEventListener('input'", "addEventListener('submit'", '/api/platform/overview', '/api/platform/organizations', '/api/platform/plans', '/api/health']) {
   assert.ok(js.includes(action), `platform action/data contract missing ${action}`);
 }

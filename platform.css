@@ -214,3 +214,40 @@
 .platform-page #company-delete-form{display:grid;gap:16px}
 .platform-page #company-delete-form .delete-company-ack{display:flex;align-items:flex-start;gap:10px}
 .platform-page #company-delete-form .delete-company-ack input{width:20px;height:20px;min-height:20px;padding:0;flex:0 0 20px;margin:2px 0 0}
+
+/* UI-08.2 platform semantic consumers; control plane remains separate. */
+body.platform-page{background:var(--ui-page);color:var(--ui-text-primary)}
+body.platform-page :is(.platform-sidebar,.platform-header,.platform-card,.platform-kpis>article,.plan-card,.platform-start-step,.owner-row,.platform-modal-panel,.platform-settings-grid>div,.platform-access-denied){background:var(--ui-panel);border-color:var(--ui-border-control);color:var(--ui-text-primary);box-shadow:none;min-width:0}
+body.platform-page :is(h1,h2,h3,b,strong,.company-name b){color:var(--ui-text-primary);overflow-wrap:anywhere}
+body.platform-page :is(p,small,.muted,.side-label,.owner-main span,.platform-settings-grid span,.platform-kpis span,.platform-user>span){color:var(--ui-text-secondary);overflow-wrap:anywhere}
+body.platform-page :is(input:not([type=checkbox]),select,textarea){min-height:44px;background:var(--ui-input);color:var(--ui-text-primary);border-color:var(--ui-border-control);box-sizing:border-box;max-width:100%}
+body.platform-page :is(button,.primary-button,.secondary-button,.platform-start-step){min-height:44px;min-width:44px;white-space:normal}
+body.platform-page :is(.secondary-button,.table-action,.modal-close){background:var(--ui-input);border-color:var(--ui-border-control);color:var(--ui-text-primary)}
+body.platform-page .primary-button{background:var(--ui-action-fill);color:var(--ui-text-on-action);box-shadow:none}
+body.platform-page :is(.form-error,.bad-text,.delete-company-target,.danger-button){color:var(--ui-danger)}
+body.platform-page .danger-button{background:var(--ui-panel);border-color:var(--ui-danger)}
+body.platform-page :is(.good-text,.owner-status.is-active,.state-pill.active){color:var(--ui-success);background:var(--ui-panel)}
+body.platform-page .platform-table :is(th,td){background:var(--ui-panel);color:var(--ui-text-primary);border-color:var(--ui-border-control);vertical-align:top}
+body.platform-page .platform-table :is(th,td):first-child{min-width:240px}
+body.platform-page .company-name :is(b,small){white-space:normal;overflow-wrap:anywhere;max-width:300px}
+body.platform-page .company-name>div{min-width:0}
+body.platform-page .company-avatar{flex-shrink:0;background:var(--ui-input);color:var(--ui-text-primary)}
+body.platform-page .platform-search{background:var(--ui-input);border-color:var(--ui-border-control);color:var(--ui-text-secondary)}
+body.platform-page .empty-state{color:var(--ui-text-secondary)}
+body.platform-page .test-badge{color:var(--ui-success);background:var(--ui-panel)}
+body.platform-page :is(.plan-card-top span,.plan-limits){color:var(--ui-text-secondary)}
+body.platform-page .form-section-label{color:var(--ui-text-secondary);border-color:var(--ui-border-control)}
+body.platform-page .platform-modal{background:var(--ui-overlay)}
+body.platform-page .platform-modal-panel{width:min(640px,calc(100vw - 32px));max-height:calc(100dvh - 32px);box-sizing:border-box;overflow:auto;overscroll-behavior:contain}
+body.platform-page .platform-modal-panel h2{padding-right:44px;line-height:var(--ui-line-heading)}
+body.platform-page .platform-modal:not([hidden]) .platform-modal-panel{background:var(--ui-panel);animation:none;outline:1px solid var(--ui-border-control)}
+body.platform-page .platform-modal-panel label{color:var(--ui-text-secondary)}
+body.platform-page .owner-main-toggle{display:flex;align-items:center;gap:10px;min-height:44px}
+body.platform-page .owner-main-toggle input{width:20px;min-width:20px;height:20px;min-height:20px;accent-color:var(--ui-action-fill)}
+body.platform-page :is(.owner-main-toggle,.delete-company-ack){min-height:44px}
+body.platform-page .platform-user{flex-wrap:wrap}
+body.platform-page .platform-header{height:auto;min-height:68px;gap:12px;padding-top:8px;padding-bottom:8px}
+body.platform-page .platform-sidebar .portal-nav a{color:var(--ui-text-secondary)}
+body.platform-page .platform-sidebar .portal-nav a.active{background:var(--ui-action-fill);color:var(--ui-text-on-action)}
+body.platform-page :is(a,button,input,select,textarea):focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
+@media(max-width:560px){body.platform-page .platform-header{align-items:flex-start}body.platform-page .modal-actions{flex-wrap:wrap}body.platform-page .platform-modal-panel{padding:20px}}
