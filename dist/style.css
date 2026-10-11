@@ -2495,7 +2495,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Keep warehouse actions and section navigation balanced at laptop widths. */
 .velora-theme .inventory-page-title{align-items:flex-start}
 .velora-theme .inventory-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
-.velora-theme .inventory-header-actions>.button{min-height:44px;white-space:nowrap}
+.velora-theme .inventory-header-actions>.button{min-height:44px;margin:0;white-space:nowrap}
 .velora-theme .inventory-context-kpis>.kpi{min-width:0}
 .velora-theme .inventory-context-kpis>.kpi>strong{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 @media(max-width:760px){.velora-theme .inventory-context-kpis>.kpi:nth-child(3){grid-column:1/-1}}
@@ -3709,6 +3709,43 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions { justify-content: stretch; }
   .portal.velora-theme .staff-catalog #staff-list .staff-directory-row .staff-card-actions button { flex: 1 1 130px; }
 }
+
+/* UI follow-up: align action controls and keep adjacent work areas visually distinct. */
+.velora-theme #page-content .toolbar-row>.button,
+.velora-theme #page-content .page-title>.button { margin:0; }
+.velora-theme #page-content .toolbar-row { column-gap:12px; row-gap:10px; }
+.velora-theme .finance-payroll-title { align-items:flex-start; gap:20px; flex-wrap:wrap; }
+.velora-theme .finance-payroll-title>.button { align-self:flex-start; }
+.velora-theme .finance-payroll-schemes>.panel-head .toolbar-row,
+.velora-theme [data-attendance-approval]>.toolbar-row { display:flex; align-items:center; gap:10px; }
+.velora-theme .finance-payroll-schemes>.panel-head .toolbar-row>.button,
+.velora-theme [data-attendance-approval]>.toolbar-row>.button { min-height:42px; margin:0; }
+#page-content.ui-financial-pages>.page-title>.toolbar-row { display:flex; align-items:center; gap:12px; }
+.velora-theme .finance-payroll-panel .payroll-entry-actions>.button { margin:0; }
+.velora-theme .company-panel .company-save-footer>.button { margin:0; }
+.velora-theme .company-panel .purchase-reversal-settings { margin-top:20px; }
+.velora-theme .client-insights { margin-top:18px; }
+.velora-theme .visual-catalog-panel>.panel-head>.toolbar-row { align-items:flex-end; gap:12px; }
+.velora-theme .visual-catalog-panel>.panel-head>.toolbar-row>.ui-field { display:grid; gap:6px; min-width:min(220px,100%); margin:0; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-view-controls { display:grid; grid-template-columns:auto minmax(260px,320px) minmax(240px,1fr); align-items:center; gap:12px 18px; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch,
+#page-content.ui-admin-pages #staff.staff-catalog .staff-card-scale-control { display:grid; align-items:center; box-sizing:border-box; min-width:0; padding:3px; border:1px solid var(--ui-border-control); border-radius:10px; background:var(--ui-input); }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch { grid-template-columns:repeat(3,minmax(0,1fr)); }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-card-scale-control { grid-template-columns:repeat(4,minmax(36px,44px)); justify-content:start; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch>button,
+#page-content.ui-admin-pages #staff.staff-catalog .staff-card-scale-control>button { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; min-width:0; min-height:42px; margin:0; padding:0 10px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--ui-text-secondary); font:inherit; font-size:13px; line-height:1.2; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch>button[aria-pressed="true"],
+#page-content.ui-admin-pages #staff.staff-catalog .staff-card-scale-control>button[aria-pressed="true"] { background:var(--ui-action-fill); color:var(--ui-text-on-action); }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row { display:grid; grid-template-columns:58px minmax(180px,1fr) minmax(220px,1.2fr) auto minmax(180px,auto); align-items:center; gap:14px; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-directory-avatar { grid-column:1; grid-row:1; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-identity { grid-column:2; grid-row:1; min-width:0; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-contacts { grid-column:3; grid-row:1; min-width:0; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-status { grid-column:4; grid-row:1; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-actions { grid-column:5; grid-row:1; display:flex; justify-content:flex-end; gap:8px; min-width:0; }
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-actions button { width:auto; min-width:44px; min-height:40px; margin:0; }
+@media(max-width:1100px){#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-view-controls{grid-template-columns:auto minmax(240px,320px)}#page-content.ui-admin-pages #staff.staff-catalog .staff-card-scale{grid-column:1/-1;justify-content:start}#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row{grid-template-columns:54px minmax(0,1fr);gap:10px 12px}#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-contacts,#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-status,#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-actions{grid-column:1/-1;grid-row:auto}#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-actions{justify-content:flex-start}}
+@media(min-width:1101px) and (max-width:1280px){#page-content.ui-admin-pages #staff.staff-catalog .staff-card-scale{grid-column:auto}}
+@media(max-width:680px){#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-view-controls{grid-template-columns:minmax(0,1fr)}#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch{width:100%}#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-row>.staff-card-actions{display:grid;grid-template-columns:1fr 1fr}}
 
 /* Shared page cleanup: keep filters, role guidance and finance sections aligned. */
 .velora-theme #staff.staff-permissions-mode .permissions-intro{display:grid;gap:6px;align-items:start}
