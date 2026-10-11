@@ -606,6 +606,7 @@ const portalFooterAccess = document.querySelector('.sidebar-footer small');
 if (portalFooterRole) portalFooterRole.textContent = `● ${portalRole[0]}`;
 if (portalFooterAccess) portalFooterAccess.textContent = portalRole[1];
 document.querySelector('#logout')?.addEventListener('click', async (event) => {
+  window.HOOKAH_MANAGEMENT_THEME?.clear();
   if (event.currentTarget.disabled) return; event.currentTarget.disabled = true; try { await fetch('/api/logout', { method: 'POST', headers: authHeaders() }); } catch (_) {}
   window.__broadcastSessionEnd?.();
   localStorage.removeItem('crm_session_token');
@@ -718,7 +719,7 @@ const authHeaders = () => { const token = localStorage.getItem('crm_session_toke
 const loadSharedUI = () => {
   if (window.HOOKAH_UI) return Promise.resolve(window.HOOKAH_UI);
   if (window.__hookahUIReady) return window.__hookahUIReady;
-  const script = document.createElement('script'); script.src = '/ui-dialog.js?rev=1';
+  const script = document.createElement('script'); script.src = '/ui-dialog.js?rev=2';
   const pending = new Promise((resolve, reject) => {
     script.onload = () => window.HOOKAH_UI ? resolve(window.HOOKAH_UI) : reject(new Error('shared_ui_unavailable'));
     script.onerror = () => reject(new Error('shared_ui_unavailable'));
@@ -728,9 +729,10 @@ const loadSharedUI = () => {
   return window.__hookahUIReady;
 };
 loadSharedUI().catch(() => {});
-const portalNotice = (text, kind = 'info') => {
-  loadSharedUI().then(ui => ui.feedback(text, kind, {id:'portal-notice',className:'portal-notice ui-feedback ui-components'})).catch(() => {
+const portalNotice = (text, kind = 'info', managementTicket = null) => {
+  loadSharedUI().then(ui => ui.feedback(text, kind, {id:'portal-notice',className:'portal-notice ui-feedback ui-components',managementTicket})).catch(() => {
     let node=document.querySelector('#portal-notice'); if(!node){node=document.createElement('div');node.id='portal-notice';node.className='portal-notice';document.body.append(node);}
+    window.HOOKAH_MANAGEMENT_THEME?.detach(node);window.HOOKAH_MANAGEMENT_THEME?.attach(node,managementTicket);
     clearTimeout(node._uiTimer);node.dataset.kind=kind;node.setAttribute('role',kind==='error'?'alert':'status');node.setAttribute('aria-live',kind==='error'?'assertive':'polite');node.textContent=text;
     if(kind!=='error')node._uiTimer=setTimeout(()=>node.remove(),4200);
   });
@@ -744,11 +746,12 @@ const portalActionFieldMarkup = (field) => {
 };
 const portalAction = ({ title, description = '', submitLabel = 'Сохранить', fields = [], danger = false, validate = null }) => new Promise((resolve) => {
   const opener = document.activeElement;
+  const managementTicket = window.HOOKAH_MANAGEMENT_THEME?.capture(opener);
   const labelId = `portal-action-title-${++portalActionSequence}`;
   const descriptionId = `${labelId}-description`;
   const modal = document.createElement('div'); modal.className = 'modal action-modal open'; modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', labelId); if (description) modal.setAttribute('aria-describedby', descriptionId); modal.tabIndex = -1;
   modal.innerHTML = `<div class="action-box"><div class="modal-head"><div><h2 id="${labelId}">${esc(title)}</h2>${description ? `<small id="${descriptionId}">${esc(description)}</small>` : ''}</div><button type="button" class="icon-button modal-close" aria-label="Закрыть">${icon('x')}</button></div><form><div class="action-fields">${fields.map(portalActionFieldMarkup).join('')}</div><p class="form-message" aria-live="polite"></p><div class="action-footer"><button type="button" class="button modal-cancel">Отмена</button><button type="submit" class="button ${danger ? 'danger' : 'primary'}">${esc(submitLabel)}</button></div></form></div>`;
-  document.body.append(modal); const form = modal.querySelector('form'); const firstField = modal.querySelector('input,select,textarea'); let escape;
+  document.body.append(modal); window.HOOKAH_MANAGEMENT_THEME?.attach(modal,managementTicket); const form = modal.querySelector('form'); const firstField = modal.querySelector('input,select,textarea'); let escape;
   let closed = false;
   const close = (value) => {
     if (closed) return; closed = true;
@@ -921,7 +924,10 @@ const setNotificationRead = async (id) => {
 };
 const closeNotificationPanel = (restoreFocus = true) => { notificationPanel.hidden = true; notificationBell?.setAttribute('aria-expanded', 'false'); notificationPanel.setAttribute('aria-modal', 'false'); document.body.classList.remove('notification-panel-open'); if (restoreFocus) notificationBell?.focus(); };
 const openNotificationPanel = async () => {
-  if (!notificationBell) return; notificationPanel.hidden = false; notificationBell.setAttribute('aria-expanded', 'true');
+  if (!notificationBell) return;
+  window.HOOKAH_MANAGEMENT_THEME?.detach(notificationPanel);
+  window.HOOKAH_MANAGEMENT_THEME?.attach(notificationPanel,window.HOOKAH_MANAGEMENT_THEME?.capture(notificationBell));
+  notificationPanel.hidden = false; notificationBell.setAttribute('aria-expanded', 'true');
   const mobile = window.matchMedia('(max-width: 768px)').matches; notificationPanel.setAttribute('aria-modal', mobile ? 'true' : 'false'); document.body.classList.toggle('notification-panel-open', mobile);
   notificationPanel.querySelector('#notification-panel-title').focus(); await loadNotifications(true);
 };
@@ -6654,3 +6660,6 @@ if(!window.__staffAdminCardLoaded){const script=document.createElement('script')
   });
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});
 })();
+
+// Reconcile presentation scopes after the existing renderer has mounted its content.
+window.HOOKAH_MANAGEMENT_THEME?.refresh();

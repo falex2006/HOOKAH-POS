@@ -6660,7 +6660,7 @@ function staticFile(req, res) {
   requestPath = aliases[routePath] || requestPath;
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
-    '/phone-format.js', '/staff-display-name.js',
+    '/phone-format.js', '/staff-display-name.js', '/management-theme.js', '/management-theme.css',
     ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js', '/shift-close-contract.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
