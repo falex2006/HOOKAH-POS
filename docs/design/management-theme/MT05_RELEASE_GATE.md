@@ -71,3 +71,16 @@ SKIP_MENU_SEED_ONCE=true ./deploy-vps.sh
 После запуска: exact HEAD/release label/image, database=postgres health, env checksum и прежний volume; data fingerprints/counts до/после; публичные assets соответствуют выбранному commit; read-only desktop вход/session/выход и управленческая навигация. Production заказов, оплат, возвратов, клиентов и taxonomy fixtures не создавать.
 
 `./post-deploy-acceptance.sh` запускается с BASE_URL/CRM_USERNAME/CRM_PASSWORD из защищённого окружения без записи/вывода credentials. Он проверяет health/login/session и `/admin /orders /inventory /finance`. Existing intentional HTTP требует `ALLOW_HTTP=1`; расширенные theme/focus проверки фиксируются отдельно. Gate остаётся **pending** до PR/CI, конечной приёмки и подтверждённого production receipt.
+
+## Финальное закрытие gate — 2026-10-11
+
+**Gate fulfilled в согласованных desktop границах.** Предыдущий pending статус описывал этап подготовки; текущий итог подтверждён [MT05_RESULT.md](MT05_RESULT.md), receipt commit `da0bb92d`. Архитектор прочитал receipt; независимое повторное исследование production в этом обновлении не выполнялось.
+
+- PR33 прошёл оба CI workflows на окончательном head `3859433c` и merged в canonical main `0faade7cdd353816258bd800b9fb34de3f919b0f`.
+- Guarded deploy из clean main checkout `/root/hookah-pos-release-0faade7c` завершился кодом 0 и healthy. Финальный backup/restore rehearsal и seed skip выполнены. Существующие `.env`, Compose project `hookah-pos`, volume `territory-crm_pgdata` сохранены; шесть full-row fingerprints/counts до/после совпали.
+- Public HTTPS с проверкой существующего CA: health ok/postgres, пять runtime asset hashes совпадают с canonical опубликованными Git blobs.
+- Read-only Edge с существующей owner session подтвердил recipes, `/admin`, payroll и зал: payroll ready, header без marker, колокольчик прозрачный, 10 столов, у рабочего зала 0 roots; финальный warn/error journal пуст.
+- Fresh production login/logout и credential-based `post-deploy-acceptance.sh` не запускались. В production использована existing owner session; fresh login/session owner/admin/manager/bartender подтверждены только на изолированном PostgreSQL. Эти доказательства не подменяют друг друга.
+- Production business writes, финансовое проведение/payroll approval, full business E2E, mobile/Fold и полная WCAG/screen-reader/reduced-motion приёмка не выполнялись и не заявляются. Production fixtures/reset/restore/catalog rewrite не выполнялись.
+
+MT-01–MT-05 завершены в согласованном объёме. Это закрытие gate является документационным обновлением и не требует повторного deploy.
