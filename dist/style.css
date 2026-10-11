@@ -3720,7 +3720,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme [data-attendance-approval]>.toolbar-row { display:flex; align-items:center; gap:10px; }
 .velora-theme .finance-payroll-schemes>.panel-head .toolbar-row>.button,
 .velora-theme [data-attendance-approval]>.toolbar-row>.button { min-height:42px; margin:0; }
-.velora-theme .finance-categories-panel>.panel-head>.toolbar-row { display:flex; align-items:center; gap:12px; }
+#page-content.ui-financial-pages>.page-title>.toolbar-row { display:flex; align-items:center; gap:12px; }
 .velora-theme .finance-payroll-panel .payroll-entry-actions>.button { margin:0; }
 .velora-theme .company-panel .company-save-footer>.button { margin:0; }
 .velora-theme .company-panel .purchase-reversal-settings { margin-top:20px; }
