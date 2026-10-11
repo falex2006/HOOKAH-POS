@@ -35,3 +35,12 @@ Independent code-health review found no blocking product issue. Source/dist sync
 ## Data safety
 
 Guarded canonical deploy, final backup/restore verification, `SKIP_MENU_SEED_ONCE=true`. No production fixtures, account changes, DB reset/restore or catalog rewriting. Client/taxonomy/stock counts and hashes must match before/after.
+
+## Production receipt
+
+- PR #29 merged and deployed runtime `70d70ec5d4c77ff15681fc39404fa92db9c31f31`; both GitHub contract workflows passed. Public app.js, portal.js and style.css match this checkout after line-ending normalization (cache revision 2026101106).
+- Guarded deployment completed; final backup restoration rehearsal reported PASS. CRM and PostgreSQL healthy; public `/api/health` returns ok/PostgreSQL. Existing `territory-crm_pgdata` volume retained; server checkout clean.
+- Before/after full-row aggregate hashes and counts match exactly for guests (3), departments (8), subdepartments (12), categories including archived (35), products (71), ingredients (85). Customer data and configured taxonomy/stock were not rewritten.
+- Read-only owner Edge check after deployment: `/admin` loads with no roster; working floor loads all ten free tables and empty preparation/order queues. No synthetic production order was created. Occupied-table amount, pricing rules and preparation actions were exercised in isolated local memory/PostgreSQL QA, not with customer records.
+- Evidence retained locally under `tmp/consolidated-qa/owner-home-server-final.png`, `tmp/consolidated-qa/floor-total-desktop.png`, and `tmp/consolidated-deploy.log`. These temporary artifacts are not shipped as application files.
+- This receipt is documentation only; it requires no further application deployment. Useful audited POS runtime WIP is integrated or already present; rejected regressions and unrelated AlphaSat work remain preserved in the original directory.
