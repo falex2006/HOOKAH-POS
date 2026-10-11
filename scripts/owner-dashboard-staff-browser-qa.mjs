@@ -77,4 +77,3 @@ try {
   await browser?.close();
   child.kill();
 }
-
