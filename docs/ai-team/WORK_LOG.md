@@ -5262,3 +5262,7 @@ API, права, маршруты и БД не менялись. Проверк�
 ## 2026-10-11 — сохранить исходную верхнюю панель
 
 По решению пользователя верхняя панель исключена из management theme roots и CSS consumers. Колокольчик снова использует исходное transparent/border0 оформление. Exact notification-bell может дать verified context ticket отдельно открытой панели, header запрещён attach. Sidebar и page roots сохранены. Architecture contract и final code health PASS; syntax/parity/diffcheck PASS. Локальный owner browser: header marker null,16 page roots, panel marker mt, bell transparent/border0. Сервер не менялся. Cache theme JS2/CSS3.
+
+## 2026-10-11 — MT-05: общая локальная приёмка
+
+Scoped theme принят локально в заявленных границах, owner/admin/manager/bartender sessions проверены в synthetic PostgreSQL QA; payroll готовое состояние и inventory save/reload/read PASS. Исходная шапка сохранена. Review/static/CI PASS; production gate и ограничения — MT05_RESULT.md. PR33 опубликован, production receipt ожидается после guarded release.
