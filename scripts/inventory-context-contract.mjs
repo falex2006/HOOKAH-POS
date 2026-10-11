@@ -48,6 +48,8 @@ for (const legacy of ['inventory-count', 'inventory-low', 'inventory-last']) {
   assert.match(portal, new RegExp(`id="${legacy}"`), `existing inventory data binding must remain compatible: ${legacy}`);
 }
 assert.match(portal, /refreshInventoryContext\(\)/, 'context KPI values must refresh as data loads');
+assert.match(portal, /\['item', 'Создать складскую позицию', 'primary'\]/, 'stock CTA distinguishes warehouse positions from menu items');
+assert.match(portal, /\['receipt', 'Создать черновик поступления', ''\]/, 'receipt CTA describes the draft action without implying stock was posted');
 assert.match(portal, /searchParams\.get\('view'\) \|\| 'stock'/, 'context must follow the canonical query view after refresh');
 assert.match(css, /\.inventory-header-actions\{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap\}/,
   'context actions should wrap evenly without introducing a new layout language');

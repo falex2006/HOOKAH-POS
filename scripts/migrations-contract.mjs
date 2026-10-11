@@ -56,4 +56,9 @@ assert.match(schema, /CREATE TABLE IF NOT EXISTS shift_close_snapshots[\s\S]*?BE
 const migrationRunner = fs.readFileSync(path.join(root, 'migrate-vps.sh'), 'utf8');
 assert.match(migrationRunner, /migrations\/\*\.sql/);
 assert.match(migrationRunner, /ON_ERROR_STOP=1/);
+const newVenueInventory = fs.readFileSync(path.join(migrationDir, '101_new_venue_inventory_defaults.sql'), 'utf8');
+assert.match(newVenueInventory, /VALUES[\s\S]*'bar',\s*'Бар'[\s\S]*'hookah',\s*'Кальяны'/, 'new venues receive only bar and hookah departments');
+assert.match(newVenueInventory, /DROP TRIGGER IF EXISTS venues_seed_inventory_category_defaults/, 'new venues no longer receive default categories automatically');
+assert.doesNotMatch(newVenueInventory, /INSERT INTO product_categories|INSERT INTO inventory_subdepartments|UPDATE\s+|DELETE\s+FROM/i, 'forward migration does not seed or rewrite existing category data');
+assert.match(newVenueInventory, /ON CONFLICT \(venue_id, code\) DO NOTHING/, 'new department seed is replay safe');
 console.log(`MIGRATIONS CONTRACT: PASS (${files.length} replay-safe migration files)`);
