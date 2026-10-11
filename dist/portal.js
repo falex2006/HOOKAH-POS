@@ -2042,8 +2042,19 @@ function setupDashboardShiftKpis() {
     context.textContent = 'Загружаем показатели…';
     cards.innerHTML = '<div class="empty">Загрузка показателей…</div>';
     if (warning) warning.hidden = true;
+    const date = dateInput.value;
+    const parsedDate = new Date(`${date}T00:00:00Z`);
+    if (!initial && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !dateInput.validity.valid || !Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date)) {
+      dateInput.setAttribute('aria-invalid', 'true');
+      shiftSelect.value = '';
+      shiftSelect._customSelectRefresh?.();
+      context.textContent = 'Введите корректную дату: день, месяц и четырёхзначный год.';
+      cards.innerHTML = '<div class="empty dashboard-shift-error" role="status">Показатели появятся после выбора корректной даты.</div>';
+      return;
+    }
+    dateInput.removeAttribute('aria-invalid');
     const params = new URLSearchParams();
-    if (!initial && dateInput.value) params.set('date', dateInput.value);
+    if (!initial) params.set('date', date);
     if (!initial && shiftSelect.value) params.set('shiftId', shiftSelect.value);
     try {
       const data = await api(`/api/dashboard/shift-kpis${params.size ? `?${params}` : ''}`);
@@ -2216,7 +2227,7 @@ function renderDashboard() {
   const dashboardKpiCount = Number(hasPortalPermission('finance_read')) + Number(hasPortalPermission('orders')) + Number(hasPortalPermission('reservations')) + Number(hasPortalPermission('inventory_read'));
   target.innerHTML = `
     <div class="page-title"><div><p class="eyebrow">ОБЗОР ЗАВЕДЕНИЯ</p><h1 id="dashboard-greeting">Обзор заведения</h1><p class="muted">Финансы, смена и рабочие задачи в одном окне.</p></div>${hasPortalPermission('settings') ? '<div class="dashboard-page-actions"><a class="button small" href="/admin#settings">Настроить главную</a></div>' : ''}</div>
-    <section class="panel dashboard-insights dashboard-shift-panel" id="dashboard-insights" data-dashboard-module="insights"><div class="panel-head"><div><h2>Показатели смены</h2><span class="muted">Итоги выбранного дня или выбранной смены</span></div><div class="dashboard-shift-controls"><label>Дата<input id="dashboard-shift-date" type="date" value="${localDateKey()}" aria-label="Дата смены"></label><label>Смена<select id="dashboard-shift-select" aria-label="Смена за выбранный день" disabled><option value="">Загрузка смен…</option></select></label></div></div><div id="dashboard-shift-context" class="dashboard-shift-context" aria-live="polite">Загружаем показатели…</div><small class="dashboard-shift-explainer">Оплаты относятся к смене их проведения, закрытые заказы — к смене закрытия.</small><div id="dashboard-shift-kpis" class="dashboard-shift-kpis" aria-live="polite"><div class="empty">Загрузка показателей…</div></div><div id="dashboard-shift-warning" class="dashboard-shift-warning" hidden></div></section>
+    <section class="panel dashboard-insights dashboard-shift-panel" id="dashboard-insights" data-dashboard-module="insights"><div class="panel-head"><div><h2>Показатели смены</h2><span class="muted">Итоги выбранного дня или выбранной смены</span></div><div class="dashboard-shift-controls"><label>Дата<input id="dashboard-shift-date" type="date" min="0001-01-01" max="9999-12-31" required value="${localDateKey()}" aria-label="Дата смены"></label><label>Смена<select id="dashboard-shift-select" aria-label="Смена за выбранный день" disabled><option value="">Загрузка смен…</option></select></label></div></div><div id="dashboard-shift-context" class="dashboard-shift-context" aria-live="polite">Загружаем показатели…</div><small class="dashboard-shift-explainer">Оплаты относятся к смене их проведения, закрытые заказы — к смене закрытия.</small><div id="dashboard-shift-kpis" class="dashboard-shift-kpis" aria-live="polite"><div class="empty">Загрузка показателей…</div></div><div id="dashboard-shift-warning" class="dashboard-shift-warning" hidden></div></section>
     <div class="panel-head dashboard-live-heading" data-dashboard-module="kpi"><div><h2>Текущая работа</h2><span class="muted">Оперативные показатели за сегодня и сейчас</span></div></div>
     <div class="kpi-grid dashboard-kpi-grid dashboard-kpi-grid--${dashboardKpiCount}" data-dashboard-module="kpi">
       <article class="kpi dashboard-revenue-card" data-dashboard-revenue data-kpi-route="/finance" aria-label="Открыть финансы"><div class="dashboard-revenue-main"><span>Выручка сегодня</span><strong id="dash-revenue">—</strong><small class="positive">Оплаты по закрытым сегодня заказам</small></div><div class="dashboard-revenue-pending" data-pending-summary><span>К оплате</span><strong id="dash-pending-revenue">—</strong><small id="dash-pending-detail">Загружаем финансы…</small></div></article>

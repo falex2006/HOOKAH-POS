@@ -6,10 +6,10 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '2026101106';
-const portalRevision = '2026101108';
-const portalSessionRevision = '2026101108';
+const portalRevision = '2026101109';
+const portalSessionRevision = '2026101109';
 const lockRevision = '2026101103';
-const appRevision = '2026101106';
+const appRevision = '2026101109';
 const platformRevision = '2026101102';
 const platformCssRevision = '2026101102';
 const staffProfileRevision = '6';

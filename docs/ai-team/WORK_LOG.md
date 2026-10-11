@@ -5254,3 +5254,7 @@ API, права, маршруты и БД не менялись. Проверк�
 ## 2026-10-11 — MT-04: управленческие страницы
 
 Локально применены scoped consumers к управленческим страницам, exact roots native editors, async tickets и 51 notice binder. Найден и исправлен disconnected receipt opener после toolbar remount. Source/diff и route review без блокеров; syntax/parity и focused owner desktop browser выполнены. Пределы окружения и payroll API явно записаны в docs/design/management-theme/MT04_RESULT.md. Персонал/зал исключены. GitHub/сервер/клиентская база не менялись; далее MT-05.
+
+## 2026-10-11 — MT-05: две пользовательские правки и начало приёмки
+
+Пустой зал показывает verified settings ссылку настройки владельцу/управляющему; сотрудник без права видит контактную подсказку. Правая панель учитывает фактическое отсутствие столов только при floorReady. Dashboard date ограничена ISO четырёхзначным годом и календарной валидностью до API; сброс смены/устаревших результатов и восстановление сохранены. Source health PASS: MT05_FIXES_REVIEW.md. Owner browser 222222 отклонён, корректный 2026 восстановил показатели; owner empty floor подсказки подтверждены. App/portal revisions2026101109 синхронизированы. Начата общая MT05 приёмка: source contracts и release readiness; VPS read-only подтверждён /root/hookah-pos-release-b4984208 HEADb4984208, clean. На этом шаге нет push/deploy/изменений клиентской БД; финальный выпуск пока не принят.
