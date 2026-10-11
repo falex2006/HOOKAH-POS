@@ -116,4 +116,23 @@ for (const text of ['=1+1', '+SUM(A1)', '-1', '@cmd', '\t=1', '\r\n+1', '  @x', 
 for (const [input, expected] of [['plain', '"plain"'], ['ordinary = text', '"ordinary = text"'], ['a"b', '"a""b"'], ['=a"b', '"\'=a""b"'], ['a;b', '"a;b"'], ['a\nb', '"a\nb"'], ['', '""'], [123, '"123"']]) {
   check(`CSV plain/quote preservation ${JSON.stringify(input)}`, () => assert.equal(cell(input), expected));
 }
+const syncSettingsSource = lockSource.match(/^  const syncSettings = .*;$/m)?.[0];
+assert.ok(syncSettingsSource, 'actual settings sync must exist');
+for (const enhanced of [true, false]) {
+  const select = { value: '0' }, label = { textContent: 'Не блокировать автоматически' };
+  let refreshed = 0;
+  if (enhanced) select._customSelectRefresh = function () {
+    refreshed += 1;
+    label.textContent = this.value === '5' ? 'Через 5 мин' : 'Не блокировать автоматически';
+  };
+  const context = vm.createContext({ timeoutMinutes: 5, settingsDialog: { querySelector(selector) {
+    assert.equal(selector, '#lock-timeout-select'); return select;
+  } } });
+  vm.runInContext(syncSettingsSource + '\nsyncSettings();', context, { filename: 'actual-lock-settings-sync.js' });
+  check(`settings sync ${enhanced ? 'enhanced select refreshes visible label' : 'native select tolerates absent enhancement'}`, () => {
+    assert.equal(select.value, '5');
+    assert.equal(refreshed, enhanced ? 1 : 0);
+    if (enhanced) assert.equal(label.textContent, 'Через 5 мин');
+  });
+}
 console.log(`UI093 LOCK/CSV ACTUAL-SOURCE CONTRACT: PASS (${checks} checks)`);
