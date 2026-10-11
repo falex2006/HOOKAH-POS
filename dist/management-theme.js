@@ -83,7 +83,7 @@
     if (contextKey && contextKey !== context.key) clear();
     contextKey = context.key;
     const next = new Set();
-    document.querySelectorAll('.portal-sidebar,.portal-header').forEach(node => next.add(node));
+    document.querySelectorAll('.portal-sidebar').forEach(node => next.add(node));
     const content = document.getElementById('page-content');
     if (content) panelScopes(content, next);
     for (const [node, ticket] of owned) {
@@ -97,13 +97,15 @@
   function capture(origin) {
     if (!refresh() || !(origin instanceof Element) || !origin.isConnected || origin.closest(forbiddenOrigin)) return null;
     const scope = origin.closest(`[${marker}="mt"]`);
-    if (!scope || !marked.has(scope)) return null;
+    // Notification provenance does not require styling the existing header.
+    const headerBell = origin.matches('#notification-bell') && origin.closest('.portal-header') && !origin.matches(':disabled') && origin.getClientRects().length > 0;
+    if ((!scope || !marked.has(scope)) && !headerBell) return null;
     const ticket = Object.freeze({ key: contextKey, generation });
     tickets.add(ticket);
     return ticket;
   }
   function attach(node, ticket) {
-    if (!(node instanceof Element) || !ticket || !tickets.has(ticket) || !refresh() || ticket.key !== contextKey || ticket.generation !== generation || node.matches('html,body,main,.portal-main,#page-content') || node.closest(excluded) || node.querySelector(excluded)) {
+    if (!(node instanceof Element) || !ticket || !tickets.has(ticket) || !refresh() || ticket.key !== contextKey || ticket.generation !== generation || node.matches('html,body,main,.portal-main,#page-content,.portal-header') || node.closest('.portal-header') || node.closest(excluded) || node.querySelector(excluded)) {
       if (node instanceof Element && marked.has(node)) { owned.delete(node); unmark(node); }
       return false;
     }

@@ -159,20 +159,16 @@ html:not([data-portal-access="checking"]) :is(#page-content,[data-management-the
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"]:is(.ui-feedback,.portal-notice)[data-kind="error"] { color:var(--ui-danger);background:var(--mt-danger-bg);border-color:var(--ui-danger); }
 
 /* Shell nodes are separate roots. No width, route, active-group or permission changes. */
-html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"]:is(.portal-sidebar,.portal-header) { background:var(--ui-panel);color:var(--ui-text-primary);border-color:var(--ui-border-subtle); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar { background:var(--ui-panel);color:var(--ui-text-primary);border-color:var(--ui-border-subtle); }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar :is(.portal-nav a,.sidebar-nav-group>summary) { color:var(--ui-text-secondary);box-shadow:none; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar :is(.portal-nav a.active,.portal-nav a[aria-current="page"],.sidebar-nav-group.has-active-child>summary) { background:var(--mt-selected);color:var(--ui-link);border-color:var(--mt-selected-border); }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar :is(.portal-nav a,.sidebar-nav-group>summary):hover { background:var(--ui-raised);color:var(--ui-link); }
-html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.side-label,.header-context,.sidebar-footer) { color:var(--ui-text-muted); }
-html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-header :is(.header-context strong,[data-admin-section-title]) { color:var(--ui-text-primary); }
-html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-header .header-shift-status[data-shift-state="error"] { color:var(--ui-danger); }
-html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-header .header-shift-status[data-shift-state="open"] { color:var(--ui-success); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.side-label,.sidebar-footer) { color:var(--ui-text-muted); }
 @media(prefers-reduced-motion:reduce) {
   html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"], html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] *, html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] *::before, html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] *::after { animation:none;transition:none;scroll-behavior:auto; }
 }
 
 
-html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-header .notification-bell { min-width:44px;min-height:44px;background:var(--ui-raised);color:var(--ui-text-secondary);border:1px solid var(--ui-border-control);border-radius:8px;box-shadow:none; }
 
 /* Sidebar disclosure state belongs to its actual summary, not only details.
    Semantic surfaces prevent inherited legacy dark islands in light mode. */

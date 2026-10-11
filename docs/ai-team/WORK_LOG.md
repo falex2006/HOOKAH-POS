@@ -5258,3 +5258,7 @@ API, права, маршруты и БД не менялись. Проверк�
 ## 2026-10-11 — MT-05: две пользовательские правки и начало приёмки
 
 Пустой зал показывает verified settings ссылку настройки владельцу/управляющему; сотрудник без права видит контактную подсказку. Правая панель учитывает фактическое отсутствие столов только при floorReady. Dashboard date ограничена ISO четырёхзначным годом и календарной валидностью до API; сброс смены/устаревших результатов и восстановление сохранены. Source health PASS: MT05_FIXES_REVIEW.md. Owner browser 222222 отклонён, корректный 2026 восстановил показатели; owner empty floor подсказки подтверждены. App/portal revisions2026101109 синхронизированы. Начата общая MT05 приёмка: source contracts и release readiness; VPS read-only подтверждён /root/hookah-pos-release-b4984208 HEADb4984208, clean. На этом шаге нет push/deploy/изменений клиентской БД; финальный выпуск пока не принят.
+
+## 2026-10-11 — сохранить исходную верхнюю панель
+
+По решению пользователя верхняя панель исключена из management theme roots и CSS consumers. Колокольчик снова использует исходное transparent/border0 оформление. Exact notification-bell может дать verified context ticket отдельно открытой панели, header запрещён attach. Sidebar и page roots сохранены. Architecture contract и final code health PASS; syntax/parity/diffcheck PASS. Локальный owner browser: header marker null,16 page roots, panel marker mt, bell transparent/border0. Сервер не менялся. Cache theme JS2/CSS3.

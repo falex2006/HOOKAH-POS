@@ -163,3 +163,5 @@ The existing finance route hosts the owner-only version editor. Role threshold/r
 ## Управленческая тема MT
 
 Контракт: docs/design/MANAGEMENT_THEME_PLAN.md и docs/design/management-theme/MT01_CATALOG.md. Фирменная кораллово-оранжевая палитра, тонкие границы, смысловые статусы и читаемость точных бизнес-данных. management-theme consumers применяются только к verified управленческим DOM roots; зал/персонал/profile/lock исключены. Окна и сообщения наследуют точный ticket инициатора. Native browser UI сохраняет браузерный внешний вид. Этапы и фактические границы проверки фиксируются в MT03_RESULT.md и MT04_RESULT.md.
+
+Верхняя панель управления сохраняет исходный дизайн: management theme не маркирует header и его кнопки. Панель уведомлений оформляется отдельно по проверенному контексту колокольчика. Это принятое уточнение области MT-05.
