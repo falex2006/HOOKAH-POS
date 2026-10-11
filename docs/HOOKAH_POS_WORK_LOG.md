@@ -39,3 +39,10 @@ ode scripts/local-full-pg-regression.cjs — PASS; локальная disposable
 
 - Extended the existing authenticated department boundary suite with an active synthetic category under a manager-created department. The API returns `409 inventory_department_in_use`; PostgreSQL and the fresh active list remain unchanged, and no department-archive audit is emitted. After deleting only the synthetic category fixture, the same department archives successfully as a positive control.
 - `node scripts/local-full-pg-regression.cjs acceptance-48-inventory-department-boundaries-postgres-qa.mjs` — PASS, 149 authenticated API/PG assertions. The runner-owned random `orders_qa_*` database was dropped; locks were absent; the exact auto-remove regression container was stopped and removed.
+
+## 2026-10-11 — owner home and local WIP audit
+
+- Preserved stale local checkout; classified its paths against published main 3b073102. Runtime/release risks and deferred candidates documented in `docs/release/LOCAL_WIP_AUDIT_2026_10_11.md`.
+- Dedicated staff/permissions routes retain roster and authorization; owner home no longer renders or loads roster. Old home-module preference does not hide the directory. Portal/source/dist revisions synchronized.
+- Focused desktop browser QA, role API matrix, shift deep-link contract, syntax/parity and independent architecture/code-health review passed. Three obsolete baseline sidebar/visual contracts documented separately; no mobile/Fold checks by user decision.
+- Release contains no database/catalog mutation; guarded deployment must skip menu seed and preserve PostgreSQL volume.
