@@ -1,6 +1,6 @@
 # MT-05 — общая приёмка
 
-2026-10-11. Локальная приёмка готового пакета: PASS в заявленных границах. Production receipt будет записан после выпуска.
+2026-10-11. Локальная приёмка готового пакета: PASS в заявленных границах. Выпуск завершён; production receipt ниже.
 
 ## Объём
 
@@ -21,3 +21,13 @@
 Сохранить existing Compose project/volume/env, canonical clean main точного merged SHA; SKIP_MENU_SEED_ONCE=true, guarded backup и restore rehearsal. После health проверить публичные assets, реальный read-only owner и равенство guest/taxonomy/stock hashes. Не сбрасывать/восстанавливать клиентскую БД.
 
 Полная WCAG/screen-reader/reduced-motion и все92 состояния не заявляются. Backend бизнес-правила и миграции diff не меняет; полный business E2E не повторялся для presentation-only stage. Payroll financial approval/write не выполнялись. Production завершение отдельно от локального PASS.
+## Production receipt — 2026-10-11
+
+- PR33 merged после обеих зелёных CI workflows на head3859433c. Runtime canonical main: 0faade7cdd353816258bd800b9fb34de3f919b0f, clean checkout /root/hookah-pos-release-0faade7c. Release label da24a7f4a7a2fa6006829dfde3ca831b43ee0e8972e2b4fb0825f0e13eec92d5.
+- Guarded deploy завершился успешно: build, остановка записи, backup с restore rehearsal, существующие миграции, SKIP_MENU_SEED_ONCE=true и healthy restart. Подготовительный wrapper исправлен для фактического docker-compose; первый отказ произошёл до deploy. Новых миграций пакет не добавляет.
+- .env побайтово сохранён; Compose project hookah-pos и volume territory-crm_pgdata сохранены. Перед/после full-row counts/hashes совпали: guests3, departments8, subdepartments12, product_categories35 включая архив, products71, ingredients85. Production fixtures, DB reset/restore и переписывание каталога не выполнялись.
+- Public HTTPS с проверкой существующего сертификата: health ok/postgres. SHA256 публичных app.js/portal.js/management-theme.js/css/ui-dialog.js совпадают с Git blobs опубликованного main. Рабочие CRLF Windows объясняют различие локального файлового SHA; canonical Git blobs сравнены побайтово.
+- Обычная существующая owner session в Edge: recipes, /admin, finance#payroll и floor загружены после обновления. Header unmarked, bell transparent/border0, management script rev2. Payroll готовое пустое состояние без ошибки owner_only. Зал:10 столов, theme roots0. Финальный warn/error journal пуст.
+- Новый production login/logout не выполнялся: использована открытая реальная owner session; стандартный credential-based post-deploy-acceptance.sh не запускался без актуального пароля. Его read-only health/page/session покрытия проверены публичным HTTPS и живой Edge session; fresh login всех четырёх ролей выполнен в isolated PostgreSQL QA. Сохранения/финансовые операции production не тестировались.
+
+MT-01–MT-05 завершены в согласованных desktop границах. Эта запись не является заявлением полной mobile/WCAG/business acceptance продукта. Последующие изменения дизайна ведутся отдельным пакетом. Receipt/plan обновления являются документационными и не требуют повторного развёртывания приложения.

@@ -5266,3 +5266,7 @@ API, права, маршруты и БД не менялись. Проверк�
 ## 2026-10-11 — MT-05: общая локальная приёмка
 
 Scoped theme принят локально в заявленных границах, owner/admin/manager/bartender sessions проверены в synthetic PostgreSQL QA; payroll готовое состояние и inventory save/reload/read PASS. Исходная шапка сохранена. Review/static/CI PASS; production gate и ограничения — MT05_RESULT.md. PR33 опубликован, production receipt ожидается после guarded release.
+
+## 2026-10-11 — MT-05: production завершение
+
+PR33 merged, runtime0faade7c deployed guarded canonical main, backup restore rehearsal/health/seedskip PASS. Existing env/project/volume и full-row guests/taxonomy/product/ingredient fingerprints сохранены. Public HTTPS canonical hashes пяти assets совпали; owner Edge overview/recipes/payroll/floor ready, исходная шапка,10 столов,0floortheme markers, console чист. Production login/write границы явно указаны в MT05_RESULT.md. MT01–05 desktop тема завершена. Receipt docs не требуют повторного deploy.
