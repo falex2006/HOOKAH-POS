@@ -27,5 +27,5 @@ assert.match(categoryResolver, /inventory_category_not_found/);
 assert.match(categoryResolver, /inventory_category_ambiguous/);
 assert.match(server, /validateTobaccoCatalogLink/);
 assert.match(portal, /inventory-item-tobacco-catalog/); assert.match(portal, /categoryId: document\.querySelector\('#inventory-item-category'\)\.value/);
-assert.match(portal, /tobaccoCatalogItemId: document\.querySelector\('#inventory-item-tobacco-catalog'\)\.value/);
+assert.match(portal, /tobaccoCatalogItemId: document\.querySelector\('#inventory-item-tobacco-catalog'\)\?\.value \|\| null/);
 console.log('INVENTORY CATEGORY/TOBACCO CONTRACT: PASS');

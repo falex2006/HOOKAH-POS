@@ -22,6 +22,7 @@ const staticTests = [
   "clients-editor-contract.mjs",
   "custom-select-groups-qa.mjs",
   "dashboard-greeting-contract.mjs",
+  "owner-home-staff-contract.mjs",
   "dashboard-kpi-design-contract.mjs",
   "dashboard-overnight-employee-demo-qa.mjs",
   "dashboard-overnight-employee-memory-qa.mjs",

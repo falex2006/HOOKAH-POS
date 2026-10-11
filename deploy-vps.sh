@@ -6,11 +6,11 @@ umask 077
 # Do not put real passwords in this file; create .env before running it.
 allow_http_deploy_once="${ALLOW_HTTP_DEPLOY_ONCE:-}"
 unset ALLOW_HTTP_DEPLOY_ONCE
-skip_menu_seed_once="${SKIP_MENU_SEED_ONCE:-}"
+skip_menu_seed_once="${SKIP_MENU_SEED_ONCE:-true}"
 unset SKIP_MENU_SEED_ONCE
 case "$skip_menu_seed_once" in
-  ''|true) ;;
-  *) echo 'SKIP_MENU_SEED_ONCE must be true when provided' >&2; exit 1 ;;
+  true|false) ;;
+  *) echo 'SKIP_MENU_SEED_ONCE must be true or false when provided' >&2; exit 1 ;;
 esac
 command -v docker >/dev/null || { echo 'Docker is required'; exit 1; }
 
