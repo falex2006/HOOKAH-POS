@@ -20,10 +20,12 @@ const staffAdminCardRevision = '12';
 const payrollSchemeUiRevision = '17';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
+const speedDialRevision = '1';
 const brandHead = `<!-- Hookah POS brand icons -->
 <link rel="icon" href="/assets/brand/icons/favicon.ico?rev=${brandRevision}" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icons/favicon-32.png?rev=${brandRevision}">
 <link rel="icon" type="image/svg+xml" href="/assets/brand/icons/favicon.svg?rev=${brandRevision}">
+<link rel="icon" type="image/png" sizes="264x168" href="/assets/brand/icons/opera-speed-dial-264x168.png?rev=${speedDialRevision}">
 <link rel="mask-icon" href="/assets/brand/icons/safari-pinned-tab.svg?rev=${brandRevision}" color="#171A20">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/icons/apple-touch-icon-180.png?rev=${brandRevision}">
 <link rel="manifest" href="/assets/brand/manifest.webmanifest?rev=${brandRevision}">
