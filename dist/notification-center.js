@@ -91,7 +91,10 @@ const setNotificationRead = async (id) => {
 };
 const closeNotificationPanel = (restoreFocus = true) => { notificationPanel.hidden = true; notificationBell?.setAttribute('aria-expanded', 'false'); notificationPanel.setAttribute('aria-modal', 'false'); document.body.classList.remove('notification-panel-open'); if (restoreFocus) notificationBell?.focus(); };
 const openNotificationPanel = async () => {
-  if (!notificationBell) return; notificationPanel.hidden = false; notificationBell.setAttribute('aria-expanded', 'true');
+  if (!notificationBell) return;
+  window.HOOKAH_MANAGEMENT_THEME?.detach(notificationPanel);
+  window.HOOKAH_MANAGEMENT_THEME?.attach(notificationPanel,window.HOOKAH_MANAGEMENT_THEME?.capture(notificationBell));
+  notificationPanel.hidden = false; notificationBell.setAttribute('aria-expanded', 'true');
   const mobile = window.matchMedia('(max-width: 768px)').matches; notificationPanel.setAttribute('aria-modal', mobile ? 'true' : 'false'); document.body.classList.toggle('notification-panel-open', mobile);
   notificationPanel.querySelector('#notification-panel-title').focus(); await loadNotifications(true);
 };

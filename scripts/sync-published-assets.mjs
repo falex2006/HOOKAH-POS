@@ -6,10 +6,10 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '2026101106';
-const portalRevision = '2026101106';
-const portalSessionRevision = '2026101106';
+const portalRevision = '2026101109';
+const portalSessionRevision = '2026101109';
 const lockRevision = '2026101103';
-const appRevision = '2026101106';
+const appRevision = '2026101109';
 const platformRevision = '2026101102';
 const platformCssRevision = '2026101102';
 const staffProfileRevision = '6';
@@ -145,3 +145,4 @@ cpSync(resolve(root, 'header-shell.js'), resolve(root, 'dist', 'header-shell.js'
 cpSync(resolve(root, 'staff-display-name.js'), resolve(root, 'dist', 'staff-display-name.js'));
 
 cpSync(resolve(root, 'ui-dialog.js'), resolve(root, 'dist', 'ui-dialog.js'));
+for (const name of ['management-theme.js','management-theme.css']) cpSync(resolve(root, name), resolve(root, 'dist', name));

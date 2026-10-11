@@ -37,6 +37,7 @@
   function feedback(text,kind='info',options={}) {
     const id=options.id||'ui-notice';let node=document.getElementById(id);
     if(!node){node=document.createElement('div');node.id=id;document.body.append(node);}
+    window.HOOKAH_MANAGEMENT_THEME?.detach(node);window.HOOKAH_MANAGEMENT_THEME?.attach(node,options.managementTicket);
     clearTimeout(node._uiTimer);node.className=options.className||'ui-feedback';node.dataset.kind=kind;
     node.setAttribute('role',kind==='error'?'alert':'status');node.setAttribute('aria-live',kind==='error'?'assertive':'polite');node.setAttribute('aria-atomic','true');node.textContent=text;
     // POS already supplies longer reading times for pending warnings; its adapter preserves them.
@@ -53,6 +54,7 @@
     if(!['preserve','confirm-discard','discard'].includes(draftPolicy)||pendingClosePolicy!=='block')throw Error('Explicit draft and pending policy required');
     const adapter=adapters[options.adapter||'portal'];if(!adapter)throw Error('Unknown field adapter');
     const initialContext=context(),opener=returnFocus||document.activeElement,prefix='ui-dialog-'+(++sequence),leases=new Map(),disabled=new Map();
+    const managementTicket=Object.hasOwn(options,'managementTicket')?options.managementTicket:window.HOOKAH_MANAGEMENT_THEME?.capture(opener);
     const scrollOwner={};
     const modal=document.createElement('div');modal.className='ui-modal ui-components';modal.dataset.uiDialog=prefix;modal.dataset.size=['small','medium','large'].includes(size)?size:'medium';modal.tabIndex=-1;
     modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-labelledby',prefix+'-title');if(description)modal.setAttribute('aria-describedby',prefix+'-description');
@@ -82,7 +84,7 @@
     function focusIn(event){if(closed)return;if(blocked()){refresh();return;}if(suspended||!top())return;if(modal.contains(event.target))lastFocus=event.target;else (lastFocus&&visible(lastFocus)?lastFocus:focusable(modal)[0]||modal).focus({preventScroll:true});}
     function setPending(value){pending=value;form.setAttribute('aria-busy',String(value));modal.querySelector('[data-ui-pending]').hidden=!value;for(const node of modal.querySelectorAll('button,input,select,textarea')){if(value){disabled.set(node,node.disabled);node.disabled=true;}else{node.disabled=disabled.get(node)||false;}}if(!value)disabled.clear();options.onPending?.(value);for(const control of form.querySelectorAll('select'))control._customSelectRefresh?.();if(value)modal.focus();}
     const observer=new MutationObserver(refresh);
-    document.body.append(modal);stack.push({element:modal,refresh});scrollLease.acquire(scrollOwner);leaseBackground();observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','open']});document.addEventListener('keydown',keyDown,true);document.addEventListener('focusin',focusIn);
+    document.body.append(modal);window.HOOKAH_MANAGEMENT_THEME?.attach(modal,managementTicket);stack.push({element:modal,refresh});scrollLease.acquire(scrollOwner);leaseBackground();observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','open']});document.addEventListener('keydown',keyDown,true);document.addEventListener('focusin',focusIn);
     listen(modal.querySelector('[data-ui-close]'),'click',()=>requestClose('close-button'));listen(modal.querySelector('[data-ui-cancel]'),'click',()=>requestClose('cancel'));
     modal.querySelector('[data-ui-keep]').addEventListener('click',keepDraft);modal.querySelector('[data-ui-discard-confirm]').addEventListener('click',()=>requestClose('discard-confirmed'));
     modal.addEventListener('pointerdown',e=>{backdropDown=e.target===modal;backdropUp=false;});modal.addEventListener('pointerup',e=>{backdropUp=e.target===modal;});modal.addEventListener('pointercancel',()=>{backdropDown=false;backdropUp=false;});modal.addEventListener('click',e=>{if(e.target===modal&&backdropDown&&backdropUp)requestClose('backdrop');backdropDown=false;backdropUp=false;});
@@ -102,7 +104,7 @@
   function critical(options) {
     const element=options.element,card=options.card||element, native=element.tagName==='DIALOG';
     const listeners=[];const listen=(node,type,handler,capture=false)=>{node.addEventListener(type,handler,capture);listeners.push(()=>node.removeEventListener(type,handler,capture));};
-    const owner={},leases=new Map(),disabled=new Map();let active=false,initialContext,opener,openingFocus,backdropDown=false,backdropUp=false,wasPending=false;
+    const owner={},leases=new Map(),disabled=new Map();let active=false,initialContext,opener,openingFocus,openingThemeTicket,backdropDown=false,backdropUp=false,wasPending=false;
     const opened=()=>native?element.open:element.classList.contains('open');
     const pending=()=>Boolean(options.isPending?.());
     const current=()=>options.context?.()===initialContext&&options.isCurrent?.()!==false;
@@ -118,7 +120,7 @@
       // Native close events are queued after the open-attribute mutation observer.
       if(!opened()&&active&&pending()){if(native)element.showModal();else element.classList.add('open');return;}
       if(!opened()){if(active)release('native-close');return;}
-      if(!active){active=true;initialContext=options.context?.();opener=openingFocus||document.activeElement;openingFocus=null;stack.push({element,refresh});scrollLease.acquire(owner);for(const node of document.body.children){if(node===element||node.contains(element)||node.matches('script,style,link,dialog,.screen-lock-overlay,.lock-settings-dialog,[data-ui-dialog],.ui-feedback,#portal-notice,#staff-notice'))continue;leases.set(node,node.inert);node.inert=true;}options.initialFocus?.()?.focus({preventScroll:true});}
+      if(!active){active=true;initialContext=options.context?.();opener=openingFocus||document.activeElement;openingFocus=null;window.HOOKAH_MANAGEMENT_THEME?.attach(element,openingThemeTicket!==undefined?openingThemeTicket:(Object.hasOwn(options,'managementTicket')?options.managementTicket:window.HOOKAH_MANAGEMENT_THEME?.capture(opener)));stack.push({element,refresh});scrollLease.acquire(owner);for(const node of document.body.children){if(node===element||node.contains(element)||node.matches('script,style,link,dialog,.screen-lock-overlay,.lock-settings-dialog,[data-ui-dialog],.ui-feedback,#portal-notice,#staff-notice'))continue;leases.set(node,node.inert);node.inert=true;}options.initialFocus?.()?.focus({preventScroll:true});}
       if(!status.isConnected)(options.body||card).append(status);
       const busy=pending();element.classList.toggle('ui-critical-context-lost',!current()&&busy);element.setAttribute('aria-busy',String(busy));status.hidden=!busy;
       if(busy!==wasPending){for(const node of element.querySelectorAll('button,input,select,textarea')){if(busy){disabled.set(node,node.disabled);node.disabled=true;}else if(disabled.has(node)){node.disabled=disabled.get(node);}}if(!busy)disabled.clear();wasPending=busy;}
@@ -132,7 +134,7 @@
     document.addEventListener('keydown',key,true);
     const observer=new MutationObserver(refresh);observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','open']});
     function destroy(){if(pending())return false;close('destroy');observer.disconnect();document.removeEventListener('keydown',key,true);listeners.forEach(remove=>remove());status.remove();return true;}
-    return {open(){if(opened()){refresh();return;}openingFocus=document.activeElement;if(native)element.showModal();else element.classList.add('open');refresh();},close,refresh,destroy};
+    return {open(openOptions={}){if(opened()){refresh();return;}openingThemeTicket=Object.hasOwn(openOptions,'managementTicket')?openOptions.managementTicket:undefined;openingFocus=document.activeElement;if(native)element.showModal();else element.classList.add('open');refresh();},close,refresh,destroy};
   }
   window.HOOKAH_UI=Object.freeze({open,critical,feedback,fieldError,adapters,version:1});
 })();

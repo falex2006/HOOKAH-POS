@@ -5247,3 +5247,22 @@ API, права, маршруты и БД не менялись. Проверк�
 Ограничение: Opera сама выбирает и кэширует thumbnail. Новый файл является сильным автоматическим кандидатом для новой закладки, но существующую серую плитку может понадобиться удалить и добавить повторно. Локальная проверка не доказывает production-состояние; после публикации требуется read-only HTTP-проверка точного файла и добавление сайта в чистом профиле Opera.
 
 Первый GitHub CI выявил, что файловый SaaS/POS guard считал синхронное обновление общего брендового блока смешением функциональных UI-зон. Контракт суженно дополнен: только единственный маркированный brand head может отличаться между версиями, а весь HTML вне него обязан совпасть. Самопроверки подтверждают разрешённую замену блока и отклоняют изменения внешней разметки, дублированный блок и не-HTML файлы.
+
+## 2026-10-11 — MT-03: общие компоненты управленческой темы
+
+Локально реализованы scoped management-theme.css/js с фирменной палитрой, общими контролами, панелями/таблицами/окнами и gate по verified session. Подключены shared UI, legacy action и обе реализации notification tray. Сохранены области исключения сотрудника/зала/столов/персонала/profile/lock. Актуальный origin/main принят до интеграции. Code health source/diff PASS; syntax, source/dist parity и сфокусированный owner desktop browser PASS в локальном in-memory окружении без клиентской БД. Результаты и явные ограничения — docs/design/management-theme/MT03_RESULT.md. Native directory editor и notice callers требуют привязки на MT-04. GitHub/production выпуск — MT-05; сервер и база заведения на этом этапе не менялись.
+## 2026-10-11 — MT-04: управленческие страницы
+
+Локально применены scoped consumers к управленческим страницам, exact roots native editors, async tickets и 51 notice binder. Найден и исправлен disconnected receipt opener после toolbar remount. Source/diff и route review без блокеров; syntax/parity и focused owner desktop browser выполнены. Пределы окружения и payroll API явно записаны в docs/design/management-theme/MT04_RESULT.md. Персонал/зал исключены. GitHub/сервер/клиентская база не менялись; далее MT-05.
+
+## 2026-10-11 — MT-05: две пользовательские правки и начало приёмки
+
+Пустой зал показывает verified settings ссылку настройки владельцу/управляющему; сотрудник без права видит контактную подсказку. Правая панель учитывает фактическое отсутствие столов только при floorReady. Dashboard date ограничена ISO четырёхзначным годом и календарной валидностью до API; сброс смены/устаревших результатов и восстановление сохранены. Source health PASS: MT05_FIXES_REVIEW.md. Owner browser 222222 отклонён, корректный 2026 восстановил показатели; owner empty floor подсказки подтверждены. App/portal revisions2026101109 синхронизированы. Начата общая MT05 приёмка: source contracts и release readiness; VPS read-only подтверждён /root/hookah-pos-release-b4984208 HEADb4984208, clean. На этом шаге нет push/deploy/изменений клиентской БД; финальный выпуск пока не принят.
+
+## 2026-10-11 — сохранить исходную верхнюю панель
+
+По решению пользователя верхняя панель исключена из management theme roots и CSS consumers. Колокольчик снова использует исходное transparent/border0 оформление. Exact notification-bell может дать verified context ticket отдельно открытой панели, header запрещён attach. Sidebar и page roots сохранены. Architecture contract и final code health PASS; syntax/parity/diffcheck PASS. Локальный owner browser: header marker null,16 page roots, panel marker mt, bell transparent/border0. Сервер не менялся. Cache theme JS2/CSS3.
+
+## 2026-10-11 — MT-05: общая локальная приёмка
+
+Scoped theme принят локально в заявленных границах, owner/admin/manager/bartender sessions проверены в synthetic PostgreSQL QA; payroll готовое состояние и inventory save/reload/read PASS. Исходная шапка сохранена. Review/static/CI PASS; production gate и ограничения — MT05_RESULT.md. PR33 опубликован, production receipt ожидается после guarded release.
