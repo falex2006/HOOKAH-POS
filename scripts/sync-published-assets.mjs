@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '419';
-const portalRevision = '481';
-const portalSessionRevision = '1';
-const lockRevision = '22';
-const appRevision = '220';
+const cssRevision = '2026101102';
+const portalRevision = '2026101102';
+const portalSessionRevision = '2026101102';
+const lockRevision = '2026101102';
+const appRevision = '2026101102';
 const platformRevision = '8';
 const platformCssRevision = '3';
 const staffProfileRevision = '6';
@@ -141,3 +141,5 @@ cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'
 cpSync(resolve(root, 'header-shell.js'), resolve(root, 'dist', 'header-shell.js'));
 
 cpSync(resolve(root, 'staff-display-name.js'), resolve(root, 'dist', 'staff-display-name.js'));
+
+cpSync(resolve(root, 'ui-dialog.js'), resolve(root, 'dist', 'ui-dialog.js'));

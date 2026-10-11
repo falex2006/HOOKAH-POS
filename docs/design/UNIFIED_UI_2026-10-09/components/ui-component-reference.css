@@ -1,0 +1,12 @@
+/* Local reference layout only; never loaded by production routes. */
+.ui-reference{margin:0;background:var(--ui-page);color:var(--ui-text-primary)}
+.ui-reference-main{box-sizing:border-box;width:min(1120px,100%);margin-inline:auto;padding:24px;display:grid;gap:24px;min-width:0}
+.ui-reference-header{height:auto;min-height:0;overflow:visible;padding:0;border:0;background:none;box-shadow:none;display:flex;align-items:start;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.ui-reference-header>div:first-child{flex:1;min-width:min(100%,280px)}
+.ui-reference-preferences{display:grid;gap:8px;max-width:100%;min-width:min(100%,250px)}
+.ui-reference-section{padding:20px;display:grid;gap:16px;min-width:0;border:1px solid var(--ui-border-subtle);border-radius:var(--ui-radius-panel);background:var(--ui-panel)}
+.ui-reference-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.ui-reference-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.ui-reference-long{justify-self:start;max-width:100%}
+@media(max-width:620px){.ui-reference-main{padding:16px}.ui-reference-section{padding:16px}.ui-reference-grid{grid-template-columns:minmax(0,1fr)}.ui-reference-preferences{width:100%}}
+body.ui-reference { height:auto;min-height:100vh;overflow:visible; }

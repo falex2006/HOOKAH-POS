@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {createRequire} from 'node:module';
+const source=readFileSync(new URL('../portal.js', import.meta.url),'utf8');const section=source.slice(source.indexOf('key: `table:${table.id}`'),source.indexOf("} else if (",source.indexOf('key: `table:${table.id}`'))>0?source.indexOf("} else if (",source.indexOf('key: `table:${table.id}`')):source.indexOf('function disposeStaffDrawer'));
+for(const field of ['minimumOrderStartTime','minimumOrderEndTime'])assert.match(section,new RegExp("name: '"+field+"'[^}]+required: false"));
+const begin=section.indexOf('onSubmit: ')+10,end=section.indexOf(',\n        errorMessage:',begin);assert.ok(begin>10&&end>begin);
+let captured;const submit=new Function('api','actionVenueId','table','return ('+section.slice(begin,end)+');')((path,options)=>{captured={path,body:JSON.parse(options.body)};return Promise.resolve({});},'venue',{id:'table'});
+await submit({name:' Table ',minCapacity:'2',maxCapacity:'4',minimumOrderTotal:'0',minimumOrderStartTime:'',minimumOrderEndTime:'',playstation5:false,television:true});
+assert.equal(captured.body.minimumOrderStartTime,null);assert.equal(captured.body.minimumOrderEndTime,null);assert.equal(captured.body.expectedVenueId,'venue');assert.deepEqual(captured.body.layout,{amenities:{playstation5:false,television:true}});
+const require=createRequire(import.meta.url);const {normalizeTableMinimumSchedule}=require('../table-minimum-schedule');
+assert.equal(normalizeTableMinimumSchedule('18:00',''),null);assert.equal(normalizeTableMinimumSchedule('18:00','18:00'),null);assert.ok(normalizeTableMinimumSchedule('18:00','09:00'));
+console.log('TABLE OPTIONAL SCHEDULE: PASS (optional blank controls, unchanged null/null payload and invalid partial/equal schedule server normalizer)');
