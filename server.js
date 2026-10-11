@@ -5883,9 +5883,25 @@ if (staffProfile && req.method === 'PATCH') {
     const requestedDate = url.searchParams.get('date');
     const validDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : null;
     const attentionOnly = url.searchParams.get('attention') === '1';
+    const addListPricing = async (items) => {
+      if (url.searchParams.get('withPricing') !== '1') return items;
+      const priced = [];
+      // Bound concurrent pricing reads; reuse the same authoritative calculation as /summary.
+      for (let offset = 0; offset < items.length; offset += 4) {
+        priced.push(...await Promise.all(items.slice(offset, offset + 4).map(async (order) => {
+          if (!['open', 'in_progress', 'ready', 'awaiting_payment'].includes(order.status)) return order;
+          try {
+            const pricing = orderRepository ? await pgOrderPricing(repositories.pool, order.id, order.minimumOrderTotal) : memoryOrderPricing(order);
+            const total = pricing.due;
+            return { ...order, pricingTotal: total !== null && total !== undefined && Number.isFinite(Number(total)) && Number(total) >= 0 ? Number(total) : null };
+          } catch (_) { return { ...order, pricingTotal: null }; }
+        })));
+      }
+      return priced;
+    };
     const needsAttention = (order) => orderAttentionReasons(order).length > 0;
     if (orderRepository) {
-      try { const result = await orderRepository.listOpen(venueDbId, url.searchParams.get('scope') === 'all'); const items = (attentionOnly ? result.filter(needsAttention) : result).filter((order) => !validDate || String(order.createdAt || '').slice(0, 10) === validDate).map((order) => ({ ...order, attentionReasons: orderAttentionReasons(order) })); return json(res, 200, { items }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
+      try { const result = await orderRepository.listOpen(venueDbId, url.searchParams.get('scope') === 'all'); const items = (attentionOnly ? result.filter(needsAttention) : result).filter((order) => !validDate || String(order.createdAt || '').slice(0, 10) === validDate).map((order) => ({ ...order, attentionReasons: orderAttentionReasons(order) })); return json(res, 200, { items: await addListPricing(items) }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
     }
     const tableNames = new Map(floor.flatMap((zone) => zone.tables || []).map((table) => [table.id, table.name]));
     const withAttention = (order) => {
@@ -5896,7 +5912,7 @@ if (staffProfile && req.method === 'PATCH') {
       const result = { ...order, attentionPaymentDue, tableName: tableNames.get(order.tableId) || order.tableName || null };
       return { ...result, attentionReasons: orderAttentionReasons(result) };
     };
-    return json(res, 200, { items: (attentionOnly ? orders.filter((order) => needsAttention(withAttention(order))) : orders).filter((order) => !validDate || String(order.createdAt || '').slice(0, 10) === validDate).map(withAttention) });
+    return json(res, 200, { items: await addListPricing((attentionOnly ? orders.filter((order) => needsAttention(withAttention(order))) : orders).filter((order) => !validDate || String(order.createdAt || '').slice(0, 10) === validDate).map(withAttention)) });
   }
   if (pathname === '/api/orders' && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;

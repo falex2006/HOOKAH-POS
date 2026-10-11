@@ -25,8 +25,11 @@ let prePolicyOrderId = null;
 const organizationId = randomUUID();
 const ownerId = randomUUID();
 const managerId = randomUUID();
+const cleanerId = randomUUID();
+const foreignOrderId = randomUUID();
 const managerLogin = 'paid-order-manager-' + managerId;
 const ownerLogin = 'paid-order-qa-' + ownerId;
+const cleanerLogin = 'paid-order-cleaner-' + cleanerId;
 const password = 'qa-' + randomUUID();
 const passwordSalt = randomBytes(16).toString('hex');
 const passwordHash = 'scrypt$' + passwordSalt + '$' + (await promisify(scryptCallback)(password, passwordSalt, 64)).toString('hex');
@@ -64,6 +67,18 @@ const api = async (route, method = 'GET', data, expected = 200) => {
   assert.equal(response.status, expected, `${method} ${route}: ${JSON.stringify(payload)}`);
   return payload;
 };
+const assertPricedOrderList = async (orderId, expectedDue) => {
+  const before = (await client.query("SELECT o.status,o.vip_minimum,o.final_total_snapshot,o.pricing_locked_at,(SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id) AS payment_count FROM orders o WHERE o.id=$1", [orderId])).rows[0];
+  const legacy = (await api('/api/orders')).items.find((entry) => entry.id === orderId);
+  assert.ok(legacy, 'legacy order list contains the active order');
+  assert.equal(Object.hasOwn(legacy, 'pricingTotal'), false, 'legacy list does not add pricing fields');
+  const priced = (await api('/api/orders?withPricing=1')).items.find((entry) => entry.id === orderId);
+  assert.ok(priced, 'priced order list contains the active order');
+  assert.equal(Number(priced.pricingTotal), expectedDue, 'floor price matches the canonical PostgreSQL summary due');
+  assert.equal(Number((await api(`/api/orders/${orderId}/summary`)).due), expectedDue, 'priced read does not change the order total');
+  const after = (await client.query("SELECT o.status,o.vip_minimum,o.final_total_snapshot,o.pricing_locked_at,(SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id) AS payment_count FROM orders o WHERE o.id=$1", [orderId])).rows[0];
+  assert.deepEqual(after, before, 'priced read does not mutate order or payments');
+};
 
 try {
   await client.connect();
@@ -82,6 +97,8 @@ try {
   await client.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'owner','active')", [organizationId, ownerId]);
   await client.query("INSERT INTO users (id,venue_id,organization_id,full_name,login,password_hash,role) VALUES ($1,$2,$3,'Policy manager',$4,$5,'manager')", [managerId, venueId, organizationId, managerLogin, passwordHash]);
   await client.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'member','active')", [organizationId, managerId]);
+  await client.query("INSERT INTO users (id,venue_id,organization_id,full_name,login,password_hash,role) VALUES ($1,$2,$3,'QA cleaner',$4,$5,'cleaner')", [cleanerId, venueId, organizationId, cleanerLogin, passwordHash]);
+  await client.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'member','active')", [organizationId, cleanerId]);
   const shiftId = (await client.query("INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,0) RETURNING id", [venueId, ownerId])).rows[0].id;
   await client.query("INSERT INTO products (id,venue_id,name,category,sale_price,inventory_mode) VALUES ($1,$2,'QA service','bar',100,'non_stock')", [productId, venueId]);
   await client.query("INSERT INTO products (id,venue_id,name,category,sale_price,inventory_mode) VALUES ($1,$2,'QA promotion service','promo',1000,'non_stock')", [promoProductId, venueId]);
@@ -90,6 +107,7 @@ try {
   await client.query("INSERT INTO guests (id,venue_id,full_name,loyalty_points) VALUES ($1,$2,'QA concurrent redemption guest',10)", [raceGuestId, venueId]);
   await client.query("INSERT INTO guest_account_entries (venue_id,guest_id,account_type,amount,reason,source_type,source_key) VALUES ($1,$2,'bonus',10,'Concurrent QA opening balance','opening_balance','qa-concurrent-opening')", [venueId, raceGuestId]);
   await client.query("INSERT INTO orders (id,venue_id,opened_by,guest_id,status) VALUES ($1,$2,$3,$4,'open')", [orderId, venueId, ownerId, guestId]);
+  await client.query("INSERT INTO orders (id,venue_id,opened_by,status) VALUES ($1,$2,$3,'open')", [foreignOrderId, otherVenueId, ownerId]);
   await client.query("INSERT INTO order_items (id,order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,2,100,'bar')", [itemA, orderId, productId]);
 
   server = spawn(process.execPath, ['server.js'], { cwd: root, windowsHide: true,
@@ -115,6 +133,11 @@ try {
   assert.equal(session.user.id, ownerId, 'all order actions use the synthetic owner, not a default actor');
   assert.equal(session.user.organizationId, organizationId);
   assert.equal(session.user.venueId, venueId);
+  assert.equal((await api('/api/orders?withPricing=1')).items.some((entry) => entry.id === foreignOrderId), false, 'priced list does not expose a sibling venue');
+  const cleanerSession = await api('/api/login', 'POST', { username: cleanerLogin, password });
+  token = cleanerSession.token;
+  await api('/api/orders?withPricing=1', 'GET', undefined, 403);
+  token = authenticated.token;
   const ownerToken = token;
   const managerSession = await api('/api/login', 'POST', { username: managerLogin, password });
   token = managerSession.token;
@@ -146,6 +169,7 @@ try {
   assert.equal(Number((await api('/api/metrics')).pendingRevenue)-pendingBeforePromo,1500,'pending-revenue CTE applies active promotion to an unpaid, unlocked order');
   const promoQuote = await api(`/api/orders/${promoOrder.id}/payments`);
   assert.equal(Number(promoQuote.subtotal),2000); assert.equal(Number(promoQuote.discount),500); assert.equal(Number(promoQuote.due),1500);
+  await assertPricedOrderList(promoOrder.id, 1500);
   assert.equal(promoQuote.selectedPromotion.version,2); assert.equal(promoQuote.offers.find((offer)=>offer.source==='promotion')?.reasonCode,'selected');
   const promoPartial = await api(`/api/orders/${promoOrder.id}/payments`, 'POST', { amount:500,method:'cash' }, 201);
   assert.equal(Number(promoPartial.remaining),1000); assert.equal((await api(`/api/orders/${promoOrder.id}/payments`)).pricingLocked,true);
@@ -154,12 +178,14 @@ try {
   assert.equal(promoV3.version,3);
   const lockedPromoQuote = await api(`/api/orders/${promoOrder.id}/payments`);
   assert.equal(lockedPromoQuote.due,1500); assert.equal(lockedPromoQuote.selectedPromotion.version,2,'new active campaign version does not change a partially paid check');
+  await assertPricedOrderList(promoOrder.id, 1500);
   assert.equal(Number((await api('/api/metrics')).pendingRevenue)-pendingBeforePromo,1000,'report remainder continues to use the captured promotion price');
   const newPromoOrder = await api('/api/orders', 'POST', { tableId: promoTableId }, 201);
   await api(`/api/orders/${newPromoOrder.id}/items`, 'POST', { productId:promoProductId,quantity:2 }, 201);
   assert.equal((await api(`/api/orders/${newPromoOrder.id}/payments`)).due,400,'new order uses the newly activated promotion version');
   const promoClosed = await api(`/api/orders/${promoOrder.id}/payments`, 'POST', { amount:1000,method:'card' }, 201);
   assert.equal(promoClosed.closed,true); assert.equal(promoClosed.finalTotal,1500);
+  assert.equal(Object.hasOwn((await api('/api/orders?scope=all&withPricing=1')).items.find((entry) => entry.id === promoOrder.id), 'pricingTotal'), false, 'closed PostgreSQL order is not repriced for the floor');
   const promoHistorical = await api(`/api/orders/${promoOrder.id}/payments`);
   assert.equal(promoHistorical.due,1500); assert.equal(promoHistorical.selectedPromotion.version,2); assert.equal(promoHistorical.offers.find((offer)=>offer.source==='promotion')?.reasonCode,'selected');
   await api(`/api/orders/${newPromoOrder.id}/payments`, 'POST', { amount:400,method:'cash' }, 201);
@@ -368,6 +394,7 @@ try {
   await client.query("INSERT INTO order_items (id,order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,1,100,'bar')", [vipItemId, vipOrderId, productId]);
   await api(`/api/orders/${vipOrderId}`, 'PATCH', { clientId: guestId });
   await client.query("INSERT INTO discounts (order_id,requested_by,type,value,reason,status) VALUES ($1,$2,'percent',10,'QA loyalty base','approved')", [vipOrderId, ownerId]);
+  await assertPricedOrderList(vipOrderId, Number((await api(`/api/orders/${vipOrderId}/summary`)).due));
   const vipClose = await api(`/api/orders/${vipOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(vipClose.finalTotal, 250);
   assert.equal(vipClose.source, 'guest_group', 'better group discount wins over a smaller manual discount');

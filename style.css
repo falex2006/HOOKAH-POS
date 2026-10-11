@@ -4927,3 +4927,13 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .portal.light-theme :is(.inventory-stock-panel,.inventory-auto-order-panel) thead th{background:var(--ui-raised);color:var(--ui-text-secondary);border-color:var(--ui-border-control)}
 .portal.light-theme[data-page="orders"] .badge.warning{background:var(--ui-raised);color:var(--ui-warning)}
 .portal.light-theme #shift-close{background:var(--ui-panel);color:var(--ui-danger);border-color:var(--ui-danger)}
+
+/* Canonical server-priced totals occupy a separate row above the seating timer. */
+.staff-theme .tables .table>.table-order-total{grid-column:1/-1;grid-row:4;margin:0;font-size:21px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere;text-align:left;color:var(--ui-text-primary);transform:rotate(var(--table-counter-rotation,0deg));transform-origin:center}
+.staff-theme .tables .table:has(>.table-order-total){grid-template-rows:auto auto auto auto minmax(22px,1fr)}
+.staff-theme .tables .table:has(>.table-order-total)>.table-amenities,
+.staff-theme .tables .table:has(>.table-order-total)>.table-elapsed{grid-row:5;margin-top:4px}
+.staff-theme .tables.has-map.density-map>.floor-map-stage{grid-auto-rows:minmax(var(--floor-density-height,108px),auto)}
+.staff-theme .tables.has-map.density-map>.floor-map-stage>.table:has(>.table-order-total){height:auto;min-height:132px;grid-template-rows:auto auto auto auto minmax(18px,1fr)}
+.staff-theme .tables.has-map.density-map>.floor-map-stage>.table>.table-order-total{font-size:clamp(15px,calc(var(--floor-density-title,22px)*.76),19px);line-height:1.08;transform:none}
+.staff-theme .tables.has-map.compact-map>.floor-map-stage>.table>.table-order-total{transform:none}

@@ -28,9 +28,9 @@ Full local inventory remains in worktree `tmp/local-wip-classification.json`; co
 - Keep main lock preference saving: old lock.js ignores failed persistence and stale-read generations: excluded.
 - `db.js` difference is import order/whitespace: no port needed.
 - Root `effective-permissions.js`, `order-preparation.js`, `reservation-calendar.js`, `staff-display-name.js`, `ui-dialog.js` and migrations 099/100 already match main: no re-release.
-- Local `app.js` order total on table cards and catalog return-focus behavior are useful candidate work. Preserve for a separate current-main implementation with price/discount semantics and browser QA; not accepted by this audit as production-ready.
+- Follow-up integration: order totals on table cards are now implemented with canonical server pricing instead of the unsafe local subtotal. Catalog return-focus behavior and preparation status card are already in main; no duplicate port needed.
 - Local `table-minimum-schedule.js` truncates strings to HH:MM; main strict validation retained. Investigate actual API/PG formats separately before changing.
-- Local portal/UI code overlaps published work; no whole-file import. Current focused staff removal is implemented directly on main.
+- Local portal/UI code overlaps published work; no whole-file import. Focused staff removal was released in PR #28. Useful minimum-check error messages/validation and preparation success messages are integrated in the follow-up package; existing paired-time and input-change guards are retained.
 - Local-only migration 098 and AlphaSat adapter utilities are a separate unfinished integration: no deployment.
 - CSS button alignment release and shot category archive are already published; not reimplemented.
 - Evidence/QA utilities remain preserved as an archive; publishing them is not necessary to keep the service working.
@@ -53,3 +53,7 @@ The roster/form is rendered and loaded only on `/admin#staff` and `/admin#permis
 ## Deployment boundary
 
 No server.js/db.js/schema/migration/catalog data changes in this package. Deploy uses canonical main guarded script with `SKIP_MENU_SEED_ONCE=true`; no PostgreSQL restore/reset/reseed. Client records and the manually configured departments, subdepartments/categories must be preserved. Release SHA, CI and live verification are recorded after publication.
+
+## PR #28 live result
+
+Merged/runtime commit `878761b1151984a82d10bb4814147637e30338f2`; both GitHub PR workflows succeeded. Canonical guarded VPS deploy passed, final backup restoration test passed, menu seed explicitly skipped, PostgreSQL volume `territory-crm_pgdata` retained. Before/after counts and full-row aggregate hashes exactly matched for guests (3), departments (8), subdepartments (12), product categories (35 including archived), products (71), ingredients (85). Public health reports PostgreSQL healthy.
