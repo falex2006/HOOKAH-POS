@@ -11,6 +11,7 @@ const routes = new Map([
   ['/index.html', path.join(root, 'index.html')],
   ['/prototype.css', path.join(root, 'prototype.css')],
   ['/prototype.js', path.join(root, 'prototype.js')],
+  ['/assets/tabler-icons.svg', path.join(assets, 'tabler-icons.svg')],
   ['/assets/brand/hookah-pos-lockup.svg', path.join(assets, 'brand/hookah-pos-lockup.svg')],
   ['/assets/brand/hookah-pos-symbol.svg', path.join(assets, 'brand/hookah-pos-symbol.svg')],
   ...[400, 500, 600, 700, 800].map(weight => [`/assets/fonts/manrope-${weight}.ttf`, path.join(assets, `fonts/manrope-${weight}.ttf`)]),
@@ -31,5 +32,7 @@ const server = http.createServer((request, response) => {
     response.writeHead(200); response.end(request.method === 'HEAD' ? undefined : data);
   });
 });
-server.listen(0, '127.0.0.1', () => console.log(`MT02_PREVIEW http://127.0.0.1:${server.address().port}`));
+const previewPort = Number(process.argv[2] || 0);
+if (!Number.isInteger(previewPort) || previewPort < 0 || previewPort > 65535) throw new Error('Expected preview port 0..65535');
+server.listen(previewPort, '127.0.0.1', () => console.log(`MT02_PREVIEW http://127.0.0.1:${server.address().port}`));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));

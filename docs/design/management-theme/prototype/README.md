@@ -12,7 +12,9 @@ node docs/design/management-theme/prototype/preview-server.cjs
 
 Открыть URL `MT02_PREVIEW`, напечатанный сервером. Порт выбирается автоматически, адрес доступен только на компьютере через `127.0.0.1`. Остановка — Ctrl+C в процессе сервера. Запуск не требует `.env`, PostgreSQL или логина.
 
-Сервер отдаёт только index.html, prototype.css/js и явно перечисленные локальные brand/font assets. Остальные пути возвращают 404, запись POST — 405. Content Security Policy запрещает сетевые соединения приложения и отправку форм. Нет листинга папок проекта.
+Для повторного запуска на том же адресе можно передать порт: `node docs/design/management-theme/prototype/preview-server.cjs 39490`.
+
+Сервер отдаёт только index.html, prototype.css/js, действующий `assets/tabler-icons.svg` и явно перечисленные локальные brand/font assets. Остальные пути возвращают 404, запись POST — 405. Content Security Policy запрещает сетевые соединения приложения и отправку форм. Нет листинга папок проекта.
 
 ## Назначение
 
