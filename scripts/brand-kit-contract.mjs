@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 import { publishedHtmlFiles, routeAliases } from './published-html-manifest.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,6 +14,7 @@ const required = [
   'hookah-pos-lockup-light.svg', 'hookah-pos-lockup-light-animated.svg',
   'hookah-pos-symbol.svg', 'manifest.webmanifest',
   'icons/favicon.svg', 'icons/favicon.ico', 'icons/favicon-32.png',
+  'icons/opera-speed-dial-264x168.png',
   'icons/safari-pinned-tab.svg', 'icons/apple-touch-icon-180.png',
   'icons/og-image-1200x630.png', 'icons/pwa-192.png', 'icons/pwa-512.png',
   'icons/pwa-maskable-512.png', 'icons/apple-touch-icon-dark-180.png',
@@ -30,11 +32,20 @@ for (const rel of required.filter(rel => rel.endsWith('.png'))) {
 const manifest = JSON.parse(read('assets/brand/manifest.webmanifest'));
 assert.equal(manifest.name, 'Hookah POS');
 assert.ok(manifest.icons?.some((icon) => icon.purpose === 'maskable'));
+const speedDialPath = path.join(brand, 'icons', 'opera-speed-dial-264x168.png');
+const speedDialMetadata = await sharp(speedDialPath).metadata();
+assert.equal(speedDialMetadata.format, 'png', 'Opera Speed Dial asset must be PNG');
+assert.equal(speedDialMetadata.width, 264, 'Opera Speed Dial asset width');
+assert.equal(speedDialMetadata.height, 168, 'Opera Speed Dial asset height');
+const speedDialStats = await sharp(speedDialPath).ensureAlpha().stats();
+assert.equal(speedDialStats.channels[3].min, 255, 'Opera Speed Dial asset must be fully opaque');
 const pages = publishedHtmlFiles;
 for (const file of pages) {
   const html = read(file);
   assert.match(html, /favicon\.svg\?rev=2/);
   assert.match(html, /manifest\.webmanifest\?rev=2/);
+  assert.match(html, /<link rel="icon" type="image\/png" sizes="264x168" href="\/assets\/brand\/icons\/opera-speed-dial-264x168\.png\?rev=1">/);
+  assert.equal((html.match(/opera-speed-dial-264x168\.png/g) || []).length, 1, 'one Opera Speed Dial candidate');
   assert.equal(html, read(`dist/${file}`), `source/dist page mismatch: ${file}`);
   assert.equal((html.match(/<!-- Hookah POS brand icons -->/g) || []).length, 1, 'one icon metadata block');
 }
