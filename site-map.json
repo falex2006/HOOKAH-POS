@@ -1,5 +1,16 @@
 {
   "version": 1,
+  "contract": {
+    "version": "1.0",
+    "date": "2026-10-09",
+    "owner": "system_architect",
+    "scope": "local-working-tree-inventory; no route or permission changes",
+    "baselineHead": "802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf",
+    "includesUncommittedChanges": true,
+    "matrix": "docs/design/UNIFIED_UI_2026-10-09/ROUTE_ROLE_MATRIX.md",
+    "sources": ["server.js:staticFile", "portal.js:adminSectionTitles", "portal.js:inventorySections", "portal-session.js:canAccessRoute", "effective-permissions.js:createPermissionResolver"],
+    "modeIsAuthorization": false
+  },
   "canonicalRoot": "/",
   "adminRoot": "/admin",
   "sidebarBrandPresentation": {
@@ -51,5 +62,14 @@
     {"view":"premixes","group":"inventory","title":"Заготовки и премиксы"},
     {"view":"directories","group":"inventory","title":"Цеха и категории"}
   ],
-  "adminSubroutes": ["staff","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics"]
+  "adminSubroutes": ["staff","permissions","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics","notifications","help"],
+  "financeSubroutes": ["payroll"],
+  "canonicalization": {
+    "htmlAlias": "Each entries.file prefixed with / redirects to entries.path with HTTP 308; query is preserved",
+    "nestedTrailingSlash": "nginx/default.conf redirects to slashless path with HTTP 308; / is unchanged",
+    "inventoryDefaultView": "stock",
+    "employeeOrdersView": "/?view=orders",
+    "employeeOrdersFallback": "/orders",
+    "scope": "Source contract; deployed HTTP behavior is not verified in UI-01.1"
+  }
 }

@@ -19,7 +19,7 @@ const context = vm.createContext({
   catalogRequest: null, catalogRequestContext: '', catalogLoaded: false, products: [], catalogState: '',
   ordersRequestRevision: 0, document: { querySelector: () => null }, floorVenueId: '',
   selectedZoneId: '', serverZones: [], clearTableMinimums: noop, tableMinimums: {}, floorTabs: tabs,
-  tables: { classList: { remove: noop }, innerHTML: '' }, currentOrder: null, openOrders: [],
+  tables: { classList: { remove: noop }, dataset: {}, innerHTML: '', setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) }, currentOrder: null, openOrders: [],
   drawOrder: noop, drawQueue: noop, loadOrders: noop, catalog: null, loadProducts: noop,
   escapeFloorText: String, renderedZone: null,
 });

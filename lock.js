@@ -17,6 +17,19 @@
   let locked = false;
   let timer = null;
   let unlockRequest = null;
+  // Shared forms and PIN each own a scroll lease; the last owner restores the base.
+  const scrollLease = window.__hookahModalScrollLease ||= (() => {
+    const owners = new Set(); let base;
+    return { acquire(owner) { if (owners.has(owner)) return; if (!owners.size) base = document.body.style.overflow; owners.add(owner); document.body.style.overflow = 'hidden'; }, release(owner) { if (!owners.delete(owner)) return; if (!owners.size) document.body.style.overflow = base; } };
+  })();
+  const lockScrollOwner = {};
+  const identity = value => JSON.stringify([value?.id, value?.organizationId, value?.venueId, value?.role]);
+  const activeIdentity = identity(user);
+  const currentSession = () => {
+    try { return localStorage.getItem('crm_session_token') === activeToken && identity(JSON.parse(localStorage.getItem('crm_session_user') || '{}')) === activeIdentity; } catch (_) { return false; }
+  };
+  let returnFocus = null;
+  let lockEpoch = 0;
 
   const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('crm_session_token') || ''}`, 'Content-Type': 'application/json' });
   const refreshUserFromSession = async () => {
@@ -64,10 +77,12 @@
     smokeScript.dataset.authSmoke = 'true';
     document.head.appendChild(smokeScript);
   }
-  const overlay = document.createElement('div');
+  const overlay = document.createElement('dialog');
   overlay.className = 'screen-lock-overlay';
+  overlay.setAttribute('aria-labelledby', 'screen-lock-title');
+  overlay.setAttribute('aria-describedby', 'screen-lock-hint');
   overlay.setAttribute('aria-hidden', 'true');
-  overlay.innerHTML = `<div class="auth-smoke-backdrop" aria-hidden="true"><span class="auth-smoke-texture"></span><span class="auth-smoke-light"></span><span class="auth-smoke-vignette"></span></div><section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
+  overlay.innerHTML = `<div class="auth-smoke-backdrop" aria-hidden="true"><span class="auth-smoke-texture"></span><span class="auth-smoke-light"></span><span class="auth-smoke-vignette"></span></div><section class="screen-lock-card">
     <div class="screen-lock-mark" aria-label="Аватар сотрудника">${avatarMarkup}</div>
     <picture class="auth-product-brand screen-lock-brand"><img src="/assets/brand/hookah-pos-lockup.svg?rev=2" width="200" height="64" alt="Hookah POS by AlphaSat"></picture>
     <p class="screen-lock-eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>
@@ -85,10 +100,71 @@
   const message = overlay.querySelector('#screen-lock-message');
   const hint = overlay.querySelector('#screen-lock-hint');
   const setMessage = (text, kind = '') => { message.textContent = text; message.className = `screen-lock-message ${kind}`; };
+  const focusPin = () => { if (locked && !overlay.contains(document.activeElement)) pinInput.focus({ preventScroll: true }); };
+  const promotePin = () => {
+    if (!locked) return;
+    const focused = overlay.contains(document.activeElement) ? document.activeElement : pinInput;
+    if (overlay.open) overlay.close();
+    overlay.showModal();
+    (focused.isConnected && !focused.disabled ? focused : pinInput).focus({ preventScroll: true });
+  };
+  // Native modality excludes all background windows, including already-open dialogs.
+  let nativeWindows = new Set();
+  const lockObserver = new MutationObserver(() => {
+    if (!locked) return;
+    const next = new Set([...document.querySelectorAll('dialog[open]')].filter(node => node !== overlay));
+    if (!overlay.open || [...next].some(node => !nativeWindows.has(node))) promotePin();
+    nativeWindows = next;
+    focusPin();
+  });
+  lockObserver.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
+  overlay.addEventListener('cancel', event => { if (locked) event.preventDefault(); });
+  overlay.addEventListener('close', () => { if (locked && !overlay.open) promotePin(); });
+  const releaseLock = () => {
+    if (!locked || !currentSession()) return;
+    locked = false;
+    lockEpoch++;
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.close();
+    document.body.classList.remove('screen-locked');
+    scrollLease.release(lockScrollOwner);
+    setMessage(''); schedule();
+    requestAnimationFrame(() => {
+      if (locked || !currentSession()) return;
+      const visible = node => node?.isConnected && !node.disabled && !node.closest('[inert],[hidden]') && node.getBoundingClientRect().width > 0;
+      const native = [...document.querySelectorAll('dialog[open]')].at(-1);
+      const target = visible(returnFocus) && (!native || native.contains(returnFocus)) ? returnFocus : native?.querySelector('input,button,select,textarea') || document.querySelector('#page-content h1,main h1');
+      if (!visible(target)) return;
+      const old = target.getAttribute('tabindex');
+      if (target.tabIndex < 0) target.tabIndex = -1;
+      target.focus({ preventScroll: true });
+      if (old === null) target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true });
+    });
+  };
+  window.addEventListener('focusin', event => { if (locked && !overlay.contains(event.target)) { event.stopImmediatePropagation(); focusPin(); } }, true);
+  window.addEventListener('keydown', event => {
+    if (!locked) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); return; }
+    if (event.key === 'Tab') {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const nodes = [...overlay.querySelectorAll('input,button')].filter(node => !node.disabled && node.getBoundingClientRect().width > 0);
+      const index = nodes.indexOf(document.activeElement);
+      (nodes[(index + (event.shiftKey ? -1 : 1) + nodes.length) % nodes.length] || pinInput).focus();
+      return;
+    }
+    if (!overlay.contains(event.target)) { event.preventDefault(); focusPin(); }
+    event.stopPropagation();
+  }, true);
+  for (const type of ['pointerdown', 'mousedown', 'touchstart', 'click', 'submit']) window.addEventListener(type, event => {
+    if (locked && !overlay.contains(event.target)) { event.preventDefault(); event.stopImmediatePropagation(); focusPin(); }
+  }, true);
   const lock = async (reason = 'manual') => {
     if (locked) return;
     if (!user.pinConfigured && !await refreshUserFromSession()) { window.__openLockSettings?.(); return; }
+    if (!currentSession()) { redirectToLogin(); return; }
+    returnFocus = document.activeElement;
     locked = true;
+    lockEpoch++;
     try { localStorage.setItem(lockStateKey, 'locked'); } catch (_) {}
     clearTimeout(timer);
     overlay.dataset.reason = reason;
@@ -97,17 +173,27 @@
     pinInput.value = '';
     setMessage('');
     hint.textContent = reason === 'auto' ? `Система заблокирована после ${timeoutMinutes} минут бездействия.` : 'Экран заблокирован вручную.';
+    scrollLease.acquire(lockScrollOwner);
+    nativeWindows = new Set(document.querySelectorAll('dialog[open]'));
+    overlay.showModal();
     pinInput.focus();
   };
   const schedule = () => { if (autoLockEnabled && timeoutMinutes > 0 && !locked) { clearTimeout(timer); timer = setTimeout(() => lock('auto'), inactivityMs()); } };
   const unlock = async () => {
-    if (unlockRequest || pinInput.value.length !== 4) return;
+    if (!locked || unlockRequest || pinInput.value.length !== 4) return;
+    if (!currentSession()) { redirectToLogin(); return; }
+    const requestEpoch = lockEpoch;
     unlockRequest = fetch('/api/session/unlock', { method: 'POST', headers: headers(), body: JSON.stringify({ pin: pinInput.value }) }).then(async (response) => {
       const payload = await response.json().catch(() => ({}));
+      if (!locked || requestEpoch !== lockEpoch) return;
       if (!response.ok) { const error = new Error(payload.error || 'unlock_failed'); error.status = response.status; throw error; }
-      locked = false; try { localStorage.setItem(lockStateKey, `unlocked:${Date.now()}`); } catch (_) {} overlay.setAttribute('aria-hidden', 'true'); document.body.classList.remove('screen-locked'); setMessage(''); schedule();
+      if (!currentSession() || !payload.user || identity(payload.user) !== activeIdentity) { redirectToLogin(); return; }
+      try { localStorage.setItem(lockStateKey, `unlocked:${Date.now()}`); } catch (_) {}
+      pinInput.value = ''; releaseLock();
     }).catch((error) => {
+      if (!locked || requestEpoch !== lockEpoch) return;
       pinInput.value = '';
+      if (!currentSession() || (error.status === 401 && error.message !== 'invalid_pin')) { redirectToLogin(); return; }
       if (error.message === 'pin_not_configured') setMessage('PIN не настроен. Выйдите и обратитесь к администратору.', 'error');
       else if (error.message === 'invalid_pin') setMessage('Неверный PIN. Попробуйте ещё раз.', 'error');
       else if (error.message === 'too_many_pin_attempts') setMessage('Слишком много попыток. Подождите минуту и попробуйте снова.', 'error');
@@ -122,6 +208,9 @@
   // A standalone glyph avoids stale external sprite caches on shared terminals.
   const lockButtonStyle = document.createElement('style');
   lockButtonStyle.textContent = `
+    dialog.screen-lock-overlay { margin:0;inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;box-sizing:border-box;border:0;overflow:auto;overscroll-behavior:contain;color:inherit; }
+    dialog.screen-lock-overlay:not([open]) { display:none!important; }
+    dialog.screen-lock-overlay::backdrop { background:transparent; }
     #lock-screen-button { display:inline-flex!important;align-items:center!important;justify-content:center!important;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:#c4cad1!important;cursor:pointer; }
     #lock-screen-button .lock-button-glyph { display:block!important;position:static!important;flex:none;width:18px!important;height:18px!important;transform:none!important; }
     #lock-screen-button:hover { color:#fff!important;background:#24272d!important; }
@@ -159,14 +248,63 @@
     }
     if (event.key !== lockStateKey) return;
     if (event.newValue === 'locked' && user.pinConfigured) lock('manual');
-    else if (event.newValue?.startsWith('unlocked:') && locked) { locked = false; clearTimeout(timer); overlay.setAttribute('aria-hidden', 'true'); document.body.classList.remove('screen-locked'); setMessage(''); schedule(); }
+    else if (event.newValue?.startsWith('unlocked:') && locked) {
+      // A sibling PIN success is a UI signal, never a replacement for a live session.
+      const signal = event.newValue;
+      const signalEpoch = lockEpoch;
+      fetch('/api/session', { headers: headers(), cache: 'no-store' }).then(async response => {
+        const payload = await response.json().catch(() => ({}));
+        if (!locked || signalEpoch !== lockEpoch) return;
+        if (response.status === 401 || !currentSession()) { redirectToLogin(); return; }
+        if (!response.ok || !payload.user || identity(payload.user) !== activeIdentity) return;
+        if (localStorage.getItem(lockStateKey) === signal) releaseLock();
+      }).catch(() => { /* Connection failure keeps the current PIN surface locked. */ });
+    }
   });
   try { if (localStorage.getItem(lockStateKey) === 'locked' && user.pinConfigured) requestAnimationFrame(() => lock('manual')); } catch (_) {}
   const lockHost = document.querySelector('.header-right') || document.querySelector('.staff-header-user') || document.querySelector('.user');
   addLockButton(lockHost);
   if (lockHost && !document.querySelector('#lock-settings-button')) { settingsButton.id = 'lock-settings-button'; lockHost.prepend(settingsButton); }
-  settingsDialog.querySelector('.lock-settings-save').addEventListener('click', async () => { const pinMessage = settingsDialog.querySelector('#lock-pin-message'); const newPin = settingsDialog.querySelector('#lock-new-pin').value.trim(); const confirmPin = settingsDialog.querySelector('#lock-new-pin-confirm').value.trim(); if ((newPin || confirmPin) && (!/^\d{4}$/.test(newPin) || newPin !== confirmPin)) { pinMessage.textContent = 'Введите одинаковый PIN из 4 цифр'; pinMessage.className = 'lock-pin-message error'; return; } const selected = settingsDialog.querySelector('#lock-timeout-select'); timeoutMinutes = Number(selected?.value || 0); const saveButton = settingsDialog.querySelector('.lock-settings-save'); saveButton.disabled = true; try { if (newPin) { const response = await fetch(`/api/staff/${encodeURIComponent(user.id)}/pin`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ pin: newPin }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'pin_save_failed'); user.pinConfigured = true; autoLockEnabled = true; settingsDialog.querySelector('#lock-pin-state').textContent = 'Настроен'; settingsDialog.querySelector('#lock-new-pin').value = ''; settingsDialog.querySelector('#lock-new-pin-confirm').value = ''; pinMessage.textContent = 'PIN сохранён'; pinMessage.className = 'lock-pin-message success'; } user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: timeoutMinutes }; try { localStorage.setItem(timeoutKey, String(timeoutMinutes)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {} fetch('/api/session/preferences', { method: 'PATCH', headers: headers(), body: JSON.stringify({ lockTimeoutMinutes: timeoutMinutes }) }).catch(() => {}); clearTimeout(timer); schedule(); window.setTimeout(() => settingsDialog.close(), newPin ? 500 : 0); } catch (error) { pinMessage.textContent = error.message === 'staff_pin_key_required' ? 'Не настроено хранилище PIN' : 'Не удалось сохранить PIN'; pinMessage.className = 'lock-pin-message error'; } finally { saveButton.disabled = false; } });
-  fetch('/api/session/preferences', { headers: headers() }).then((response) => response.ok ? response.json() : null).then((payload) => { const serverValue = Number(payload?.preferences?.lockTimeoutMinutes); if (!timeoutOptions.includes(serverValue)) return; timeoutMinutes = serverValue; user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: serverValue }; try { localStorage.setItem(timeoutKey, String(serverValue)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {} clearTimeout(timer); schedule(); }).catch(() => {});
+  let lockPreferenceGeneration = 0;
+  settingsDialog.querySelector('.lock-settings-save').addEventListener('click', async () => {
+    const pinMessage = settingsDialog.querySelector('#lock-pin-message');
+    const newPin = settingsDialog.querySelector('#lock-new-pin').value.trim();
+    const confirmPin = settingsDialog.querySelector('#lock-new-pin-confirm').value.trim();
+    if ((newPin || confirmPin) && (!/^\d{4}$/.test(newPin) || newPin !== confirmPin)) {
+      pinMessage.textContent = 'Введите одинаковый PIN из 4 цифр'; pinMessage.className = 'lock-pin-message error'; return;
+    }
+    const selected = settingsDialog.querySelector('#lock-timeout-select');
+    const selectedTimeout = Number(selected?.value || 0);
+    const saveButton = settingsDialog.querySelector('.lock-settings-save');
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
+    lockPreferenceGeneration += 1;
+    let pinSaved = false;
+    try {
+      if (newPin) {
+        const response = await fetch(`/api/staff/${encodeURIComponent(user.id)}/pin`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ pin: newPin }) });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'pin_save_failed');
+        pinSaved = true; user.pinConfigured = true; autoLockEnabled = true;
+        settingsDialog.querySelector('#lock-pin-state').textContent = 'Настроен';
+        settingsDialog.querySelector('#lock-new-pin').value = ''; settingsDialog.querySelector('#lock-new-pin-confirm').value = '';
+        pinMessage.textContent = 'PIN сохранён'; pinMessage.className = 'lock-pin-message success';
+      }
+      const response = await fetch('/api/session/preferences', { method: 'PATCH', headers: headers(), body: JSON.stringify({ lockTimeoutMinutes: selectedTimeout }) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'preferences_save_failed');
+      timeoutMinutes = selectedTimeout;
+      user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: timeoutMinutes };
+      try { localStorage.setItem(timeoutKey, String(timeoutMinutes)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {}
+      clearTimeout(timer); schedule();
+      window.setTimeout(() => settingsDialog.close(), newPin ? 500 : 0);
+    } catch (error) {
+      pinMessage.textContent = pinSaved ? 'PIN сохранён. Не удалось сохранить настройки автоблокировки — попробуйте ещё раз' : error.message === 'staff_pin_key_required' ? 'Не настроено хранилище PIN' : newPin ? 'Не удалось сохранить PIN или настройки автоблокировки' : 'Не удалось сохранить настройки автоблокировки';
+      pinMessage.className = 'lock-pin-message error';
+    } finally { saveButton.disabled = false; }
+  });
+  const preferencesReadGeneration = lockPreferenceGeneration;
+  fetch('/api/session/preferences', { headers: headers() }).then((response) => response.ok ? response.json() : null).then((payload) => { if (preferencesReadGeneration !== lockPreferenceGeneration) return; const serverValue = Number(payload?.preferences?.lockTimeoutMinutes); if (!timeoutOptions.includes(serverValue)) return; timeoutMinutes = serverValue; user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: serverValue }; try { localStorage.setItem(timeoutKey, String(serverValue)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {} clearTimeout(timer); schedule(); }).catch(() => {});
   ['pointerdown', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach((eventName) => document.addEventListener(eventName, () => { if (!locked) schedule(); }, { passive: true }));
   schedule();
 })();

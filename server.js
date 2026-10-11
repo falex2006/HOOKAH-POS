@@ -4187,7 +4187,8 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (!/^\d{4}$/.test(pin)) return json(res, 400, { error: 'invalid_staff_pin_format' });
     const memoryPerson = staff.find((entry) => entry.id === personId);
     if (memoryPerson) {
-      if (!memoryPerson.active || memoryPerson.deletedAt) return json(res, 404, { error: 'staff_not_found' });
+      if (!memoryPerson.active || memoryPerson.deletedAt || String(memoryPerson.venueId || defaultVenueDbId) !== String(notificationVenueScope(req, venueDbId))) return json(res, 404, { error: 'staff_not_found' });
+      if (!isSelf && !canManageStaffTarget(req, memoryPerson.role)) return json(res, 403, { error: memoryPerson.role === 'owner' ? 'owner_staff_protected' : 'staff_management_required' });
       memoryPerson.pinHash = await hashPassword(pin); memoryPerson.pinCode = null; memoryPerson.pinConfigured = true; memoryPerson.pinUpdatedAt = new Date().toISOString();
       for (const session of sessions.values()) if (String(session.user?.id || '') === personId) { session.unlockHash = memoryPerson.pinHash; session.user.pinConfigured = true; }
       const notification = { id: `staff-pin-${crypto.randomUUID()}`, venueId: notificationVenueScope(req, venueDbId), type: 'staff_pin_updated', staffId: personId, staffName: memoryPerson.name, actor: req.user?.name || 'сотрудник', createdAt: memoryPerson.pinUpdatedAt, notificationRecipients: ['owner', 'admin'] };
@@ -4196,9 +4197,12 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     }
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
       try {
+        const target = await repositories.pool.query('SELECT id,role FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [personId, venueDbId]);
+        if (!target.rows[0]) return json(res, 404, { error: 'staff_not_found' });
+        if (!isSelf && !canManageStaffTarget(req, target.rows[0].role)) return json(res, 403, { error: target.rows[0].role === 'owner' ? 'owner_staff_protected' : 'staff_management_required' });
         // PIN verification only needs the one-way hash. It must remain usable when
         // optional passport encryption is not configured for the venue.
-        const { rows } = await repositories.pool.query('UPDATE users SET pin_hash=$1,pin_data_encrypted=NULL,pin_data_iv=NULL,pin_data_tag=NULL,pin_updated_at=now() WHERE id=$2 AND venue_id=$3 AND is_active=true AND deleted_at IS NULL RETURNING id,full_name AS name,pin_updated_at AS "pinUpdatedAt"', [await hashPassword(pin), personId, venueDbId]);
+        const { rows } = await repositories.pool.query('UPDATE users SET pin_hash=$1,pin_data_encrypted=NULL,pin_data_iv=NULL,pin_data_tag=NULL,pin_updated_at=now() WHERE id=$2 AND venue_id=$3 AND role=$4 AND is_active=true AND deleted_at IS NULL RETURNING id,full_name AS name,pin_updated_at AS "pinUpdatedAt"', [await hashPassword(pin), personId, venueDbId, target.rows[0].role]);
         if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
         for (const session of sessions.values()) if (String(session.user?.id || '') === personId) { session.unlockHash = null; session.user.pinConfigured = true; }
         recordAudit(req, 'staff.pin_updated', 'staff', personId, { pinConfigured: true }, { pinConfigured: true, notificationRecipients: ['owner', 'admin'] });
@@ -6641,7 +6645,7 @@ function staticFile(req, res) {
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     '/phone-format.js', '/staff-display-name.js',
-    ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/portal.js', '/portal-session.js', '/header-shell.js', '/admin.js',
+    ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js', '/shift-close-contract.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js', '/notification-center.js', '/audit-privacy.js', '/staff-identity.js',

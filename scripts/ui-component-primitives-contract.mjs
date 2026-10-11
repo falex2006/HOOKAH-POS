@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const read = name => fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+const css = read('style.css');
+const blockStart = css.indexOf('/* UI-02.2 opt-in primitives.');
+const blockEnd = css.indexOf('/* UI-03.1:', blockStart);
+const block = css.slice(blockStart, blockEnd);
+assert.ok(block.startsWith('/* UI-02.2 opt-in primitives.'), 'Opt-in block absent');
+assert.ok(blockEnd > blockStart, 'Opt-in block end marker absent');
+assert.equal(css, read('dist/style.css'), 'CSS mirror drift');
+assert.ok(!block.includes('!important'), 'No new priority overrides');
+for (const declaration of ['--ui-control-height: 44px', '--ui-action-height: 48px', '--ui-font-helper: 12px', '--ui-font-body: 14px', '--ui-font-lead: 16px', '--ui-font-section: 20px', '--ui-font-page: 28px', '--ui-motion-fast: 150ms', '--ui-motion-normal: 200ms']) assert.ok(block.includes(declaration), declaration);
+const defs = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
+for (const m of block.matchAll(/var\((--[\w-]+)/g)) assert.ok(defs.has(m[1]), `Undefined primitive token ${m[1]}`);
+for (const selector of ['.ui-button', '.ui-button--primary', '.ui-button--quiet', '.ui-button--danger', '.ui-icon-button', '.ui-input', '.ui-check', '.ui-check-input', '.ui-badge', '.ui-badge--success', '.ui-badge--warning', '.ui-badge--danger', '.ui-heading', '.ui-heading--section', '.ui-text', '.ui-helper', '.ui-error', '.ui-number']) assert.ok(block.includes(`.ui-components ${selector}`), selector);
+for (const weight of block.matchAll(/font-weight:(\d+)/g)) assert.ok([400, 500, 600, 700, 800].includes(Number(weight[1])), 'Static Manrope weight');
+for (const state of [':focus-visible', ':disabled', '[aria-disabled="true"]', '[aria-busy="true"]', '[aria-invalid="true"]', ':indeterminate', '@media(prefers-reduced-motion:reduce)', '.ui-components.ui-motion-reduced']) assert.ok(block.includes(state), state);
+assert.ok(block.includes('outline:3px solid var(--ui-focus);outline-offset:3px'));
+assert.ok(block.includes('.ui-components .ui-button-label>[aria-hidden="true"] { visibility:hidden; }'), 'Pending labels reserve geometry');
+assert.ok(!block.includes('.ui-button-label>[hidden]'), 'Legacy hidden !important would collapse pending labels');
+const folder = 'docs/design/UNIFIED_UI_2026-10-09/components/';
+const html = read(folder + 'UI_02_2_REFERENCE.html');
+const js = read(folder + 'ui-component-reference.js');
+assert.ok(!/fetch\(|localStorage|sessionStorage|XMLHttpRequest/.test(js), 'Reference must not write product data');
+assert.ok(js.includes("if (busy.disabled || busy.getAttribute('aria-busy') === 'true') return;"), 'Duplicate guard');
+assert.ok(js.includes("document.querySelector('#mixed-box').indeterminate = true"));
+for (const m of html.matchAll(/aria-describedby="([^"]+)"/g)) assert.ok(html.includes(`id="${m[1]}"`), 'Error description link');
+const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+assert.equal(new Set(ids).size, ids.length, 'Unique reference IDs');
+for (const field of html.matchAll(/<label class="ui-field">.*?<\/label>/g)) {
+  assert.ok(field[0].includes('aria-labelledby='), 'Explicit field label');
+  if (field[0].includes('class="ui-helper"')) assert.ok(field[0].includes('aria-describedby='), 'Linked field help');
+}
+assert.ok(block.includes('[aria-busy="true"]::after { content:none;animation:none; }'), 'Legacy busy pseudo suppressed');
+for (const m of html.matchAll(/<button\b[^>]*>/g)) assert.ok(m[0].includes('type="button"'), 'Reference button type');
+assert.ok(!/<(?:span|p)[^>]*class="ui-badge[^>]*tabindex/.test(html), 'Badges are passive');
+const catalog = read('docs/design/UNIFIED_UI_2026-10-09/COMPONENT_CATALOG.md');
+assert.ok(catalog.includes('UI-02.2') && catalog.includes('ui-components'), 'Adoption contract required');
+console.log('UI-02.2 source contract PASS: scoped primitives, exact geometry/type/motion, state hooks, reference safety and CSS mirror. Browser sizes/contrast/interaction gate is separate.');

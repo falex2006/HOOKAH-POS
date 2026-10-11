@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HOOKAH POS — эталон UI-02.2</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/reference.css">
+  <script src="/reference.js" defer></script>
+</head>
+<body class="portal velora-theme ui-components ui-reference">
+  <main class="ui-reference-main">
+    <header class="ui-reference-header">
+      <div><p class="ui-helper">HOOKAH POS · локальный эталон UI-02.2</p><h1 class="ui-heading">Контролы и состояния</h1><p class="ui-text">Общие варианты для последующих экранов. Данные этого эталона не сохраняются.</p></div>
+      <div class="ui-reference-preferences">
+        <label class="ui-field"><span class="ui-label" id="reference-theme-label">Тема</span><select class="ui-input" id="reference-theme" aria-labelledby="reference-theme-label"><option value="dark">Тёмная</option><option value="light">Светлая</option></select></label>
+        <label class="ui-check"><input class="ui-check-input" type="checkbox" id="reference-motion"><span>Уменьшить движение</span></label>
+      </div>
+    </header>
+    <section class="ui-reference-section" aria-labelledby="buttons-title">
+      <h2 class="ui-heading ui-heading--section" id="buttons-title">Кнопки</h2>
+      <div class="ui-reference-row">
+        <button type="button" class="ui-button ui-button--primary" id="primary-button">Добавить позицию</button>
+        <button type="button" class="ui-button" id="secondary-button">Отмена</button>
+        <button type="button" class="ui-button ui-button--quiet" id="quiet-button">Подробнее</button>
+        <button type="button" class="ui-button ui-button--danger" id="danger-button">Удалить позицию</button>
+        <button type="button" class="ui-button ui-icon-button" id="icon-button" aria-label="Закрыть пример"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div class="ui-reference-row">
+        <button type="button" class="ui-button ui-button--primary" disabled>Действие недоступно</button>
+        <button type="button" class="ui-button" disabled>Нет доступа</button>
+        <button type="button" class="ui-button ui-button--primary" id="busy-button"><span class="ui-pending-icon" aria-hidden="true"><span class="ui-spinner" hidden></span></span><span class="ui-button-label"><span id="busy-idle-label">Проверить ожидание</span><span id="busy-label" aria-hidden="true">Проверка…</span></span></button>
+        <button type="button" class="ui-button ui-button--primary" aria-busy="true" aria-disabled="true" disabled><span class="ui-spinner" aria-hidden="true"></span>Сохранение…</button>
+      </div>
+      <p class="ui-helper" id="busy-result" role="status">Запусков: 0. Ожидание блокирует повторное нажатие.</p>
+      <button type="button" class="ui-button ui-reference-long" id="long-button">Добавить кальян с длинным названием и дополнительными принадлежностями</button>
+    </section>
+    <section class="ui-reference-section" aria-labelledby="fields-title">
+      <h2 class="ui-heading ui-heading--section" id="fields-title">Поля и выбор</h2>
+      <div class="ui-reference-grid">
+        <label class="ui-field"><span class="ui-label" id="normal-input-label">Название</span><input class="ui-input" id="normal-input" aria-describedby="normal-input-help" aria-labelledby="normal-input-label" placeholder="Введите название"><span class="ui-helper" id="normal-input-help">Пустое поле с подсказкой.</span></label>
+        <label class="ui-field"><span class="ui-label" id="long-input-label">Длинное название</span><input class="ui-input" id="long-input" aria-describedby="long-input-help" aria-labelledby="long-input-label" value="Кальян день акция с дополнительными принадлежностями для большой компании"><span class="ui-helper" id="long-input-help">Ввод не обрезается; содержимое поля прокручивается.</span></label>
+        <label class="ui-field"><span class="ui-label" id="error-input-label">Ошибка ввода</span><input class="ui-input" id="error-input" value="-1" aria-invalid="true" aria-labelledby="error-input-label" aria-describedby="error-help"><span class="ui-error" id="error-help">Укажите значение не меньше нуля.</span></label>
+        <label class="ui-field"><span class="ui-label" id="readonly-input-label">Только чтение</span><input class="ui-input" id="readonly-input" aria-describedby="readonly-input-help" aria-labelledby="readonly-input-label" value="Значение доступно для копирования" readonly><span class="ui-helper" id="readonly-input-help">Выделение и копирование доступны.</span></label>
+        <label class="ui-field"><span class="ui-label" id="disabled-input-label">Недоступное поле</span><input class="ui-input" id="disabled-input" aria-describedby="disabled-input-help" aria-labelledby="disabled-input-label" value="Не разрешено в текущем состоянии" disabled><span class="ui-helper" id="disabled-input-help">Недоступно в этом примере.</span></label>
+        <label class="ui-field"><span class="ui-label" id="normal-select-label">Категория</span><select class="ui-input" id="normal-select" aria-labelledby="normal-select-label"><option value="">Выберите категорию</option><option value="hookah">Кальяны</option><option value="bar">Бар</option><option value="long">Дополнительные принадлежности и аксессуары для большой компании</option></select></label>
+        <label class="ui-field"><span class="ui-label" id="loading-select-label">Справочник загружается</span><select class="ui-input" id="loading-select" aria-describedby="loading-select-help" aria-labelledby="loading-select-label" disabled aria-busy="true"><option>Загрузка категорий…</option></select><span class="ui-helper" id="loading-select-help">Состояние справочника — локальный образец.</span></label>
+        <label class="ui-field"><span class="ui-label" id="error-select-label">Ошибка справочника</span><select class="ui-input" id="error-select" aria-invalid="true" aria-labelledby="error-select-label" aria-describedby="select-error"><option>Категории недоступны</option></select><span class="ui-error" id="select-error">Не удалось загрузить категории.</span></label>
+      </div>
+      <label class="ui-field"><span class="ui-label" id="notes-input-label">Комментарий</span><textarea class="ui-input ui-input--textarea" id="notes-input" aria-labelledby="notes-input-label" rows="2" placeholder="Комментарий к позиции"></textarea></label>
+    </section>
+    <section class="ui-reference-section" aria-labelledby="checks-title">
+      <h2 class="ui-heading ui-heading--section" id="checks-title">Выбор и статусы</h2>
+      <div class="ui-reference-grid">
+        <label class="ui-check"><input class="ui-check-input" id="unchecked-box" type="checkbox"><span>Добавить принадлежности</span></label>
+        <label class="ui-check"><input class="ui-check-input" id="checked-box" type="checkbox" checked><span>Показывать доступные позиции</span></label>
+        <label class="ui-check"><input class="ui-check-input" id="mixed-box" type="checkbox"><span>Выбрана часть позиций</span></label>
+        <label class="ui-check"><input class="ui-check-input" id="disabled-box" type="checkbox" disabled><span>Настройка недоступна</span></label>
+        <label class="ui-check"><input class="ui-check-input" id="disabled-checked-box" type="checkbox" checked disabled><span>Включённая настройка недоступна</span></label>
+        <label class="ui-check"><input class="ui-check-input" id="error-box" type="checkbox" aria-invalid="true" aria-describedby="checkbox-error"><span>Выберите обязательный пункт</span></label>
+      </div>
+      <p class="ui-error" id="checkbox-error">Требуется выбор пункта.</p>
+      <div class="ui-reference-row">
+        <span class="ui-badge">Неизвестно</span><span class="ui-badge ui-badge--success">Готово</span><span class="ui-badge ui-badge--warning">В процессе</span><span class="ui-badge ui-badge--danger">Ошибка</span>
+      </div>
+    </section>
+    <section class="ui-reference-section" aria-labelledby="type-title">
+      <h2 class="ui-heading ui-heading--section" id="type-title">Текст и числа</h2>
+      <p class="ui-text ui-text--lead">Кальян день акция — длинное название для проверки чтения и переноса строк.</p>
+      <p class="ui-text">Основной текст 14px, Manrope 400. Подписи полей 14px / 600, кнопки 14px / 700.</p>
+      <p class="ui-helper">Пояснения 12px / 400. Неизвестная сумма — это «—», а не ноль.</p>
+      <p class="ui-number" id="long-number">1 234 567 890,50 ₽</p>
+      <p class="ui-number" id="unknown-number">—</p>
+      <div class="ui-reference-row" aria-label="Сравнение ширины табличных цифр"><span class="ui-number" id="digits-one">1111111111</span><span class="ui-number" id="digits-eight">8888888888</span></div>
+    </section>
+  </main>
+</body>
+</html>
