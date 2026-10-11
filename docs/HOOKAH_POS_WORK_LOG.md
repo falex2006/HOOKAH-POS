@@ -53,3 +53,10 @@ ode scripts/local-full-pg-regression.cjs — PASS; локальная disposable
 - Focused memory, PostgreSQL, desktop browser, price-label, schedule, preparation and source/dist contracts passed; guarded QA databases cleaned. Details in `docs/release/CONSOLIDATED_POS_RELEASE_2026_10_11.md`.
 - Previous PR #28 deployed 878761b1 with successful backup restore test; six client/catalog/stock aggregate hashes and counts unchanged. Final integration preserves the same database boundary.
 - PR #29 deployed runtime 70d70ec5; CI, guarded backup restoration rehearsal, public health and source asset parity passed. Owner Edge home/floor read-only verification passed. All six protected data counts/full-row hashes match before/after; territory-crm_pgdata retained. Full receipt in the consolidated release document. Documentation receipt does not alter runtime.
+
+## 2026-10-11 — MT-01 management theme catalog
+
+- Completed documentation-only catalog: 92 related records across shared components, inventory/menu, finance, operations/settings, with source anchors, states, permission boundaries and a route contract. Index: `docs/design/management-theme/MT01_CATALOG.md`.
+- Scoped out staff workplace, personnel/permissions/profile, floor/tables, mobile/Fold and platform. Shared routes, body overlays and mixed company/settings panels require verified context and instance provenance; future theme cannot use global portal/body selectors.
+- Existing QA names checked for file existence; no application or business tests run, no functional/browser PASS claimed. Representative MT-02 samples and incremental/final acceptance matrix A01–A10 defined.
+- Independent documentation review corrected unsupported finance CSV example to actual audit export. No runtime, source/dist, API, DB, permissions or server changes. Next: isolated MT-02 browser sample on GPT-6.1 Sol / Medium / Standard.
