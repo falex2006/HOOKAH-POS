@@ -5278,3 +5278,7 @@ PR33 merged, runtime0faade7c deployed guarded canonical main, backup restore reh
 - Changes: management-theme.css, style.css, portal.js; source/dist and HTML/cache loader versions synchronized. No DB/API/route/top-header or business logic changes.
 - Independent code_health_engineer initial/final read-only review: syntax/diff/parity passed; identified cached portal-session loader revision, fixed and resynchronized. Local desktop component visual sample with actual styles reviewed: tmp/polish-qa/components.png and personnel.png. Synthetic markup/data; authenticated full-page/production acceptance not claimed. No test suites or mobile/Fold checks run.
 - All changes remain local. No GitHub push or server deployment in this task.
+
+## 2026-10-12 — UI follow-up published
+
+PR35 CI passed and merged; guarded runtime701832b9 deployed healthy with backup restore rehearsal and seedskip. Six client/catalog row fingerprints and counts unchanged; env/project/volume preserved. Five public asset hashes match canonical main. User owner Edge read-only desktop acceptance completed on changed pages; screenshot and exact bounds in docs/release/UI_POLISH_RELEASE_2026_10_12.md. Publication of this receipt alone does not need redeployment.
