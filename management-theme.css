@@ -303,3 +303,12 @@ html:not([data-portal-access="checking"]) :is(#page-content,[data-management-the
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.audit-row,.audit-detail) :is(pre,code) { background:var(--ui-input);color:var(--ui-text-primary);border-color:var(--ui-border-subtle);white-space:pre-wrap;overflow-wrap:anywhere; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.integration-summary,.integration-card,.network-row) [role="status"] { color:var(--ui-text-secondary); }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.integration-card,.network-row,.help-topic,.settings-category-card,.task-card,.visual-product,.recipe-card) :is(button,a,summary,[tabindex]):focus-visible { outline:1px solid var(--ui-focus);outline-offset:2px;box-shadow:none; }
+
+/* Follow-up: explicit geometry for raised inset surfaces. */
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.dashboard-revenue-pending,.finance-category-filters,.inventory-directory-guide,.finance-category-help){border-radius:12px;padding:12px 16px;min-width:0}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.inventory-directory-guide,.finance-category-help)>summary{padding:0;min-height:24px;line-height:1.5;cursor:pointer}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .finance-category-help[open]>p{margin-block:12px 0}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is([data-source-readiness],[data-attendance-approval]){padding:20px;border-radius:12px;min-width:0}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .recipe-cost-lines>div{padding:12px;border-radius:10px;align-items:start}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .recipe-cost-lines>div>span{display:grid;gap:6px;min-width:0;line-height:1.5;overflow-wrap:anywhere}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .recipe-cost-lines>div>b{flex-shrink:0;white-space:nowrap}

@@ -171,3 +171,9 @@ The existing finance route hosts the owner-only version editor. Role threshold/r
 The floor-size range remains native: 70–130%, step 5. Its visible fill is normalized to that range, with a thin coral-orange rail and a circular thumb. Preserve native keyboard operation and forced-colors support. This appearance change was specifically requested by the user; it does not expand the management-theme scope to the staff workplace.
 
 Expanded sidebar summary backgrounds have rounded upper corners; closed summaries round all corners. Do not change navigation contracts or the established top header as part of this polish.
+
+## Secondary surfaces and personnel table — 2026-10-12
+
+Raised inset blocks require explicit 10–12px corners and inner spacing, not only a background color. Recipe calculation captions form separate lines with gaps, while amounts remain aligned. Payroll source/attendance panels and role cards retain inner padding.
+
+The user explicitly included personnel corrections in this chat: table view separates job/access profile/employment date and uses compact rows; list/cards and permissions remain unchanged. Missing employment date is shown as an em dash, non-CRM access as no CRM access. Native help disclosure behavior remains intact.

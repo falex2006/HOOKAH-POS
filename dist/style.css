@@ -4949,3 +4949,14 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .velora-theme .portal-sidebar .sidebar-nav-group>summary{border-radius:12px}
 .velora-theme .portal-sidebar .sidebar-nav-group[open]>summary{border-radius:12px 12px 0 0}
 @media(forced-colors:active){.staff-theme .floor-density-toolbar #floor-density-range{appearance:auto;-webkit-appearance:auto;accent-color:Highlight}.staff-theme .floor-density-toolbar #floor-density-range::-webkit-slider-runnable-track{background:CanvasText}.staff-theme .floor-density-toolbar #floor-density-range::-webkit-slider-thumb{background:Highlight;border-color:Highlight}.staff-theme .floor-density-toolbar #floor-density-range::-moz-range-track{background:CanvasText}.staff-theme .floor-density-toolbar #floor-density-range::-moz-range-progress{background:Highlight}}
+
+/* Personnel follow-up explicitly included by the user. */
+#page-content.ui-admin-pages #staff.staff-permissions-mode .custom-role-row{padding:18px 20px}
+.portal.velora-theme .staff-catalog .staff-directory-table{min-width:1240px;table-layout:auto}
+.portal.velora-theme .staff-catalog .staff-directory-table th:nth-child(n){width:auto}
+.portal.velora-theme .staff-catalog .staff-directory-table td{padding:10px 12px;font-size:14px;line-height:1.4}
+.portal.velora-theme .staff-catalog .staff-directory-table th{padding:12px}
+.portal.velora-theme .staff-catalog .staff-table-person .staff-card-avatar{width:36px;height:36px;flex-basis:36px}
+.portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions{gap:6px}
+.portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions button{min-height:40px;font-size:13px;padding:8px 10px}
+.portal.velora-theme .staff-catalog .staff-directory-table td[data-label="Дата приёма"]{white-space:nowrap}
