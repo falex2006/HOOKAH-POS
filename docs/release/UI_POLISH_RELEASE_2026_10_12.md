@@ -1,0 +1,9 @@
+# UI polish production receipt — 2026-10-12
+
+- User authorized GitHub and VPS deployment of both follow-up commits96f7f5a8 and baf31b29. PR35 merged after AI team contracts and CRM contracts CI success.
+- Runtime main701832b9c052a2fb67e24c6646f7d532c0f921f3 deployed from clean /root/hookah-pos-release-701832b9c052. Image/release fingerprint d3ac1c37866e042ca9aa3c13cef4e36dd6a2227ef46630fefe60bc1b6bd659bf.
+- Guarded deploy exit0, final backup restoration rehearsal PASS, SKIP_MENU_SEED_ONCE=true and healthy PostgreSQL service. Existing env checksum unchanged; Compose project hookah-pos and territory-crm_pgdata retained. The server uses docker-compose compatibility executable; no configuration change required.
+- Six full-row fingerprints/counts unchanged: guests3, departments8, subdepartments12, categories35, products71, ingredients85. No production fixture/order/payment write, reset or data restoration performed.
+- Public HTTPS validated with current certificate/trust chain. Canonical Git blob hashes match all five changed assets: style.css, management-theme.css, portal.js, portal-session.js, app.js. Public health statusok/databasepostgres.
+- User signed into owner Edge session after deploy. Read-only checks: overview due block radius12/padding12x16; staff6 rows/7 columns and approximately115px row height; custom role padding18x20; recipe captions grid gap6; finance help/filters radius12/padding12x16; payroll source padding20; floor native range100/value fill50. Owner header retained; payroll console warn/error empty. Production personnel screenshot retained locally tmp/polish-qa/production-personnel.png.
+- Acceptance scoped to the existing owner desktop session and changed presentation. Other-role production login/write, full business E2E and mobile/Fold are not claimed. Docs receipt does not change runtime and needs no second deploy.
