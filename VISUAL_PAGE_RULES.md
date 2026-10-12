@@ -177,3 +177,7 @@ Expanded sidebar summary backgrounds have rounded upper corners; closed summarie
 Raised inset blocks require explicit 10–12px corners and inner spacing, not only a background color. Recipe calculation captions form separate lines with gaps, while amounts remain aligned. Payroll source/attendance panels and role cards retain inner padding.
 
 The user explicitly included personnel corrections in this chat: table view separates job/access profile/employment date and uses compact rows; list/cards and permissions remain unchanged. Missing employment date is shown as an em dash, non-CRM access as no CRM access. Native help disclosure behavior remains intact.
+
+## Sidebar disclosure affordance — 2026-10-12
+
+Velora sidebar group expand state keeps native `details/summary`, route and keyboard behavior. Draw a coral-outlined circular chevron at the trailing edge; closed points right, open points down with slightly stronger coral emphasis. Keep it hidden while the compact rail is collapsed, and display it when that rail expands. Do not change header, group order, or route behavior.
