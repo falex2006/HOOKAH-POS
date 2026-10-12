@@ -60,3 +60,11 @@ ode scripts/local-full-pg-regression.cjs — PASS; локальная disposable
 - Scoped out staff workplace, personnel/permissions/profile, floor/tables, mobile/Fold and platform. Shared routes, body overlays and mixed company/settings panels require verified context and instance provenance; future theme cannot use global portal/body selectors.
 - Existing QA names checked for file existence; no application or business tests run, no functional/browser PASS claimed. Representative MT-02 samples and incremental/final acceptance matrix A01–A10 defined.
 - Independent documentation review corrected unsupported finance CSV example to actual audit export. No runtime, source/dist, API, DB, permissions or server changes. Next: isolated MT-02 browser sample on GPT-6.1 Sol / Medium / Standard.
+
+## 2026-10-12 — range and expanded sidebar polish
+
+- User requested brand styling for the floor-size range and rounded upper corners of expanded sidebar groups. This explicitly permits the narrow floor-control appearance change outside the management-theme page scope.
+- Native range retains min/max/step, label, keyboard, storage and fit behavior. Added normalized track fill, 4px coral-orange rail, circular thumb, light and forced-colors fallbacks.
+- Sidebar summary now rounds closed corners and expanded upper corners; no navigation, role, route, DOM or header changes.
+- Independent code-health and system-architecture reviews completed. Syntax, diff whitespace and source/dist parity passed. Local browser component sample rendered using real style.css; screenshot: tmp/range-qa/range-menu.png. This is component visual evidence, not live floor or production acceptance.
+- Cache revisions synchronized. No database, API, GitHub publication or production deployment in this follow-up.

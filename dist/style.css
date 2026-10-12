@@ -4937,3 +4937,26 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .staff-theme .tables.has-map.density-map>.floor-map-stage>.table:has(>.table-order-total){height:auto;min-height:132px;grid-template-rows:auto auto auto auto minmax(18px,1fr)}
 .staff-theme .tables.has-map.density-map>.floor-map-stage>.table>.table-order-total{font-size:clamp(15px,calc(var(--floor-density-title,22px)*.76),19px);line-height:1.08;transform:none}
 .staff-theme .tables.has-map.compact-map>.floor-map-stage>.table>.table-order-total{transform:none}
+/* Native floor scale: brand rail, unchanged keyboard/value contract. */
+.staff-theme .floor-density-toolbar #floor-density-range{appearance:none;-webkit-appearance:none;height:32px;padding:0;border:0;border-radius:8px;background:transparent;box-shadow:none;--floor-range-fill:50%;--floor-range-track:#353c46}
+.staff-theme .floor-density-toolbar #floor-density-range::-webkit-slider-runnable-track{height:4px;border:0;border-radius:999px;background:linear-gradient(90deg,#ff526f 0%,#ff8b3d var(--floor-range-fill),var(--floor-range-track) var(--floor-range-fill),var(--floor-range-track) 100%)}
+.staff-theme .floor-density-toolbar #floor-density-range::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin-top:-6px;border:2px solid #ff8150;border-radius:50%;background:#f5f6f8;box-shadow:0 1px 3px #0004}
+.staff-theme .floor-density-toolbar #floor-density-range::-moz-range-track{height:4px;border:0;border-radius:999px;background:var(--floor-range-track)}
+.staff-theme .floor-density-toolbar #floor-density-range::-moz-range-progress{height:4px;border-radius:999px;background:linear-gradient(90deg,#ff526f,#ff8b3d)}
+.staff-theme .floor-density-toolbar #floor-density-range::-moz-range-thumb{width:12px;height:12px;border:2px solid #ff8150;border-radius:50%;background:#f5f6f8;box-shadow:0 1px 3px #0004}
+.staff-theme .floor-density-toolbar #floor-density-range:focus-visible{outline:1px solid #ff8150;outline-offset:3px}
+.staff-theme.light-theme .floor-density-toolbar #floor-density-range{--floor-range-track:#ccd3dc}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary{border-radius:12px}
+.velora-theme .portal-sidebar .sidebar-nav-group[open]>summary{border-radius:12px 12px 0 0}
+@media(forced-colors:active){.staff-theme .floor-density-toolbar #floor-density-range{appearance:auto;-webkit-appearance:auto;accent-color:Highlight}.staff-theme .floor-density-toolbar #floor-density-range::-webkit-slider-runnable-track{background:CanvasText}.staff-theme .floor-density-toolbar #floor-density-range::-webkit-slider-thumb{background:Highlight;border-color:Highlight}.staff-theme .floor-density-toolbar #floor-density-range::-moz-range-track{background:CanvasText}.staff-theme .floor-density-toolbar #floor-density-range::-moz-range-progress{background:Highlight}}
+
+/* Personnel follow-up explicitly included by the user. */
+#page-content.ui-admin-pages #staff.staff-permissions-mode .custom-role-row{padding:18px 20px}
+.portal.velora-theme .staff-catalog .staff-directory-table{min-width:1240px;table-layout:auto}
+.portal.velora-theme .staff-catalog .staff-directory-table th:nth-child(n){width:auto}
+.portal.velora-theme .staff-catalog .staff-directory-table td{padding:10px 12px;font-size:14px;line-height:1.4}
+.portal.velora-theme .staff-catalog .staff-directory-table th{padding:12px}
+.portal.velora-theme .staff-catalog .staff-table-person .staff-card-avatar{width:36px;height:36px;flex-basis:36px}
+.portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions{gap:6px}
+.portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions button{min-height:40px;font-size:13px;padding:8px 10px}
+.portal.velora-theme .staff-catalog .staff-directory-table td[data-label="Дата приёма"]{white-space:nowrap}

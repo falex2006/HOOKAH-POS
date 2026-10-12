@@ -451,6 +451,7 @@ const updateFloorMapMode=()=>{
   loadFloorDensity();
   tables.classList.add('compact-map','density-map');
   floorDensityRange.value=String(floorDensity.scale);
+  floorDensityRange.style.setProperty('--floor-range-fill',`${Math.max(0,Math.min(100,(floorDensity.scale-Number(floorDensityRange.min))/(Number(floorDensityRange.max)-Number(floorDensityRange.min))*100))}%`);
   floorDensityOutput.textContent=floorDensity.mode==='fit'?'Авто':`${floorDensity.scale}%`;
   floorDensityRange.setAttribute('aria-valuetext',floorDensity.mode==='fit'?'Автоматический размер':`${floorDensity.scale} процентов`);
   floorDensityFit.setAttribute('aria-pressed',String(floorDensity.mode==='fit'));

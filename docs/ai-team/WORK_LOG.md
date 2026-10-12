@@ -5270,3 +5270,11 @@ Scoped theme принят локально в заявленных границ�
 ## 2026-10-11 — MT-05: production завершение
 
 PR33 merged, runtime0faade7c deployed guarded canonical main, backup restore rehearsal/health/seedskip PASS. Existing env/project/volume и full-row guests/taxonomy/product/ingredient fingerprints сохранены. Public HTTPS canonical hashes пяти assets совпали; owner Edge overview/recipes/payroll/floor ready, исходная шапка,10 столов,0floortheme markers, console чист. Production login/write границы явно указаны в MT05_RESULT.md. MT01–05 desktop тема завершена. Receipt docs не требуют повторного deploy.
+
+## 2026-10-12 — consolidated visual feedback follow-up (local)
+
+- User finished collecting screenshots and explicitly included personnel in this chat. Applied one local package: rounded/padded dashboard amount due, inventory/category help and finance filters; payroll source/attendance panel padding; role card inner spacing; recipe cost caption line grouping.
+- Personnel table now separates job, access profile and existing employment start date (7 columns), uses smaller avatar/row/button spacing. Existing authorized /api/staff fields reused; no new request or permission; non-CRM roles explicitly show no CRM access. Missing dates remain em dash. List/card behavior and action handlers retained.
+- Changes: management-theme.css, style.css, portal.js; source/dist and HTML/cache loader versions synchronized. No DB/API/route/top-header or business logic changes.
+- Independent code_health_engineer initial/final read-only review: syntax/diff/parity passed; identified cached portal-session loader revision, fixed and resynchronized. Local desktop component visual sample with actual styles reviewed: tmp/polish-qa/components.png and personnel.png. Synthetic markup/data; authenticated full-page/production acceptance not claimed. No test suites or mobile/Fold checks run.
+- All changes remain local. No GitHub push or server deployment in this task.
