@@ -5289,3 +5289,7 @@ PR35 CI passed and merged; guarded runtime701832b9 deployed healthy with backup 
 - Closed arrow points right. Expanded arrow turns down and receives a stronger coral border/fill. On the existing compact rail the indicator remains hidden and appears when the rail expands.
 - Header, route order, role permissions, active-link logic, and persisted group behavior unchanged. Source/dist assets and CSS cache revisions synchronized.
 - Syntax, diff hygiene, and visual review covered below before publish.
+
+- Runtime published in PR37 at 262ba916c8cf813e3f1f7467349ba0626960c03e; guarded deployment image 0234f8669d599863388b07450e9cf67b9d1bfc57b59beff396d4e60a03c4241b is healthy.
+- Backup restoration rehearsal passed; SKIP_MENU_SEED_ONCE=true. Existing env, hookah-pos Compose project, and territory-crm_pgdata volume were retained. Six protected data fingerprints/counts unchanged. Public health and style.css canonical hash passed.
+- Owner Edge live page confirms six 28px circle markers: closed chevrons face right; open Team chevron faces down and uses the stronger coral border/fill. Staff navigation and table still render, console warn/error empty. Screenshot: tmp/sidebar-disclosure-live.png. Header and routes unchanged.
