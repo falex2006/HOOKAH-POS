@@ -4960,3 +4960,8 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions{gap:6px}
 .portal.velora-theme .staff-catalog .staff-directory-table .staff-card-actions button{min-height:40px;font-size:13px;padding:8px 10px}
 .portal.velora-theme .staff-catalog .staff-directory-table td[data-label="Дата приёма"]{white-space:nowrap}
+
+/* Branded circular disclosure affordance; keep native summary/details behavior. */
+.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{content:'›';display:grid;place-items:center;box-sizing:border-box;width:28px;height:28px;flex:0 0 28px;margin:0 0 0 auto;padding:0;border:1px solid rgba(255,132,94,.48);border-radius:50%;background:rgba(255,132,94,.035);color:#ff9b79;font:400 21px/1 Arial,sans-serif;text-align:center;transform:none}
+.velora-theme .portal-sidebar .sidebar-nav-group[open]>summary::after{border-color:#ff855f;background:rgba(255,117,82,.11);color:#ff9b79;transform:rotate(90deg)}
+@media(max-width:900px){.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{display:none}.velora-theme .portal-sidebar.is-expanded .sidebar-nav-group>summary::after{display:grid}}

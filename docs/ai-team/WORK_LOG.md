@@ -5282,3 +5282,10 @@ PR33 merged, runtime0faade7c deployed guarded canonical main, backup restore reh
 ## 2026-10-12 — UI follow-up published
 
 PR35 CI passed and merged; guarded runtime701832b9 deployed healthy with backup restore rehearsal and seedskip. Six client/catalog row fingerprints and counts unchanged; env/project/volume preserved. Five public asset hashes match canonical main. User owner Edge read-only desktop acceptance completed on changed pages; screenshot and exact bounds in docs/release/UI_POLISH_RELEASE_2026_10_12.md. Publication of this receipt alone does not need redeployment.
+
+## 2026-10-12 — branded sidebar disclosure control
+
+- User approved the coral-outline circular disclosure mock. Existing native details/summary and its keyboard/mouse behavior remain unchanged; CSS replaces only the visual caret with a 28px circular indicator.
+- Closed arrow points right. Expanded arrow turns down and receives a stronger coral border/fill. On the existing compact rail the indicator remains hidden and appears when the rail expands.
+- Header, route order, role permissions, active-link logic, and persisted group behavior unchanged. Source/dist assets and CSS cache revisions synchronized.
+- Syntax, diff hygiene, and visual review covered below before publish.
