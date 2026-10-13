@@ -5293,3 +5293,76 @@ PR35 CI passed and merged; guarded runtime701832b9 deployed healthy with backup 
 - Runtime published in PR37 at 262ba916c8cf813e3f1f7467349ba0626960c03e; guarded deployment image 0234f8669d599863388b07450e9cf67b9d1bfc57b59beff396d4e60a03c4241b is healthy.
 - Backup restoration rehearsal passed; SKIP_MENU_SEED_ONCE=true. Existing env, hookah-pos Compose project, and territory-crm_pgdata volume were retained. Six protected data fingerprints/counts unchanged. Public health and style.css canonical hash passed.
 - Owner Edge live page confirms six 28px circle markers: closed chevrons face right; open Team chevron faces down and uses the stronger coral border/fill. Staff navigation and table still render, console warn/error empty. Screenshot: tmp/sidebar-disclosure-live.png. Header and routes unchanged.
+
+## 2026-10-11 — Локальное рабочее место сотрудника POS
+
+По согласованному промпту реализованы зал/приготовление, реальные operational counters и один badge на столе, главное следующее действие заказа, единая последовательная отправка по станциям с честным partial success, protected pending/retry, сохранённые комментарии и согласованный refresh. Панель заказа имеет внутреннюю прокрутку: итог и CTA остаются доступны. Обе темы используют существующие `--ui-*`, без новых локальных цветов. API мутации, БД и RBAC сохранены; server diff — только static allowlist трёх assets. Source/dist, Docker COPY и canonical sync согласованы, app revision `2026101107`.
+
+Работа выполнена только в managed worktree `pos-employee-workspace` от `origin/main` / `f7e7af1381cb081662b85c53447fd73cb935c6e6`. Исходный dirty checkout не редактировался. Роли: system_architect — контракт/role shell; design_lead/visual_auditor — композиция/две темы; code_health_engineer — baseline/final diff; qa_engineer — независимый clean replay. Координатор интегрировал исправления badges, legacy opacity, zone keyboard и повторного чтения floor без перехвата focus.
+
+Приёмка: disposable PostgreSQL + настоящий Chrome/API — 12 functional и 7 state PASS; read-only floor — 5 PASS; backend preparation regression — 123 assertions PASS, собственная БД удалена. Проверены actual partial/final payment ledger, doubleclick, wrong station/tenant, комментарий/reload и unfinished paid work. Роли/shell — шесть основных и пять соседних contexts PASS. Visual — пять viewport × обе темы, overflow0, CTA48px, targets≥44px, измеренный contrast ≥4.5:1 для текста / ≥3:1 значимых границ и иконок, focus/reduced-motion. Syntax/diff/source-dist PASS; 22 целевых контракта PASS, четыре ранее существовавших harness/regex сбоя воспроизведены на базе и зафиксированы отдельно, весь regression suite не объявляется зелёным.
+
+Подробные этапы, evidence и границы: `docs/design/POS_EMPLOYEE_WORKSPACE_2026-10-11/ACCEPTANCE.md`, `PROMPT.md`, `CONTRACT.md`, `CODE_HEALTH.md`, `FUNCTIONAL_QA.md`, `ROLE_QA.md`, `VISUAL_QA.md`. Не реализованы отсутствующие backend функции персонального назначения, выдачи/undo, SLA, банковской/фискальной интеграции и смены пользователя по PIN. Синхронизация — существующее polling30s/focus/visibility, не WebSocket. Production, push, merge и deployment не выполнялись; физический POS/Fold/Edge/печать не объявляются проверенными.
+
+После приёмки guarded fixture runner остановил только свой QA server и удалил только собственную случайную БД; PASS, manifest stopped, actor credentials removed. Финальная гигиена: 16 JS/MJS/CJS syntax, семь parity pairs, ссылки/evidence и отсутствие опубликованных private credentials — PASS. Результат сохранён локально для ревью, без публикации.
+
+### 2026-10-11 — Цветные оперативные карточки после просмотра владельцем
+
+Владелец уточнил, что в исходном рендере нравились цветные три верхние карточки и крупные значки. Scoped CSS применяет существующие coral/green/amber tokens, tint8% (hover12%), SVG32px, числа28px и декоративный CSS-chevron. Unknown/disabled остаётся нейтральным с «—». Названия, единицы, роли, handlers и API не менялись. CSS source/dist совпадает; index source/dist использует pos-workspace.css rev2. Общая геометрия страницы этим пакетом не менялась.
+
+Роли: design_lead — baseline/visual; code_health_engineer — baseline/final narrow delta. Readonly browser QA — 5 viewport × 2 темы, computed contrast и disabled GET503 PASS; три правильных назначения кнопок PASS; API writes0 / JS exceptions0. Token/component/local-design/header contracts и diff/parity PASS. Edge открыт на новом isolated loopback preview, CSS обновлён, пользовательский выбранный стол восстановлен; server оставлен работающим для просмотра. Подробности и evidence: docs/design/POS_EMPLOYEE_WORKSPACE_2026-10-11/COUNTER_POLISH.md. Эстетическая оценка владельцем продолжается, production не публиковался.
+
+
+### 2026-10-11 — Финальная визуальная доводка POS
+
+По запросу владельца проверены карточки столов, панель заказа, кнопки и отступы в обеих темах. Работа в isolated pos-employee-workspace, исходный dirty checkout сохранён. Исправлены выбор колонок «Вместить», компоновка total/status/time/badge/PS5/ТВ, тематическая selection/focus, выравнивание вкладок и колонки сумм, плотность заказа на низком экране. Верхняя панель при≤1320 переносит переключатель на отдельную строку. Warning учитывает фактическую высоту rendered grid и обновляется после изменения содержимого. Только presentation/copy/density; API/БД/RBAC/header/sidebar не менялись.
+
+Роли: design_lead final visual PASS, system_architect focused overflow/manual70 PASS, code_health_engineer immutable baseline и final diff. Read-only Chrome runner — 10 viewport/height cases × 2 темы PASS + long-name/equipment, empty/preparation, manual70 reload и6Fit boundaries. CTA≥48px / targets≥44px, first quantity виден600px, effective contrast text≥6.81dark/5.75light, quantity boundaries≥4.42/4.03, writes0/errors0. 9 целевых контрактов, syntax/diff/four source-dist pairs PASS. Baseline harness/regex failures остаются прежним долгом, весь suite не объявляется зелёным. CSSrev3 / app2026101108, canonicalappRevision согласован.
+
+Edge preview обновлён с сохранением пользовательского стола1 и ручного90%, оставлен открытым. Отчёт и свежие доказательства: docs/design/POS_EMPLOYEE_WORKSPACE_2026-10-11/FINAL_POLISH.md; acceptance ссылается на новую итерацию. Физический POS/Fold, Windows scaling и полная WCAG не подтверждаются; push/merge/deploy не выполнялись.
+
+Финальный независимый code_health_engineer: PASS, новых блокеров нет;18targeted+staticboundary,33semanticrefs,4mirrors/syntax/diff. GET-only actualFit10cases+dynamic equipment warning/manual70→130→70+keyboardfocus/lowheightMore PASS. Все3P2 текущей итерации закрыты; baseline debt отделён.
+
+
+### 2026-10-11 — Тонкое выделение выбранного стола
+
+По замечанию владельца убран двойной контур: scoped selected outline0/offset0, вместо2px/2px, с сохранением1px ui-focus border и tint6%. Keyboard :focus-visible отдельный3px dashed/5px. Единственная CSS декларация, source/dist и indexrev4 согласованы; app/handlers/API/DB/RBAC не менялись. Design lead baseline+final PASS; code_health_engineer baseline+final narrow review. GET-only Chrome2themes pointer/keyboard/reselection/geometry PASS, errors0/writes0;3targetcontracts/syntax/diff PASS. Historical final-polish evidence сохранены; новый SELECTION_POLISH.md и selection-softening evidence. Изолированныйworktree, originalWIP сохранён, без публикации.
+
+Final независимый code-health PASS: exactbaseline onlyselectionoutline/offset+CSSrev, app/workspaceJS/styleunchanged. Edge screenshot сохранён, пользовательский стол1/90% восстановлен, preview оставлен открытым.
+
+
+### 2026-10-13 — Локальная сводка оплат сотрудника и заметный Зал
+
+По согласованному пакету: равные сегменты Зал/Приготовление, активная тематическая кнопка, небольшие amber/green значки в нейтральных счётчиках. Меню/шапка операционного сотрудника Оплаты, страница Оплаты по вашим заказам, management Финансы сохранён. Финансовый переход теперь использует data-permission, а не подпись. Новый read-only /api/finance/employee-payments с прежним opener/tenant/current-venue-day scope, суммой/методами/количеством и20последними платежами. Старые summary/report, DBschema и финансовые записи не менялись. APIдокументация, дерево и визуальные правила дополнены.
+
+Оформление двух тем/мобильных строк, раскрываемые правила, актуальность/повтор, подтверждённые нули и fail-closed ошибка; исправлены scoped контраст root-menu/queue и остаток68px мобильной employee finance main. Source/dist и целевые cache revisions согласованы. Роли: system_architect/backend/finance/security — endpoint+nav и79PG assertions PASS; design_lead — CSS и визуальный review; code_health — baseline/final. Browser24состояния realGET+explicitoverrides PASS, writes0/errors0. Local-design,semantic/primitives,financeemployee/timezone,staffnav/parity/header/syntax PASS; baseline staleharnessdebt отделён, весь suite не объявляется зелёным.
+
+Файлы этой итерации: app.js, portal.js, server.js, style.css, pos-workspace.css, index/finance HTML, portal-session, только их опубликованные пары, релевантные contracts/QA и docs. Совместный checkout сохранён. Никакого commit/push/merge/deploy. Собственный previewPG31941 изолирован от параллельных тестов; Edge открыт для просмотра. Подробности/доказательства: docs/design/POS_PAYMENTS_POLISH_2026-10-13/ACCEPTANCE.md.
+
+## 2026-10-13 — Рабочий зал: структура и визуальная иерархия (локально)
+- По прямому согласию пользователя реализован весь пакет упрощения: отдельные режимы, компактная сводка, зоны/«Вид», столы и выбранный заказ, без дублирующей очереди в зале. В списке заказов явный фильтр и возврат к прежнему столу.
+- Кнопки/вкладки/карточки согласованы в обеих темах; главное действие «Отправить N позиций», вторичное добавление, метаданные раскрываются через название. Реальная вместимость согласована с панелью, свободный стол подписан однозначно.
+- Устранены найденные сценарии: поздний GET при смене выбора, заказ другого зала на touch, legacy static-панель под backdrop на 1180. API/БД/финансовые операции без изменений.
+- system_architect/frontend, design_lead и code_health_engineer/QA подтвердили пакет. 14 браузерных сценариев (7 размеров x 2 темы), focused проверки данных/действий/гонки, 9 контрактов, синтаксис, diff и4 source/dist пары PASS; API writes=0, JS errors=0.
+- Отчёт: docs/design/POS_FLOOR_USABILITY_2026-10-13/ACCEPTANCE.md. Preview35902 оставлен в Edge. Нет commit/push/merge/deploy; исходный checkout и прежний WIP сохранены.
+
+## 2026-10-13 — Цвета POS и ТВ/PS (локально)
+- По согласию пользователя обычные occupied/in_progress нейтрализованы; queued/awaiting_payment янтарные, готовность зелёная. В смешанном заказе ожидание имеет приоритет над обычной работой.
+- Значки ТВ и PS20px нейтральные без плашек, доступны по существующим флагам, с названиями/подсказками и отдельным нижним правым местом. Проверены оба/один/нет через явные GET overrides без записей БД.
+- Design/codehealth подтвердили пакет; desktop/mobile, обе темы и плотности70/100/130, контраст/границы/пересечения; ошибкиJS0, APIwrites0. Source/dist,syntax,diff и целевые контракты PASS. Старый mock order-preparation-ui-qa отмечен отдельно.
+- Отчёт docs/design/POS_COLORS_AMENITIES_2026-10-13/ACCEPTANCE.md. Preview35902 обновлён в Edge; публикации нет.
+
+## 2026-10-13 — Состояния рабочего зала: локальная проверка и исправления
+- Недоступный стол: замок, нейтральное оформление, читаемая инспекция без пустого заказа/нулевой суммы/операций. Реальная причина не выдумывается. Бронь показывает время; смешанная готовность показывает готовую часть и оставшуюся работу по направлениям.
+- Общая сумма подписана «Заказ», остаток выбранного заказа берётся из серверного расчёта. Сохранены выбор, раскрытые детали и прокрутка при обновлении; устранён сдвиг от асинхронного расчёта цены.
+- Offline и ошибки чтения явно объясняются и блокируют небезопасные действия. После потерянного ответа записи выполняется сверка чтением без автоматического повтора; ошибочная сверка сохраняет блокировку.
+- system_architect, design_lead и code_health_engineer выполнили аудит/проверку. Browser PASS13 групп, обе темы 320/1366, API writes0/JS errors0. Целевые runtime/design контракты, syntax и diff PASS. Обновления второго сотрудника моделируются GET-ответами, это не двухпользовательский production E2E.
+- Отчёт docs/design/POS_FLOOR_STATES_2026-10-13/ACCEPTANCE.md. Собственный preview35902 оставлен в Edge; исходный checkout и прежний WIP сохранены. Без commit/push/merge/deploy.
+
+## 2026-10-13 — Ясные кнопки рабочего зала (локально)
+- Удалён дублирующий переход «В приготовлении». Вкладка приготовления показывает общее число доступных строк работ; фильтры направлений согласованы с ним и скрыты при единственном направлении. Готовые заказы и открытые счета остаются пересекающимися быстрыми выборками.
+- Отправка и оплата разделены на постоянные кнопки; единое окно называется «Оплата заказа». Оплата и старое закрытие с оплатой защищены от закрытия до отправки новых позиций. Серверные финансовые API не изменены. Остаток после отправки перечитывается из серверного расчёта.
+- Исправлены найденные при QA стартовый null-доступ, перекрытие HTML hidden CSS-правилами и читаемость длинных кнопок на 320 px. До 380 px действия идут двумя полными строками. Недоступность оплаты объясняется видимым текстом.
+- Изменения только в изолированном worktree; старый WIP сохранён. Отчёт и итоговые доказательства: docs/design/POS_BUTTONS_CLARITY_2026-10-13/ACCEPTANCE.md. Без commit/push/merge/deploy.
+
+- Итог этой итерации: browser12 групп PASS, четыре профиля прав, 1366/320 и обе темы; JS errors0/API writes0. Четыре runtime-контракта, local-design, syntax/diff и4 пары source/dist PASS. Design/architect/code-health подтвердили локальный результат.

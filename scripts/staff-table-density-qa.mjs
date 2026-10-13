@@ -22,18 +22,24 @@ const occupiedHeight = (result, count) => {
   const rows = Math.ceil(count / result.columns);
   return rows * result.tileHeight + (rows - 1) * 10;
 };
-const laptop = calculate(630, 520, 10, 'fit', 100);
+const laptop = calculate(630, 600, 10, 'fit', 100);
 assert.equal(laptop.columns, 3);
-assert.ok(laptop.tileHeight >= 108);
-assert.ok(occupiedHeight(laptop, 10) <= 520);
+assert.ok(laptop.tileHeight >= 132);
+assert.ok(occupiedHeight(laptop, 10) <= 600);
 assert.equal(laptop.overflows, false);
-const shorterLaptop = calculate(630, 480, 10, 'fit', 100);
+const shorterLaptop = calculate(630, 558, 10, 'fit', 100);
 assert.equal(shorterLaptop.columns, 3);
-assert.equal(shorterLaptop.overflows, false, 'ten tables fit the actual laptop content height');
-assert.ok(occupiedHeight(shorterLaptop, 10) <= 480);
-const insufficientLaptop = calculate(630, 420, 10, 'fit', 100);
+assert.equal(shorterLaptop.overflows, false, 'four rows at the real occupied-card minimum fit exactly');
+assert.equal(occupiedHeight(shorterLaptop, 10), 558);
+const insufficientLaptop = calculate(630, 520, 10, 'fit', 100);
 assert.equal(insufficientLaptop.overflows, true, 'insufficient height is reported, never hidden by shrinking below readable minimum');
-assert.equal(insufficientLaptop.tileHeight, 108);
+assert.equal(insufficientLaptop.tileHeight, 132);
+for (const height of [400, 780, 1080]) {
+  const fiveTables = calculate(630, height, 5, 'fit', 100);
+  assert.equal(fiveTables.columns, 3, 'screen height must not reduce the number of readable columns');
+  assert.equal(fiveTables.tileHeight, 144, 'a small hall stays compact on tall screens');
+}
+assert.equal(calculate(1250, 1080, 5, 'fit', 100).columns, 5, 'wide screens retain their useful horizontal density');
 for (const [width, height] of [[1000, 780], [1250, 820], [790, 480]]) {
   const result = calculate(width, height, 10, 'fit', 100);
   assert.equal(result.overflows, false);
@@ -55,7 +61,7 @@ for (const width of [320, 630, 1000, 1250]) {
 }
 const largeHall = calculate(630, 520, 100, 'fit', 100);
 assert.equal(largeHall.overflows, true);
-assert.equal(largeHall.tileHeight, 108);
+assert.equal(largeHall.tileHeight, 132);
 assert.equal(calculate(170, 520, 1, 'fit', 100).columns, 1, 'narrow viewport retains one accessible card');
 subject.loadFloorDensity();
 const userOneKey = subject.key;

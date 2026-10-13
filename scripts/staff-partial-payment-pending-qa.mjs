@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { randomUUID } from 'node:crypto';
 
 const source = readFileSync(new URL('../app.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const start = source.indexOf("const paymentModal=document.querySelector('#payment-modal')");
@@ -9,43 +11,51 @@ const formatterStart=source.indexOf('const staffStockErrorMessage=');
 const formatterEnd=source.indexOf("\ndocument.querySelector('.close')",formatterStart);
 assert.ok(formatterStart>=0&&formatterEnd>formatterStart);
 const formatter=source.slice(formatterStart,formatterEnd);
-const listeners = new Map();
-const node = (id) => ({
-  id, value: '0', textContent: '', disabled: false,
-  addEventListener(type, callback) { listeners.set(`${id}:${type}`, callback); },
-  replaceChildren(...children) { this.children = children; this.textContent = children.map((child) => child.textContent || '').join(''); },
-  focus() {},
-});
-const modalClasses = new Set();
-const modal = node('payment-modal');
-modal.classList = { add: (name) => modalClasses.add(name), remove: (name) => modalClasses.delete(name), contains: (name) => modalClasses.has(name) };
-const submit = node('payment-submit');
-const form = node('payment-form');
-form.querySelector = () => submit;
-const elements = Object.fromEntries([
-  modal, form, submit, node('payment-cash'), node('payment-card'), node('payment-qr'),
-  node('payment-due'), node('payment-remaining'), node('payment-message'),
-  node('payment-close'), node('split-payment'),
-].map((element) => [`#${element.id}`, element]));
-const document = { querySelector: (selector) => elements[selector] || null, createElement: (tag) => ({ tagName: tag.toUpperCase(), style: {}, textContent: '' }) };
+// Reuse DOM mechanics from the existing lifecycle harness and execute the real
+// shared critical presentation. Pending close/reopen policy is not mocked.
+const shared=readFileSync(new URL('../ui-dialog.js',import.meta.url),'utf8');
+const lifecycle=readFileSync(new URL('./ui-dialog-lifecycle-contract.mjs',import.meta.url),'utf8');
+const factory=lifecycle.slice(lifecycle.indexOf('function fixture() {'),lifecycle.indexOf('\nconst defaults ='));
+assert.ok(factory.startsWith('function fixture() {'),'shared DOM fixture exists');
+const decode=value=>String(value).replace(/&(amp|lt|gt|quot|#39);/g,(_,key)=>({amp:'&',lt:'<',gt:'>',quot:'"','#39':"'"})[key]);
+const f=vm.runInNewContext(factory+'\nfixture()',{vm,source:shared,decode});
+f.lock.remove();f.settings.remove();
+const matches=f.Node.prototype.matches;
+f.Node.prototype.matches=function(selector){return matches.call(this,selector.replace(/\[([\w-]+)=([^"'\]\s]+)\]/g,'[$1="$2"]'));};
+f.Node.prototype.replaceChildren=function(...children){this.textContent='';this.append(...children);};
+const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const paymentMarkup=html.slice(html.indexOf('<div class="modal payment-modal"'),html.indexOf('<div class="modal action-modal"'));
+assert.ok(paymentMarkup.includes('id="payment-form"'),'exercise the shipped payment markup');
+const host=new f.Node('div');host.innerHTML=paymentMarkup;f.document.body.append(host);
+f.trigger.id='split-payment';
+const document=f.document,modal=document.querySelector('#payment-modal'),form=document.querySelector('#payment-form');
+const submit=form.querySelector('[type=submit]');
+assert.equal(submit.tagName,'BUTTON');
+const modalClasses={has:className=>modal.classList.contains(className)};
+const elements=Object.fromEntries(['payment-cash','payment-card','payment-qr','payment-due','payment-remaining','payment-message','payment-close','split-payment'].map(id=>['#'+id,document.querySelector('#'+id)]));
+const listeners={get:key=>{const [id,type]=key.split(':');return document.querySelector('#'+id)?.listeners.get(type)?.values().next().value?.callback;}};
 const requests = [];
 const apiJson = (path, options) => new Promise((resolve, reject) => requests.push({ path, options, resolve, reject }));
 const notices = [];
-const setup = new Function('document', 'apiJson', 'notice', 'orderHeaders','refreshOrderPricingSummary',
-  `let currentOrder={id:'order-1',status:'open',items:[{unitPrice:500,quantity:1}]};let floorVenueId='venue-1';
+const storage=new Map([['crm_session_token','qa-token']]);
+const localStorage={getItem:key=>storage.get(key)??null};
+const setup = new Function('document', 'apiJson', 'notice', 'orderHeaders','refreshOrderPricingSummary','localStorage','loadSharedUI','crypto','sessionHeaders','pluralRu','escapeFloorText',
+  `const window={HookahPosDispatch:{eligibleItems:()=>[]}};let currentOrder={id:'order-1',status:'open',items:[{unitPrice:500,quantity:1}]};let floorVenueId='venue-1';
+   let staffAccessRevision=0,staffSessionVerified=true;let staffSessionPermissions=new Set(['orders']);
    let openOrders=[currentOrder];let queueDraws=0,orderLoads=0;
    let onLoadOrders=()=>{};
-   const drawQueue=()=>{queueDraws+=1;};const drawOrder=()=>{};
+   const drawQueue=()=>{queueDraws+=1;};const drawOrder=()=>{};const updateOrderMainAction=()=>{};
    const loadOrders=async()=>{orderLoads+=1;onLoadOrders();};const refreshFloor=async()=>{};
    ${formatter}
    ${source.slice(start, end)}
-   return {state:()=>({currentOrder,openOrders,paymentState,queueDraws,orderLoads}),setOrder:(order)=>{currentOrder=order;},setOnLoadOrders:(callback)=>{onLoadOrders=callback;}};`);
-const runtime = setup(document, apiJson, (message) => notices.push(message), () => ({}),()=>{});
+   return {state:()=>({currentOrder,openOrders,paymentState,queueDraws,orderLoads,pending:paymentPostsPending.size}),setOrder:(order)=>{currentOrder=order;},setVenue:venue=>{floorVenueId=venue;},invalidateRead:()=>{paymentLoadRevision++;},refreshPresentation:()=>paymentPresentation?.refresh(),setOnLoadOrders:(callback)=>{onLoadOrders=callback;}};`);
+const runtime = setup(document, apiJson, (message) => notices.push(message), () => ({}),async()=>{},localStorage,async()=>f.ui,{randomUUID},()=>({Authorization:'Bearer '+storage.get('crm_session_token')}),(_n,_one,few)=>few,String);
 const settle = () => new Promise((resolve) => setImmediate(resolve));
-const open = () => listeners.get('split-payment:click')();
+const open = () => listeners.get('split-payment:click')({currentTarget:elements['#split-payment']});
 const submitPayment = () => listeners.get('payment-form:submit')({ preventDefault() {} });
 
 const firstOpen = open();
+await settle();
 assert.equal(submit.disabled, true, 'submit waits for authoritative payment balance');
 assert.equal(requests[0].path, '/api/orders/order-1/payments');
 requests[0].resolve({ due: 500, paid: 200, remaining: 300, items: [] });
@@ -67,6 +77,7 @@ assert.match(notices.at(-1), /оплачен/);
 
 runtime.setOrder({ id: 'order-2', status: 'open', items: [{ unitPrice: 500, quantity: 1 }] });
 const secondOpen = open();
+await settle();
 requests[2].resolve({ due: 500, paid: 0, remaining: 500, items: [] });
 await secondOpen;
 elements['#payment-cash'].value = '200';
@@ -89,6 +100,7 @@ assert.match(elements['#payment-message'].textContent,/нет активной �
 assert.match(elements['#payment-message'].textContent,/Учтено платежей: 200 ₽. Осталось: 300 ₽/);
 const staleOpen = open();
 const latestOpen = open();
+await settle();
 requests[7].resolve({ due: 500, paid: 250, remaining: 250, items: [] });
 await latestOpen;
 requests[6].resolve({ due: 500, paid: 200, remaining: 300, items: [] });
@@ -98,38 +110,44 @@ elements['#payment-cash'].value = '100';
 const latePayment = submitPayment();
 assert.equal(requests[8].options.method, 'POST');
 listeners.get('payment-close:click')();
+assert.ok(modalClasses.has('open'),'shared critical policy blocks close while POST is pending');
+await open();assert.equal(requests.length,9,'pending payment blocks another opening and GET');
 runtime.setOrder({ id: 'order-3', status: 'open', items: [{ unitPrice: 500, quantity: 1 }] });
-const thirdOpen = open();
-requests[9].resolve({ due: 500, paid: 0, remaining: 500, items: [] });
-await thirdOpen;
+runtime.refreshPresentation();
 requests[8].resolve({ due: 500, paid: 350, remaining: 150, closed: false });
 await latePayment;
+assert.equal(runtime.state().currentOrder.id,'order-3','late POST cannot change the route-selected order');
+assert.equal(runtime.state().currentOrder.paid,undefined,'late POST cannot apply another order balance');
+assert.equal(modalClasses.has('open'),false,'lost order context closes only after the pending request settles');
+const thirdOpen = open();await settle();
+requests[9].resolve({ due: 500, paid: 0, remaining: 500, items: [] });await thirdOpen;
 assert.equal(runtime.state().paymentState.orderId, 'order-3', 'late POST cannot replace the next order balance');
 assert.equal(elements['#payment-due'].textContent, '500 ₽');
 assert.ok(modalClasses.has('open'), 'late POST cannot close the next order modal');
 elements['#payment-cash'].value = '100';
 const sameOrderLatePayment = submitPayment();
 listeners.get('payment-close:click')();
-const sameOrderOpen = open();
-requests[11].resolve({ due: 500, paid: 0, remaining: 500, items: [] });
-await sameOrderOpen;
-assert.equal(submit.disabled, true, 'same-order reopening waits for old POST');
+await open();assert.equal(requests.length,11,'same-order reopening waits for old POST without another balance read');
+assert.equal(submit.disabled,true);
+// A same-order read revision can become obsolete while a POST remains pending.
+// Exercise the existing reconciliation branch without bypassing modal dismissal.
+runtime.invalidateRead();
 requests[10].resolve({ due: 500, paid: 100, remaining: 400, closed: false });
 await settle();
-assert.equal(requests[12].path, '/api/orders/order-3/payments', 'late POST triggers a fresh balance read');
-requests[12].resolve({ due: 500, paid: 100, remaining: 400, items: [] });
+assert.equal(requests[11].path, '/api/orders/order-3/payments', 'late POST triggers a fresh balance read');
+requests[11].resolve({ due: 500, paid: 100, remaining: 400, items: [] });
 await sameOrderLatePayment;
 assert.equal(elements['#payment-due'].textContent, '400 ₽');
 assert.equal(submit.disabled, false);
+elements['#payment-cash'].value = '0';
 elements['#payment-card'].value = '400';
 const lateFinalPayment = submitPayment();
 listeners.get('payment-close:click')();
-const finalReopen = open();
-requests[14].resolve({ due: 500, paid: 100, remaining: 400, items: [] });
-await finalReopen;
+await open();assert.equal(requests.length,13,'final pending payment still prevents duplicate opening');
 assert.equal(submit.disabled, true);
+runtime.invalidateRead();
 runtime.setOnLoadOrders(() => runtime.setOrder({ items: [] }));
-requests[13].resolve({ due: 500, paid: 500, remaining: 0, closed: true });
+requests[12].resolve({ due: 500, paid: 500, remaining: 0, closed: true });
 await lateFinalPayment;
 assert.equal(modalClasses.has('open'), false, 'late final POST closes stale same-order modal before order refresh');
 assert.equal(runtime.state().currentOrder.id, undefined);
@@ -144,6 +162,7 @@ for(const [code,reason] of Object.entries({
 })){
   runtime.setOrder({id:code,status:'open',items:[{unitPrice:500,quantity:1}]});
   const offset=requests.length,opening=open();
+  await settle();
   requests[offset].resolve({due:500,paid:200,remaining:300,items:[{method:'cash',amount:200}]});await opening;
   elements['#payment-card'].value='300';
   const failing=submitPayment();

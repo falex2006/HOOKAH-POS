@@ -75,7 +75,7 @@ for (const role of ['owner', 'admin', 'manager', 'developer', 'unknown']) assert
 
 const normal = harness('bartender', ['floor', 'orders', 'reservations', 'finance_read']);
 normal.subject.render();
-assert.deepEqual(normal.labels(), ['Рабочий зал', 'Заказы', 'Гости', 'Бронирования', 'Задачи', 'Финансы']);
+assert.deepEqual(normal.labels(), ['Рабочий зал', 'Заказы', 'Гости', 'Бронирования', 'Задачи', 'Оплаты']);
 assert.equal(new URL(normal.links().find((link) => link.getAttribute('aria-label') === 'Заказы').href).searchParams.get('view'), 'orders');
 assert.deepEqual(normal.links().filter((link) => link.getAttribute('aria-current') === 'page').map((link) => link.getAttribute('aria-label')), ['Бронирования']);
 for (const link of normal.links()) { assert.equal(new URL(link.href).searchParams.get('venue'), 'venue-a'); assert.equal(new URL(link.href).searchParams.get('workspace'), 'w'); }
@@ -97,26 +97,28 @@ assert.equal(new URL(ordersLink.href).pathname, '/orders', 'orders without floor
 assert.equal(ordersLink.getAttribute('aria-current'), 'page');
 const custom = harness('hookah_master', ['inventory_read', 'finance_read', 'loyalty', 'settings'], '/admin#loyalty'); custom.subject.render();
 assert.equal(custom.subject.employeePortalRole, true, 'custom grants do not change shell identity');
-assert.deepEqual(custom.labels(), ['Склад', 'Финансы', 'Система лояльности', 'Панель администратора']);
+assert.deepEqual(custom.labels(), ['Склад', 'Оплаты', 'Система лояльности', 'Панель администратора']);
 assert.deepEqual(custom.links().filter((link) => link.getAttribute('aria-current') === 'page').map((link) => link.getAttribute('aria-label')), ['Система лояльности']);
 const scoped = harness('staff', ['staff_view'], '/clients'); scoped.subject.render(); assert.deepEqual(scoped.labels(), ['Гости', 'Панель администратора']);
 
 assert.match(app, /setStaffWorkspaceView\(new URLSearchParams\(location.search\).get\('view'\),\{updateUrl:false\}\)/);
 assert.match(app, /url.searchParams.set\('view','orders'\)/);
-const workspaceSource = between(app, 'const setStaffWorkspaceView=', '// Queue ages share');
+const workspaceSource = between(app, 'let posFloorReturn=', '// Queue ages share');
 const makeNode = (label) => {
   const attributes = new Map(label ? [['aria-label', label]] : []), classes = new Set();
-  return { dataset: {}, classes, classList: { toggle(name, on) { if (on) classes.add(name); else classes.delete(name); } }, getAttribute: (key) => attributes.get(key) ?? null, setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key), replaceChildren(value) { this.text = value; } };
+  return { dataset: {}, classes, classList: { contains(name) { return classes.has(name); }, remove(...names) { names.forEach(name => classes.delete(name)); }, toggle(name, on) { if (on) classes.add(name); else classes.delete(name); } }, getAttribute: (key) => attributes.get(key) ?? null, setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key), replaceChildren(value) { this.text = value; } };
 };
 const root = makeNode(), title = makeNode(), buttons = ['Рабочий зал', 'Заказы', 'Гости'].map(makeNode);
 const location = new URL('https://qa.invalid/?view=orders&venue=v1&order=o1');
 const events = {}, replacements = [];
+let workspaceRefreshes = 0;
 const workspaceContext = vm.createContext({
-  URL, URLSearchParams, location,
+  URL, URLSearchParams, location, currentOrder:null, selectedZoneId:'qa-zone', floorVenueId:'qa-venue', serverZones:[], tables:{querySelectorAll:()=>[]}, drawOrder:()=>{},
+  refreshPosWorkspace: () => { workspaceRefreshes += 1; },
   window: { addEventListener: (name, callback) => { events[name] = callback; } },
   document: {
-    querySelector: (selector) => { if (selector === '.staff-theme') return root; assert.equal(selector, '.staff-header-title b'); return title; },
-    querySelectorAll: (selector) => { assert.equal(selector, 'aside nav button'); return buttons; },
+    querySelector: (selector) => { if (selector === '.staff-theme') return root; if(selector === '.table.sel') return null; assert.equal(selector, '.staff-header-title b'); return title; },
+    querySelectorAll: (selector) => { if(selector === '.table.sel') return []; assert.equal(selector, 'aside nav button'); return buttons; },
     createTextNode: (value) => value,
   },
   history: { replaceState(_state, _title, url) { replacements.push(url); location.href = new URL(url, location).href; } },
@@ -126,7 +128,9 @@ assert.equal(root.dataset.staffView, 'orders', 'deep link selects orders at init
 assert.equal(title.text, 'Заказы');
 assert.equal(replacements.length, 0, 'initial view does not rewrite URL');
 assert.deepEqual(buttons.filter((node) => node.getAttribute('aria-current') === 'page'), [buttons[1]]);
+root.classes.add('staff-preparation-view');
 workspaceContext.setView('floor');
+assert.equal(root.classes.has('staff-preparation-view'), false, 'canonical floor navigation leaves preparation view');
 assert.equal(location.searchParams.has('view'), false);
 assert.equal(location.searchParams.get('venue'), 'v1');
 assert.equal(location.searchParams.get('order'), 'o1');
@@ -136,5 +140,6 @@ assert.equal(root.classes.has('staff-orders-view'), true);
 location.searchParams.set('view', 'unknown'); events.popstate();
 assert.equal(root.dataset.staffView, 'floor', 'unknown/popstate view falls back to floor');
 assert.equal(replacements.length, 2, 'popstate never rewrites browser history');
+assert.equal(workspaceRefreshes, 4, 'initial view and every canonical navigation refresh workspace state');
 for (const file of ['portal.js', 'app.js', 'style.css']) assert.equal(read(file), read(`dist/${file}`), `${file}: published parity`);
 console.log('STAFF SHELL PARITY QA: PASS (worker roles, exact grants, orders/floor-only routes, context, active links, idempotence, preserved actions, workspace deep link/history, published parity)');

@@ -11,5 +11,7 @@ for (const route of [summary, report]) {
   assert.match(route, /employeeView: true/);
 }
 assert.match(portal, /МОЯ СМЕНА/);
-assert.match(portal, /Платежи по вашим заказам сегодня/);
+assert.match(portal, /Оплаты по вашим заказам/);
+assert.match(portal, /Платежи гостей за сегодня/);
+assert.match(portal, /api\('\/api\/finance\/employee-payments'\)/);
 console.log('EMPLOYEE FINANCE VISIBILITY CONTRACT: PASS (employee revenue is scoped to own orders and paid payments)');

@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "role": "bartender",
+      "login": true,
+      "portalLogout": true,
+      "revokedTokenStatus": 401
+    },
+    {
+      "role": "hookah_master",
+      "login": true,
+      "portalLogout": true,
+      "revokedTokenStatus": 401
+    },
+    {
+      "role": "manager",
+      "login": true,
+      "portalLogout": true,
+      "revokedTokenStatus": 401
+    },
+    {
+      "role": "owner",
+      "login": true,
+      "portalLogout": true,
+      "revokedTokenStatus": 401
+    }
+  ],
+  "errors": []
+}

@@ -1,3 +1,6 @@
+let posWorkspaceMounted=false;
+const posOrderDispatchPending=new Set();
+let posPreparationReadState='loading',posPreparationFilter='all';
 const staffIcon=(name)=>`<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=6#${name}"></use></svg>`; const pluralRu=(value,one,few,many)=>{const n=Math.abs(Number(value)||0),last10=n%10,last100=n%100;return last10===1&&last100!==11?one:last10>=2&&last10<=4&&(last100<12||last100>14)?few:many;};
 const displayProductName=(value)=>String(value??'').trim().replace(/(^|[^\p{L}\p{N}])(\p{L})/gu,(_,prefix,letter)=>prefix+letter.toLocaleUpperCase('ru-RU'));
 const updateStaffHeaderClock=()=>{const node=document.querySelector('.staff-header-date');if(!node)return;const now=new Date();const date=new Intl.DateTimeFormat('ru-RU',{weekday:'short',day:'numeric',month:'short'}).format(now);const time=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit',hour12:false}).format(now);node.textContent=`${date} · ${time}`;};updateStaffHeaderClock();window.setInterval(updateStaffHeaderClock,30000);
@@ -60,6 +63,8 @@ const staffFetchJson=async(url,options={})=>{
   const accessRevision=staffAccessRevision;
   const controller=new AbortController();
   const readOnly=['GET','HEAD'].includes(String(options.method||'GET').toUpperCase());
+  if(!readOnly&&url.startsWith('/api/orders')&&document.querySelector('.tables')?.dataset.dataState==='error'){notice('Схема зала не обновлена. Обновите данные перед действием.');throw new Error('floor_stale');}
+  if(!readOnly&&navigator.onLine===false){notice('Нет связи. Действие не отправлено. Дождитесь обновления данных.');throw new Error('offline');}
   // Aborting a mutation cannot prove that the server did not save it. Keep its
   // caller pending until the response arrives, so a delayed write is not retried.
   const timer=window.setTimeout(()=>{if(readOnly)controller.abort();else notice('Сервер ещё сохраняет действие. Дождитесь результата; не повторяйте его.',12000);},8000);
@@ -80,7 +85,7 @@ const staffPermissionAliases={inventory_read:'inventory',finance_read:'finance'}
 const hasStaffPermission=(required,permissions)=>permissions.has(required)||Boolean(staffPermissionAliases[required]&&permissions.has(staffPermissionAliases[required]));
 let staffShiftReadable=false,staffShiftManageable=false,staffNotificationCenter=null,staffSessionPermissions=new Set();
 const staffManagementShellRole=(role)=>['owner','admin','manager','developer'].includes(role);
-const applyStaffSession=(s)=>{if(!s?.user)return;const actor=s.user;document.body.classList.toggle('staff-management-shell',staffManagementShellRole(actor.role));staffFloorActorId=String(actor.id||'');document.body.classList.toggle('staff-red-cursor',['bartender','hookah_master'].includes(actor.role));applyStaffHeader(actor);const permissions=new Set(Array.isArray(s.permissions)?s.permissions:[]);staffSessionPermissions=permissions;staffNotificationCenter?.dispose();staffNotificationCenter=window.mountCrmNotifications({user:actor,permissions,api:(url,options)=>staticStaffDemo()?staticShiftNotificationsApi(url,options):staffFetchJson(url,options),bellHost:document.querySelector('.staff-header-user')});staffNotificationCenter.refresh();staffShiftReadable=['floor','orders','finance_read','finance'].some(p=>permissions.has(p));staffShiftManageable=['floor','orders'].some(p=>permissions.has(p));const shiftControl=document.querySelector('#shift-toggle');if(shiftControl)shiftControl.hidden=!staffShiftReadable;const navItems=[...document.querySelectorAll('.portal-sidebar .portal-nav [data-permission]')];navItems.forEach((item)=>{item.hidden=!hasStaffPermission(item.dataset.permission,permissions);});document.querySelectorAll('.portal-sidebar .portal-nav:not(.staff-admin-nav)').forEach((nav)=>{const hasVisibleItem=[...nav.querySelectorAll('[data-permission]')].some((item)=>!item.hidden);nav.hidden=!hasVisibleItem;const label=nav.previousElementSibling;if(label?.classList.contains('side-label'))label.hidden=!hasVisibleItem;});document.querySelectorAll('.portal-sidebar .portal-nav:not([hidden])').forEach((nav)=>nav.removeAttribute('aria-busy'));document.querySelectorAll('.portal-sidebar .portal-nav').forEach((nav)=>nav.removeAttribute('data-session-pending'));
+const applyStaffSession=(s)=>{if(!s?.user)return;const actor=s.user;const financeButton=document.querySelector('aside nav button[data-permission="finance_read"]');if(financeButton){const financeLabel=staffManagementShellRole(actor.role)?'Финансы':'Оплаты';financeButton.querySelector('span')?.replaceChildren(document.createTextNode(financeLabel));financeButton.setAttribute('aria-label',financeLabel);financeButton.title=financeLabel;}document.body.classList.toggle('staff-management-shell',staffManagementShellRole(actor.role));staffFloorActorId=String(actor.id||'');document.body.classList.toggle('staff-red-cursor',['bartender','hookah_master'].includes(actor.role));applyStaffHeader(actor);const permissions=new Set(Array.isArray(s.permissions)?s.permissions:[]);staffSessionPermissions=permissions;staffNotificationCenter?.dispose();staffNotificationCenter=window.mountCrmNotifications({user:actor,permissions,api:(url,options)=>staticStaffDemo()?staticShiftNotificationsApi(url,options):staffFetchJson(url,options),bellHost:document.querySelector('.staff-header-user')});staffNotificationCenter.refresh();staffShiftReadable=['floor','orders','finance_read','finance'].some(p=>permissions.has(p));staffShiftManageable=['floor','orders'].some(p=>permissions.has(p));const shiftControl=document.querySelector('#shift-toggle');if(shiftControl)shiftControl.hidden=!staffShiftReadable;const navItems=[...document.querySelectorAll('.portal-sidebar .portal-nav [data-permission]')];navItems.forEach((item)=>{item.hidden=!hasStaffPermission(item.dataset.permission,permissions);});document.querySelectorAll('.portal-sidebar .portal-nav:not(.staff-admin-nav)').forEach((nav)=>{const hasVisibleItem=[...nav.querySelectorAll('[data-permission]')].some((item)=>!item.hidden);nav.hidden=!hasVisibleItem;const label=nav.previousElementSibling;if(label?.classList.contains('side-label'))label.hidden=!hasVisibleItem;});document.querySelectorAll('.portal-sidebar .portal-nav:not([hidden])').forEach((nav)=>nav.removeAttribute('aria-busy'));document.querySelectorAll('.portal-sidebar .portal-nav').forEach((nav)=>nav.removeAttribute('data-session-pending'));
 const canOpenAdmin=canOpenStaffAdmin(permissions);document.querySelectorAll('.staff-admin-nav,.staff-admin-nav-label').forEach(node=>{node.hidden=!canOpenAdmin;});const ensureAdminPanelLink=()=>{if(!canOpenAdmin)return;const sidebar=document.querySelector('.portal-sidebar');const operationNav=sidebar?.querySelector('.portal-nav');if(!sidebar||!operationNav||sidebar.querySelector('a.staff-admin-nav-link'))return;const label=document.createElement('div');label.className='side-label staff-admin-nav-label';label.textContent=actor.role==='manager'?'УПРАВЛЕНИЕ':'АДМИНИСТРИРОВАНИЕ';const nav=document.createElement('nav');nav.className='portal-nav staff-admin-nav';const link=document.createElement('a');link.className='staff-admin-nav-link';link.href=preserveWorkspaceRoute('/admin');link.title=actor.role==='manager'?'Открыть панель управления':'Открыть панель администратора';link.innerHTML='<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6-6 6 6 6M4 12h16"></path></svg><span><strong>'+(actor.role==='manager'?'Панель управления':'Панель администратора')+'</strong></span>';nav.append(link);const footer=sidebar.querySelector('.sidebar-footer,.user,.logout-button');if(footer){sidebar.insertBefore(label,footer);sidebar.insertBefore(nav,footer);}else sidebar.append(label,nav);};ensureAdminPanelLink();const loyaltyLink=document.querySelector('#staff-loyalty-link');if(loyaltyLink)loyaltyLink.onclick=()=>{if(staffSessionPermissions.has('loyalty'))window.location.href=preserveWorkspaceRoute('/admin#loyalty');};const guestsLink=document.querySelector('#staff-guests-link');if(guestsLink)guestsLink.onclick=()=>{if(staffSessionPermissions.has('orders'))window.location.href=preserveWorkspaceRoute('/clients');};const user=document.querySelector('.user');if(user){user.innerHTML='<label class="staff-self-avatar" title="Изменить свой аватар"><span aria-hidden="true">'+(String(actor.name||'Сотрудник').split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]).join('')||'С').toLocaleUpperCase('ru-RU')+'</span><input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Изменить свой аватар"></label><div class="staff-self-identity"><b>'+escapeStaffHtml(actor.name||'Сотрудник')+'</b><small>'+escapeStaffHtml(staffRoleLabels[actor.role]||'Персонал')+'</small></div><button class="staff-logout" id="logout" type="button">'+staffIcon('logout')+'<span>Выйти</span></button>';applyStaffHeader(actor);const picker=user.querySelector('.staff-self-avatar input');const headerAvatar=document.querySelector('.staff-header-avatar');if(headerAvatar&&picker){headerAvatar.setAttribute('role','button');headerAvatar.setAttribute('tabindex','0');headerAvatar.setAttribute('aria-label','Изменить свой аватар');headerAvatar.onclick=()=>picker.click();headerAvatar.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();picker.click();}};}picker?.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;if(!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)||file.size>1500000){notice('Аватар: PNG, JPG или WebP до 1.5 МБ');picker.value='';return;}const reader=new FileReader();reader.onerror=()=>notice('Не удалось прочитать аватар');reader.onload=()=>fetch('/api/staff/'+encodeURIComponent(actor.id)+'/avatar',{method:'POST',headers:{...sessionHeaders(),'Content-Type':'application/json'},body:JSON.stringify({imageData:reader.result})}).then((response)=>response.ok?response.json():Promise.reject(new Error('avatar_failed'))).then((person)=>{actor.avatarUrl=person.avatarUrl||reader.result;localStorage.setItem('crm_session_user',JSON.stringify(actor));applyStaffSession(s);notice('Аватар обновлён');}).catch(()=>notice('Не удалось обновить аватар'));reader.readAsDataURL(file);});}};
 const resolveStaticStaffPermissions=(role)=>({owner:['floor','orders','reservations','inventory','finance','loyalty'],admin:['floor','orders','reservations','inventory','finance','loyalty'],manager:['floor','orders','reservations','inventory_read','finance_read','loyalty'],senior_bartender:['floor','orders','finance_read'],senior_hookah_master:['floor','orders','finance_read'],bartender:['floor','orders','finance_read'],hookah_master:['floor','orders','finance_read'],cleaner:[],security:[],technician:[],other_staff:[],developer:['floor','orders','reservations','inventory_read','finance_read']})[role]||[];
 if(staticStaffDemo()){try{const localUser=JSON.parse(localStorage.getItem('crm_session_user')||'{}');if(localUser.role)applyStaffSession({user:localUser,permissions:resolveStaticStaffPermissions(localUser.role)});}catch(_){}}
@@ -235,6 +240,7 @@ const renderStaffShiftControl=(state)=>{
   const view={loading:['Проверяем смену…','Проверка','Проверяем смену'],closed:['Смена закрыта','Открыть','Открыть смену'],open:['Смена открыта','Закрыть','Закрыть смену'],error:['Смена недоступна','Повтор','Повторить проверку смены'],saving:['Сохраняем смену…','Ждите','Сохраняем смену']}[state];
   button.dataset.shiftState=state;button.disabled=!staffShiftManageable||state==='loading'||state==='saving';button.setAttribute('aria-busy',String(state==='loading'||state==='saving'));button.setAttribute('aria-label',staffShiftManageable?view[2]:view[0]);button.title=staffShiftManageable?view[2]:view[0];
   button.innerHTML=`${staffIcon(state==='open'?'circle-check':'clock')}<span class="shift-state-label">${view[0]}</span><span class="shift-action-label">${staffShiftManageable?view[1]:view[0]}</span>`;
+  if(posWorkspaceMounted)updateOrderMainAction();
 };
 let shiftRefreshPending=null;
 const refreshShift=({silent=false}={})=>{
@@ -245,9 +251,9 @@ const refreshShift=({silent=false}={})=>{
 };
 if(staffSessionVerified)refreshShift();
 const orderRows=document.querySelector('.items');
-(()=>{const order=document.querySelector('.order');if(!order||order.querySelector('.order-more'))return;const ids=['discount-request','split-order','split-payment','transfer-order','print-receipt','order-delete'];const buttons=ids.map((id)=>document.getElementById(id)).filter(Boolean);if(!buttons.length)return;const details=document.createElement('details');details.className='order-more';details.innerHTML='<summary>Ещё действия</summary>';const body=document.createElement('div');body.className='order-more-list';buttons.forEach((button)=>body.append(button));details.append(body);const close=order.querySelector('.close');(close||order.lastElementChild)?.insertAdjacentElement('beforebegin',details);})();
+(()=>{const order=document.querySelector('.order');if(!order||order.querySelector('.order-more'))return;const ids=['discount-request','split-order','transfer-order','print-receipt','order-delete'];const buttons=ids.map((id)=>document.getElementById(id)).filter(Boolean);if(!buttons.length)return;const details=document.createElement('details');details.className='order-more';details.innerHTML='<summary>Ещё действия</summary>';const body=document.createElement('div');body.className='order-more-list';buttons.forEach((button)=>body.append(button));details.append(body);const close=order.querySelector('.close');const anchor=order.querySelector('.order-main-actions')||close||order.lastElementChild;anchor?.insertAdjacentElement('afterend',details);if(close){close.innerHTML=staffIcon('cash')+'<span>Закрыть с оплатой</span>';body.append(close);}})();
 const tableContextActions=(()=>{const existing=document.querySelector('#table-context-actions');if(existing)return existing;const meta=document.querySelector('.order .meta');if(!meta)return null;const node=document.createElement('div');node.id='table-context-actions';node.className='table-context-actions';node.setAttribute('aria-label','Быстрые действия со столом');meta.insertAdjacentElement('afterend',node);return node;})();
-const drawTableContextActions=(table,order)=>{if(!tableContextActions)return;const status=table?.status||'free';const tableId=table?.id||order?.tableId||'';const blocked=table?.status==='blocked';if(!tableId){tableContextActions.replaceChildren();return;}const buttons=[['secondary','Закрыть карточку','close-panel']];if(status==='free'&&!blocked){if(staffSessionPermissions.has('reservations'))buttons.push(['secondary','Забронировать','reserve']);}else if(!order?.id&&status==='reserved'&&staffSessionPermissions.has('reservations')){buttons.push(['primary','Открыть бронь','open-reservation']);buttons.push(['secondary','Гость пришёл','seat-guest']);}else if(!order?.id&&status==='awaiting_payment'&&(staffSessionPermissions.has('orders')||staffSessionPermissions.has('finance')||staffSessionPermissions.has('finance_read'))){buttons.push(['primary','Открыть оплату','open-payment']);}const note=blocked?'<p class="table-context-note" role="status">Стол недоступен для операций. Причина: стол заблокирован управляющим.</p>':status==='reserved'&&!staffSessionPermissions.has('reservations')?'<p class="table-context-note" role="status">Бронь видна для ориентира, но у вашей роли нет доступа к бронированиям.</p>':!currentShift?'<p class="table-context-note" role="status">Смена закрыта. Откройте смену сверху, чтобы создавать и изменять заказы.</p>':'';const renderButton=([kind,label,action])=>{const actionDisabled=!currentShift&&action!=='close-panel';return `<button type="button" class="${kind}" data-table-action="${action}"${actionDisabled?' disabled title="Сначала откройте смену"':''}>${staffIcon(action==='reserve'||action==='open-reservation'?'calendar-event':action==='transfer'?'arrows-right':action==='close-panel'?'x':action==='open-payment'?'cash':'plus')}<span>${label}</span></button>`;};tableContextActions.innerHTML=note+buttons.map(renderButton).join('');};
+const drawTableContextActions=(table,order)=>{if(!tableContextActions)return;const status=table?.status||'free';const tableId=table?.id||order?.tableId||'';const blocked=table?.status==='blocked';if(!tableId){tableContextActions.replaceChildren();return;}const buttons=[['secondary','Закрыть карточку','close-panel']];if(status==='free'&&!blocked){if(staffSessionPermissions.has('reservations'))buttons.push(['secondary','Забронировать','reserve']);}else if(!order?.id&&status==='reserved'&&staffSessionPermissions.has('reservations')){buttons.push(['primary','Открыть бронь','open-reservation']);buttons.push(['secondary','Гость пришёл','seat-guest']);}else if(!order?.id&&status==='awaiting_payment'&&(staffSessionPermissions.has('orders')||staffSessionPermissions.has('finance')||staffSessionPermissions.has('finance_read'))){buttons.push(['primary','Открыть оплату','open-payment']);}const note=blocked?'<p class="table-context-note" role="status">Стол недоступен для операций. Обратитесь к управляющему, если стол нужно открыть.</p>':status==='reserved'&&!staffSessionPermissions.has('reservations')?'<p class="table-context-note" role="status">Бронь видна для ориентира, но у вашей роли нет доступа к бронированиям.</p>':!currentShift?'<p class="table-context-note" role="status">Смена закрыта. Откройте смену сверху, чтобы создавать и изменять заказы.</p>':'';const renderButton=([kind,label,action])=>{const actionDisabled=!currentShift&&action!=='close-panel';return `<button type="button" class="${kind}" data-table-action="${action}"${actionDisabled?' disabled title="Сначала откройте смену"':''}>${staffIcon(action==='reserve'||action==='open-reservation'?'calendar-event':action==='transfer'?'arrows-right':action==='close-panel'?'x':action==='open-payment'?'cash':'plus')}<span>${label}</span></button>`;};tableContextActions.innerHTML=note+buttons.map(renderButton).join('');};
 function orderCardPreparationState(order){
   if(!order?.id)return 'open';
   if(['closed','cancelled'].includes(order.status))return order.status;
@@ -255,7 +261,7 @@ function orderCardPreparationState(order){
   if(statuses.length&&statuses.every(status=>status==='ready'))return 'ready';
   if(statuses.includes('in_progress'))return 'in_progress';
   if(statuses.includes('queued'))return 'queued';
-  return ['ready','in_progress'].includes(order.status)?order.status:'open';
+  return 'open';
 }
 // UI-05.1: opt in only operational surfaces; financial controls keep their domain UI.
 function mountPosPrimitives(){
@@ -267,25 +273,36 @@ function mountPosPrimitives(){
 }
 
 function drawOrder(order){
+  const sameOrder=Boolean(currentOrder?.id&&currentOrder.id===order?.id);
+  const scrollHost=document.querySelector('.pos-order-body')||orderRows;
+  const preservedScroll=sameOrder?scrollHost?.scrollTop||0:0;
+  const openDetails=sameOrder&&orderRows?[...orderRows.querySelectorAll('.order-item-details[open]')].map(node=>node.closest('[data-item-id]')?.dataset.itemId):[];
   currentOrder=order||null;
   const selectedTable=order?.tableId?floorTableFor(order.tableId):document.querySelector('.table.sel')?floorTableFor(document.querySelector('.table.sel').dataset.table):null;
   drawTableContextActions(selectedTable,order);
   const title=document.querySelector('.order h2');
   const tableLabel=order?.tableName || (order?.tableId ? floorTableLabel(order.tableId) : order?.id ? 'Заказ без стола' : 'Стол не выбран');
-  if(title) title.textContent=tableLabel;
+  if(title) title.textContent=!order?.tableId&&document.body.classList.contains('staff-orders-view')?'Выберите заказ из списка':tableLabel;
   if(!orderRows)return;
   const items=order?.items||[];
-  const panel=document.querySelector('.order');if(panel)panel.dataset.posState=!order?.tableId?'unselected':items.length?'populated':'empty';
-  const orderEditable=Boolean(order?.id)&&!['closed','cancelled'].includes(order?.status);
-  orderRows.innerHTML=items.length?items.map(item=>`<div class="order-item-row" data-item-id="${escapeFloorText(item.id)}"><span><span>${escapeFloorText(displayProductName(item.name||item.productName||'Позиция'))}</span><small class="order-item-attribution">${(staticStaffDemo()||item.salesAttributionStatus==='demo_unverified')?'ДЕМО · не подтверждено · ':''}${item.salesEmployeeName?escapeFloorText(item.salesEmployeeName):'Автор продажи не зафиксирован'}${item.soldAt?` · ${(staticStaffDemo()||item.salesAttributionStatus==='demo_unverified')?'локально · ':''}${escapeFloorText(new Date(item.soldAt).toLocaleString())}`:''}</small></span><span class="quantity-control"><button type="button" class="qty-minus" data-item="${escapeFloorText(item.id)}" aria-label="Уменьшить" ${!orderEditable?'disabled title="Закрытый заказ нельзя изменить"':item.preparationStatus&&item.preparationStatus!=='new'?'disabled title="Позиция уже передана в приготовление. Уменьшение недоступно."':''}>${staffIcon('minus')}</button><b>${Number(item.quantity||1)}</b><button type="button" class="qty-plus" data-item="${escapeFloorText(item.id)}" aria-label="Увеличить" ${orderEditable?'':'disabled title="Закрытый заказ нельзя изменить"'}>${staffIcon('plus')}</button></span><b data-line-total="${Number(item.unitPrice??item.price??0)*Number(item.quantity||1)}">${Number(item.unitPrice??item.price??0)*Number(item.quantity||1)} ₽</b></div>`).join(''):`<div class="empty-order" role="status">${order?.tableId?'Добавьте первую позицию в заказ':(!floorReady||serverZones.some(zone=>(zone.tables||[]).length))?'Выберите стол в зале, чтобы начать заказ':'После настройки зала здесь можно будет создать заказ'}</div>`;
-  const meta=document.querySelector('.meta'); if(meta){const guests=Number(order?.guests||selectedTable?.reservation?.guests);const guestMeta=Number.isInteger(guests)&&guests>0?`👥 ${guests} ${pluralRu(guests,'гость','гостя','гостей')}`:'';const capacity=selectedTable?.capacity?`Вместимость ${selectedTable.minCapacity&&selectedTable.maxCapacity&&selectedTable.minCapacity!==selectedTable.maxCapacity?`${selectedTable.minCapacity}–${selectedTable.maxCapacity}`:selectedTable.capacity}`:'';const reservation=selectedTable?.reservation;const reservationMeta=reservation?`Бронь: ${reservation.guestName||'Гость'}${reservation.time?' · '+reservation.time:''}`:'';const serviceMeta=order?.id?(selectedTable?.status==='reserved'?'Бронь подтверждена':'⏱ обслуживание'):'';meta.textContent=order?.tableId?[capacity,guestMeta,order?.guestName,order?.guestPhone?'☎ '+order.guestPhone:'',reservationMeta,serviceMeta].filter(Boolean).join(' · '):'Выберите стол, чтобы начать заказ';}
-  const editable=orderEditable&&Boolean((order?.items||[]).length);const addPosition=document.querySelector('.order > .primary');if(addPosition){const hasOrder=Boolean(order?.id);addPosition.hidden=false;addPosition.style.display='';addPosition.disabled=!order?.tableId||(!hasOrder&&!selectedTable)||(!hasOrder?false:!orderEditable);addPosition.title=!order?.tableId?'Сначала выберите стол':hasOrder?(addPosition.disabled?'Закрытый заказ нельзя изменить':'Добавить позицию'):'Выбрать позицию и открыть заказ';addPosition.setAttribute('aria-label',hasOrder?'Добавить позицию':'Новый заказ');const label=addPosition.querySelector('[data-primary-label]');if(label)label.textContent=hasOrder?'Добавить позицию':'Новый заказ';}document.querySelectorAll('.order-tabs button,.actions button,#discount-request,#split-order,#split-payment,#transfer-order,#print-receipt,.close').forEach((button)=>{button.disabled=!order?.tableId||!orderEditable||(!button.closest('.order-tabs')&&!editable);button.title=order?.tableId?(editable?'':'Сначала откройте активный заказ с позициями'):'Сначала выберите стол';});const printButton=document.querySelector('#print-receipt');if(printButton){printButton.disabled=!order?.id||!(order.items||[]).length||order.status==='cancelled';printButton.title=printButton.disabled?'Для печати нужен действующий или закрытый заказ с позициями':'Печать чека';}const deleteButton=document.querySelector('#order-delete');if(deleteButton){deleteButton.disabled=!order?.tableId||!orderEditable;deleteButton.title=!order?.tableId?'Сначала выберите стол':orderEditable?'Удалить заказ с обязательной причиной':'Закрытый заказ нельзя удалить';}
-  const status=document.querySelector('.status');if(status){const tableStatus=selectedTable?.status;const executionState=orderCardPreparationState(order);const orderStateLabels={queued:'Отдан в работу',in_progress:'В процессе',ready:'Готово',closed:'Закрыт',cancelled:'Отменён',open:'Открыт'};const label=!order?.tableId?'Нет стола':tableStatus==='blocked'?'Недоступен':tableStatus==='reserved'&&!order?.id?'Забронирован':orderStateLabels[executionState]||'Открыт';status.dataset.orderState=executionState;status.textContent=label;}
-  const nextStep=document.querySelector('#order-next-step');if(nextStep){const states=items.map(item=>item.preparationStatus||'new');const fresh=states.filter(state=>state==='new').length;const queued=states.filter(state=>state==='queued').length;const working=states.filter(state=>state==='in_progress').length;const ready=states.filter(state=>state==='ready').length;let hint='Выберите позиции: заказ сохранится на столе после первого добавления.';if(['closed','cancelled'].includes(order?.status))hint=order.status==='closed'?'Заказ закрыт. Это история заказа.':'Заказ отменён.';else if(items.length&&fresh)hint=`Следующий шаг: отправьте ${fresh} ${pluralRu(fresh,'новую позицию','новые позиции','новых позиций')} на бар или кальянщику.${queued||working||ready?` Уже передано: ${queued+working+ready}.`:''}`;else if(working)hint=`${working} ${pluralRu(working,'позиция в работе','позиции в работе','позиций в работе')}.${queued?` Ещё ожидают принятия: ${queued}.`:''}`;else if(queued)hint=`${queued} ${pluralRu(queued,'позиция ожидает','позиции ожидают','позиций ожидают')} принятия исполнителем. Он нажмёт «Взять в работу».`;else if(items.length&&ready===items.length)hint='Все позиции готовы. Проверьте заказ и закройте его после оплаты.';else if(items.length)hint='Все позиции переданы исполнителям. Их статусы обновятся здесь по мере работы.';nextStep.textContent=hint;nextStep.dataset.step=items.length?'preparation':'items';}
+  const panel=document.querySelector('.order');if(panel)panel.dataset.posState=selectedTable?.status==='blocked'?'blocked':!order?.tableId?'unselected':items.length?'populated':'empty';
+  const unavailableTable=selectedTable?.status==='blocked';
+  const readOnlyReason=unavailableTable?'Стол недоступен':tables.dataset.dataState==='error'?'Схема зала не обновлена. Обновите данные':navigator.onLine===false?'Нет связи. Дождитесь обновления данных':ordersReadState!=='ready'?'Дождитесь обновления заказов':!currentShift?'Сначала откройте смену':'';
+  const orderEditable=Boolean(order?.id)&&!['closed','cancelled'].includes(order?.status)&&!readOnlyReason;
+  orderRows.innerHTML=items.length?items.map(item=>`<div class="order-item-row" data-item-id="${escapeFloorText(item.id)}"><span><details class="order-item-details"><summary title="Показать автора и время добавления">${escapeFloorText(displayProductName(item.name||item.productName||'Позиция'))}</summary><small class="order-item-attribution">${(staticStaffDemo()||item.salesAttributionStatus==='demo_unverified')?'ДЕМО · не подтверждено · ':''}${item.salesEmployeeName?escapeFloorText(item.salesEmployeeName):'Автор продажи не зафиксирован'}${item.soldAt?` · ${(staticStaffDemo()||item.salesAttributionStatus==='demo_unverified')?'локально · ':''}${escapeFloorText(new Date(item.soldAt).toLocaleString())}`:''}</small></details>${item.preparationStatus?`<small class="order-item-preparation" data-state="${escapeFloorText(item.preparationStatus)}">${escapeFloorText((item.preparationStation==='bar'?'Бар · ':item.preparationStation==='hookah'?'Кальян · ':'')+({new:'Не отправлено',queued:'Ожидает принятия',in_progress:'В работе',ready:'Готово'}[item.preparationStatus]||'Статус уточняется'))}</small>`:''}</span><span class="quantity-control"><button type="button" class="qty-minus" data-item="${escapeFloorText(item.id)}" aria-label="Уменьшить" ${!orderEditable?'disabled title="Закрытый заказ нельзя изменить"':item.preparationStatus&&item.preparationStatus!=='new'?'disabled title="Позиция уже передана в приготовление. Уменьшение недоступно."':''}>${staffIcon('minus')}</button><b>${Number(item.quantity||1)}</b><button type="button" class="qty-plus" data-item="${escapeFloorText(item.id)}" aria-label="Увеличить" ${orderEditable?'':'disabled title="Закрытый заказ нельзя изменить"'}>${staffIcon('plus')}</button></span><b data-line-total="${Number(item.unitPrice??item.price??0)*Number(item.quantity||1)}">${Number(item.unitPrice??item.price??0)*Number(item.quantity||1)} ₽</b></div>`).join(''):`<div class="empty-order" role="status">${unavailableTable?'Стол недоступен для обслуживания':order?.tableId?'Добавьте первую позицию в заказ':document.body.classList.contains('staff-orders-view')?'Выберите заказ из списка':(!floorReady||serverZones.some(zone=>(zone.tables||[]).length))?'Выберите стол в зале, чтобы начать заказ':'После настройки зала здесь можно будет создать заказ'}</div>`;
+  const meta=document.querySelector('.meta'); if(meta){const guests=Number(order?.id&&!['closed','cancelled'].includes(order?.status)?order?.guests||selectedTable?.reservation?.guests:selectedTable?.status==='reserved'?selectedTable?.reservation?.guests:0);const guestMeta=Number.isInteger(guests)&&guests>0?`👥 ${guests} ${pluralRu(guests,'гость','гостя','гостей')}`:'';const capacity=selectedTable?.capacity?`Вместимость ${selectedTable.minCapacity&&selectedTable.maxCapacity&&selectedTable.minCapacity!==selectedTable.maxCapacity?`${selectedTable.minCapacity}–${selectedTable.maxCapacity}`:selectedTable.capacity}`:'';const reservation=selectedTable?.reservation;const reservationMeta=reservation?`Бронь: ${reservation.guestName||'Гость'}${reservation.time?' · '+reservation.time:''}`:'';const serviceMeta=order?.id?(selectedTable?.status==='reserved'?'Бронь подтверждена':'⏱ обслуживание'):'';meta.textContent=order?.tableId?[capacity,guestMeta,order?.guestName,order?.guestPhone?'☎ '+order.guestPhone:'',reservationMeta,serviceMeta].filter(Boolean).join(' · '):'Выберите стол, чтобы начать заказ';}
+  const editable=orderEditable&&Boolean((order?.items||[]).length);const addPosition=document.querySelector('.order > .primary');if(addPosition){const hasOrder=Boolean(order?.id);addPosition.hidden=false;addPosition.style.display='';addPosition.disabled=Boolean(readOnlyReason)||!order?.tableId||(!hasOrder&&!selectedTable)||(!hasOrder?false:!orderEditable);addPosition.title=readOnlyReason||(!order?.tableId?'Сначала выберите стол':hasOrder?(addPosition.disabled?'Закрытый заказ нельзя изменить':'Добавить позицию'):'Выбрать позицию и открыть заказ');addPosition.setAttribute('aria-label',hasOrder?'Добавить позицию':'Добавить первую позицию');const label=addPosition.querySelector('[data-primary-label]');if(label)label.textContent='Добавить позицию';}document.querySelectorAll('.order-tabs button,.actions button,#discount-request,#split-order,#split-payment,#transfer-order,#print-receipt,.close').forEach((button)=>{button.disabled=!order?.tableId||!orderEditable||(!button.closest('.order-tabs')&&!editable);button.title=order?.tableId?(editable?'':'Сначала откройте активный заказ с позициями'):'Сначала выберите стол';});const printButton=document.querySelector('#print-receipt');if(printButton){printButton.disabled=!order?.id||!(order.items||[]).length||order.status==='cancelled';printButton.title=printButton.disabled?'Для печати нужен действующий или закрытый заказ с позициями':'Печать чека';}const deleteButton=document.querySelector('#order-delete');if(deleteButton){deleteButton.disabled=!order?.tableId||!orderEditable;deleteButton.title=!order?.tableId?'Сначала выберите стол':orderEditable?'Удалить заказ с обязательной причиной':'Закрытый заказ нельзя удалить';}
+  const status=document.querySelector('.status');if(status){const tableStatus=selectedTable?.status;const executionState=orderCardPreparationState(order);const orderStateLabels={queued:'Отдан в работу',in_progress:'В процессе',ready:'Готово',closed:'Закрыт',cancelled:'Отменён',open:'Открыт'};const label=!order?.tableId?'Нет стола':tableStatus==='blocked'?'Недоступен':tableStatus==='reserved'&&!order?.id?'Забронирован':!order?.id&&tableStatus==='free'?'Стол свободен':orderStateLabels[executionState]||'Открыт';status.dataset.orderState=executionState;status.textContent=label;}
+  const nextStep=document.querySelector('#order-next-step');if(nextStep){const states=items.map(item=>item.preparationStatus||'new');const fresh=states.filter(state=>state==='new').length;const queued=states.filter(state=>state==='queued').length;const working=states.filter(state=>state==='in_progress').length;const ready=states.filter(state=>state==='ready').length;let hint='Выберите позиции: заказ сохранится на столе после первого добавления.';if(['closed','cancelled'].includes(order?.status))hint=order.status==='closed'?'Заказ закрыт. Это история заказа.':'Заказ отменён.';else if(items.length&&fresh)hint=`Новые позиции: ${fresh}${queued||working||ready?` · Уже передано: ${queued+working+ready}`:''}`;else if(working)hint=`${working} ${pluralRu(working,'позиция в работе','позиции в работе','позиций в работе')}.${queued?` Ещё ожидают принятия: ${queued}.`:''}`;else if(queued)hint=`${queued} ${pluralRu(queued,'позиция ожидает','позиции ожидают','позиций ожидают')} принятия исполнителем. Он нажмёт «Взять в работу».`;else if(items.length&&ready===items.length)hint='Все позиции готовы. Полная оплата закроет заказ по правилам кассы.';else if(items.length)hint='Все позиции переданы исполнителям. Их статусы обновятся здесь по мере работы.';if(ready&&ready<items.length)hint=`Готово ${ready} из ${items.length} позиций. ${hint}`;if(unavailableTable)hint='Стол закрыт для обслуживания. Выберите другой стол.';else if(readOnlyReason)hint=readOnlyReason;nextStep.textContent=hint;nextStep.dataset.step=items.length?'preparation':'items';}
+  if(readOnlyReason)document.querySelectorAll('.order button:not([data-table-action="close-panel"]):not(#print-receipt)').forEach(button=>{button.disabled=true;button.title=readOnlyReason;});
+  orderRows.querySelectorAll('.order-item-details').forEach(node=>{node.open=openDetails.includes(node.closest('[data-item-id]')?.dataset.itemId);});
   recalc();
   mountPosPrimitives();
   if(['closed','cancelled'].includes(order?.status)){const historyMeta=document.querySelector('.meta');if(historyMeta)historyMeta.textContent=['Просмотр истории',order.guestName,order.closedAt?'Закрыт '+new Date(order.closedAt).toLocaleString('ru-RU'):order.createdAt?'Создан '+new Date(order.createdAt).toLocaleString('ru-RU'):'',order.notes].filter(Boolean).join(' · ');}
   if(order?.status==='closed'&&order.finalTotal!=null){const totalNode=document.querySelector('#order-total');if(totalNode)totalNode.textContent=Number(order.finalTotal).toLocaleString('ru-RU')+' ₽';}
+  updateOrderMainAction();
+  refreshPosWorkspace();
+  if(scrollHost)scrollHost.scrollTop=preservedScroll;
   refreshOrderPricingSummary(order);
 }
 async function refreshOrderPricingSummary(order,knownPayment=null){
@@ -298,6 +315,8 @@ async function refreshOrderPricingSummary(order,knownPayment=null){
     knownPayment?Promise.resolve(knownPayment):apiJson(`/api/orders/${encodeURIComponent(id)}/payments`)
   ]);
   if(!isCurrent())return;
+  const pricingScrollHost=document.querySelector('.pos-order-body');
+  const pricingScrollTop=pricingScrollHost?.scrollTop||0;
   const hasAmount=(value)=>value!==null&&value!==undefined&&Number.isFinite(Number(value));
   const pricing=pricingResult.status==='fulfilled'?pricingResult.value:null;
   const payment=paymentResult.status==='fulfilled'?paymentResult.value:null;
@@ -312,7 +331,9 @@ async function refreshOrderPricingSummary(order,knownPayment=null){
     const settledDue=hasAmount(payment.due)?Number(payment.due):total,paid=Math.max(0,Number(payment.paid)),remaining=Math.max(0,hasAmount(payment.remaining)?Number(payment.remaining):settledDue-paid);
     pieces.push(`Итого ${settledDue.toLocaleString('ru-RU')} ₽`,`Оплачено ${paid.toLocaleString('ru-RU')} ₽`,`Осталось ${remaining.toLocaleString('ru-RU')} ₽`);
   }else pieces.push('Оплату не удалось обновить. Повторите загрузку заказа.');
+  updateOrderMainAction(payment?{...payment,orderId:id}:null);
   const note=noteFor();note.replaceChildren(...pieces.map((text)=>{const line=document.createElement('span');line.textContent=text;return line;}));
+  if(pricingScrollHost)pricingScrollHost.scrollTop=pricingScrollTop;
 }
 let queueFilter='all';
 
@@ -343,7 +364,7 @@ function updateTableElapsedTimes(){
     const order=valid.sort((a,b)=>new Date(a.openedAt||a.createdAt)-new Date(b.openedAt||b.createdAt))[0];
     const totalLabel=tableOrderTotalLabel(matches);
     let total=node.querySelector('.table-order-total');
-    if(totalLabel){if(!total){total=document.createElement('span');total.className='table-order-total';node.append(total);}total.textContent=totalLabel.replace(/^Заказ /,'');total.title=totalLabel==='Заказ —'?'Итог заказа недоступен. Обновите список заказов.':'Итог заказа с учётом скидок и минимального чека. Включает уже оплаченную часть.';total.setAttribute?.('aria-hidden','true');node.dataset.orderTotalLabel=totalLabel;}
+    if(totalLabel){if(!total){total=document.createElement('span');total.className='table-order-total';node.append(total);}total.textContent=totalLabel;total.title=totalLabel==='Заказ —'?'Итог заказа недоступен. Обновите список заказов.':'Итог заказа с учётом скидок и минимального чека. Включает уже оплаченную часть.';total.setAttribute?.('aria-hidden','true');node.dataset.orderTotalLabel=totalLabel;}
     else{total?.remove();delete node.dataset.orderTotalLabel;}
     if(!timer){timer=document.createElement('span');timer.className='table-elapsed';node.append(timer);}
     timer.textContent=tableElapsedLabel(order,now);
@@ -362,7 +383,7 @@ function loadOrders(){
   const preservedTable=normalizeTableId(currentOrder?.tableId||document.querySelector('.table.sel')?.dataset.table||'');
   const preservedOrderId=currentOrder?.id;
   const requestedOrderId=new URLSearchParams(location.search).get('order');
-  ordersReadState='loading';drawQueue();
+  ordersReadState='loading';drawQueue();updateOrderMainAction();
   const unavailable=(message)=>{drawOrder({items:[]});const title=document.querySelector('.order h2');if(title)title.textContent=message;const meta=document.querySelector('.meta');if(meta)meta.textContent='Вернитесь в журнал заказов или обновите страницу, чтобы повторить загрузку.';notice(message);};
   return apiJson(requestedOrderId?'/api/orders?scope=all&withPricing=1':'/api/orders?withPricing=1').then(payload=>{
     if(requestRevision!==ordersRequestRevision||!floorReady||floorVenueId!==requestedVenueId)return;
@@ -372,15 +393,15 @@ function loadOrders(){
     updateTableElapsedTimes();
     drawQueue();
     // A user selecting another order while loading owns the current selection.
-    if(currentOrder?.id!==preservedOrderId)return;
+    if(currentOrder?.id!==preservedOrderId||normalizeTableId(currentOrder?.tableId||document.querySelector('.table.sel')?.dataset.table||'')!==preservedTable)return;
     const selected=requestedOrderId?availableOrders.find((o)=>o.id===requestedOrderId):openOrders.find((o)=>o.id===preservedOrderId)||openOrders.find((o)=>preservedTable&&normalizeTableId(o.tableId)===preservedTable);
     if(requestedOrderId&&!selected){unavailable('Заказ не найден или недоступен');return;}
-    drawOrder(selected||{items:[]});
+    drawOrder(selected||(preservedTable&&floorTableFor(preservedTable)?{tableId:preservedTable,items:[]}:{items:[]}));
   }).catch(()=>{
     if(requestRevision!==ordersRequestRevision||!floorReady||floorVenueId!==requestedVenueId)return;
     ordersReadState='error';
     drawQueue();
-    if(currentOrder?.id!==preservedOrderId)return;
+    if(currentOrder?.id!==preservedOrderId||normalizeTableId(currentOrder?.tableId||document.querySelector('.table.sel')?.dataset.table||'')!==preservedTable)return;
     if(requestedOrderId&&!currentOrder?.id){unavailable('Не удалось загрузить заказ');return;}
     drawOrder(currentOrder||{items:[]});notice('Не удалось обновить заказы');
   });
@@ -411,7 +432,14 @@ const floorDensityToolbar=document.createElement('div');
 floorDensityToolbar.className='floor-density-toolbar';
 floorDensityToolbar.hidden=true;
 floorDensityToolbar.innerHTML='<label for="floor-density-range">Размер столов</label><input id="floor-density-range" type="range" min="70" max="130" step="5" value="100" aria-describedby="floor-density-output"><output id="floor-density-output" for="floor-density-range">Авто</output><button type="button" class="secondary" data-floor-fit aria-pressed="true">Вместить</button><span class="floor-density-status" role="status"></span>';
-floorDensityShell.prepend(floorDensityToolbar);
+const floorHeading=document.createElement('div');
+floorHeading.className='pos-floor-heading';
+const floorView=document.createElement('details');
+floorView.className='pos-floor-view';
+floorView.innerHTML='<summary>Вид зала</summary>';
+floorView.append(floorDensityToolbar);
+floorHeading.append(floorTabs,floorView);
+floorDensityShell.prepend(floorHeading);
 const floorDensityRange=floorDensityToolbar.querySelector('input');
 const floorDensityOutput=floorDensityToolbar.querySelector('output');
 const floorDensityFit=floorDensityToolbar.querySelector('[data-floor-fit]');
@@ -425,16 +453,13 @@ const loadFloorDensity=()=>{
 const saveFloorDensity=()=>{if(floorDensityKey)try{localStorage.setItem(floorDensityKey,JSON.stringify(floorDensity));}catch(_){};};
 // Readable dimensions are a lower bound; large halls keep normal vertical scroll.
 const calculateFloorDensity=(width,height,count,mode,scale)=>{
-  const gap=10,minWidth=190,minHeight=108;
+  const gap=10,minWidth=190,minHeight=mode==='fit'?132:108;
   const maxColumns=Math.max(1,Math.min(count,Math.floor((width+gap)/(minWidth+gap))));
   let columns=maxColumns,tileHeight=minHeight;
   if(mode==='fit'){
-    for(let candidate=1;candidate<=maxColumns;candidate++){
-      const rows=Math.ceil(count/candidate);
-      if(rows*minHeight+(rows-1)*gap<=height){columns=candidate;break;}
-    }
+    // Width determines readable density; a tall screen must not make five tables full-width rows.
     const rows=Math.ceil(count/columns);
-    tileHeight=Math.max(minHeight,Math.min(164,Math.floor((height-(rows-1)*gap)/rows)));
+    tileHeight=Math.max(minHeight,Math.min(144,Math.floor((height-(rows-1)*gap)/rows)));
   }else{
     const preferredWidth=Math.max(minWidth,250*scale/100);
     columns=Math.max(1,Math.min(count,Math.floor((width+gap)/(preferredWidth+gap))));
@@ -458,7 +483,7 @@ const updateFloorMapMode=()=>{
   const main=tables.closest('main');
   // Compensate the existing main scroll: resizing while scrolled must not enlarge cards.
   const densityStatus=floorDensityToolbar.querySelector('.floor-density-status');
-  const previousStatusHeight=floorDensity.mode==='fit'&&densityStatus.textContent?densityStatus.getBoundingClientRect().height+10:0;
+  const previousStatusHeight=densityStatus.textContent?densityStatus.getBoundingClientRect().height+(parseFloat(getComputedStyle(floorDensityToolbar).rowGap)||0):0;
   const naturalTop=tables.getBoundingClientRect().top+(main?.scrollTop||0)+(window.scrollY||0)-previousStatusHeight;
   const availableHeight=Math.max(0,window.innerHeight-naturalTop-28);
   const availableWidth=Math.max(1,tables.clientWidth-26);
@@ -469,7 +494,8 @@ const updateFloorMapMode=()=>{
   const tileWidth=(availableWidth-(layout.columns-1)*10)/layout.columns;
   tables.style.setProperty('--floor-density-time',`${Math.min(tileWidth<230?18:24,Math.max(18,18+(layout.tileHeight-118)/8))}px`);
   const status=floorDensityToolbar.querySelector('.floor-density-status');
-  const statusText=layout.overflows?'Все столы доступны при прокрутке':'';
+  // Badges and equipment can make a rendered row taller than the minimum solver height.
+  const statusText=layout.overflows||stage.getBoundingClientRect().height>availableHeight+1?'Все столы доступны при прокрутке':'';
   if(status.textContent!==statusText)status.textContent=statusText;
 };
 const scheduleFloorDensity=()=>{if(floorDensityFrame)return;floorDensityFrame=requestAnimationFrame(()=>{floorDensityFrame=0;updateFloorMapMode();});};
@@ -479,6 +505,7 @@ window.addEventListener('resize',scheduleFloorDensity,{passive:true});
 if(typeof ResizeObserver!=='undefined'){
   let lastFloorWidth=0;
   new ResizeObserver(([entry])=>{const width=Math.round(entry.contentRect.width);if(width!==lastFloorWidth){lastFloorWidth=width;scheduleFloorDensity();}}).observe(floorDensityShell);
+  new ResizeObserver(scheduleFloorDensity).observe(tables);
 }
 const emptyFloorMarkup=(hasZone=false)=>{const message=hasZone?'В этом зале пока нет столов.':'Залы и столы ещё не добавлены.';return staffSessionVerified&&staffSessionPermissions.has('settings')?`<div class="queue-empty">${message} Настройте схему зала, чтобы начать работу.<br><a class="button" href="${escapeFloorText(preserveWorkspaceRoute('/admin#venue-layout-settings'))}">Настроить зал</a></div>`:`<div class="queue-empty">${message} Обратитесь к владельцу или управляющему для настройки зала.</div>`;};
 const renderZone=(zone)=>{
@@ -498,26 +525,31 @@ const renderZone=(zone)=>{
   const sceneHeight=Math.max(560,...bounds.map((item)=>item.bottom+24))-sceneTop;
   tables.classList.add('has-map');
   tables.innerHTML=`<div class="floor-map-stage" style="aspect-ratio:${sceneWidth}/${sceneHeight}" data-scene-width="${sceneWidth}" data-scene-height="${sceneHeight}" data-scene-left="${sceneLeft}" data-scene-top="${sceneTop}">`+serverTables.map((t,index)=>{
-    const label=t.status==='occupied'?'Занят':t.status==='reserved'?`Бронь${t.reservation?.createdByName?` · ${t.reservation.createdByName}`:''}`:t.status==='awaiting_payment'?'Ожидает оплату':t.status==='blocked'?'Закрыт':'Свободен';
-    const rawMin=t.minCapacity??t.capacity,rawMax=t.maxCapacity??t.capacity;
+    const label=t.status==='occupied'?'Занят':t.status==='reserved'?`Бронь${t.reservation?.createdByName?` · ${t.reservation.createdByName}`:''}`:t.status==='awaiting_payment'?'Ожидает оплату':t.status==='blocked'?'Недоступен':'Свободен';
+    // A genuine range is explicit; legacy rows may retain equal default bounds
+    // while capacity contains the configured seat count (also used by the panel).
+    const rangeMin=Number(t.minCapacity),rangeMax=Number(t.maxCapacity),capacity=Number(t.capacity);
+    const hasRange=Number.isInteger(rangeMin)&&rangeMin>0&&Number.isInteger(rangeMax)&&rangeMax>rangeMin;
+    const rawMin=hasRange?rangeMin:capacity>0?capacity:t.minCapacity,rawMax=hasRange?rangeMax:capacity>0?capacity:t.maxCapacity;
     const minCapacity=Number(rawMin),maxCapacity=Number(rawMax);
     const hasCapacity=Number.isFinite(minCapacity)&&minCapacity>0&&Number.isFinite(maxCapacity)&&maxCapacity>=minCapacity;
-    const capacityText=hasCapacity?(minCapacity===maxCapacity?`${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`:`${minCapacity}–${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`):'Вместимость не указана';
+    const capacityText=hasCapacity?(minCapacity===maxCapacity?`${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`:`${minCapacity}–${maxCapacity} ${pluralRu(maxCapacity,'гость','гостя','гостей')}`):'';
     const place=placements[index];
     const style=`--floor-left:${(place.x-sceneLeft)/sceneWidth*100}%;--floor-top:${(place.y-sceneTop)/sceneHeight*100}%;--floor-width:${place.width/sceneWidth*100}%;--floor-height:${place.height/sceneHeight*100}%;--table-rotation:${place.rotation}deg;--table-counter-rotation:${-place.rotation}deg`;
     const safeTableName=escapeFloorText(String(t.name||'Стол'));
-    const safeLabel=escapeFloorText(t.status==='reserved'?'Бронь':label);
-    const ariaLabel=escapeFloorText(`${t.name||'Стол'}: ${label}`);
-    const smallText=capacityText;
+    const safeLabel=escapeFloorText(t.status==='reserved'?'Бронь'+(t.reservation?.time?' · '+t.reservation.time:''):label);
+    const ariaLabel=escapeFloorText(`${t.name||'Стол'}: ${label}${t.status==='reserved'&&t.reservation?.time?' · '+t.reservation.time:''}`);
+    const smallText=hasCapacity?`Мест: ${minCapacity===maxCapacity?maxCapacity:minCapacity+'–'+maxCapacity}`:capacityText;
     const amenities=t.layout?.amenities||{};
     const controllerIcon='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7h8c2 0 3 1.4 3.5 3.5l1 5c.5 2.4-1.7 3.5-3.2 1.8L15 15H9l-2.3 2.3C5.2 19 3 17.9 3.5 15.5l1-5C5 8.4 6 7 8 7Z"/><path d="M8 9.5v5M5.5 12h5M16 10.5h.01M18 13h.01"/></svg>';
     const televisionIcon='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M9 21h6M12 17v4"/></svg>';
-    const amenityMarkup=(amenities.playstation5||amenities.television)?`<span class="table-amenities" aria-label="Оснащение стола">${amenities.playstation5?`<b class="table-amenity table-amenity--playstation" title="PlayStation 5">${controllerIcon}<span>PS5</span></b>`:''}${amenities.television?`<b class="table-amenity table-amenity--tv" title="Телевизор">${televisionIcon}<span>ТВ</span></b>`:''}</span>`:'';
-    const blockedAttributes=t.status==='blocked'?'aria-disabled="true" data-blocked="true"':'';
-    return `<button type="button" class="table shape-${place.shape} ${place.rotation%180?'is-rotated':''} ${t.status==='occupied'?'busy':t.status==='reserved'?'reserve':t.status==='awaiting_payment'?'awaiting':t.status==='blocked'?'blocked':'free'} ${String(currentOrder?.tableId||'')===String(t.id)?'sel':''}" style="${style}" data-table="${escapeFloorText(t.id)}" data-status="${escapeFloorText(t.status||'free')}" data-table-base-label="${ariaLabel}" data-layout-x="${place.x}" data-layout-y="${place.y}" data-layout-width="${place.width}" data-layout-height="${place.height}" aria-label="${ariaLabel}" title="${ariaLabel}" ${blockedAttributes}><strong>${safeTableName}</strong><em>${safeLabel}</em><small>${escapeFloorText(smallText)}</small>${amenityMarkup}</button>`;
+    const amenityMarkup=(amenities.playstation5||amenities.television)?`<span class="table-amenities" aria-label="Оснащение стола">${amenities.playstation5?`<b class="table-amenity table-amenity--playstation" role="img" aria-label="PlayStation 5" title="PlayStation 5">${controllerIcon}<span class="pos-workspace-sr-only">PS5</span></b>`:''}${amenities.television?`<b class="table-amenity table-amenity--tv" role="img" aria-label="Телевизор" title="Телевизор">${televisionIcon}<span class="pos-workspace-sr-only">ТВ</span></b>`:''}</span>`:'';
+    const blockedAttributes=t.status==='blocked'?'data-blocked="true"':'';
+    return `<button type="button" class="table shape-${place.shape} ${place.rotation%180?'is-rotated':''} ${t.status==='occupied'?'busy':t.status==='reserved'?'reserve':t.status==='awaiting_payment'?'awaiting':t.status==='blocked'?'blocked':'free'} ${String(currentOrder?.tableId||'')===String(t.id)?'sel':''}" style="${style}" data-table="${escapeFloorText(t.id)}" data-status="${escapeFloorText(t.status||'free')}" data-table-base-label="${ariaLabel}" data-layout-x="${place.x}" data-layout-y="${place.y}" data-layout-width="${place.width}" data-layout-height="${place.height}" aria-label="${ariaLabel}" title="${ariaLabel}" ${blockedAttributes}><strong>${t.status==='blocked'?`<span class="table-unavailable-icon" aria-hidden="true">${staffIcon('lock')}</span>`:''}${safeTableName}</strong><em>${safeLabel}</em><small>${escapeFloorText(smallText)}</small>${amenityMarkup}</button>`;
   }).join('')+'</div>';
   updateTableElapsedTimes();
   updateFloorMapMode();
+  refreshPosWorkspace();
 };
 const showFloorUnavailable=(message,phase='error')=>{
   floorReady=false;
@@ -544,7 +576,7 @@ const showFloorUnavailable=(message,phase='error')=>{
   drawOrder({items:[]});
   drawQueue();
 };
-const applyFloorPayload=(payload)=>{
+const applyFloorPayload=(payload,{loadOrderData=true}={})=>{
   if(!Array.isArray(payload?.zones)||!payload?.venueId)throw new Error('floor_payload_invalid');
   const nextVenueId=String(payload.venueId);
   const venueChanged=Boolean(floorVenueId&&floorVenueId!==nextVenueId);
@@ -566,7 +598,7 @@ const applyFloorPayload=(payload)=>{
   clearTableMinimums();
   serverZones.flatMap((zone)=>zone.tables||[]).forEach((table)=>{tableMinimums[table.id]=Number(table.minimumOrderTotal||0);});
   selectedZoneId=serverZones.some((zone)=>String(zone.id)===selectedZoneId)?selectedZoneId:String(serverZones[0]?.id||'');
-  floorTabs.innerHTML=serverZones.map((zone)=>`<button type="button" role="tab" data-zone-id="${escapeFloorText(zone.id)}" aria-selected="${String(zone.id)===selectedZoneId}" class="${String(zone.id)===selectedZoneId?'selected':''}">${escapeFloorText(zone.name||'Зал')}</button>`).join('');
+  floorTabs.innerHTML=serverZones.map((zone)=>`<button type="button" role="tab" tabindex="${String(zone.id)===selectedZoneId?0:-1}" data-zone-id="${escapeFloorText(zone.id)}" aria-selected="${String(zone.id)===selectedZoneId}" class="${String(zone.id)===selectedZoneId?'selected':''}">${escapeFloorText(zone.name||'Зал')}</button>`).join('');
   floorTabs.hidden=serverZones.length<2;
   floorTabs.setAttribute('aria-hidden',String(serverZones.length<2));
   floorTabs.removeAttribute('aria-busy');
@@ -574,26 +606,27 @@ const applyFloorPayload=(payload)=>{
   else renderZone(serverZones.find((zone)=>String(zone.id)===selectedZoneId));
   drawQueue();
   if(currentOrder?.tableId||!currentOrder?.id)drawOrder(currentOrder);
-  loadOrders();
+  if(loadOrderData)loadOrders();
   if(venueChanged&&catalog?.classList.contains('open'))loadProducts();
   return payload;
 };
-const refreshFloor=()=>{
+const refreshFloor=({background=false}={})=>{
   if(!staffSessionVerified||(!staticStaffDemo()&&!staffCanWork()))return Promise.resolve(null);
   if(floorRefreshPending)return floorRefreshPending;
   const revision=++floorRequestRevision;
   const controller=new AbortController();
   const timeout=window.setTimeout(()=>controller.abort(),8000);
-  floorReady=false;
+  const keepVisible=background&&floorReady;
+  if(!keepVisible)floorReady=false;
   tables.dataset.dataState='loading';tables.setAttribute('aria-busy','true');
   if(!tables.querySelector('.table'))tables.innerHTML='<div class="queue-empty" role="status">Загружаем схему зала…</div>';
   floorTabs.setAttribute('aria-busy','true');
   const orderPanel=document.querySelector('.order');
-  if(orderPanel){orderPanel.inert=true;orderPanel.setAttribute('aria-busy','true');}
-  tables.querySelectorAll('button.table').forEach((button)=>{button.disabled=true;});
+  if(orderPanel&&!keepVisible){orderPanel.inert=true;orderPanel.setAttribute('aria-busy','true');}
+  if(!keepVisible)tables.querySelectorAll('button.table').forEach((button)=>{button.disabled=true;});
   const read=staticStaffDemo()?Promise.resolve().then(()=>{let state={};try{state=JSON.parse(localStorage.getItem('territory_crm_demo_state')||'{}');}catch(_){}const venueId=state.networkCurrentId||'demo-venue-territory';const floor=venueId==='demo-venue-territory'?state:state.floorByVenue?.[venueId]||{};return{venueId,zones:floor.floorZones||[]};}):fetch('/api/floor',{headers:sessionHeaders(),signal:controller.signal}).then((response)=>response.ok?response.json():Promise.reject(new Error('floor_failed')));
-  floorRefreshPending=read.then((payload)=>revision===floorRequestRevision?applyFloorPayload(payload):null)
-    .catch((error)=>{if(revision===floorRequestRevision)showFloorUnavailable(error?.name==='AbortError'?'Схема зала отвечает слишком долго':'Не удалось загрузить схему зала');return null;})
+  floorRefreshPending=read.then((payload)=>revision===floorRequestRevision?applyFloorPayload(payload,{loadOrderData:!background}):null)
+    .catch((error)=>{if(revision===floorRequestRevision){if(keepVisible){tables.dataset.dataState='error';tables.removeAttribute('aria-busy');drawOrder(currentOrder);refreshPosWorkspace();}else showFloorUnavailable(error?.name==='AbortError'?'Схема зала отвечает слишком долго':'Не удалось загрузить схему зала');}return null;})
     .finally(()=>{window.clearTimeout(timeout);if(revision===floorRequestRevision)floorRefreshPending=null;});
   return floorRefreshPending;
 };
@@ -605,10 +638,21 @@ floorTabs.addEventListener('click',(event)=>{
   const zone=serverZones.find((item)=>String(item.id)===button.dataset.zoneId);
   if(!zone)return;
   selectedZoneId=String(zone.id);
-  floorTabs.querySelectorAll('[data-zone-id]').forEach((item)=>{const active=item===button;item.classList.toggle('selected',active);item.setAttribute('aria-selected',String(active));});
+  floorTabs.querySelectorAll('[data-zone-id]').forEach((item)=>{const active=item===button;item.classList.toggle('selected',active);item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;});
   renderZone(zone);
   notice(`Зона «${zone.name}» выбрана`);
 });
+floorTabs.addEventListener('keydown',(event)=>{
+  const current=event.target.closest('[data-zone-id]');if(!current||!floorReady)return;
+  const controls=[...floorTabs.querySelectorAll('[data-zone-id]')],index=controls.indexOf(current);let next=index;
+  if(event.key==='ArrowRight')next=(index+1)%controls.length;
+  else if(event.key==='ArrowLeft')next=(index+controls.length-1)%controls.length;
+  else if(event.key==='Home')next=0;
+  else if(event.key==='End')next=controls.length-1;
+  else return;
+  event.preventDefault();controls[next]?.click();controls[next]?.focus();
+});
+
 tables.addEventListener('click',(event)=>{
   const retry=event.target.closest('[data-staff-floor-retry]');
   if(retry){if(staffSessionVerified)refreshFloor();else verifyStaffSession();return;}
@@ -643,6 +687,7 @@ function recalc(){const total=[...document.querySelectorAll('.items [data-line-t
 grid.addEventListener('click',async(e)=>{
   if(e.target.closest('.catalog-retry')){if(!catalogAddPending)loadProducts();return;}
   const item=e.target.closest('.product');if(!item||item.disabled||catalogAddPending)return;
+  if(navigator.onLine===false||ordersReadState!=='ready'){notice('Сначала обновите заказы. Повторное добавление пока недоступно.');return;}
   const selected=document.querySelector('.table.sel');
   const tableId=normalizeTableId(currentOrder?.tableId||selected?.dataset.table||'');
   if(!tableId){notice('Сначала выберите стол');return;}
@@ -668,17 +713,27 @@ grid.addEventListener('click',async(e)=>{
     if(orderCreated)await refreshFloor();else await loadOrders();
   }catch(error){
     const code=error.payload?.error||error.message;
+    const uncertain=!error.status&&!error.payload&&!['offline','floor_stale'].includes(code);
+    if(uncertain){
+      notice('Не удалось подтвердить результат. Обновляем заказ перед повтором.',8000,'error');
+      await loadOrders();
+      const reconciliationMessage=ordersReadState==='ready'?'Заказ обновлён. Проверьте позиции перед повторным добавлением.':'Не удалось сверить заказ. Закройте каталог и обновите данные перед повтором.';
+      const flowNote=document.querySelector('#catalog-flow-note');if(flowNote)flowNote.textContent=reconciliationMessage;
+      notice(reconciliationMessage,10000,'error');
+      return;
+    }
     if(orderCreated||code==='table_has_active_order')await loadOrders();
     if(code==='product_not_found'){await loadProducts();notice(catalogState==='ready'?'Позиция больше недоступна. Каталог обновлён.':'Позиция больше недоступна. Не удалось обновить каталог; повторите загрузку.');}
     else notice(code==='order_not_editable'?'Заказ уже закрыт':code==='invalid_quantity'?'Достигнут лимит количества позиции':code==='table_has_active_order'?'Заказ на этом столе уже открыт. Повторите добавление':code==='active_shift_required'?'Сначала откройте смену':code==='forbidden'?'Нет права изменять заказ':orderCreated?'Заказ открыт, но позицию не удалось добавить. Повторите действие':'Не удалось открыть заказ');
   }finally{
-    catalogAddPending=false;catalog.setAttribute('aria-busy','false');grid.querySelectorAll('.product').forEach((button)=>{button.disabled=false;});if(catalogCloseButton)catalogCloseButton.disabled=false;if(catalogDoneButton)catalogDoneButton.disabled=false;
+    catalogAddPending=false;catalog.setAttribute('aria-busy','false');grid.querySelectorAll('.product').forEach((button)=>{button.disabled=navigator.onLine===false||ordersReadState!=='ready';});if(catalogCloseButton)catalogCloseButton.disabled=false;if(catalogDoneButton)catalogDoneButton.disabled=false;
   }
 });
 const itemMutationsPending=new Set();
 orderRows.addEventListener('click',(event)=>{
   const button=event.target.closest('[data-item]');
   if(!button||!currentOrder?.id||button.disabled)return;
+  if(navigator.onLine===false||ordersReadState!=='ready'){notice('Сначала обновите заказы. Изменение пока недоступно.');return;}
   const orderRef=currentOrder,orderId=orderRef.id,venueId=floorVenueId;
   const item=orderRef.items.find((entry)=>entry.id===button.dataset.item);
   if(!item||itemMutationsPending.has(item.id))return;
@@ -692,7 +747,7 @@ orderRows.addEventListener('click',(event)=>{
     const applySaved=(order)=>{if(isPlus)order.items=[...(order.items||[]),saved];else if(deleted)order.items=(order.items||[]).filter((entry)=>entry.id!==itemId);else{const row=(order.items||[]).find((entry)=>entry.id===itemId);if(row)row.quantity=Number(saved.quantity??next);}};
     applySaved(orderRef);
     if(floorVenueId===venueId){const active=openOrders.find((order)=>order.id===orderId);if(active&&active!==orderRef)applySaved(active);if(currentOrder?.id===orderId){if(currentOrder!==orderRef&&currentOrder!==active)applySaved(currentOrder);drawOrder(currentOrder);}drawQueue();if(isPlus)await loadOrders();}
-  }).catch(async(error)=>{if((error.payload?.error||error.message)==='order_item_already_dispatched')await loadOrders();notice((error.payload?.error||error.message)==='order_item_already_dispatched'?'Позиция уже передана в приготовление. Обновите заказ.':['order_total_below_paid','paid_order_total_conflict'].includes(error.payload?.error||error.message)?deleted?'Нельзя удалить позицию: полученная оплата превысит сумму заказа':isPlus?'Нельзя добавить позицию: полученная оплата превысит сумму заказа':'Нельзя уменьшить количество: полученная оплата превысит сумму заказа':deleted?'Не удалось удалить позицию':isPlus?'Не удалось добавить позицию':'Не удалось изменить количество');}).finally(()=>{itemMutationsPending.delete(itemId);button.disabled=false;});
+  }).catch(async(error)=>{if(!error.status&&!error.payload&&!['offline','floor_stale'].includes(error.message)){notice('Не удалось подтвердить изменение. Обновляем заказ перед повтором.',8000,'error');if(floorVenueId===venueId)await loadOrders();notice(ordersReadState==='ready'?'Заказ обновлён. Проверьте количество перед повтором.':'Не удалось сверить заказ. Обновите данные перед повтором.',10000,'error');return;}if((error.payload?.error||error.message)==='order_item_already_dispatched')await loadOrders();notice((error.payload?.error||error.message)==='order_item_already_dispatched'?'Позиция уже передана в приготовление. Обновите заказ.':['order_total_below_paid','paid_order_total_conflict'].includes(error.payload?.error||error.message)?deleted?'Нельзя удалить позицию: полученная оплата превысит сумму заказа':isPlus?'Нельзя добавить позицию: полученная оплата превысит сумму заказа':'Нельзя уменьшить количество: полученная оплата превысит сумму заказа':deleted?'Не удалось удалить позицию':isPlus?'Не удалось добавить позицию':'Не удалось изменить количество');}).finally(()=>{itemMutationsPending.delete(itemId);button.disabled=navigator.onLine===false||ordersReadState!=='ready';});
 });
 const openGuestBinding=async()=>{
   if(!currentOrder?.id){notice('Сначала откройте заказ');return;}if(['closed','cancelled'].includes(currentOrder.status)){notice('Исторический заказ доступен только для просмотра');return;}
@@ -780,6 +835,7 @@ const staffStockErrorMessage=(error)=>{
   return `${reasons[code]} Попросите управляющего проверить ${code==='insufficient_recipe_stock'||code==='expired_premix_stock'?'остатки и партии на складе':'техкарту и складской учёт'}. После исправления повторите действие.`;
 };
 document.querySelector('.close')?.addEventListener('click',async(event)=>{
+if((window.HookahPosDispatch?.eligibleItems(currentOrder?.items||[])||[]).length){notice('Сначала отправьте новые позиции в приготовление.');return;}
   const button=event.currentTarget;
   if(!currentOrder?.id){notice('Сначала добавьте позицию в заказ');return;}
   const orderRef=currentOrder,orderId=orderRef.id,venueId=floorVenueId;
@@ -823,7 +879,51 @@ document.querySelector('#discount-request')?.addEventListener('click',async()=>{
   apiJson(`/api/orders/${orderId}/discount-requests`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({type:'percent',value,reason:String(choice.reason||'').trim()})}).then(()=>notice('Заявка на скидку отправлена. Владелец и администратор уведомлены')).catch(()=>notice('Не удалось отправить заявку'));
 });
 
-const setStaffWorkspaceView=(view,{updateUrl=true}={})=>{const root=document.querySelector('.staff-theme');if(!root)return;const next=view==='orders'?'orders':'floor';root.classList.toggle('staff-orders-view',next==='orders');root.dataset.staffView=next;document.querySelector('.staff-header-title b')?.replaceChildren(document.createTextNode(next==='orders'?'Заказы':'Рабочий зал'));document.querySelectorAll('aside nav button').forEach((button)=>{const label=button.getAttribute('aria-label');const active=label===(next==='orders'?'Заказы':'Рабочий зал');button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});if(updateUrl){const url=new URL(location.href);if(next==='orders')url.searchParams.set('view','orders');else url.searchParams.delete('view');history.replaceState(null,'',url.pathname+url.search+url.hash);}};
+let posFloorReturn=null;
+const setStaffWorkspaceView=(view,{updateUrl=true}={})=>{
+  const root=document.querySelector('.staff-theme');
+  if(!root)return;
+  const next=view==='orders'?'orders':'floor';
+  const wasOrders=root.classList.contains('staff-orders-view');
+  if(next==='orders'&&!wasOrders){
+    posFloorReturn={tableId:currentOrder?.tableId||document.querySelector('.table.sel')?.dataset.table||'',zoneId:selectedZoneId,venueId:floorVenueId};
+    document.querySelectorAll('.table.sel').forEach(node=>node.classList.remove('sel'));
+    root.classList.remove('staff-order-open');
+  }
+  root.classList.remove('staff-preparation-view');
+  root.classList.toggle('staff-orders-view',next==='orders');
+  root.dataset.staffView=next;
+  if(next==='orders'&&!wasOrders)drawOrder(null);
+  document.querySelector('.staff-header-title b')?.replaceChildren(document.createTextNode(next==='orders'?'Заказы':'Рабочий зал'));
+  document.querySelectorAll('aside nav button').forEach((button)=>{
+    const active=button.getAttribute('aria-label')===(next==='orders'?'Заказы':'Рабочий зал');
+    button.classList.toggle('active',active);
+    if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+  });
+  if(next==='floor'&&wasOrders&&posFloorReturn?.venueId===floorVenueId){
+    const saved=posFloorReturn;
+    posFloorReturn=null;
+    const zone=serverZones.find(entry=>String(entry.id)===saved.zoneId);
+    if(zone){
+      selectedZoneId=saved.zoneId;
+      floorTabs.querySelectorAll('[data-zone-id]').forEach(tab=>{
+        const active=tab.dataset.zoneId===selectedZoneId;
+        tab.classList.toggle('selected',active);
+        tab.setAttribute('aria-selected',String(active));
+        tab.tabIndex=active?0:-1;
+      });
+      renderZone(zone);
+    }
+    const tile=[...tables.querySelectorAll('.table')].find(node=>node.dataset.table===saved.tableId);
+    if(tile)tile.click();else drawOrder(null);
+  }
+  if(updateUrl){
+    const url=new URL(location.href);
+    if(next==='orders')url.searchParams.set('view','orders');else url.searchParams.delete('view');
+    history.replaceState(null,'',url.pathname+url.search+url.hash);
+  }
+  refreshPosWorkspace();
+};
 setStaffWorkspaceView(new URLSearchParams(location.search).get('view'),{updateUrl:false});
 window.addEventListener('popstate',()=>setStaffWorkspaceView(new URLSearchParams(location.search).get('view'),{updateUrl:false}));
 // Queue ages share the persisted opening clock with table tiles.
@@ -843,14 +943,15 @@ function updateQueueElapsedTimes(){
 window.setInterval(()=>{if(document.visibilityState==='visible')updateQueueElapsedTimes();},30000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateQueueElapsedTimes();});
 // Orders view uses concise operational cards so the hookah master can scan table, guest and wait time at a glance.
-function drawQueue(filter=queueFilter){queueFilter=filter;const chips=document.querySelectorAll('.chips button');if(chips.length<4)return;const counts=['all','open','in_progress','ready'].map((status)=>status==='all'?openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)).length:openOrders.filter((order)=>order.status===status).length);const labels=['Все','Новый заказ','Готовится','Готово'];counts.forEach((value,index)=>{chips[index].textContent=`${labels[index]} ${value}`;chips[index].classList.toggle('active',chips[index].dataset.filter===queueFilter);chips[index].setAttribute('aria-pressed',String(chips[index].dataset.filter===queueFilter));});const list=document.querySelector('#queue-list');if(!list)return;const visible=openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)&&(queueFilter==='all'||order.status===queueFilter));list.setAttribute('aria-busy',String(ordersReadState==='loading'));list.dataset.dataState=ordersReadState;const readMessage=ordersReadState==='error'?'<div class="queue-empty" role="alert">Не удалось обновить заказы. <button type="button" class="ui-button" data-order-read-retry>Повторить</button></div>':'';list.innerHTML=readMessage+(visible.length?visible.map((order)=>{const label=order.status==='ready'?'Готово':order.status==='in_progress'?'Готовится':'Новый заказ';const table=floorTableLabel(order.tableId);const total=(order.items||[]).reduce((sum,item)=>sum+Number(item.unitPrice??item.price??0)*Number(item.quantity||1),0);const items=(order.items||[]).slice(0,3).map((item)=>`${escapeFloorText(item.name||item.title||'Позиция')} × ${Number(item.quantity||1)}`).join(', ');const note=order.note||order.notes||order.guestNote||'';return `<button type="button" class="queue-card" data-queue-table="${escapeFloorText(order.tableId||'')}" data-queue-order="${escapeFloorText(order.id||'')}"><span><b>${escapeFloorText(table)}${order.guestName?` · ${escapeFloorText(order.guestName)}`:''}</b><small><span data-queue-age="${escapeFloorText(order.id)}">${queueElapsedLabel(order)}</span> · ${items||`${(order.items||[]).length} поз.`} · ${total.toLocaleString('ru-RU')} ₽${note?` · ${escapeFloorText(note)}`:''}</small></span><em>${label}</em></button>`;}).join(''):`<div class="queue-empty" role="status">${ordersReadState==='loading'?'Загружаем заказы…':ordersReadState==='error'?'':queueFilter==='all'?'Пока нет открытых заказов':'Нет заказов с выбранным статусом'}</div>`);mountPosPrimitives();}
+function drawQueue(filter=queueFilter){const changed=queueFilter!==filter;queueFilter=filter;if(changed&&document.body.classList.contains('staff-orders-view')){document.querySelectorAll('.table.sel').forEach(node=>node.classList.remove('sel'));drawOrder(null);document.body.classList.remove('staff-order-open');}const heading=document.querySelector('#pos-orders-title');if(heading)heading.textContent=({all:'Открытые счета',open:'Новые заказы',in_progress:'Заказы в приготовлении',ready:'Готовые заказы'})[filter]||'Заказы';refreshPosWorkspace();const chips=document.querySelectorAll('.chips button');if(chips.length<4)return;const counts=['all','open','in_progress','ready'].map((status)=>status==='all'?openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)).length:openOrders.filter((order)=>status==='in_progress'?['queued','in_progress'].includes(orderCardPreparationState(order)):orderCardPreparationState(order)===status).length);const labels=['Все','Новый заказ','Готовится','Готово'];counts.forEach((value,index)=>{chips[index].textContent=`${labels[index]} ${value}`;chips[index].classList.toggle('active',chips[index].dataset.filter===queueFilter);chips[index].setAttribute('aria-pressed',String(chips[index].dataset.filter===queueFilter));});const list=document.querySelector('#queue-list');if(!list)return;const visible=openOrders.filter((order)=>!['closed','cancelled'].includes(order.status)&&(queueFilter==='all'||(queueFilter==='in_progress'?['queued','in_progress'].includes(orderCardPreparationState(order)):orderCardPreparationState(order)===queueFilter)));list.setAttribute('aria-busy',String(ordersReadState==='loading'));list.dataset.dataState=ordersReadState;const readMessage=ordersReadState==='error'?'<div class="queue-empty" role="alert">Не удалось обновить заказы. <button type="button" class="ui-button" data-order-read-retry>Повторить</button></div>':'';list.innerHTML=readMessage+(visible.length?visible.map((order)=>{const state=orderCardPreparationState(order);const label=state==='ready'?'Готово':['queued','in_progress'].includes(state)?'Готовится':'Новый заказ';const table=floorTableLabel(order.tableId);const total=(order.items||[]).reduce((sum,item)=>sum+Number(item.unitPrice??item.price??0)*Number(item.quantity||1),0);const items=(order.items||[]).slice(0,3).map((item)=>`${escapeFloorText(item.name||item.title||'Позиция')} × ${Number(item.quantity||1)}`).join(', ');const note=order.note||order.notes||order.guestNote||'';return `<button type="button" class="queue-card" data-queue-table="${escapeFloorText(order.tableId||'')}" data-queue-order="${escapeFloorText(order.id||'')}"><span><b>${escapeFloorText(table)}${order.guestName?` · ${escapeFloorText(order.guestName)}`:''}</b><small><span data-queue-age="${escapeFloorText(order.id)}">${queueElapsedLabel(order)}</span> · ${items||`${(order.items||[]).length} поз.`} · ${total.toLocaleString('ru-RU')} ₽${note?` · ${escapeFloorText(note)}`:''}</small></span><em>${label}</em></button>`;}).join(''):`<div class="queue-empty" role="status">${ordersReadState==='loading'?'Загружаем заказы…':ordersReadState==='error'?'':queueFilter==='all'?'Пока нет открытых заказов':'Нет заказов с выбранным статусом'}</div>`);mountPosPrimitives();}
 document.querySelectorAll('aside nav button').forEach((button)=>button.addEventListener('click',()=>{
   const label=(button.dataset.staffRoute||button.getAttribute('aria-label')||button.textContent||'').trim();
+  const financeRoute=button.dataset.permission==='finance_read';
   if(label.includes('Бронирования')&&!hasStaffPermission('reservations',staffSessionPermissions)){notice('Бронирования недоступны для вашей роли');return;}
   if(label.includes('Склад')&&!hasStaffPermission('inventory_read',staffSessionPermissions)){notice('Склад недоступен для вашей роли');return;}
-  if(label.includes('Финансы')&&!hasStaffPermission('finance_read',staffSessionPermissions)){notice('Финансы недоступны для вашей роли');return;}
+  if(financeRoute&&!hasStaffPermission('finance_read',staffSessionPermissions)){notice('Финансы недоступны для вашей роли');return;}
   document.querySelectorAll('aside nav button').forEach((item)=>{item.classList.remove('active');item.removeAttribute('aria-current');}); button.classList.add('active'); button.setAttribute('aria-current','page');
-  if(label.includes('Бронирования')) window.location.href=preserveWorkspaceRoute('/reservations'); else if(label.includes('Склад')) window.location.href=preserveWorkspaceRoute('/inventory'); else if(label.includes('Финансы')) window.location.href=preserveWorkspaceRoute('/finance'); else if(label.includes('Гости')) window.location.href=preserveWorkspaceRoute('/clients'); else if(label.includes('Задачи')) window.location.href=preserveWorkspaceRoute('/admin#tasks'); else if(label.includes('Заказы')) { setStaffWorkspaceView('orders'); drawQueue('all'); window.scrollTo({top:0,behavior:'smooth'}); notice('Показаны активные заказы'); } else if(label.includes('Рабочий зал')) { setStaffWorkspaceView('floor'); window.scrollTo({top:0,behavior:'smooth'}); } else document.querySelector('.tables')?.scrollIntoView({behavior:'smooth'});
+  if(label.includes('Бронирования')) window.location.href=preserveWorkspaceRoute('/reservations'); else if(label.includes('Склад')) window.location.href=preserveWorkspaceRoute('/inventory'); else if(financeRoute) window.location.href=preserveWorkspaceRoute('/finance'); else if(label.includes('Гости')) window.location.href=preserveWorkspaceRoute('/clients'); else if(label.includes('Задачи')) window.location.href=preserveWorkspaceRoute('/admin#tasks'); else if(label.includes('Заказы')) { setStaffWorkspaceView('orders'); drawQueue('all'); window.scrollTo({top:0,behavior:'smooth'}); notice('Показаны активные заказы'); } else if(label.includes('Рабочий зал')) { setStaffWorkspaceView('floor'); window.scrollTo({top:0,behavior:'smooth'}); } else document.querySelector('.tables')?.scrollIntoView({behavior:'smooth'});
 }));
 let staffShiftActionPending=false;
 document.querySelector('#shift-toggle')?.addEventListener('click',async()=>{
@@ -877,7 +978,7 @@ document.querySelector('#shift-toggle')?.addEventListener('click',async()=>{
 });
 const refreshVisibleStaffShift=()=>{if(staffSessionVerified&&!staffShiftActionPending&&document.visibilityState==='visible')refreshShift({silent:true});};
 window.setInterval(refreshVisibleStaffShift,20000);document.addEventListener('visibilitychange',refreshVisibleStaffShift);window.addEventListener('storage',(event)=>{if(event.key==='territory_crm_shift')refreshVisibleStaffShift();});
-document.querySelectorAll('.actions button').forEach((button,index)=>{button.dataset.preparationStation=index===0?'bar':'hookah';button.addEventListener('click',()=>dispatchPreparation(button.dataset.preparationStation,button));});
+document.querySelector('#order-main-action')?.addEventListener('click',event=>{const button=event.currentTarget;if(button.disabled)return;if(button.dataset.action==='dispatch')dispatchOrderPreparation(button);});
 document.querySelector('#transfer-order')?.addEventListener('click',()=>{
   if(!currentOrder?.id){notice('Сначала откройте заказ');return;}if(['closed','cancelled'].includes(currentOrder.status)){notice('Исторический заказ доступен только для просмотра');return;}
   if(!floorReady){notice('Сначала обновите схему зала');return;}
@@ -924,6 +1025,7 @@ document.querySelector('#split-order')?.addEventListener('click',()=>{
   });
 });
 const paymentModal=document.querySelector('#payment-modal'); const paymentForm=document.querySelector('#payment-form');
+const paymentTitle=paymentModal?.querySelector('h2');if(paymentTitle)paymentTitle.textContent='Оплата заказа';
 const paymentInputs=['cash','card','qr','bonus','deposit','reservation'].map((method)=>document.querySelector(`#payment-${method}`)).filter(Boolean);
 let paymentState=null;let paymentLoadRevision=0;const paymentPostsPending=new Set();const paymentAttemptKeys=new Map();
 const paymentReconciliations=new Map();let paymentPresentation=null,paymentContext=null;
@@ -944,8 +1046,9 @@ paymentInputs.forEach((input)=>input.addEventListener('input',refreshPaymentRema
 document.querySelector('#payment-reservation-receipt')?.addEventListener('change',()=>{const receipt=document.querySelector('#payment-reservation-receipt'),amount=document.querySelector('#payment-reservation'),selected=paymentState?.reservationPrepaymentReceipts?.find((entry)=>entry.id===receipt.value);if(amount){amount.max=String(Math.max(0,Math.min(paymentState?.remaining||0,Number(selected?.available||0))));amount.disabled=!selected;}refreshPaymentRemainder();});
 document.querySelector('#payment-close')?.addEventListener('click',()=>paymentPresentation?.close('cancel'));
 // Dismissal, Escape and pointer backdrop are owned by the shared critical presentation.
-document.querySelector('#split-payment')?.addEventListener('click',async()=>{
-  if(paymentPostsPending.size)return;const openingOrder=currentOrder?.id,openingContext=paymentContextKey();let presentation;try{presentation=await preparePaymentPresentation();}catch(_){notice('Не удалось открыть окно оплаты. Повторите.',0,'error');return;}if(!presentation||openingOrder!==currentOrder?.id||openingContext!==paymentContextKey()||!staffSessionVerified||!staffSessionPermissions.has('orders'))return;
+document.querySelector('#split-payment')?.addEventListener('click',async(event)=>{
+  if(event.currentTarget.disabled||paymentPostsPending.size)return;
+  if((window.HookahPosDispatch?.eligibleItems(currentOrder?.items||[])||[]).length){notice('Сначала отправьте новые позиции в приготовление.');return;}const openingOrder=currentOrder?.id,openingContext=paymentContextKey();let presentation;try{presentation=await preparePaymentPresentation();}catch(_){notice('Не удалось открыть окно оплаты. Повторите.',0,'error');return;}if(!presentation||openingOrder!==currentOrder?.id||openingContext!==paymentContextKey()||!staffSessionVerified||!staffSessionPermissions.has('orders'))return;
   paymentContext={orderId:currentOrder?.id,venueId:floorVenueId,token:localStorage.getItem('crm_session_token'),accessRevision:staffAccessRevision};
   if(!currentOrder?.id || !(currentOrder.items||[]).length){notice('Сначала добавьте позиции в заказ');return;}
   const orderId=currentOrder.id;const revision=++paymentLoadRevision;paymentState=null;const dueEl=document.querySelector('#payment-due');if(dueEl)dueEl.textContent='…';paymentInputs.forEach((input)=>{input.value='0';});['#payment-bonus-field','#payment-deposit-field','#payment-reservation-field'].forEach((selector)=>{const field=document.querySelector(selector);if(field)field.hidden=true;});const message=document.querySelector('#payment-message');if(message)message.textContent='Загружаем платежи…';const submit=paymentForm?.querySelector('[type=submit]');if(submit)submit.disabled=true;presentation.open();refreshPaymentRemainder();paymentInputs[0]?.focus();try{await loadPaymentState(orderId,revision);if(paymentState?.orderId===orderId&&currentOrder?.id===orderId)void refreshOrderPricingSummary(currentOrder,paymentState);}catch(_){if(revision===paymentLoadRevision&&currentOrder?.id===orderId&&paymentModal?.classList.contains('open')&&message)message.textContent='Не удалось загрузить платежи. Закройте окно и повторите.';}
@@ -954,6 +1057,7 @@ paymentForm?.addEventListener('submit',async(event)=>{
   event.preventDefault();
   const submit=paymentForm.querySelector('[type=submit]');
   if(!paymentOriginCurrent(paymentContext)||submit?.disabled||!paymentState||paymentState.orderId!==currentOrder?.id||paymentPostsPending.has(paymentState.orderId))return;
+  if((window.HookahPosDispatch?.eligibleItems(currentOrder?.items||[])||[]).length){const message=document.querySelector('#payment-message');if(message)message.textContent='В заказе появились новые позиции. Закройте окно и отправьте их в приготовление перед оплатой.';return;}
   const orderId=paymentState.orderId,revision=paymentLoadRevision,venueId=floorVenueId;
   const origin={...paymentContext},originOrder=currentOrder,originHeaders={...sessionHeaders(),'Content-Type':'application/json'};const orderHeaders=()=>originHeaders;
   const isCurrent=()=>paymentOriginCurrent(origin)&&revision===paymentLoadRevision&&currentOrder?.id===orderId&&floorVenueId===venueId&&paymentModal?.classList.contains('open');
@@ -961,7 +1065,7 @@ paymentForm?.addEventListener('submit',async(event)=>{
   const entries=['cash','card','qr','bonus','deposit','reservation'].map((method)=>({method,amount:Number(document.querySelector(`#payment-${method}`)?.value||0),...(method==='reservation'?{receiptId:document.querySelector('#payment-reservation-receipt')?.value||''}:{})})).filter((entry)=>entry.amount>0);
   const total=entries.reduce((sum,entry)=>sum+entry.amount,0),message=document.querySelector('#payment-message');
   if(!entries.length||total>paymentState.remaining+0.01||(entries.some((entry)=>entry.method==='bonus')&&(!Number.isInteger(entries.find((entry)=>entry.method==='bonus')?.amount)||entries.find((entry)=>entry.method==='bonus').amount>Math.min(Number(paymentState.guestAccount?.bonusBalance||0),paymentState.bonusRedemptionRemaining)))||(entries.some((entry)=>entry.method==='deposit')&&entries.find((entry)=>entry.method==='deposit').amount>Number(paymentState.guestAccount?.depositBalance||0))){if(message)message.textContent=total>paymentState.remaining?'Сумма платежей больше остатка заказа.':entries.some((entry)=>entry.method==='bonus')?'Списание бонусов должно быть целым числом и укладываться в баланс и лимит чека.':entries.some((entry)=>entry.method==='deposit')?'Сумма со счёта превышает доступный денежный баланс.':'Укажите хотя бы один способ оплаты.';submit.disabled=false;return;}
-  paymentPostsPending.add(orderId);paymentReconciliations.set(`${venueId}:${orderId}`,origin);paymentPresentation?.refresh();
+  paymentPostsPending.add(orderId);updateOrderMainAction();paymentReconciliations.set(`${venueId}:${orderId}`,origin);paymentPresentation?.refresh();
   let closed=false,paid=paymentState.paid,remaining=paymentState.remaining,due=paymentState.due,bonusEarned=0;
   try{
     for(const entry of entries){
@@ -1008,10 +1112,24 @@ paymentForm?.addEventListener('submit',async(event)=>{
       try{await loadPaymentState(orderId,refreshRevision);}catch(_){if(refreshRevision===paymentLoadRevision&&currentOrder?.id===orderId&&paymentModal?.classList.contains('open')){paymentState=null;if(message)message.textContent='Не удалось сверить платежи. Закройте окно и откройте его снова.';}}
     }
     if(isCurrent()&&submit)submit.disabled=!paymentState||paymentState.remaining<=0;
+    updateOrderMainAction();
   }
 });
 document.querySelectorAll('.chips button').forEach((chip)=>chip.addEventListener('click',()=>{drawQueue(chip.dataset.filter||'all');notice(`Фильтр «${chip.textContent.trim().replace(/\s+\d+$/,'')}» применён`);}));
-document.querySelector('#queue-list')?.addEventListener('click',(event)=>{if(!floorReady)return;const card=event.target.closest('[data-queue-table]');if(!card)return;const order=openOrders.find((item)=>item.id===card.dataset.queueOrder);const table=document.querySelector(`.table[data-table="${card.dataset.queueTable}"]`);if(table)table.click();if(order)drawOrder(order);document.querySelector('.workspace')?.scrollIntoView({behavior:'smooth',block:'start'});});
+document.querySelector('#queue-list')?.addEventListener('click',(event)=>{
+  if(!floorReady)return;
+  const card=event.target.closest('[data-queue-table]');
+  if(!card)return;
+  const order=openOrders.find((item)=>item.id===card.dataset.queueOrder);
+  if(!order)return;
+  // The list spans every room: opening a row must not depend on a tile
+  // being mounted in the room that was visible before entering the list.
+  document.querySelectorAll('.table').forEach((tile)=>{
+    tile.classList.toggle('sel',normalizeTableId(tile.dataset.table)===normalizeTableId(order.tableId));
+  });
+  drawOrder(order);
+  document.querySelector('.staff-theme')?.classList.add('staff-order-open');
+});
 
 function mountStaffExtensions(){
 if(!window.__staffProfileLoaded){window.__staffProfileLoaded=true;const script=document.createElement('script');script.src='/staff-profile.js?rev=7';document.head.append(script);}
@@ -1059,6 +1177,7 @@ const preparationLabel=station=>station==='bar'?'Бар':'Кальяны';
 const canReadPreparation=()=>staffSessionVerified&&staffSessionPermissions.has('orders')&&['bar_tasks','hookah_tasks','tasks_manage'].some(p=>staffSessionPermissions.has(p));
 function clearPreparationQueue(){
   preparationRevision++;preparationRequest=null;preparationItems=[];
+  posPreparationFilter='all';posPreparationReadState='denied';refreshPosWorkspace();
   const section=document.querySelector('#preparation-queue');if(section)section.hidden=true;
   document.querySelector('#preparation-list')?.replaceChildren();
 }
@@ -1070,42 +1189,88 @@ const preparationError=error=>{
   if(String(code).includes('status')||String(code).includes('conflict'))return 'Состояние работы изменилось. Обновите список.';
   return 'Не удалось сохранить работу. Обновите список перед повтором.';
 };
-async function dispatchPreparation(station,button){
+function updateOrderMainAction(payment=null){
+  const button=document.querySelector('#order-main-action'),payButton=document.querySelector('#split-payment');if(!button)return;
+  const order=currentOrder,editable=Boolean(order?.id)&&!['closed','cancelled'].includes(order.status);
+  const hasItems=editable&&Boolean((order.items||[]).length);
+  button.hidden=!hasItems;if(payButton)payButton.hidden=!hasItems;
+  document.querySelector('.order > .primary')?.classList.toggle('pos-add-secondary',hasItems);
+  const fresh=window.HookahPosDispatch?.eligibleItems(order?.items||[])||[],pending=posOrderDispatchPending.has(order?.id);
+  const reason=!editable?'Выберите активный заказ':!staffCanWork()?'Нет доступа к работе с заказом':tables.dataset.dataState==='error'?'Схема зала не обновлена. Обновите данные':navigator.onLine===false?'Нет связи. Дождитесь обновления данных':ordersReadState!=='ready'?'Дождитесь обновления заказов':floorTableFor(order?.tableId)?.status==='blocked'?'Стол недоступен':!currentShift?'Сначала откройте смену':pending?'Дождитесь отправки позиций':paymentPostsPending.has(order?.id)?'Дождитесь сохранения оплаты':'';
+  button.dataset.action='dispatch';
+  button.innerHTML=staffIcon('send')+'<span>'+(pending?'Отправка в приготовление…':fresh.length?'Отправить в приготовление · '+fresh.length+' '+pluralRu(fresh.length,'позиция','позиции','позиций'):'Все позиции отправлены')+'</span>';
+  button.disabled=Boolean(reason)||!fresh.length;
+  button.title=reason||(fresh.length?'Передать новые позиции по направлениям':'Нет новых позиций для отправки');
+  button.setAttribute('aria-busy',String(pending));
+  const closeButton=document.querySelector('.order .close');if(closeButton&&fresh.length){closeButton.disabled=true;closeButton.title='Сначала отправьте позиции в приготовление';}
+  if(payButton){
+    const remaining=payment&&order?.id&&payment.orderId===order.id?payment.remaining:null;
+    payButton.innerHTML=staffIcon('cash')+'<span>Принять оплату'+(remaining!==null&&remaining!==undefined&&Number.isFinite(Number(remaining))?' · '+Math.max(0,Number(remaining)).toLocaleString('ru-RU')+' ₽':'')+(fresh.length?'<small class="pos-payment-hint">Сначала отправьте позиции</small>':'')+'</span>';
+    payButton.disabled=Boolean(reason)||!hasItems||Boolean(fresh.length);
+    payButton.title=reason||(fresh.length?'Сначала отправьте позиции в приготовление':'Открыть способы и сумму оплаты');
+  }
+}
+async function dispatchOrderPreparation(){
   if(staticStaffDemo())return notice('Приготовление доступно в подключённой версии CRM');
-  const order=currentOrder;if(!staffCanWork()||!order?.id)return notice('Сначала откройте заказ');
-  const key=order.id+':'+station;if(preparationPending.has(key))return;
-  const revision=staffAccessRevision,venue=floorVenueId;
-  const eligible=(order.items||[]).filter(item=>((item.preparationStatus||'new')==='new'||(!item.preparationStation&&item.preparationStatus==='queued'))&&(!item.preparationStation||item.preparationStation===station));
-  if(!eligible.length)return notice('Нет новых позиций для этого направления');
-  preparationPending.add(key);button.disabled=true;
+  const order=currentOrder;if(!staffCanWork()||!order?.id||!currentShift)return notice('Откройте заказ и смену');
+  if(posOrderDispatchPending.has(order.id))return;
+  const items=window.HookahPosDispatch.eligibleItems(order.items||[]);if(!items.length)return notice('Все позиции уже переданы');
+  const access=staffAccessRevision,venue=floorVenueId,token=localStorage.getItem('crm_session_token'),headers={...orderHeaders()};
+  const contextCurrent=()=>access===staffAccessRevision&&venue===floorVenueId&&token===localStorage.getItem('crm_session_token')&&staffCanWork();
+  posOrderDispatchPending.add(order.id);updateOrderMainAction();let cancelled=false;
   try{
-    const chosen=await requestStaffAction({title:'Отправить: '+preparationLabel(station),description:'Отметьте позиции. Для позиции без направления этот выбор закрепит исполнителя.',submitLabel:'Отправить выбранные',fields:eligible.map((item,index)=>({name:'line_'+index,type:'checkbox',checked:item.preparationStation===station,label:`${item.name||'Позиция'} × ${item.quantity}${!item.preparationStation?' · направление не задано':''}`}))});
-    if(!chosen)return;
-    if(revision!==staffAccessRevision||venue!==floorVenueId||currentOrder?.id!==order.id)return notice('Заказ или права изменились. Откройте отправку заново');
-    const itemIds=eligible.filter((_,index)=>Object.hasOwn(chosen,'line_'+index)).map(item=>item.id);
-    if(!itemIds.length)return notice('Не выбрано ни одной позиции');
-    const result=await apiJson(`/api/orders/${encodeURIComponent(order.id)}/dispatch`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({station,itemIds,expectedVenueId:venue})});
-    if(revision!==staffAccessRevision)return;
-    Object.assign(order,{status:result.status,items:result.items});
-    if(currentOrder?.id===order.id)drawOrder(order);drawQueue();notice(`Передано на ${preparationLabel(station).toLocaleLowerCase('ru-RU')} · ${itemIds.length} ${pluralRu(itemIds.length,'позиция','позиции','позиций')}. Исполнитель увидит их в очереди.`);preparationRevision++;preparationRequest=null;await loadPreparationQueue();
-  }catch(error){if(revision===staffAccessRevision){notice(preparationError(error));await loadOrders();await loadPreparationQueue();}}
-  finally{preparationPending.delete(key);button.disabled=false;}
+    const unknown=items.filter(item=>!item.preparationStation);let choices={};
+    if(unknown.length){
+      const input=await requestStaffAction({title:'Кому передать позиции?',description:'У этих позиций не задано направление. Остальные будут переданы по настройкам меню.',submitLabel:'Отправить в приготовление',fields:unknown.map((item,index)=>({name:'station_'+index,label:(item.name||'Позиция')+' × '+item.quantity,type:'select',value:'',required:true,options:[{value:'',label:'Выберите направление'},{value:'bar',label:'Бар'},{value:'hookah',label:'Кальян'}]}))});
+      if(!input){cancelled=true;return;}
+      unknown.forEach((item,index)=>{choices[String(item.id)]=input['station_'+index];});
+    }
+    if(!contextCurrent()||currentOrder?.id!==order.id)return notice('Заказ или доступ изменились. Откройте отправку заново');
+    const groups=window.HookahPosDispatch.plan(items,choices);
+    const result=await window.HookahPosDispatch.send(groups,{
+      isCurrent:contextCurrent,
+      post:group=>apiJson('/api/orders/'+encodeURIComponent(order.id)+'/dispatch',{method:'POST',headers,body:JSON.stringify({...group,expectedVenueId:venue})}),
+      onSaved:saved=>{Object.assign(order,{status:saved.status,items:saved.items});const listed=openOrders.find(entry=>entry.id===order.id);if(listed&&listed!==order)Object.assign(listed,{status:saved.status,items:saved.items});if(currentOrder?.id===order.id)drawOrder(order);drawQueue();}
+    });
+    if(!contextCurrent())return;
+    const summary=result.completed.map(group=>(group.station==='bar'?'Бар':'Кальян')+': '+group.count+' поз.').join(' · ');
+    const sent=result.completed.map(group=>(group.station==='bar'?'Передано на бар':'Передано кальянщику')+' · '+group.count+' поз.').join(' · ');
+    // A failed response may hide a saved write. Re-read before offering a retry.
+    await loadOrders();await loadPreparationQueue();
+    if(contextCurrent()&&ordersReadState!=='ready')notice((summary?'Подтверждено '+summary+'. ':'')+'Не удалось сверить оставшиеся позиции. Повторите загрузку заказов перед отправкой.',10000,'error');
+    else if(contextCurrent())notice(result.error?(summary?'Подтверждено '+summary+'. Остальные позиции не подтверждены. Заказ обновлён; повторите только новые позиции.':preparationError(result.error)):sent, result.error?10000:5000,result.error?'error':'success');
+  }catch(error){if(contextCurrent()){await loadOrders();notice(preparationError(error),8000,'error');}}
+  finally{posOrderDispatchPending.delete(order.id);if(contextCurrent()){updateOrderMainAction();if(cancelled)document.querySelector('#order-main-action')?.focus();else if(currentOrder?.id===order.id)await refreshOrderPricingSummary(currentOrder);}}
+}
+function preparationElapsed(item){
+  const timestamp=Date.parse(item.preparationDispatchedAt||'');
+  if(!Number.isFinite(timestamp))return 'Время неизвестно';
+  const minutes=Math.floor(Math.max(0,Date.now()-timestamp)/60000);
+  return minutes>=60?Math.floor(minutes/60)+' ч '+String(minutes%60).padStart(2,'0')+' мин':minutes+' мин';
+}
+function preparationComment(item){
+  const order=ordersReadState==='ready'?openOrders.find(order=>order.id===item.orderId):null;
+  const note=item.note||item.comment||order?.notes||order?.note||'';
+  return String(note).trim();
 }
 function drawPreparationQueue(){
   const list=document.querySelector('#preparation-list');if(!list)return;
-  list.innerHTML=preparationItems.length?preparationItems.map(item=>`<article class="preparation-row"><div><strong>${escapeFloorText(item.name||'Позиция')} × ${Number(item.quantity)}</strong><small>${escapeFloorText(item.tableName||floorTableLabel(item.tableId))} · ${preparationLabel(item.preparationStation)}${item.orderStatus==='closed'?' · заказ оплачен':''}</small></div><span class="preparation-state">${item.preparationStatus==='queued'?'Ожидает':'В работе'}</span><button type="button" class="secondary" data-preparation-item="${escapeFloorText(item.id)}" ${preparationPending.has(item.id)?'disabled':''}>${item.preparationStatus==='queued'?'Взять в работу':'Готово'}</button></article>`).join(''):'<p class="queue-empty" role="status">Нет ожидающих работ по вашим направлениям.</p>';mountPosPrimitives();
+  const visible=preparationItems.filter(item=>posPreparationFilter==='all'||item.preparationStation===posPreparationFilter);
+  list.innerHTML=visible.length?visible.map(item=>`<article class="preparation-row" data-station="${escapeFloorText(item.preparationStation)}" data-preparation-state="${escapeFloorText(item.preparationStatus)}"><div class="preparation-row-copy"><strong>${escapeFloorText(item.tableName||floorTableLabel(item.tableId))}</strong><span>${escapeFloorText(item.name||'Позиция')} × ${Number(item.quantity)}</span>${preparationComment(item)?`<small class="preparation-comment">Комментарий к заказу: ${escapeFloorText(preparationComment(item))}</small>`:''}<small>${preparationLabel(item.preparationStation)} · ${preparationElapsed(item)}${item.orderStatus==='closed'?' · заказ оплачен':''}</small></div><span class="preparation-state">${item.preparationStatus==='queued'?'Ожидает':'В работе'}</span><button type="button" class="secondary" data-preparation-item="${escapeFloorText(item.id)}" ${preparationPending.has(item.id)?'disabled':''}>${item.preparationStatus==='queued'?'Взять в работу':'Готово'}</button></article>`).join(''):'<p class="queue-empty" role="status">Нет ожидающих работ по выбранному направлению.</p>';
+  mountPosPrimitives();refreshPosWorkspace();
 }
 function loadPreparationQueue(){
   if(!canReadPreparation()||staticStaffDemo()){clearPreparationQueue();return Promise.resolve();}
+  if(posPreparationFilter!=='all'&&!staffSessionPermissions.has(posPreparationFilter+'_tasks')&&!staffSessionPermissions.has('tasks_manage'))posPreparationFilter='all';
   if(preparationRequest)return preparationRequest;
   const revision=++preparationRevision,access=staffAccessRevision;
   const section=document.querySelector('#preparation-queue'),list=document.querySelector('#preparation-list');if(!section||!list)return Promise.resolve();
-  section.hidden=false;section.setAttribute('aria-busy','true');
+  posPreparationReadState='loading';refreshPosWorkspace();section.setAttribute('aria-busy','true');
   if(!preparationItems.length)list.innerHTML='<p class="queue-empty" role="status">Загружаем работы…</p>';
   preparationRequest=staffFetchJson('/api/preparation/queue').then(payload=>{
     if(revision!==preparationRevision||access!==staffAccessRevision)return;
-    if(!Array.isArray(payload?.items))throw Error('preparation_invalid_response');preparationItems=payload.items;const hint=section.querySelector('p');if(hint)hint.textContent=staffSessionPermissions.has('tasks_manage')?'Работы бара и кальянного мастера.':staffSessionPermissions.has('bar_tasks')&&staffSessionPermissions.has('hookah_tasks')?'Ваши направления: бар и кальяны.':staffSessionPermissions.has('bar_tasks')?'Ваше направление: бар.':'Ваше направление: кальяны.';drawPreparationQueue();
-  }).catch(()=>{if(revision===preparationRevision&&access===staffAccessRevision){preparationItems=[];list.innerHTML='<p class="queue-empty" role="alert">Не удалось загрузить работы. Нажмите «Обновить».</p>';}})
+    if(!Array.isArray(payload?.items))throw Error('preparation_invalid_response');preparationItems=payload.items;posPreparationReadState='ready';const hint=section.querySelector('p');if(hint)hint.textContent=(staffSessionPermissions.has('tasks_manage')?'Работы бара и кальянного мастера.':staffSessionPermissions.has('bar_tasks')&&staffSessionPermissions.has('hookah_tasks')?'Ваши направления: бар и кальяны.':staffSessionPermissions.has('bar_tasks')?'Ваше направление: бар.':'Ваше направление: кальяны.')+' Позиции в очереди и работе.';drawPreparationQueue();
+  }).catch(()=>{if(revision===preparationRevision&&access===staffAccessRevision){posPreparationReadState='error';refreshPosWorkspace();list.innerHTML='<p class="queue-empty" role="alert">Не удалось обновить работы. Данные могут быть устаревшими. Нажмите «Обновить».</p>'; }})
   .finally(()=>{if(revision===preparationRevision){section.removeAttribute('aria-busy');preparationRequest=null;}});
   return preparationRequest;
 }
@@ -1114,12 +1279,21 @@ document.querySelector('#preparation-refresh')?.addEventListener('click',()=>loa
 document.querySelector('#preparation-list')?.addEventListener('click',async event=>{
   const button=event.target.closest('[data-preparation-item]');if(!button||button.disabled)return;
   const item=preparationItems.find(row=>row.id===button.dataset.preparationItem);if(!item||preparationPending.has(item.id)||!canReadPreparation())return;
-  const access=staffAccessRevision,venue=floorVenueId;preparationPending.add(item.id);button.disabled=true;
+  const access=staffAccessRevision,venue=floorVenueId,token=localStorage.getItem('crm_session_token'),headers={...orderHeaders()};const contextCurrent=()=>access===staffAccessRevision&&venue===floorVenueId&&token===localStorage.getItem('crm_session_token')&&canReadPreparation();preparationPending.add(item.id);button.disabled=true;
   try{
-    await apiJson(`/api/orders/${encodeURIComponent(item.orderId)}/items/${encodeURIComponent(item.id)}/preparation`,{method:'PATCH',headers:orderHeaders(),body:JSON.stringify({status:item.preparationStatus==='queued'?'in_progress':'ready',expectedStatus:item.preparationStatus,expectedVenueId:venue})});
-    if(access===staffAccessRevision){notice(item.preparationStatus==='queued'?`Заказ принят в работу · ${item.tableName||floorTableLabel(item.tableId)} · ${item.name}`:`Готово · ${item.tableName||floorTableLabel(item.tableId)} · ${item.name}`);preparationRevision++;preparationRequest=null;await loadPreparationQueue();await loadOrders();}
-  }catch(error){if(access===staffAccessRevision){notice(preparationError(error));await loadPreparationQueue();}}
-  finally{preparationPending.delete(item.id);if(access===staffAccessRevision)drawPreparationQueue();}
+    await apiJson(`/api/orders/${encodeURIComponent(item.orderId)}/items/${encodeURIComponent(item.id)}/preparation`,{method:'PATCH',headers,body:JSON.stringify({status:item.preparationStatus==='queued'?'in_progress':'ready',expectedStatus:item.preparationStatus,expectedVenueId:venue})});
+    if(contextCurrent()){notice(item.preparationStatus==='queued'?`Позиция принята в работу · ${item.tableName||floorTableLabel(item.tableId)} · ${item.name}`:`Готово · ${item.tableName||floorTableLabel(item.tableId)} · ${item.name}`);preparationRevision++;preparationRequest=null;await loadPreparationQueue();await loadOrders();}
+  }catch(error){if(contextCurrent()){notice(preparationError(error));await loadPreparationQueue();}}
+  finally{preparationPending.delete(item.id);if(contextCurrent())drawPreparationQueue();}
 });
-const refreshVisiblePreparation=()=>{if(document.visibilityState==='visible')loadPreparationQueue();};
+let posRefreshPending=null;
+const refreshVisiblePreparation=()=>{if(document.visibilityState!=='visible'||!staffCanWork()||posRefreshPending)return;posRefreshPending=(async()=>{if(!staticStaffDemo())await verifyStaffSession();if(!staffCanWork())return;await refreshFloor({background:true});await loadOrders();await loadPreparationQueue();refreshPosWorkspace();})().finally(()=>{posRefreshPending=null;});};
 window.setInterval(refreshVisiblePreparation,30000);window.addEventListener('focus',refreshVisiblePreparation);document.addEventListener('visibilitychange',refreshVisiblePreparation);
+
+function refreshPosWorkspace(){
+  if(!posWorkspaceMounted)return;
+  window.HookahPosWorkspace?.update({offline:navigator.onLine===false,orders:openOrders,preparationItems,canReadPreparation:canReadPreparation()&&!staticStaffDemo(),ordersState:ordersReadState,preparationState:posPreparationReadState,floorReady,canWork:staffCanWork(),floorState:tables.dataset.dataState,allowedStations:['bar','hookah'].filter(station=>staffSessionPermissions.has(station+'_tasks')||staffSessionPermissions.has('tasks_manage')),setView:view=>{setStaffWorkspaceView(view);if(view==='orders')drawQueue('all');},onPreparationFilter:station=>{posPreparationFilter=station;drawPreparationQueue();},onFloorRetry:async()=>{await refreshFloor({background:true});await loadOrders();await loadPreparationQueue();}});
+}
+window.addEventListener('offline',()=>{if(floorReady){ordersReadState='error';drawOrder(currentOrder);refreshPosWorkspace();}});
+window.addEventListener('online',refreshVisiblePreparation);
+posWorkspaceMounted=true;refreshPosWorkspace();

@@ -120,7 +120,7 @@ const normalizeEmployeeSidebar = (sidebar, makeLink) => {
   ]);
   appendGroup('КОНТРОЛЬ', [
     { href: '/inventory', permission: 'inventory_read', label: 'Склад', iconName: 'package' },
-    { href: '/finance', permission: 'finance_read', label: 'Финансы', iconName: 'chart-bar' },
+    { href: '/finance', permission: 'finance_read', label: 'Оплаты', iconName: 'receipt' },
     { href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'gift' },
   ]);
   if (adminNavigationAllowed) appendGroup('АДМИНИСТРИРОВАНИЕ', [{ href: '/admin', permission: 'dashboard', label: 'Панель администратора', iconName: 'layout-dashboard' }]);
@@ -606,8 +606,21 @@ const portalFooterAccess = document.querySelector('.sidebar-footer small');
 if (portalFooterRole) portalFooterRole.textContent = `● ${portalRole[0]}`;
 if (portalFooterAccess) portalFooterAccess.textContent = portalRole[1];
 document.querySelector('#logout')?.addEventListener('click', async (event) => {
+  const button=event.currentTarget;
+  if(button.disabled)return;
+  button.disabled=true;
+  document.querySelector('#portal-logout-error')?.remove();
+  try {
+    if(!String(localStorage.getItem('crm_session_token')||'').startsWith('demo-static-')){
+      const response=await fetch('/api/logout', { method: 'POST', headers: authHeaders() });
+      if(!response.ok&&response.status!==401)throw new Error('logout_unavailable');
+    }
+  } catch (_) {
+    button.disabled=false;
+    const message=document.createElement('p');message.id='portal-logout-error';message.setAttribute('role','alert');message.textContent='Не удалось завершить сессию. Повторите выход.';button.after(message);
+    return;
+  }
   window.HOOKAH_MANAGEMENT_THEME?.clear();
-  if (event.currentTarget.disabled) return; event.currentTarget.disabled = true; try { await fetch('/api/logout', { method: 'POST', headers: authHeaders() }); } catch (_) {}
   window.__broadcastSessionEnd?.();
   localStorage.removeItem('crm_session_token');
   localStorage.removeItem('crm_session_user');
@@ -1272,6 +1285,18 @@ const demoJson = async (url, options = {}) => {
   const staffArchive = path.match(/^\/api\/staff\/([^/]+)\/archive$/); if (staffArchive && method === 'POST') { if (!demoStaffManager()) throw new Error('staff_management_required'); if (portalUser.role !== 'owner') throw new Error('staff_archive_owner_required'); if (staffArchive[1] === portalUser.id) throw new Error('self_archive_forbidden'); const person = demoState.staff.find((x) => x.id === staffArchive[1]); if (!person || person.role === 'owner') throw new Error('owner_cannot_be_deleted'); if (person.active || person.deletedAt) throw new Error('staff_must_be_blocked_before_archive'); person.deletedAt = new Date().toISOString(); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: 'staff.archived', entityType: 'staff', entityId: person.id, actor: portalUser.name || 'владелец', createdAt: person.deletedAt }); demoSave(); return { ...demoStaffPublic(person), archivedAt: person.deletedAt }; }
   const staffStatus = path.match(/^\/api\/staff\/([^/]+)\/status$/); if (staffStatus && method === 'PATCH') { if (!demoStaffManager()) throw new Error('staff_management_required'); if (staffStatus[1] === portalUser.id) throw new Error('self_deactivation_forbidden'); const person = demoState.staff.find((x) => x.id === staffStatus[1]); if (!person || person.role === 'owner' || typeof input.active !== 'boolean') throw new Error('HTTP 400'); if (portalUser.role === 'manager' && ['admin','developer'].includes(person.role)) throw new Error('staff_management_required'); person.active = input.active; demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: input.active ? 'staff.activated' : 'staff.deactivated', entityType: 'staff', entityId: person.id, actor: portalUser.name || 'администратор', createdAt: new Date().toISOString() }); demoSave(); return demoStaffPublic(person); }
   if (path === '/api/audit') { let localAudit = []; try { localAudit = JSON.parse(localStorage.getItem('territory_crm_demo_audits') || '[]'); } catch (_) {} return { items: [...demoState.audit, ...localAudit].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 300) }; }
+  if (path === '/api/finance/employee-payments' && method === 'GET') {
+    if (!['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(String(portalUser.role || '').toLowerCase()) || !(hasPortalPermission('finance_read') || hasPortalPermission('finance'))) throw Error('HTTP 403');
+    const timezone = demoSelectedVenue().timezone || 'Asia/Yekaterinburg';
+    const dayKey = value => new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+    const date = dayKey(new Date()), venueId = String(demoSelectedVenue().id), actorId = String(portalUser.id || portalUser.name || '');
+    const receipts = demoReadOrders().filter(order => String(order.venueId || venueId) === venueId && String(order.openedById || order.openedBy || '') === actorId)
+      .flatMap(order => (order.payments || []).filter(payment => ['paid','partially_paid'].includes(payment.status) && payment.createdAt && dayKey(payment.createdAt) === date && (payment.method !== 'reservation' || order.status === 'closed')).map(payment => ({id:payment.id,orderId:order.id,tableName:typeof order.tableName === 'string' ? order.tableName : null,method:payment.method,amount:Number(payment.amount || 0),createdAt:payment.createdAt,partial:payment.status === 'partially_paid' ? true : null})));
+    const groups = new Map();
+    for (const payment of receipts) { const entry = groups.get(payment.method) || {method:payment.method,cents:0,count:0};entry.cents += Math.round(payment.amount*100);entry.count++;groups.set(payment.method,entry); }
+    const byMethod = [...groups.values()].map(item => ({method:item.method,total:item.cents/100,count:item.count}));
+    return {employeeView:true,scope:'opened_orders',date,timezone,generatedAt:new Date().toISOString(),revenue:byMethod.reduce((sum,item)=>sum+Math.round(item.total*100),0)/100,paymentCount:receipts.length,byMethod,items:receipts.sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)||String(b.id).localeCompare(String(a.id))).slice(0,20),hasMore:receipts.length>20};
+  }
   if (path === '/api/finance/summary' && ['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(String(portalUser.role || '').toLowerCase())) {
     const timezone = demoSelectedVenue().timezone || 'Asia/Yekaterinburg';
     const dayKey = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
@@ -4627,20 +4652,77 @@ function renderFinanceCategories() {
   }
   load();
 }
+function renderEmployeePayments(target) {
+  target.classList.add('employee-payments');
+  const headerTitle = document.querySelector('.portal-header>div:first-child>b');
+  if (headerTitle) headerTitle.textContent = 'Оплаты';
+  document.title = 'Hookah POS — Оплаты';
+  target.innerHTML = `<div class="page-title"><div><h1>Оплаты по вашим заказам</h1><p class="muted">Платежи гостей за сегодня</p></div></div>
+    <section class="panel ui-panel employee-turnover-panel employee-payments-summary" aria-label="Сводка оплат">
+      <div class="employee-payments-top"><div><span class="muted" id="employee-payments-date">Сегодня · по времени заведения</span><strong id="finance-revenue">—</strong><small id="employee-payment-count">Загрузка…</small></div>
+      <div class="employee-payments-refresh"><small id="employee-payments-updated">Проверяем данные…</small><button class="button ui-button" id="employee-finance-refresh" type="button">Обновить</button></div></div>
+      <p class="form-message" id="employee-finance-message" role="status" aria-live="polite"></p><div class="employee-payment-methods" id="employee-payment-methods"></div>
+      <p class="employee-payments-scope">По заказам, открытым вами. Период — день по времени заведения.</p>
+      <details class="employee-payments-help"><summary>Как считается сумма</summary><p>Учитываются успешные платежи за сегодня, включая частичные. Заказ мог быть открыт раньше, а оплату мог принять другой сотрудник. Бонусы и деньги гостя входят в сумму; зачёт предоплаты учитывается после закрытия заказа. Это сумма оплат по заказам, а не наличные к сдаче и не итог за смену. Возвраты показываются в отчёте руководителя отдельно.</p></details>
+    </section><section class="panel ui-panel employee-payments-recent" aria-labelledby="employee-payments-recent-title"><div class="panel-head"><h2 id="employee-payments-recent-title">Последние оплаты</h2><small>Сегодня</small></div><div id="employee-payment-list"><p class="employee-payments-empty" role="status">Загружаем платежи…</p></div></section>`;
+  const refresh = target.querySelector('#employee-finance-refresh');
+  const message = target.querySelector('#employee-finance-message');
+  const amount = target.querySelector('#finance-revenue');
+  const methods = target.querySelector('#employee-payment-methods');
+  const list = target.querySelector('#employee-payment-list');
+  const count = target.querySelector('#employee-payment-count');
+  const updated = target.querySelector('#employee-payments-updated');
+  const labels = {cash:'Наличные',card:'Карта',qr:'QR',bonus:'Бонусы',deposit:'Деньги гостя',reservation:'Зачёт предоплаты'};
+  const methodIcon = {cash:'cash',card:'credit-card',qr:'qrcode',bonus:'gift',deposit:'wallet',reservation:'calendar-event'};
+  const cents = value => Math.round(Number(value) * 100);
+  const validate = data => {
+    if (data?.employeeView !== true || data.scope !== 'opened_orders' || !/^\d{4}-\d{2}-\d{2}$/.test(data.date) || typeof data.timezone !== 'string' || !data.timezone || !Number.isFinite(data.revenue) || data.revenue < 0 || !Number.isInteger(data.paymentCount) || data.paymentCount < 0 || !Array.isArray(data.byMethod) || !Array.isArray(data.items) || data.items.length > 20) throw Error('employee_payments_invalid');
+    if (!data.byMethod.every(item => typeof item.method === 'string' && Number.isFinite(item.total) && item.total >= 0 && Number.isInteger(item.count) && item.count >= 0) || new Set(data.byMethod.map(item => item.method)).size !== data.byMethod.length || data.byMethod.reduce((sum,item) => sum+cents(item.total),0) !== cents(data.revenue) || data.byMethod.reduce((sum,item) => sum+item.count,0) !== data.paymentCount) throw Error('employee_payments_unbalanced');
+    if (!data.items.every(item => typeof item.method === 'string' && Number.isFinite(item.amount) && item.amount >= 0 && Number.isFinite(Date.parse(item.createdAt)) && (item.tableName === null || typeof item.tableName === 'string') && (item.partial === null || typeof item.partial === 'boolean')) || !Number.isFinite(Date.parse(data.generatedAt))) throw Error('employee_payments_invalid');
+    new Intl.DateTimeFormat('ru-RU',{timeZone:data.timezone}).format(new Date());
+    return data;
+  };
+  let generation = 0;
+  const load = async () => {
+    const requestId = ++generation;
+    refresh.disabled = true; target.setAttribute('aria-busy','true');
+    amount.textContent = '—'; count.textContent = 'Загрузка…'; updated.textContent = 'Проверяем данные…';
+    message.className = 'form-message'; message.textContent = 'Обновляем оплаты…';
+    methods.replaceChildren(); list.innerHTML = '<p class="employee-payments-empty" role="status">Загружаем платежи…</p>';
+    try {
+      const data = validate(await api('/api/finance/employee-payments'));
+      if (requestId !== generation || !refresh.isConnected) return;
+      const time = value => new Intl.DateTimeFormat('ru-RU',{timeZone:data.timezone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(value));
+      const date = new Intl.DateTimeFormat('ru-RU',{timeZone:'UTC',day:'numeric',month:'long'}).format(new Date(data.date+'T12:00:00Z'));
+      target.querySelector('#employee-payments-date').textContent = `Сегодня, ${date} · по времени заведения`;
+      amount.textContent = money(data.revenue);
+      count.textContent = `${data.paymentCount} ${pluralRu(data.paymentCount,'платёж','платежа','платежей')} по вашим заказам`;
+      updated.textContent = `Обновлено в ${time(data.generatedAt)}`;
+      const totals = new Map(data.byMethod.map(item => [item.method,item]));
+      const order = ['cash','card','qr',...data.byMethod.map(item => item.method).filter(key => !['cash','card','qr'].includes(key))];
+      methods.innerHTML = order.map(key => `<div class="employee-payment-method">${icon(methodIcon[key] || 'receipt')}<div><span>${esc(labels[key] || 'Другой способ')}</span><strong>${money(totals.get(key)?.total ?? 0)}</strong></div></div>`).join('');
+      list.innerHTML = data.items.length ? `<table class="employee-payments-table"><thead><tr><th scope="col">Время</th><th scope="col">Стол</th><th scope="col">Способ</th><th scope="col">Сумма</th></tr></thead><tbody>${data.items.map(item => `<tr><td data-label="Время"><time datetime="${esc(item.createdAt)}">${time(item.createdAt)}</time></td><td data-label="Стол">${esc(item.tableName || 'Без стола')}</td><td data-label="Способ">${esc(labels[item.method] || 'Другой способ')}${item.partial === true ? '<small class="employee-payment-partial">Частичная оплата</small>' : ''}</td><td data-label="Сумма" class="employee-payment-amount">${money(item.amount)}</td></tr>`).join('')}</tbody></table>${data.hasMore ? '<p class="employee-payments-scope">Показаны последние 20 платежей. Итог и способы оплаты учитывают все платежи за сегодня.</p>' : ''}` : '<p class="employee-payments-empty" role="status">Сегодня оплат по вашим заказам пока нет.</p>';
+      message.textContent = '';
+    } catch (_) {
+      if (requestId !== generation || !refresh.isConnected) return;
+      amount.textContent = '—'; count.textContent = 'Количество недоступно'; updated.textContent = 'Данные не обновлены';
+      methods.innerHTML = '<p class="employee-payments-empty">Способы оплаты недоступны</p>';
+      list.innerHTML = '<p class="employee-payments-empty">Платежи недоступны. Нажмите «Обновить», чтобы повторить.</p>';
+      message.className = 'form-message error-message'; message.textContent = 'Не удалось загрузить оплаты. Повторите попытку.';
+    } finally {
+      if (requestId === generation && refresh.isConnected) {refresh.disabled = false;target.setAttribute('aria-busy','false');}
+    }
+  };
+  refresh.addEventListener('click',load);
+  load();
+}
 function renderFinance() {
   const target = document.querySelector('#page-content'); if (!target) return;
   target.classList.add('ui-financial-pages');
   const employeeFinanceView = ['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(String(portalUser.role || '').toLowerCase());
   const canDecideFinance = hasPortalPermission('finance');
   const payrollStatusLabel = (status) => ({ draft: 'Черновик', approved: 'Утверждено', paid: 'Выплачено', cancelled: 'Отменено' }[String(status || '').toLowerCase()] || 'Требует проверки');
-  if (employeeFinanceView) {
-    target.innerHTML = `<div class="page-title"><div><p class="eyebrow">МОЯ СМЕНА</p><h1>Оплаты сегодня</h1><p class="muted">Оплаты сегодня по вашим заказам.</p></div></div><section class="panel employee-turnover-panel"><div><span class="muted">Оплаты сегодня по вашим заказам</span><strong id="finance-revenue">Загрузка…</strong></div><small class="muted">Платежи за сегодня по времени заведения, включая частичные, по открытым вами заказам. Заказ мог быть открыт раньше. Зачёт предоплаты учитывается после закрытия заказа.</small></section>`;
-    target.querySelector('.employee-turnover-panel').insertAdjacentHTML('beforeend', '<p class="form-message" id="employee-finance-message" role="status" aria-live="polite"></p><button class="button" id="employee-finance-refresh" type="button">Обновить</button>');
-    const value = target.querySelector('#finance-revenue'); const message = target.querySelector('#employee-finance-message'); const refresh = target.querySelector('#employee-finance-refresh');
-    const loadEmployeeSummary = () => { refresh.disabled = true; value.textContent = '—'; message.className = 'form-message'; message.textContent = 'Загрузка оплат…'; return api(`/api/finance/summary?date=${encodeURIComponent(localDateKey())}`).then((summary) => { if (!refresh.isConnected) return; value.textContent = money(summary.revenue || 0); message.textContent = ''; }).catch(() => { if (!refresh.isConnected) return; value.textContent = '—'; message.className = 'form-message error-message'; message.textContent = 'Не удалось загрузить оплаты. Повторите попытку.'; }).finally(() => { refresh.disabled = false; }); };
-    refresh.addEventListener('click', loadEmployeeSummary); loadEmployeeSummary();
-    return;
-  }
+  if (employeeFinanceView) { renderEmployeePayments(target); return; }
   target.innerHTML = `<div class="page-title"><div><p class="eyebrow">КОНТРОЛЬ ДЕНЕГ</p><h1>Финансы</h1><p class="muted">Оплаты и выручка за выбранную дату; график и итоговые показатели имеют свои периоды.</p></div><label class="finance-summary-date">Дата сводки<input class="date-input" type="date" value="${localDateKey()}" id="finance-date" aria-label="Дата сводки оплат"></label></div><nav class="finance-section-nav" aria-label="Разделы финансов"><a href="#finance-chart-panel">График</a><a href="#finance-result-panel">Результат</a><a href="#finance-staff-panel">Команда</a><a href="#cash-register-panel">Смена и касса</a><a href="#payables">Поставщики</a><a href="#expenses">Расходы</a><a href="#finance-payments-panel">Оплаты</a><a href="#discounts">Скидки</a><a href="#payroll">Зарплата</a></nav><div class="kpi-grid compact finance-kpi-grid"><article class="kpi dashboard-revenue-card finance-revenue-card" data-kpi-target="#payment-list" data-revenue-style="hero" aria-label="Показать оплаты"><div class="dashboard-revenue-main"><span id="finance-revenue-label">Выручка сегодня</span><strong id="finance-revenue">—</strong><small class="positive">Данные обновляются из оплат ↗</small></div><div class="dashboard-revenue-pending"><span>Ожидается</span><strong id="finance-pending-revenue">—</strong><small id="finance-pending-detail">за открытые заказы</small></div></article><article class="kpi" ${hasPortalPermission('orders') ? 'data-kpi-route="/" aria-label="Открыть зал и заказы"' : ''}><span>Заказы</span><strong id="finance-orders">—</strong><small id="finance-orders-detail">Закрытые и открытые</small></article><article class="kpi" data-kpi-target="#payment-list" aria-label="Показать платежи"><span>Платежи</span><strong id="finance-payments">—</strong><small id="finance-average-check">Проведено операций · Средний чек смены: —</small></article></div><section class="panel finance-chart-panel" id="finance-chart-panel"><div class="panel-head"><div><h2>Динамика показателей</h2><span class="muted">Настраиваемая инфографика за выбранный период</span></div><div class="toolbar-row finance-chart-controls"><label>Показатель<select id="finance-chart-metric"><option value="revenue">Оборот заведения</option><option value="profit">Чистая прибыль</option><option value="expenses">Расходы</option><option value="orders">Заказы</option><option value="average_median">Средний и медианный чек</option><option value="average">Средний чек</option></select></label><label>Период<select id="finance-chart-period"><option value="7">7 дней</option><option value="14">14 дней</option><option value="30">30 дней</option><option value="90">90 дней</option><option value="365">Год</option><option value="all">За всё время</option></select></label><div class="finance-chart-view" role="group" aria-label="Вид диаграммы"><button type="button" class="is-active" aria-pressed="true" data-finance-chart-view="line">Линия</button><button type="button" aria-pressed="false" data-finance-chart-view="bars">Столбцы</button><button type="button" aria-pressed="false" data-finance-chart-view="table">Таблица</button></div></div></div><div id="finance-chart" class="finance-chart"><div class="empty">Загрузка графика…</div></div></section><section class="panel finance-business-panel" id="finance-result-panel"><div class="panel-head"><div><h2>Финансовый результат заведения</h2><span class="muted">Оборот, расходы и чистая прибыль за всё время</span></div></div><div class="finance-result-grid"><article><span>Общий оборот</span><strong id="finance-total-turnover">—</strong><small>Все оплаченные продажи</small></article><article><span>Расходная часть</span><strong id="finance-total-expenses">—</strong><small>Зарегистрированные расходы</small></article><article><span>Себестоимость продаж</span><strong id="finance-total-cogs">—</strong><small>Списано по технологическим картам</small></article><article><span>Чистая прибыль</span><strong id="finance-net-profit">—</strong><small>Оборот минус расходы и себестоимость</small></article></div><p class="muted finance-expense-note">Расходы учитываются после внесения операций в финансовый справочник.</p><div class="finance-segment-grid"><article><span>Среднее количество столов в день</span><strong id="finance-avg-tables">—</strong><small>Занятые столы по закрытым заказам</small></article><article><span>Средний чек · Бар</span><strong id="finance-avg-bar">—</strong><small>Заказы с позициями бара</small></article><article><span>Средний чек · Кальяны</span><strong id="finance-avg-hookah">—</strong><small>Заказы с позициями кальянов</small></article></div></section><section class="panel finance-staff-panel" id="finance-staff-panel"><div class="panel-head"><div><h2>Динамика команды</h2><span class="muted">Вклад сотрудников и управляющих в оборот за всё время</span></div></div><div id="finance-staff-dynamics" class="finance-staff-dynamics"><div class="empty">Загрузка динамики команды…</div></div></section><section class="panel cash-register-panel is-closed" id="cash-register-panel"><div class="panel-head"><div><h2>Смена и касса</h2><span class="muted" id="cash-register-status">Проверяем состояние смены…</span><small class="cash-register-hint" id="cash-register-hint">Смена связывает оплаты с текущим рабочим периодом.</small></div><a class="button small" id="cash-register-action" href="/admin#shift-control">Открыть смену</a></div><div class="cash-register-grid"><div><span>Стартовый остаток</span><strong id="cash-register-opening">—</strong></div><div><span>Открыта</span><strong id="cash-register-opened">—</strong></div><div><span>Номер смены</span><strong id="cash-register-id">—</strong></div></div></section><div class="content-grid finance-payments-grid" id="finance-payments-panel"><section class="panel wide"><div class="panel-head payment-panel-head"><div><h2>Оплаты по способу</h2><span class="muted">Сравнение способов оплаты за выбранную дату</span></div><div class="finance-chart-view" role="group" aria-label="Вид оплат"><button type="button" class="is-active" aria-pressed="true" data-payment-view="donut">Круговая</button><button type="button" aria-pressed="false" data-payment-view="bars">Колонки</button><button type="button" aria-pressed="false" data-payment-view="line">График</button><button type="button" aria-pressed="false" data-payment-view="table">Таблица</button></div></div><div class="payment-list" id="payment-list"></div></section></div>`;
   const payablesSection = document.createElement('section');
   payablesSection.className = 'panel finance-payables-panel';

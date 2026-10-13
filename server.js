@@ -1389,7 +1389,7 @@ async function api(req, res) {
     res.setHeader('Set-Cookie', [`crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionTtlSeconds(ttlMs)}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`, `crm_device_id=${encodeURIComponent(deviceId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`]);
     return json(res, 200, { token, user: sessionUser, permissions: sessionUser.workspacePermissions, permissionPolicy: sessionUser.permissionPolicy, expiresIn: sessionTtlSeconds(ttlMs), trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
   }
-  if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
+  if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) { try { await sessionRepository.remove(hashToken(token)); } catch (_) { return json(res, 503, { error: 'logout_unavailable' }); } } sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
   if ((process.env.AUTH_REQUIRED === 'true' || hasRequestCredential) && pathname !== '/api/health' && pathname !== '/api/login' && pathname !== '/api/public/venue-brand') {
     const session = await sessionFromRequest(req);
@@ -5357,6 +5357,60 @@ if (staffProfile && req.method === 'PATCH') {
     }).length, 0);
     return json(res, 200, { date: reportDate, timezone, employeeView, selectedShiftId: selectedShiftId || null, shifts: safeShifts, totals: sums, unassignedPaymentCount: unmatchedPaymentCount, ambiguousPaymentCount: sums.ambiguousPayments });
   }
+  if (pathname === '/api/finance/employee-payments' && req.method === 'GET') {
+    if (!isOperationalEmployee(req) || (!hasPermission(req, 'finance') && !hasPermission(req, 'finance_read'))) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+    const recentLimit = 20;
+    const payload = (date, timezone, revenue, paymentCount, byMethod, items) => ({
+      employeeView: true, scope: 'opened_orders', date, timezone, generatedAt: new Date().toISOString(),
+      revenue, paymentCount, byMethod, items: items.slice(0, recentLimit), hasMore: paymentCount > recentLimit,
+    });
+    if (repositories?.pool) {
+      try {
+        const context = await venueBusinessDateContext(repositories.pool, venueDbId);
+        if (!context) return json(res, 503, { error: 'database_unavailable' });
+        const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
+        // One statement gives totals, methods and recent rows the same snapshot.
+        // These are receipts on orders opened by the actor, not cashier attribution.
+        const { rows } = await repositories.pool.query(`WITH scoped AS (
+          SELECT p.id,p.order_id,p.method,p.amount,p.status,p.created_at,t.name AS table_name
+          FROM orders o JOIN payments p ON p.order_id=o.id
+          LEFT JOIN zones z ON z.venue_id=o.venue_id
+            AND z.id=(SELECT zone_id FROM tables WHERE id=o.table_id)
+          LEFT JOIN tables t ON t.id=o.table_id AND t.zone_id=z.id
+          WHERE o.venue_id=$1 AND o.opened_by=$2
+            AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4)
+            AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4)
+            AND p.status IN ('paid','partially_paid')
+            AND (p.method<>'reservation' OR o.status='closed')
+        ), methods AS (
+          SELECT method,SUM(amount) AS total,COUNT(*)::int AS count FROM scoped GROUP BY method
+        ), recent AS (
+          SELECT * FROM scoped ORDER BY created_at DESC,id DESC LIMIT $5
+        ) SELECT COALESCE((SELECT SUM(amount) FROM scoped),0) AS revenue,
+          (SELECT COUNT(*)::int FROM scoped) AS payment_count,
+          COALESCE((SELECT jsonb_agg(jsonb_build_object('method',method,'total',total,'count',count) ORDER BY method) FROM methods),'[]'::jsonb) AS by_method,
+          COALESCE((SELECT jsonb_agg(jsonb_build_object('id',id,'orderId',order_id,'tableName',table_name,'method',method,'amount',amount,'createdAt',created_at,
+            'partial',CASE WHEN status='partially_paid' THEN true ELSE NULL END) ORDER BY created_at DESC,id DESC) FROM recent),'[]'::jsonb) AS items`,
+        [venueDbId, actorId, context.date, context.timezone, recentLimit]);
+        const row = rows[0];
+        return json(res, 200, payload(context.date, context.timezone, Number(row.revenue), Number(row.payment_count), row.by_method, row.items));
+      } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
+    }
+    const date = today();
+    const ownOrders = orders.filter((order) => String(order.openedBy || order.openedById || '') === String(req.user?.id || '') && (!order.venueId || String(order.venueId) === String(venueDbId)));
+    const rows = ownOrders.flatMap((order) => (order.payments || [])
+      .filter((payment) => ['paid','partially_paid'].includes(payment.status) && payment.createdAt && businessDateKey(payment.createdAt) === date && (payment.method !== 'reservation' || order.status === 'closed'))
+      .map((payment) => ({ id: payment.id, orderId: order.id, tableName: order.tableName || null, method: payment.method, amount: Number(payment.amount), createdAt: payment.createdAt, partial: payment.status === 'partially_paid' ? true : null })))
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || String(b.id).localeCompare(String(a.id)));
+    const methods = new Map(); let revenueCents = 0;
+    for (const payment of rows) {
+      const cents = moneyCents(payment.amount); revenueCents += cents;
+      const entry = methods.get(payment.method) || { method: payment.method, cents: 0, count: 0 };
+      entry.cents += cents; entry.count++; methods.set(payment.method, entry);
+    }
+    const byMethod = [...methods.values()].sort((a,b) => a.method.localeCompare(b.method)).map(({method,cents,count}) => ({method,total:cents/100,count}));
+    return json(res, 200, payload(date, businessTimezone, revenueCents/100, rows.length, byMethod, rows));
+  }
   if (pathname === '/api/finance/summary' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance' });
     const employeeFinanceView = isOperationalEmployee(req); const requestedDate = url.searchParams.get('date') || ''; let date = employeeFinanceView ? today() : (requestedDate || today()); let timezone = businessTimezone;
@@ -6661,7 +6715,7 @@ function staticFile(req, res) {
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     '/phone-format.js', '/staff-display-name.js', '/management-theme.js', '/management-theme.css',
-    ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',
+    ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/pos-dispatch.js', '/pos-workspace.js', '/pos-workspace.css', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js', '/shift-close-contract.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js', '/notification-center.js', '/audit-privacy.js', '/staff-identity.js',

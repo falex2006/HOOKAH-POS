@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-10-13T09:08:57.054Z",
+  "environment": "Owned preview, isolated Chrome; GET-response overrides simulate visual edge states and collaborator rereads, NOT a true two-actor database write E2E; all mutations blocked",
+  "results": [
+    {
+      "width": 320,
+      "theme": "dark",
+      "checks": [
+        "free",
+        "blocked",
+        "reservation",
+        "mixed",
+        "long",
+        "partial",
+        "compact geometry"
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "checks": [
+        "free",
+        "blocked",
+        "reservation",
+        "mixed",
+        "long",
+        "partial",
+        "compact geometry"
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "dark",
+      "checks": [
+        "free",
+        "blocked",
+        "reservation",
+        "mixed",
+        "long",
+        "partial",
+        "compact geometry"
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "checks": [
+        "free",
+        "blocked",
+        "reservation",
+        "mixed",
+        "long",
+        "partial",
+        "compact geometry"
+      ]
+    },
+    {
+      "check": "simulated collaborator GET update preserves selected table and scroll",
+      "before": 90,
+      "after": 90
+    },
+    {
+      "check": "failed order read blocks stale action, explicit feedback"
+    },
+    {
+      "check": "floor stale warns and blocks action"
+    },
+    {
+      "check": "offline explicit feedback and disabled action, reconnect recovery"
+    },
+    {
+      "check": "intercepted lost POST response plus failed reread blocks repeated mutation",
+      "simulatedMutationAttempts": 1,
+      "liveWrites": 0
+    },
+    {
+      "check": "simulated colleague closing removes stale order"
+    },
+    {
+      "check": "empty floor distinct"
+    },
+    {
+      "check": "initial failure distinct and retry available"
+    },
+    {
+      "check": "loading distinct and recovers"
+    }
+  ],
+  "errors": [],
+  "writes": []
+}

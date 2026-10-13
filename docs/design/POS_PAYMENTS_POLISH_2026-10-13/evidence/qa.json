@@ -1,0 +1,3656 @@
+{
+  "generatedAt": "2026-10-13T08:13:24.301Z",
+  "environment": "Isolated Chrome; real local GET; explicit read-only response overrides for empty/error/long/partial/wrong scope",
+  "results": [
+    {
+      "page": "payments",
+      "theme": "dark",
+      "geometry": {
+        "width": 1920,
+        "height": 1080,
+        "mainWidth": 1710,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 266,
+            "width": 1100,
+            "right": 1366
+          },
+          {
+            "x": 266,
+            "width": 1100,
+            "right": 1366
+          }
+        ],
+        "refresh": {
+          "x": 1233.890625,
+          "y": 231.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 231.78125,
+          "right": 1341,
+          "bottom": 275.78125,
+          "left": 1233.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1341,
+            "width": 1050
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 17.561123818857403
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 11.369288004677912
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "light",
+      "geometry": {
+        "width": 1920,
+        "height": 1080,
+        "mainWidth": 1710,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 266,
+            "width": 1100,
+            "right": 1366
+          },
+          {
+            "x": 266,
+            "width": 1100,
+            "right": 1366
+          }
+        ],
+        "refresh": {
+          "x": 1233.890625,
+          "y": 231.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 231.78125,
+          "right": 1341,
+          "bottom": 275.78125,
+          "left": 1233.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1341,
+            "width": 1050
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.09563156376492
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "dark",
+      "geometry": {
+        "width": 1920,
+        "height": 1080,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 614,
+            "y": 80,
+            "width": 413,
+            "height": 64,
+            "top": 80,
+            "right": 1027,
+            "bottom": 144,
+            "left": 614
+          },
+          {
+            "x": 1039,
+            "y": 80,
+            "width": 413,
+            "height": 64,
+            "top": 80,
+            "right": 1452,
+            "bottom": 144,
+            "left": 1039
+          },
+          {
+            "x": 1464,
+            "y": 80,
+            "width": 413,
+            "height": 64,
+            "top": 80,
+            "right": 1877,
+            "bottom": 144,
+            "left": 1464
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.427528176754894
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.024914136129455
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 17.80349892917207
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "light",
+      "geometry": {
+        "width": 1920,
+        "height": 1080,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 614,
+            "y": 80,
+            "width": 413,
+            "height": 64,
+            "top": 80,
+            "right": 1027,
+            "bottom": 144,
+            "left": 614
+          },
+          {
+            "x": 1039,
+            "y": 80,
+            "width": 413,
+            "height": 64,
+            "top": 80,
+            "right": 1452,
+            "bottom": 144,
+            "left": 1039
+          },
+          {
+            "x": 1464,
+            "y": 80,
+            "width": 413,
+            "height": 64,
+            "top": 80,
+            "right": 1877,
+            "bottom": 144,
+            "left": 1464
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.850872141992458
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.489342571307195
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "dark",
+      "geometry": {
+        "width": 1366,
+        "height": 768,
+        "mainWidth": 1156,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          },
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          }
+        ],
+        "refresh": {
+          "x": 1191.890625,
+          "y": 215.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 215.78125,
+          "right": 1299,
+          "bottom": 259.78125,
+          "left": 1191.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1299,
+            "width": 1032
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 17.561123818857403
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 11.369288004677912
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "light",
+      "geometry": {
+        "width": 1366,
+        "height": 768,
+        "mainWidth": 1156,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          },
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          }
+        ],
+        "refresh": {
+          "x": 1191.890625,
+          "y": 215.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 215.78125,
+          "right": 1299,
+          "bottom": 259.78125,
+          "left": 1191.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1299,
+            "width": 1032
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.09563156376492
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "dark",
+      "geometry": {
+        "width": 1366,
+        "height": 768,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 614,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 842.328125,
+            "bottom": 144,
+            "left": 614
+          },
+          {
+            "x": 854.328125,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1082.65625,
+            "bottom": 144,
+            "left": 854.328125
+          },
+          {
+            "x": 1094.65625,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1322.984375,
+            "bottom": 144,
+            "left": 1094.65625
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.427528176754894
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.024914136129455
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 17.80349892917207
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "light",
+      "geometry": {
+        "width": 1366,
+        "height": 768,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 614,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 842.328125,
+            "bottom": 144,
+            "left": 614
+          },
+          {
+            "x": 854.328125,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1082.65625,
+            "bottom": 144,
+            "left": 854.328125
+          },
+          {
+            "x": 1094.65625,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1322.984375,
+            "bottom": 144,
+            "left": 1094.65625
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.850872141992458
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.489342571307195
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "dark",
+      "geometry": {
+        "width": 1366,
+        "height": 600,
+        "mainWidth": 1156,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          },
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          }
+        ],
+        "refresh": {
+          "x": 1191.890625,
+          "y": 215.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 215.78125,
+          "right": 1299,
+          "bottom": 259.78125,
+          "left": 1191.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1299,
+            "width": 1032
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 17.561123818857403
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 11.369288004677912
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "light",
+      "geometry": {
+        "width": 1366,
+        "height": 600,
+        "mainWidth": 1156,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          },
+          {
+            "x": 242,
+            "width": 1082,
+            "right": 1324
+          }
+        ],
+        "refresh": {
+          "x": 1191.890625,
+          "y": 215.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 215.78125,
+          "right": 1299,
+          "bottom": 259.78125,
+          "left": 1191.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1299,
+            "width": 1032
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.09563156376492
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "dark",
+      "geometry": {
+        "width": 1366,
+        "height": 600,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 614,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 842.328125,
+            "bottom": 144,
+            "left": 614
+          },
+          {
+            "x": 854.328125,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1082.65625,
+            "bottom": 144,
+            "left": 854.328125
+          },
+          {
+            "x": 1094.65625,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1322.984375,
+            "bottom": 144,
+            "left": 1094.65625
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.427528176754894
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.024914136129455
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 17.80349892917207
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "light",
+      "geometry": {
+        "width": 1366,
+        "height": 600,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 614,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 842.328125,
+            "bottom": 144,
+            "left": 614
+          },
+          {
+            "x": 854.328125,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1082.65625,
+            "bottom": 144,
+            "left": 854.328125
+          },
+          {
+            "x": 1094.65625,
+            "y": 80,
+            "width": 228.328125,
+            "height": 64,
+            "top": 80,
+            "right": 1322.984375,
+            "bottom": 144,
+            "left": 1094.65625
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.850872141992458
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.489342571307195
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "dark",
+      "geometry": {
+        "width": 1180,
+        "height": 768,
+        "mainWidth": 970,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 242,
+            "width": 896,
+            "right": 1138
+          },
+          {
+            "x": 242,
+            "width": 896,
+            "right": 1138
+          }
+        ],
+        "refresh": {
+          "x": 1005.890625,
+          "y": 209.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 209.78125,
+          "right": 1113,
+          "bottom": 253.78125,
+          "left": 1005.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1113,
+            "width": 846
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 17.561123818857403
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 11.369288004677912
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "light",
+      "geometry": {
+        "width": 1180,
+        "height": 768,
+        "mainWidth": 970,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 242,
+            "width": 896,
+            "right": 1138
+          },
+          {
+            "x": 242,
+            "width": 896,
+            "right": 1138
+          }
+        ],
+        "refresh": {
+          "x": 1005.890625,
+          "y": 209.78125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 209.78125,
+          "right": 1113,
+          "bottom": 253.78125,
+          "left": 1005.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 1113,
+            "width": 846
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.09563156376492
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "dark",
+      "geometry": {
+        "width": 1180,
+        "height": 768,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 238,
+            "y": 156,
+            "width": 291.65625,
+            "height": 64,
+            "top": 156,
+            "right": 529.65625,
+            "bottom": 220,
+            "left": 238
+          },
+          {
+            "x": 541.65625,
+            "y": 156,
+            "width": 291.671875,
+            "height": 64,
+            "top": 156,
+            "right": 833.328125,
+            "bottom": 220,
+            "left": 541.65625
+          },
+          {
+            "x": 845.328125,
+            "y": 156,
+            "width": 291.65625,
+            "height": 64,
+            "top": 156,
+            "right": 1136.984375,
+            "bottom": 220,
+            "left": 845.328125
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.427528176754894
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.024914136129455
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 17.80349892917207
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "light",
+      "geometry": {
+        "width": 1180,
+        "height": 768,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 243,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 416,
+            "bottom": 134,
+            "left": 243
+          },
+          {
+            "x": 420,
+            "y": 90,
+            "width": 173,
+            "height": 44,
+            "top": 90,
+            "right": 593,
+            "bottom": 134,
+            "left": 420
+          }
+        ],
+        "counters": [
+          {
+            "x": 238,
+            "y": 156,
+            "width": 291.65625,
+            "height": 64,
+            "top": 156,
+            "right": 529.65625,
+            "bottom": 220,
+            "left": 238
+          },
+          {
+            "x": 541.65625,
+            "y": 156,
+            "width": 291.671875,
+            "height": 64,
+            "top": 156,
+            "right": 833.328125,
+            "bottom": 220,
+            "left": 541.65625
+          },
+          {
+            "x": 845.328125,
+            "y": 156,
+            "width": 291.65625,
+            "height": 64,
+            "top": 156,
+            "right": 1136.984375,
+            "bottom": 220,
+            "left": 845.328125
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.850872141992458
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.489342571307195
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "dark",
+      "geometry": {
+        "width": 390,
+        "height": 844,
+        "mainWidth": 390,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 14,
+            "width": 352,
+            "right": 366
+          },
+          {
+            "x": 14,
+            "width": 352,
+            "right": 366
+          }
+        ],
+        "refresh": {
+          "x": 241.890625,
+          "y": 340.71875,
+          "width": 107.109375,
+          "height": 44,
+          "top": 340.71875,
+          "right": 349,
+          "bottom": 384.71875,
+          "left": 241.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 349,
+            "width": 318
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 17.561123818857403
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 11.369288004677912
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "light",
+      "geometry": {
+        "width": 390,
+        "height": 844,
+        "mainWidth": 390,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 14,
+            "width": 352,
+            "right": 366
+          },
+          {
+            "x": 14,
+            "width": 352,
+            "right": 366
+          }
+        ],
+        "refresh": {
+          "x": 241.890625,
+          "y": 340.71875,
+          "width": 107.109375,
+          "height": 44,
+          "top": 340.71875,
+          "right": 349,
+          "bottom": 384.71875,
+          "left": 241.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 349,
+            "width": 318
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.09563156376492
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "dark",
+      "geometry": {
+        "width": 390,
+        "height": 844,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 21,
+            "y": 113,
+            "width": 164.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 185.5,
+            "bottom": 171.796875,
+            "left": 21
+          },
+          {
+            "x": 189.5,
+            "y": 113,
+            "width": 164.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 354,
+            "bottom": 171.796875,
+            "left": 189.5
+          }
+        ],
+        "counters": [
+          {
+            "x": 16,
+            "y": 188.796875,
+            "width": 343,
+            "height": 59.078125,
+            "top": 188.796875,
+            "right": 359,
+            "bottom": 247.875,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 255.875,
+            "width": 343,
+            "height": 59.078125,
+            "top": 255.875,
+            "right": 359,
+            "bottom": 314.953125,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 322.953125,
+            "width": 343,
+            "height": 59.078125,
+            "top": 322.953125,
+            "right": 359,
+            "bottom": 382.03125,
+            "left": 16
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.427528176754894
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.024914136129455
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 17.80349892917207
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "light",
+      "geometry": {
+        "width": 390,
+        "height": 844,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 21,
+            "y": 113,
+            "width": 164.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 185.5,
+            "bottom": 171.796875,
+            "left": 21
+          },
+          {
+            "x": 189.5,
+            "y": 113,
+            "width": 164.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 354,
+            "bottom": 171.796875,
+            "left": 189.5
+          }
+        ],
+        "counters": [
+          {
+            "x": 16,
+            "y": 188.796875,
+            "width": 343,
+            "height": 59.078125,
+            "top": 188.796875,
+            "right": 359,
+            "bottom": 247.875,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 255.875,
+            "width": 343,
+            "height": 59.078125,
+            "top": 255.875,
+            "right": 359,
+            "bottom": 314.953125,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 322.953125,
+            "width": 343,
+            "height": 59.078125,
+            "top": 322.953125,
+            "right": 359,
+            "bottom": 382.03125,
+            "left": 16
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.850872141992458
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.489342571307195
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "dark",
+      "geometry": {
+        "width": 320,
+        "height": 740,
+        "mainWidth": 320,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 14,
+            "width": 282,
+            "right": 296
+          },
+          {
+            "x": 14,
+            "width": 282,
+            "right": 296
+          }
+        ],
+        "refresh": {
+          "x": 171.890625,
+          "y": 372.703125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 372.703125,
+          "right": 279,
+          "bottom": 416.703125,
+          "left": 171.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 279,
+            "width": 248
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 17.561123818857403
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 11.369288004677912
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 16.2800028618226
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 10.562221316040612
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        }
+      ]
+    },
+    {
+      "page": "payments",
+      "theme": "light",
+      "geometry": {
+        "width": 320,
+        "height": 740,
+        "mainWidth": 320,
+        "overflow": false,
+        "panels": [
+          {
+            "x": 14,
+            "width": 282,
+            "right": 296
+          },
+          {
+            "x": 14,
+            "width": 282,
+            "right": 296
+          }
+        ],
+        "refresh": {
+          "x": 171.890625,
+          "y": 372.703125,
+          "width": 107.109375,
+          "height": 44,
+          "top": 372.703125,
+          "right": 279,
+          "bottom": 416.703125,
+          "left": 171.890625
+        },
+        "switch": [],
+        "counters": [],
+        "rows": [
+          {
+            "right": 279,
+            "width": 248
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.09563156376492
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 13.391792061540468
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": "#page-content.employee-payments :is(h1,h2,span,strong,small,p,th,td,summary,button)",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".employee-payment-method .icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "dark",
+      "geometry": {
+        "width": 320,
+        "height": 740,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 21,
+            "y": 113,
+            "width": 129.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 150.5,
+            "bottom": 171.796875,
+            "left": 21
+          },
+          {
+            "x": 154.5,
+            "y": 113,
+            "width": 129.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 284,
+            "bottom": 171.796875,
+            "left": 154.5
+          }
+        ],
+        "counters": [
+          {
+            "x": 16,
+            "y": 188.796875,
+            "width": 273,
+            "height": 59.078125,
+            "top": 188.796875,
+            "right": 289,
+            "bottom": 247.875,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 255.875,
+            "width": 273,
+            "height": 59.078125,
+            "top": 255.875,
+            "right": 289,
+            "bottom": 314.953125,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 322.953125,
+            "width": 273,
+            "height": 59.078125,
+            "top": 322.953125,
+            "right": 289,
+            "bottom": 382.03125,
+            "left": 16
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.427528176754894
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 11.024914136129455
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 10.539874507022557
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 11.526204638417147
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 17.80349892917207
+        }
+      ]
+    },
+    {
+      "page": "floor",
+      "theme": "light",
+      "geometry": {
+        "width": 320,
+        "height": 740,
+        "overflow": false,
+        "panels": [],
+        "switch": [
+          {
+            "x": 21,
+            "y": 113,
+            "width": 129.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 150.5,
+            "bottom": 171.796875,
+            "left": 21
+          },
+          {
+            "x": 154.5,
+            "y": 113,
+            "width": 129.5,
+            "height": 58.796875,
+            "top": 113,
+            "right": 284,
+            "bottom": 171.796875,
+            "left": 154.5
+          }
+        ],
+        "counters": [
+          {
+            "x": 16,
+            "y": 188.796875,
+            "width": 273,
+            "height": 59.078125,
+            "top": 188.796875,
+            "right": 289,
+            "bottom": 247.875,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 255.875,
+            "width": 273,
+            "height": 59.078125,
+            "top": 255.875,
+            "right": 289,
+            "bottom": 314.953125,
+            "left": 16
+          },
+          {
+            "x": 16,
+            "y": 322.953125,
+            "width": 273,
+            "height": 59.078125,
+            "top": 322.953125,
+            "right": 289,
+            "bottom": 382.03125,
+            "left": 16
+          }
+        ],
+        "rows": []
+      },
+      "contrast": [
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 6.813668179453711
+        },
+        {
+          "selector": ".pos-workspace-view",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.850872141992458
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 6.489342571307195
+        },
+        {
+          "selector": ".pos-workspace-counter .pos-workspace-icon",
+          "minimum": 3,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 7.615195810057062
+        },
+        {
+          "selector": ".portal-sidebar .portal-nav>button:not(.active),.app>main>.queue>b",
+          "minimum": 4.5,
+          "ratio": 12.478106251942982
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "writes": []
+}

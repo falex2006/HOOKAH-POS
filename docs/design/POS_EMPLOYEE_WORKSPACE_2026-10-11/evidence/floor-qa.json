@@ -1,0 +1,12 @@
+{
+  "createdAt": "2026-10-11T14:06:44.044Z",
+  "environment": "read-only actual API; explicit route overrides only read failure, split and long/equipment rendering, no database writes",
+  "results": [
+    "badges survive zone/size/fit changes in both themes; tablist arrows Home End focus",
+    "background floor503 preserves last tables; delayed retry restores badges without stealing focus; CTA stays visible",
+    "split bills aggregate all station lines; one ready split cannot hide waiting bar",
+    "one room ten tables: long accessible name equipment and badge together, no page overflow",
+    "initial floor503 has truthful unavailable state without invented last data; retry loads actual floor"
+  ],
+  "errors": []
+}

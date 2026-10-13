@@ -1,0 +1,776 @@
+{
+  "createdAt": "2026-10-11T13:57:44.121Z",
+  "results": [
+    {
+      "width": 1366,
+      "theme": "dark",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 296.5,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 296.5,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 1157,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 1157,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 679,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 679,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 317,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 317,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 247,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "zone": 0,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "font": "12px",
+          "width": 92.828125,
+          "tileWidth": 247,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "dark",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 296.5,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 296.5,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 1157,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 1157,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 679,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 679,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 317,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 317,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 247,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "zone": 1,
+      "overflow": false,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "font": "12px",
+          "width": 94.703125,
+          "tileWidth": 247,
+          "overlapStatus": false,
+          "overlapName": false,
+          "overlapTotal": false
+        }
+      ]
+    }
+  ],
+  "contrasts": [
+    {
+      "theme": "dark",
+      "region": "#pos-workspace-toolbar,.pos-table-attention,.order.ui-pos",
+      "textMin": 6.81,
+      "lowestTexts": [
+        {
+          "selector": "SPAN",
+          "ratio": 6.81,
+          "color": "rgb(255, 255, 255)",
+          "background": [
+            167,
+            44,
+            66
+          ]
+        },
+        {
+          "selector": "order-delete",
+          "ratio": 7.82,
+          "color": "rgb(255, 136, 152)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        },
+        {
+          "selector": "ui-button pos-workspace-view",
+          "ratio": 9.34,
+          "color": "rgb(255, 176, 143)",
+          "background": [
+            27,
+            31,
+            37
+          ]
+        }
+      ],
+      "borderMin": 4.42,
+      "lowestBorders": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        }
+      ],
+      "iconMin": 9.34
+    },
+    {
+      "theme": "light",
+      "region": "#pos-workspace-toolbar,.pos-table-attention,.order.ui-pos",
+      "textMin": 5.81,
+      "lowestTexts": [
+        {
+          "selector": "ui-button pos-workspace-view",
+          "ratio": 5.81,
+          "color": "rgb(159, 63, 50)",
+          "background": [
+            238,
+            243,
+            246
+          ]
+        },
+        {
+          "selector": "order-item-attribution",
+          "ratio": 6,
+          "color": "rgb(82, 102, 114)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "selector": "order-item-attribution",
+          "ratio": 6,
+          "color": "rgb(82, 102, 114)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "borderMin": 4.03,
+      "lowestBorders": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "iconMin": 5.81
+    },
+    {
+      "theme": "dark",
+      "region": "#pos-workspace-toolbar,#preparation-queue",
+      "textMin": 9.34,
+      "lowestTexts": [
+        {
+          "selector": "ui-button pos-workspace-view",
+          "ratio": 9.34,
+          "color": "rgb(255, 176, 143)",
+          "background": [
+            27,
+            31,
+            37
+          ]
+        },
+        {
+          "selector": "ui-button",
+          "ratio": 9.34,
+          "color": "rgb(255, 176, 143)",
+          "background": [
+            27,
+            31,
+            37
+          ]
+        },
+        {
+          "selector": "SMALL",
+          "ratio": 9.8,
+          "color": "rgb(193, 200, 208)",
+          "background": [
+            27,
+            31,
+            37
+          ]
+        }
+      ],
+      "borderMin": 4.42,
+      "lowestBorders": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        }
+      ],
+      "iconMin": 9.34
+    },
+    {
+      "theme": "light",
+      "region": "#pos-workspace-toolbar,#preparation-queue",
+      "textMin": 5.81,
+      "lowestTexts": [
+        {
+          "selector": "ui-button pos-workspace-view",
+          "ratio": 5.81,
+          "color": "rgb(159, 63, 50)",
+          "background": [
+            238,
+            243,
+            246
+          ]
+        },
+        {
+          "selector": "ui-button",
+          "ratio": 5.81,
+          "color": "rgb(159, 63, 50)",
+          "background": [
+            238,
+            243,
+            246
+          ]
+        },
+        {
+          "selector": "SMALL",
+          "ratio": 6.81,
+          "color": "rgb(64, 87, 98)",
+          "background": [
+            238,
+            243,
+            246
+          ]
+        }
+      ],
+      "borderMin": 4.03,
+      "lowestBorders": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "iconMin": 5.81
+    },
+    {
+      "theme": "dark",
+      "region": "#payment-modal",
+      "textMin": 6.81,
+      "lowestTexts": [
+        {
+          "selector": "primary ui-button ui-button--primary",
+          "ratio": 6.81,
+          "color": "rgb(255, 255, 255)",
+          "background": [
+            167,
+            44,
+            66
+          ]
+        },
+        {
+          "selector": "payment-remaining",
+          "ratio": 9.8,
+          "color": "rgb(193, 200, 208)",
+          "background": [
+            27,
+            31,
+            37
+          ]
+        },
+        {
+          "selector": "SMALL",
+          "ratio": 10.54,
+          "color": "rgb(193, 200, 208)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        }
+      ],
+      "borderMin": 4.42,
+      "lowestBorders": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 4.42,
+          "color": "rgb(116, 128, 142)",
+          "background": [
+            21,
+            24,
+            29
+          ]
+        }
+      ],
+      "iconMin": 9.34
+    },
+    {
+      "theme": "light",
+      "region": "#payment-modal",
+      "textMin": 6.81,
+      "lowestTexts": [
+        {
+          "selector": "payment-remaining",
+          "ratio": 6.81,
+          "color": "rgb(64, 87, 98)",
+          "background": [
+            238,
+            243,
+            246
+          ]
+        },
+        {
+          "selector": "primary ui-button ui-button--primary",
+          "ratio": 6.81,
+          "color": "rgb(255, 255, 255)",
+          "background": [
+            167,
+            44,
+            66
+          ]
+        },
+        {
+          "selector": "SMALL",
+          "ratio": 7.62,
+          "color": "rgb(64, 87, 98)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "borderMin": 4.03,
+      "lowestBorders": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 4.03,
+          "color": "rgb(113, 129, 139)",
+          "background": [
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "iconMin": 5.81
+    }
+  ],
+  "writes": [],
+  "errors": [],
+  "longNameFixture": false
+}

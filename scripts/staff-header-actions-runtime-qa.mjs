@@ -8,7 +8,7 @@ const css=fs.readFileSync('style.css','utf8');
 const start=source.indexOf('const renderStaffShiftControl=');
 const end=source.indexOf('if(staffSessionVerified)refreshShift();',start);
 const handlerStart=source.indexOf('let staffShiftActionPending=false;');
-const handlerEnd=source.indexOf("document.querySelectorAll('.actions button')",handlerStart);
+const handlerEnd=source.indexOf("document.querySelector('#order-main-action')?.addEventListener",handlerStart);
 assert.ok(start>0&&end>start&&handlerStart>0&&handlerEnd>handlerStart);
 assert.match(html, /staff-header-title"><b>Рабочий зал<\/b><\/div><div class="staff-header-toolbar"><button/);
 assert.match(html, /data-shift-state="loading"[^>]*disabled/);
@@ -21,9 +21,10 @@ assert.match(distApp,/const renderStaffShiftControl=/,'published app contains th
 assert.match(distApp,/const refreshVisibleStaffShift=/,'published app contains the visible shift refresh listener');
 
 let click, choice={openingCash:'0'}, failing=false, mutationFailing=false, current=null, delayedResolve;
-const requests=[],notices=[];
+const requests=[],notices=[],mainActionRefreshStates=[];
 const button={dataset:{},disabled:true,innerHTML:'',title:'',attributes:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(_event,fn){click=fn;}};
-const context={staffAccessRevision:0,
+const context={staffAccessRevision:0,posWorkspaceMounted:true,
+  updateOrderMainAction:()=>mainActionRefreshStates.push(button.dataset.shiftState),
   staffNotificationCenter:null,currentShift:null,currentOrder:null,staffShiftReadable:true,staffShiftManageable:true,document:{querySelector:()=>button,addEventListener(){},visibilityState:'visible'},staffIcon:(name)=>`<svg>${name}</svg>`,
   notice:(text)=>notices.push(text),window:{confirm:()=>true,addEventListener(){},setInterval(){return 1},HOOKAH_SHIFT_CLOSE:{checklistVersion:1,checklistItems:[{id:'ordersReviewed',label:'Проверить заказы'},{id:'cashCounted',label:'Пересчитать кассу'},{id:'inventoryReviewed',label:'Проверить склад'},{id:'externalFiscalReportsHandled',label:'Проверить внешние отчёты'}]}},requestStaffAction:async()=>choice,
   shiftCashCloseDescription:()=> 'Проверьте ожидаемую наличность и подтвердите четыре пункта.',shiftCloseResultMessage:()=> 'Смена закрыта',
@@ -40,6 +41,7 @@ delayedResolve='pending';
 const first=context.refreshShift();const duplicate=context.refreshShift();assert.equal(first,duplicate);assert.equal(requests.length,1);
 assert.equal(button.disabled,true);assert.equal(button.dataset.shiftState,'loading');
 delayedResolve({current:null});delayedResolve=null;await first;
+assert.deepEqual(mainActionRefreshStates,['loading','closed'],'mounted order action follows the authoritative shift refresh');
 assert.equal(button.dataset.shiftState,'closed');assert.equal(button.attributes['aria-label'],'Открыть смену');assert.match(button.innerHTML,/Смена закрыта/);assert.equal(button.disabled,false);
 failing=true;await context.refreshShift();assert.equal(button.dataset.shiftState,'error');assert.equal(button.disabled,false);assert.match(button.attributes['aria-label'],/Повторить/);
 failing=false;await click();assert.equal(button.dataset.shiftState,'closed');assert.equal(requests.filter(x=>x.method).length,0,'retry only reads');
@@ -47,4 +49,6 @@ const opening=click();await click();await opening;assert.equal(requests.filter(x
 await context.refreshShift();assert.equal(button.dataset.shiftState,'open','reload reads actual open shift');
 choice={closingCash:'0',ordersReviewed:'on',cashCounted:'on',inventoryReviewed:'on',externalFiscalReportsHandled:'on'};mutationFailing=true;await click();assert.equal(button.dataset.shiftState,'open');assert.equal(button.disabled,false);assert.ok(notices.includes('Смена осталась открытой'));
 mutationFailing=false;await click();assert.equal(button.dataset.shiftState,'closed');assert.ok(notices.includes('Смена закрыта'),'successful closing displays success');const closeRequest=[...requests].reverse().find((request)=>request.url?.endsWith('/close'));assert.equal(closeRequest?.url,'/api/shifts/shift-qa/close');assert.deepEqual(JSON.parse(closeRequest.body),{closingCash:0,checklist:{version:1,items:{ordersReviewed:true,cashCounted:true,inventoryReviewed:true,externalFiscalReportsHandled:true}}});
-console.log('STAFF HEADER ACTIONS QA: PASS (layout/dist, loading/open/closed/error/retry, duplicate guards, open/close/error and confirmed payload)');
+assert.ok(['loading','closed','open','error','saving'].every(state=>mainActionRefreshStates.includes(state)),'all shift states refresh the mounted order action');
+context.posWorkspaceMounted=false;const refreshCount=mainActionRefreshStates.length;await context.refreshShift();assert.equal(mainActionRefreshStates.length,refreshCount,'booting workspace does not call its order action before mounting');
+console.log('STAFF HEADER ACTIONS QA: PASS (layout/dist, loading/open/closed/error/retry, duplicate guards, open/close/error, confirmed payload and mounted order action)');

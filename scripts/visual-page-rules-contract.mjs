@@ -13,6 +13,14 @@ const requiredGlobal = [
   'DESIGN_TOKENS.md', 'prefers-reduced-motion', 'скроллбар', 'safe-area',
   '44px', 'Канонические адреса', 'Не добавлять новые цвета', 'Склад', 'Финансы', 'View Transition'
 ];
+assert.match(rules, /«Оплаты по вашим заказам»/,
+  'employee payments must identify the order-opener scope');
+assert.match(rules, /Смена не подменяет календарный день/,
+  'employee daily payments must not be labeled as a shift total');
+assert.match(css, /#page-content\.ui-financial-pages\.employee-payments \.employee-payments-table/,
+  'employee ledger styling must be role-scoped');
+assert.match(css, /\.employee-payments-table td:not\(:first-child\):not\(:last-child\)::before \{ content:attr\(data-label\)/,
+  'mobile employee ledger must retain visible field labels');
 for (const text of requiredGlobal) assert.ok(rules.includes(text), `visual rules missing global rule: ${text}`);
 for (const text of ['Остатки', 'Поставки и списания', 'Технологические карты', 'Каталог товаров', 'Понятны ли названия всех кнопок']) {
   assert.ok(warehousePrompt.includes(text), `warehouse prompt missing rule: ${text}`);
@@ -43,6 +51,7 @@ const scrollCalls = [];
 const titleTarget = { scrollIntoView: (options) => scrollCalls.push(options) };
 const mockLinks = [{ dataset: { permission: 'dashboard' }, hidden: false }];
 const mockDocument = {
+  querySelector: () => null,
   querySelectorAll: (selector) => selector === '.portal-sidebar [data-permission]' ? mockLinks : []
 };
 const target = { classList: { toggle: () => {} }, querySelector: (selector) => selector === '.page-title' ? titleTarget : null };
