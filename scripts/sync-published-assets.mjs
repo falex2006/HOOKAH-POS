@@ -6,10 +6,15 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '2026101203';
-const portalRevision = '2026101202';
+const portalRevision = '2026101301';
 const portalSessionRevision = '2026101202';
+// This employee-page iteration invalidates only its own HTML asset URLs.
+const employeePaymentsCssRevision = '2026101301';
+const employeePaymentsSessionRevision = '2026101301';
 const lockRevision = '2026101103';
-const appRevision = '2026101201';
+const appRevision = '2026101305';
+const posWorkspaceRevision = '5';
+const posWorkspaceCssRevision = '10';
 const platformRevision = '2026101102';
 const platformCssRevision = '2026101102';
 const staffProfileRevision = '6';
@@ -80,6 +85,7 @@ const htmlFiles = [
 
 for (const path of htmlFiles) {
   const sourceHtml = readFileSync(path, 'utf8');
+  const employeePaymentsPage = /[\\/]finance(?:\.html|[\\/]index\.html)$/.test(path);
   const usesPortal = /(?:portal|portal-session)\.js\?rev=/.test(sourceHtml);
   const html = sourceHtml
     .replace(/<!-- Hookah POS brand icons -->[\s\S]*?<!-- \/Hookah POS brand icons -->\s*/g, '')
@@ -90,11 +96,13 @@ for (const path of htmlFiles) {
       const withReducedMotion = animated.includes('prefers-reduced-motion') ? animated : animated.replace('<img ', `<source media="(prefers-reduced-motion:reduce)" srcset="/assets/brand/hookah-pos-lockup.svg?rev=${brandRevision}"><img `);
       return open + withReducedMotion + close;
     })
-    .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
+    .replace(/style\.css\?rev=\d+/g, `style.css?rev=${employeePaymentsPage ? employeePaymentsCssRevision : cssRevision}`)
     .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
-    .replace(/(?:portal|portal-session)\.js\?rev=\d+/g, `portal-session.js?rev=${portalSessionRevision}`)
+    .replace(/(?:portal|portal-session)\.js\?rev=\d+/g, `portal-session.js?rev=${employeePaymentsPage ? employeePaymentsSessionRevision : portalSessionRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
     .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
+    .replace(/pos-workspace\.js\?rev=\d+/g, `pos-workspace.js?rev=${posWorkspaceRevision}`)
+    .replace(/pos-workspace\.css\?rev=\d+/g, `pos-workspace.css?rev=${posWorkspaceCssRevision}`)
     .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
     .replace(/(<script\s+src="\/?(?:portal|app)\.js\?rev=\d+"[^>]*>)/g,(tag,_,offset,html)=>html.slice(0,offset).includes('notification-center.js?rev=1')?tag:'<script src="/notification-center.js?rev=1"></script>'+tag)
     .replace(/staff-profile\.js\?rev=\d+/g, `staff-profile.js?rev=${staffProfileRevision}`)
@@ -124,6 +132,7 @@ cpSync(resolve(root, 'portal-session.js'), resolve(root, 'dist', 'portal-session
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
+for (const asset of ['pos-dispatch.js', 'pos-workspace.js', 'pos-workspace.css']) cpSync(resolve(root, asset), resolve(root, 'dist', asset));
 cpSync(resolve(root, 'platform.js'), resolve(root, 'dist', 'platform.js'));
 cpSync(resolve(root, 'platform.css'), resolve(root, 'dist', 'platform.css'));
 cpSync(resolve(root, 'staff-telegram-link.js'), resolve(root, 'dist', 'staff-telegram-link.js'));

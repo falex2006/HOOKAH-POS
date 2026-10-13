@@ -1,0 +1,158 @@
+{
+  "createdAt": "2026-10-11T15:15:38.181Z",
+  "environment": "Chrome headless; task-owned loopback; GET-only; isolated storage",
+  "results": [
+    {
+      "theme": "dark",
+      "before": {
+        "outlineWidth": "3px",
+        "outlineStyle": "none",
+        "outlineColor": "rgb(243, 245, 247)",
+        "outlineOffset": "0px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(116, 128, 142)",
+        "background": "color(srgb 0.109882 0.107294 0.128196)",
+        "shadow": "none",
+        "focused": false,
+        "selected": "false",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      },
+      "pointer": {
+        "outlineWidth": "0px",
+        "outlineStyle": "none",
+        "outlineColor": "rgb(243, 245, 247)",
+        "outlineOffset": "0px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(255, 176, 143)",
+        "background": "color(srgb 0.137412 0.129882 0.140549)",
+        "shadow": "none",
+        "focused": false,
+        "selected": "true",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      },
+      "keyboard": {
+        "outlineWidth": "3px",
+        "outlineStyle": "dashed",
+        "outlineColor": "rgb(255, 176, 143)",
+        "outlineOffset": "5px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(255, 176, 143)",
+        "background": "color(srgb 0.137412 0.129882 0.140549)",
+        "shadow": "none",
+        "focused": true,
+        "selected": "true",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      },
+      "repeated": {
+        "outlineWidth": "0px",
+        "outlineStyle": "none",
+        "outlineColor": "rgb(243, 245, 247)",
+        "outlineOffset": "0px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(255, 176, 143)",
+        "background": "color(srgb 0.137412 0.129882 0.140549)",
+        "shadow": "none",
+        "focused": false,
+        "selected": "true",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      }
+    },
+    {
+      "theme": "light",
+      "before": {
+        "outlineWidth": "3px",
+        "outlineStyle": "none",
+        "outlineColor": "rgb(32, 49, 61)",
+        "outlineOffset": "0px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(113, 129, 139)",
+        "background": "color(srgb 0.989647 0.975177 0.977765)",
+        "shadow": "none",
+        "focused": false,
+        "selected": "false",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      },
+      "pointer": {
+        "outlineWidth": "0px",
+        "outlineStyle": "none",
+        "outlineColor": "rgb(32, 49, 61)",
+        "outlineOffset": "0px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(159, 63, 50)",
+        "background": "color(srgb 0.977412 0.954824 0.951765)",
+        "shadow": "none",
+        "focused": false,
+        "selected": "true",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      },
+      "keyboard": {
+        "outlineWidth": "3px",
+        "outlineStyle": "dashed",
+        "outlineColor": "rgb(159, 63, 50)",
+        "outlineOffset": "5px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(159, 63, 50)",
+        "background": "color(srgb 0.977412 0.954824 0.951765)",
+        "shadow": "none",
+        "focused": true,
+        "selected": "true",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      },
+      "repeated": {
+        "outlineWidth": "0px",
+        "outlineStyle": "none",
+        "outlineColor": "rgb(32, 49, 61)",
+        "outlineOffset": "0px",
+        "borderWidth": "1px",
+        "borderColor": "rgb(159, 63, 50)",
+        "background": "color(srgb 0.977412 0.954824 0.951765)",
+        "shadow": "none",
+        "focused": false,
+        "selected": "true",
+        "rect": [
+          455.328125,
+          280,
+          194.328125,
+          144
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "writes": []
+}

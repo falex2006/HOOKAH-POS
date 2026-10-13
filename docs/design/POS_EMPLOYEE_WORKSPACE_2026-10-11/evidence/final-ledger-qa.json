@@ -1,0 +1,10 @@
+{
+  "createdAt": "2026-10-11T13:56:51.125Z",
+  "status": "PASS",
+  "mixedPaid": 3950,
+  "mixedRemaining": 0,
+  "mixedClosed": true,
+  "paymentRows": 2,
+  "tableStatus": "free",
+  "closedUnfinishedStillQueued": true
+}

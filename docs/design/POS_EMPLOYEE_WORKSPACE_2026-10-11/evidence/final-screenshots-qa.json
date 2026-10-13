@@ -1,0 +1,18 @@
+{
+  "createdAt": "2026-10-11T13:56:15.679Z",
+  "status": "PASS",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "mode": "readonly modal open/cancel; local CSS theme display; actual saved preferences covered by state suite",
+  "paymentsUnchanged": true,
+  "writes": [],
+  "errors": [],
+  "files": [
+    "final-preparation-dark-1366.png",
+    "final-preparation-light-1366.png",
+    "final-payment-dark-1366.png",
+    "final-payment-light-1366.png"
+  ]
+}

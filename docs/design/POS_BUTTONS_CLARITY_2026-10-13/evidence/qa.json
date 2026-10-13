@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-10-13T09:37:10.462Z",
+  "environment": "Isolated browser on owned preview; session permissions, order state, station queues and dispatch responses are simulations. No mutation forwarded to server.",
+  "results": [
+    {
+      "role": "all",
+      "width": 1366,
+      "theme": "dark",
+      "check": "stable dispatch and payment controls, unsent payment visibly gated, duplicate preparation removed"
+    },
+    {
+      "role": "all",
+      "width": 1366,
+      "theme": "light",
+      "check": "stable dispatch and payment controls, unsent payment visibly gated, duplicate preparation removed"
+    },
+    {
+      "role": "all",
+      "width": 1366,
+      "check": "mixed dispatch once per station, pending gate, station-specific visibility, stale/offline gates",
+      "simulatedPosts": 2,
+      "liveWrites": 0
+    },
+    {
+      "role": "all",
+      "width": 320,
+      "theme": "dark",
+      "check": "stable dispatch and payment controls, unsent payment visibly gated, duplicate preparation removed"
+    },
+    {
+      "role": "all",
+      "width": 320,
+      "theme": "light",
+      "check": "stable dispatch and payment controls, unsent payment visibly gated, duplicate preparation removed"
+    },
+    {
+      "role": "all",
+      "width": 320,
+      "check": "mixed dispatch once per station, pending gate, station-specific visibility, stale/offline gates",
+      "simulatedPosts": 2,
+      "liveWrites": 0
+    },
+    {
+      "role": "bar",
+      "width": 1366,
+      "theme": "dark",
+      "check": "stable dispatch and payment controls, unsent payment visibly gated, duplicate preparation removed"
+    },
+    {
+      "role": "bar",
+      "width": 1366,
+      "check": "mixed dispatch once per station, pending gate, station-specific visibility, stale/offline gates",
+      "simulatedPosts": 2,
+      "liveWrites": 0
+    },
+    {
+      "role": "hookah",
+      "width": 1366,
+      "theme": "dark",
+      "check": "stable dispatch and payment controls, unsent payment visibly gated, duplicate preparation removed"
+    },
+    {
+      "role": "hookah",
+      "width": 1366,
+      "check": "mixed dispatch once per station, pending gate, station-specific visibility, stale/offline gates",
+      "simulatedPosts": 2,
+      "liveWrites": 0
+    },
+    {
+      "role": "no-station",
+      "width": 1366,
+      "theme": "dark",
+      "check": "stable dispatch and payment controls, unsent payment visibly gated, duplicate preparation removed"
+    },
+    {
+      "role": "no-station",
+      "width": 1366,
+      "check": "mixed dispatch once per station, pending gate, station-specific visibility, stale/offline gates",
+      "simulatedPosts": 2,
+      "liveWrites": 0
+    }
+  ],
+  "errors": [],
+  "blockedUnexpectedWrites": []
+}

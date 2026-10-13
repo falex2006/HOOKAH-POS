@@ -1,0 +1,16 @@
+{
+  "createdAt": "2026-10-11T14:11:06.231Z",
+  "syntaxFiles": 16,
+  "parityPairs": 7,
+  "documentationLinks": 51,
+  "sensitiveTextFilesChecked": 42,
+  "privatePathsIgnored": true,
+  "diffCheck": "PASS",
+  "cleanup": {
+    "manifestState": "stopped",
+    "actorCredentialsRemoved": true,
+    "runner": "pos-workspace-postgres-fixture.cjs --stop",
+    "result": "PASS own QA server stopped; only runner-owned random database removed"
+  },
+  "scope": "local worktree; no push merge deployment"
+}

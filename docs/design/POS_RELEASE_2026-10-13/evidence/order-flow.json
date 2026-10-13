@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "base": "http://127.0.0.1:38676",
+  "steps": [
+    "UI table→catalog→add",
+    "dispatch persisted queued",
+    "reload persists queued",
+    "UI accept→in_progress",
+    "UI ready→ready",
+    "reload persists ready"
+  ],
+  "items": 1,
+  "pageErrors": [],
+  "productionWrites": 0
+}

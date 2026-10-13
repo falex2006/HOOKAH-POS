@@ -4906,6 +4906,62 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 #page-content.ui-financial-pages #expense-category-help a{display:inline-flex;align-items:center;min-height:44px}
 #page-content.ui-financial-pages .employee-turnover-panel{display:grid;gap:12px}
 #page-content.ui-financial-pages .employee-turnover-panel>button{justify-self:start}
+/* Employee payments: a role-scoped daily summary and a readable payment ledger. */
+#page-content.ui-financial-pages.employee-payments { color:var(--ui-text-primary);font-family:var(--ui-font-family); }
+#page-content.ui-financial-pages.employee-payments .page-title h1 { text-shadow:none; }
+@media(max-width:900px) {
+  .portal.employee-portal[data-page="finance"] .portal-main { width:100%;max-width:100%;min-width:0; }
+}
+#page-content.ui-financial-pages.employee-payments :is(.employee-payments-summary,.employee-payments-recent) { box-sizing:border-box;max-width:1100px;min-width:0;margin:0;padding:var(--ui-space-5);border:1px solid var(--ui-border-subtle);border-radius:var(--ui-radius-panel);background:var(--ui-panel);box-shadow:none; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-recent { margin-top:var(--ui-space-5); }
+#page-content.ui-financial-pages.employee-payments .employee-payments-summary { display:block; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-top { display:flex;justify-content:space-between;align-items:flex-start;gap:var(--ui-space-4);min-width:0; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-top>div:first-child { display:grid;gap:var(--ui-space-2);min-width:0; }
+#page-content.ui-financial-pages.employee-payments #finance-revenue { display:block;font-size:clamp(32px,6vw,48px);font-weight:800;line-height:1.05;letter-spacing:-.04em;color:var(--ui-text-primary);font-variant-numeric:tabular-nums lining-nums;overflow-wrap:anywhere; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-refresh { display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:var(--ui-space-3); }
+#page-content.ui-financial-pages.employee-payments :is(#employee-payment-count,#employee-payments-updated,.employee-payments-scope,.employee-payments-help p,.employee-payment-partial,.employee-payments-recent .muted) { color:var(--ui-text-secondary);font-size:var(--ui-font-body);line-height:var(--ui-line-body); }
+#page-content.ui-financial-pages.employee-payments #employee-finance-refresh { min-height:var(--ui-control-height);margin:0;border-radius:var(--ui-radius-control);border:1px solid var(--ui-border-control);background:var(--ui-panel);color:var(--ui-text-primary);box-shadow:none; }
+#page-content.ui-financial-pages.employee-payments #employee-finance-refresh:hover:not(:disabled) { background:var(--ui-raised);transform:none; }
+#page-content.ui-financial-pages.employee-payments #employee-finance-refresh:focus-visible { outline:3px solid var(--ui-focus);outline-offset:3px; }
+#page-content.ui-financial-pages.employee-payments #employee-finance-message:empty { display:none; }
+#page-content.ui-financial-pages.employee-payments #employee-finance-message { margin:var(--ui-space-3) 0;color:var(--ui-danger);font-size:var(--ui-font-body);line-height:var(--ui-line-body); }
+#page-content.ui-financial-pages.employee-payments .employee-payment-methods { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--ui-space-4);margin-top:var(--ui-space-5);padding-block:var(--ui-space-4);border-block:1px solid var(--ui-border-subtle); }
+#page-content.ui-financial-pages.employee-payments .employee-payment-method { display:grid;grid-template-columns:20px minmax(0,1fr);gap:var(--ui-space-1) var(--ui-space-2);align-content:start;min-width:0;color:var(--ui-text-secondary);font-size:var(--ui-font-body);line-height:var(--ui-line-body);overflow-wrap:anywhere; }
+#page-content.ui-financial-pages.employee-payments .employee-payment-method>div { display:grid;gap:var(--ui-space-1);min-width:0; }
+#page-content.ui-financial-pages.employee-payments .employee-payment-method :is(svg,.icon) { grid-row:1/3;width:20px;height:20px;color:var(--ui-text-secondary); }
+#page-content.ui-financial-pages.employee-payments .employee-payment-method strong { font-size:var(--ui-font-section);font-weight:700;line-height:var(--ui-line-heading);color:var(--ui-text-primary);font-variant-numeric:tabular-nums lining-nums; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-scope { margin:var(--ui-space-4) 0 var(--ui-space-1); }
+#page-content.ui-financial-pages.employee-payments .employee-payments-help { border:0;background:transparent; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-help summary { display:list-item;min-height:var(--ui-control-height);box-sizing:border-box;padding-block:var(--ui-space-3);color:var(--ui-text-secondary);font-size:var(--ui-font-body);line-height:var(--ui-line-body);cursor:pointer; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-help summary:focus-visible { outline:3px solid var(--ui-focus);outline-offset:3px;border-radius:var(--ui-radius-small); }
+#page-content.ui-financial-pages.employee-payments .employee-payments-help p { margin:0;padding-bottom:var(--ui-space-2); }
+#page-content.ui-financial-pages.employee-payments .employee-payments-recent .panel-head { display:flex;align-items:center;justify-content:space-between;gap:var(--ui-space-3);margin-bottom:var(--ui-space-4); }
+#page-content.ui-financial-pages.employee-payments .employee-payments-recent h2 { margin:0;font-size:var(--ui-font-section);font-weight:700;line-height:var(--ui-line-heading);color:var(--ui-text-primary); }
+#page-content.ui-financial-pages.employee-payments .employee-payments-table { width:100%;table-layout:fixed;border-collapse:collapse;font-size:var(--ui-font-body);line-height:var(--ui-line-body);color:var(--ui-text-primary);font-variant-numeric:tabular-nums lining-nums; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-table :is(th,td) { padding:var(--ui-space-3) var(--ui-space-2);border:0;border-bottom:1px solid var(--ui-border-subtle);background:transparent;text-align:left;vertical-align:top;white-space:normal;overflow-wrap:anywhere; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-table th { color:var(--ui-text-secondary);font-weight:600; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-table th:first-child { width:15%; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-table th:last-child { width:24%;text-align:right; }
+#page-content.ui-financial-pages.employee-payments .employee-payments-table .employee-payment-amount { text-align:right;font-weight:700; }
+#page-content.ui-financial-pages.employee-payments .employee-payment-partial { display:block;margin-top:var(--ui-space-1); }
+#page-content.ui-financial-pages.employee-payments .employee-payments-empty { margin:0;padding-block:var(--ui-space-4);color:var(--ui-text-secondary);font-size:var(--ui-font-body);line-height:var(--ui-line-body); }
+@media(max-width:600px) {
+  #page-content.ui-financial-pages.employee-payments :is(.employee-payments-summary,.employee-payments-recent) { padding:var(--ui-space-4); }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-top { flex-direction:column; }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-refresh { width:100%;justify-content:space-between; }
+  #page-content.ui-financial-pages.employee-payments .employee-payment-methods { grid-template-columns:1fr;gap:var(--ui-space-3); }
+  #page-content.ui-financial-pages.employee-payments .employee-payment-method { grid-template-columns:20px minmax(0,1fr);align-items:center; }
+  #page-content.ui-financial-pages.employee-payments .employee-payment-method>div { grid-template-columns:minmax(0,1fr) auto;gap:var(--ui-space-2);align-items:center; }
+  #page-content.ui-financial-pages.employee-payments .employee-payment-method :is(svg,.icon) { grid-row:1; }
+  #page-content.ui-financial-pages.employee-payments .employee-payment-method strong { font-size:var(--ui-font-lead);max-width:12ch;text-align:right; }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-table thead { position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap; }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-table :is(tbody,tr,td) { display:block; }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-table tr { position:relative;padding-block:var(--ui-space-3);border-bottom:1px solid var(--ui-border-subtle); }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-table td { padding:var(--ui-space-1) 0;border:0; }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-table td:first-child { padding-right:40%; }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-table td:not(:first-child):not(:last-child)::before { content:attr(data-label) ': ';color:var(--ui-text-secondary); }
+  #page-content.ui-financial-pages.employee-payments .employee-payments-table .employee-payment-amount { position:absolute;right:0;top:var(--ui-space-4);max-width:40%; }
+}
 #page-content.ui-financial-pages .report-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}
 #page-content.ui-financial-pages .report-row-long{grid-template-columns:minmax(0,1fr) auto}
 #page-content.ui-financial-pages .kpi::after,#page-content.ui-financial-pages .finance-chart-visual::before{display:none}

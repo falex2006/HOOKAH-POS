@@ -1,0 +1,368 @@
+{
+  "createdAt": "2026-10-11T13:59:48.735Z",
+  "metrics": [
+    {
+      "region": "#pos-workspace-toolbar,.pos-table-attention,.order.ui-pos",
+      "theme": "dark",
+      "minText": 6.81,
+      "low": [
+        {
+          "selector": "SPAN",
+          "alpha": 1,
+          "ratio": 6.81
+        },
+        {
+          "selector": "order-delete",
+          "alpha": 1,
+          "ratio": 7.82
+        },
+        {
+          "selector": "ui-button pos-workspace-view",
+          "alpha": 1,
+          "ratio": 9.34
+        },
+        {
+          "selector": "status ui-badge",
+          "alpha": 1,
+          "ratio": 9.43
+        }
+      ],
+      "minBoundary": 4.42,
+      "lowBoundary": [
+        {
+          "selector": "qty-minus ui-button",
+          "ratio": 4.42
+        },
+        {
+          "selector": "qty-plus ui-button",
+          "ratio": 4.42
+        },
+        {
+          "selector": "qty-minus ui-button",
+          "ratio": 4.42
+        }
+      ],
+      "minIcon": 6.81,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "ratio": 11.43
+        }
+      ]
+    },
+    {
+      "region": "#pos-workspace-toolbar,.pos-table-attention,.order.ui-pos",
+      "theme": "light",
+      "minText": 5.81,
+      "low": [
+        {
+          "selector": "ui-button pos-workspace-view",
+          "alpha": 1,
+          "ratio": 5.81
+        },
+        {
+          "selector": "order-item-attribution",
+          "alpha": 1,
+          "ratio": 6
+        },
+        {
+          "selector": "order-item-attribution",
+          "alpha": 1,
+          "ratio": 6
+        },
+        {
+          "selector": "B",
+          "alpha": 1,
+          "ratio": 6.5
+        }
+      ],
+      "minBoundary": 3.75,
+      "lowBoundary": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 3.75
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 3.75
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 3.75
+        }
+      ],
+      "minIcon": 5.81,
+      "badges": [
+        {
+          "text": "Бар ожидает",
+          "ratio": 6.85
+        }
+      ]
+    },
+    {
+      "region": ".pos-table-attention",
+      "theme": "dark",
+      "minText": 11.02,
+      "low": [
+        {
+          "selector": "pos-table-attention",
+          "alpha": 1,
+          "ratio": 11.02
+        }
+      ],
+      "minBoundary": 4.11,
+      "lowBoundary": [
+        {
+          "selector": "discount-request",
+          "ratio": 4.11
+        },
+        {
+          "selector": "split-order",
+          "ratio": 4.11
+        },
+        {
+          "selector": "split-payment",
+          "ratio": 4.11
+        }
+      ],
+      "minIcon": 6.81,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "ratio": 11.02
+        }
+      ]
+    },
+    {
+      "region": ".pos-table-attention",
+      "theme": "light",
+      "minText": 6.49,
+      "low": [
+        {
+          "selector": "pos-table-attention",
+          "alpha": 1,
+          "ratio": 6.49
+        }
+      ],
+      "minBoundary": 3.6,
+      "lowBoundary": [
+        {
+          "selector": "discount-request",
+          "ratio": 3.6
+        },
+        {
+          "selector": "split-order",
+          "ratio": 3.6
+        },
+        {
+          "selector": "split-payment",
+          "ratio": 3.6
+        }
+      ],
+      "minIcon": 5.81,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "ratio": 6.49
+        }
+      ]
+    },
+    {
+      "region": "#pos-workspace-toolbar,#preparation-queue",
+      "theme": "dark",
+      "minText": 9.34,
+      "low": [
+        {
+          "selector": "ui-button pos-workspace-view",
+          "alpha": 1,
+          "ratio": 9.34
+        },
+        {
+          "selector": "ui-button",
+          "alpha": 1,
+          "ratio": 9.34
+        },
+        {
+          "selector": "SMALL",
+          "alpha": 1,
+          "ratio": 9.8
+        },
+        {
+          "selector": "SMALL",
+          "alpha": 1,
+          "ratio": 9.8
+        }
+      ],
+      "minBoundary": 4.11,
+      "lowBoundary": [
+        {
+          "selector": "secondary ui-button",
+          "ratio": 4.11
+        },
+        {
+          "selector": "secondary ui-button",
+          "ratio": 4.11
+        },
+        {
+          "selector": "preparation-refresh",
+          "ratio": 4.42
+        }
+      ],
+      "minIcon": 9.34,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "ratio": 11.02
+        }
+      ]
+    },
+    {
+      "region": "#pos-workspace-toolbar,#preparation-queue",
+      "theme": "light",
+      "minText": 5.81,
+      "low": [
+        {
+          "selector": "ui-button pos-workspace-view",
+          "alpha": 1,
+          "ratio": 5.81
+        },
+        {
+          "selector": "ui-button",
+          "alpha": 1,
+          "ratio": 5.81
+        },
+        {
+          "selector": "SMALL",
+          "alpha": 1,
+          "ratio": 6.81
+        },
+        {
+          "selector": "SMALL",
+          "alpha": 1,
+          "ratio": 6.81
+        }
+      ],
+      "minBoundary": 3.6,
+      "lowBoundary": [
+        {
+          "selector": "secondary ui-button",
+          "ratio": 3.6
+        },
+        {
+          "selector": "secondary ui-button",
+          "ratio": 3.6
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 3.75
+        }
+      ],
+      "minIcon": 5.81,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "ratio": 6.49
+        }
+      ]
+    },
+    {
+      "region": "#payment-modal",
+      "theme": "dark",
+      "minText": 6.81,
+      "low": [
+        {
+          "selector": "primary ui-button ui-button--primary",
+          "alpha": 1,
+          "ratio": 6.81
+        },
+        {
+          "selector": "payment-remaining",
+          "alpha": 1,
+          "ratio": 9.8
+        },
+        {
+          "selector": "SMALL",
+          "alpha": 1,
+          "ratio": 10.54
+        },
+        {
+          "selector": "ui-field",
+          "alpha": 1,
+          "ratio": 10.54
+        }
+      ],
+      "minBoundary": 4.42,
+      "lowBoundary": [
+        {
+          "selector": "qty-minus ui-button",
+          "ratio": 4.42
+        },
+        {
+          "selector": "qty-plus ui-button",
+          "ratio": 4.42
+        },
+        {
+          "selector": "qty-minus ui-button",
+          "ratio": 4.42
+        }
+      ],
+      "minIcon": 6.81,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "ratio": 11.02
+        }
+      ]
+    },
+    {
+      "region": "#payment-modal",
+      "theme": "light",
+      "minText": 6.81,
+      "low": [
+        {
+          "selector": "payment-remaining",
+          "alpha": 1,
+          "ratio": 6.81
+        },
+        {
+          "selector": "primary ui-button ui-button--primary",
+          "alpha": 1,
+          "ratio": 6.81
+        },
+        {
+          "selector": "SMALL",
+          "alpha": 1,
+          "ratio": 7.62
+        },
+        {
+          "selector": "ui-field",
+          "alpha": 1,
+          "ratio": 7.62
+        }
+      ],
+      "minBoundary": 3.75,
+      "lowBoundary": [
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--preparation",
+          "ratio": 3.75
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--ready",
+          "ratio": 3.75
+        },
+        {
+          "selector": "pos-workspace-counter pos-workspace-counter--open",
+          "ratio": 3.75
+        }
+      ],
+      "minIcon": 5.81,
+      "badges": [
+        {
+          "text": "Бар готов · +1",
+          "ratio": 6.49
+        }
+      ]
+    }
+  ],
+  "writes": []
+}

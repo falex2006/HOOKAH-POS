@@ -1,0 +1,67 @@
+{
+  "createdAt": "2026-10-11T14:00:56.080Z",
+  "mode": "readonly live API; long/equipment explicit response rendering override only; no database changes",
+  "files": [
+    "final-floor-dark-1366.png",
+    "final-floor-light-1366.png",
+    "final-preparation-dark-1366.png",
+    "final-preparation-light-1366.png",
+    "visual-long-equipment-1366-dark.png",
+    "visual-long-equipment-1366-light.png",
+    "visual-long-equipment-320-dark.png",
+    "visual-long-equipment-320-light.png"
+  ],
+  "finalOpacities": [
+    "1",
+    "1",
+    "1"
+  ],
+  "longResults": [
+    {
+      "width": 1366,
+      "theme": "dark",
+      "ariaFullName": true,
+      "equipment": 2,
+      "badgeFont": "12px",
+      "overlapName": false,
+      "overlapStatus": false,
+      "overlapSum": false,
+      "pageOverflow": false
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "ariaFullName": true,
+      "equipment": 2,
+      "badgeFont": "12px",
+      "overlapName": false,
+      "overlapStatus": false,
+      "overlapSum": false,
+      "pageOverflow": false
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "ariaFullName": true,
+      "equipment": 2,
+      "badgeFont": "12px",
+      "overlapName": false,
+      "overlapStatus": false,
+      "overlapSum": false,
+      "pageOverflow": false
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "ariaFullName": true,
+      "equipment": 2,
+      "badgeFont": "12px",
+      "overlapName": false,
+      "overlapStatus": false,
+      "overlapSum": false,
+      "pageOverflow": false
+    }
+  ],
+  "writes": [],
+  "errors": []
+}

@@ -1,0 +1,1998 @@
+{
+  "createdAt": "2026-10-11T14:26:24.209Z",
+  "environment": "Chrome headless, actual local API read-only; route503 only for disabled appearance; local CSS theme toggle",
+  "results": [
+    {
+      "width": 1366,
+      "height": 768,
+      "theme": "dark",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.141804 0.14949)",
+          "border": "color(srgb 0.863725 0.643137 0.559804)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 523.328125,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 563.328125,
+              "y": 92.21875,
+              "width": 155.515625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 176, 143)",
+              "font": "28px",
+              "x": 726.84375,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 563.328125,
+              "y": 115.578125,
+              "width": 155.515625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.106824 0.15749 0.158902)",
+          "border": "color(srgb 0.404902 0.790196 0.648039)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 798.21875,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 838.21875,
+              "y": 92.21875,
+              "width": 155.515625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(99, 226, 173)",
+              "font": "28px",
+              "x": 1001.734375,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 838.21875,
+              "y": 115.578125,
+              "width": 155.515625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.148706 0.133804)",
+          "border": "color(srgb 0.863725 0.707843 0.412745)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 1073.109375,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 1113.109375,
+              "y": 92.21875,
+              "width": 155.515625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 198, 93)",
+              "font": "28px",
+              "x": 1276.625,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 1113.109375,
+              "y": 115.578125,
+              "width": 155.515625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "theme": "light",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.969882 0.939765 0.935686)",
+          "border": "color(srgb 0.578431 0.311765 0.283333)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 523.328125,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 563.328125,
+              "y": 92.21875,
+              "width": 155.515625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(159, 63, 50)",
+              "font": "28px",
+              "x": 726.84375,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 563.328125,
+              "y": 115.578125,
+              "width": 155.515625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.926902 0.953569 0.943216)",
+          "border": "color(srgb 0.17549 0.441176 0.353922)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 798.21875,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 838.21875,
+              "y": 92.21875,
+              "width": 155.515625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(22, 107, 74)",
+              "font": "28px",
+              "x": 1001.734375,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 838.21875,
+              "y": 115.578125,
+              "width": 155.515625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.960157 0.945098 0.92)",
+          "border": "color(srgb 0.487255 0.361765 0.136275)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 1073.109375,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 1113.109375,
+              "y": 92.21875,
+              "width": 155.515625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(128, 80, 0)",
+              "font": "28px",
+              "x": 1276.625,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 1113.109375,
+              "y": 115.578125,
+              "width": 155.515625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "theme": "dark",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.141804 0.14949)",
+          "border": "color(srgb 0.863725 0.643137 0.559804)",
+          "width": 447.546875,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 523.328125,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 563.328125,
+              "y": 92.21875,
+              "width": 340.171875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 176, 143)",
+              "font": "28px",
+              "x": 911.5,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 563.328125,
+              "y": 115.578125,
+              "width": 340.171875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.106824 0.15749 0.158902)",
+          "border": "color(srgb 0.404902 0.790196 0.648039)",
+          "width": 447.5625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 982.875,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 1022.875,
+              "y": 92.21875,
+              "width": 340.1875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(99, 226, 173)",
+              "font": "28px",
+              "x": 1371.0625,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 1022.875,
+              "y": 115.578125,
+              "width": 340.1875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.148706 0.133804)",
+          "border": "color(srgb 0.863725 0.707843 0.412745)",
+          "width": 447.546875,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 1442.4375,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 1482.4375,
+              "y": 92.21875,
+              "width": 340.171875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 198, 93)",
+              "font": "28px",
+              "x": 1830.609375,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 1482.4375,
+              "y": 115.578125,
+              "width": 340.171875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "theme": "light",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.969882 0.939765 0.935686)",
+          "border": "color(srgb 0.578431 0.311765 0.283333)",
+          "width": 447.546875,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 523.328125,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 563.328125,
+              "y": 92.21875,
+              "width": 340.171875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(159, 63, 50)",
+              "font": "28px",
+              "x": 911.5,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 563.328125,
+              "y": 115.578125,
+              "width": 340.171875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.926902 0.953569 0.943216)",
+          "border": "color(srgb 0.17549 0.441176 0.353922)",
+          "width": 447.5625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 982.875,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 1022.875,
+              "y": 92.21875,
+              "width": 340.1875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(22, 107, 74)",
+              "font": "28px",
+              "x": 1371.0625,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 1022.875,
+              "y": 115.578125,
+              "width": 340.1875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.960157 0.945098 0.92)",
+          "border": "color(srgb 0.487255 0.361765 0.136275)",
+          "width": 447.546875,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 1442.4375,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 1482.4375,
+              "y": 92.21875,
+              "width": 340.171875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(128, 80, 0)",
+              "font": "28px",
+              "x": 1830.609375,
+              "y": 95.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 1482.4375,
+              "y": 115.578125,
+              "width": 340.171875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "theme": "dark",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.141804 0.14949)",
+          "border": "color(srgb 0.863725 0.643137 0.559804)",
+          "width": 232.328125,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 29,
+              "y": 166,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 69,
+              "y": 162.21875,
+              "width": 124.953125,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 176, 143)",
+              "font": "28px",
+              "x": 201.953125,
+              "y": 165.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 69,
+              "y": 185.578125,
+              "width": 124.953125,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.106824 0.15749 0.158902)",
+          "border": "color(srgb 0.404902 0.790196 0.648039)",
+          "width": 232.328125,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 273.328125,
+              "y": 166,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 313.328125,
+              "y": 162.21875,
+              "width": 124.953125,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(99, 226, 173)",
+              "font": "28px",
+              "x": 446.28125,
+              "y": 165.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 313.328125,
+              "y": 185.578125,
+              "width": 124.953125,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.148706 0.133804)",
+          "border": "color(srgb 0.863725 0.707843 0.412745)",
+          "width": 232.328125,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 517.65625,
+              "y": 166,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 557.65625,
+              "y": 162.21875,
+              "width": 124.953125,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 198, 93)",
+              "font": "28px",
+              "x": 690.609375,
+              "y": 165.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 557.65625,
+              "y": 185.578125,
+              "width": 124.953125,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "theme": "light",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.969882 0.939765 0.935686)",
+          "border": "color(srgb 0.578431 0.311765 0.283333)",
+          "width": 232.328125,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 29,
+              "y": 166,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 69,
+              "y": 162.21875,
+              "width": 124.953125,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(159, 63, 50)",
+              "font": "28px",
+              "x": 201.953125,
+              "y": 165.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 69,
+              "y": 185.578125,
+              "width": 124.953125,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.926902 0.953569 0.943216)",
+          "border": "color(srgb 0.17549 0.441176 0.353922)",
+          "width": 232.328125,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 273.328125,
+              "y": 166,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 313.328125,
+              "y": 162.21875,
+              "width": 124.953125,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(22, 107, 74)",
+              "font": "28px",
+              "x": 446.28125,
+              "y": 165.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 313.328125,
+              "y": 185.578125,
+              "width": 124.953125,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.960157 0.945098 0.92)",
+          "border": "color(srgb 0.487255 0.361765 0.136275)",
+          "width": 232.328125,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 517.65625,
+              "y": 166,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 557.65625,
+              "y": 162.21875,
+              "width": 124.953125,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(128, 80, 0)",
+              "font": "28px",
+              "x": 690.609375,
+              "y": 165.203125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 557.65625,
+              "y": 185.578125,
+              "width": 124.953125,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "theme": "dark",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.141804 0.14949)",
+          "border": "color(srgb 0.863725 0.643137 0.559804)",
+          "width": 343,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 29,
+              "y": 187.53125,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 69,
+              "y": 185,
+              "width": 235.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 176, 143)",
+              "font": "28px",
+              "x": 312.625,
+              "y": 186.734375,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 69,
+              "y": 205.890625,
+              "width": 235.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.106824 0.15749 0.158902)",
+          "border": "color(srgb 0.404902 0.790196 0.648039)",
+          "width": 343,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 29,
+              "y": 254.609375,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 69,
+              "y": 252.078125,
+              "width": 235.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(99, 226, 173)",
+              "font": "28px",
+              "x": 312.625,
+              "y": 253.8125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 69,
+              "y": 272.96875,
+              "width": 235.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.148706 0.133804)",
+          "border": "color(srgb 0.863725 0.707843 0.412745)",
+          "width": 343,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 29,
+              "y": 321.6875,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 69,
+              "y": 319.15625,
+              "width": 235.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 198, 93)",
+              "font": "28px",
+              "x": 312.625,
+              "y": 320.890625,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 69,
+              "y": 340.046875,
+              "width": 235.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "theme": "light",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.969882 0.939765 0.935686)",
+          "border": "color(srgb 0.578431 0.311765 0.283333)",
+          "width": 343,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 29,
+              "y": 187.53125,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 69,
+              "y": 185,
+              "width": 235.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(159, 63, 50)",
+              "font": "28px",
+              "x": 312.625,
+              "y": 186.734375,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 69,
+              "y": 205.890625,
+              "width": 235.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.926902 0.953569 0.943216)",
+          "border": "color(srgb 0.17549 0.441176 0.353922)",
+          "width": 343,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 29,
+              "y": 254.609375,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 69,
+              "y": 252.078125,
+              "width": 235.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(22, 107, 74)",
+              "font": "28px",
+              "x": 312.625,
+              "y": 253.8125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 69,
+              "y": 272.96875,
+              "width": 235.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.960157 0.945098 0.92)",
+          "border": "color(srgb 0.487255 0.361765 0.136275)",
+          "width": 343,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 29,
+              "y": 321.6875,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 69,
+              "y": 319.15625,
+              "width": 235.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(128, 80, 0)",
+              "font": "28px",
+              "x": 312.625,
+              "y": 320.890625,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 69,
+              "y": 340.046875,
+              "width": 235.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "height": 740,
+      "theme": "dark",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.141804 0.14949)",
+          "border": "color(srgb 0.863725 0.643137 0.559804)",
+          "width": 273,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 29,
+              "y": 187.53125,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(255, 176, 143)",
+              "font": "14px",
+              "x": 69,
+              "y": 185,
+              "width": 165.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 176, 143)",
+              "font": "28px",
+              "x": 242.625,
+              "y": 186.734375,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 69,
+              "y": 205.890625,
+              "width": 165.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.106824 0.15749 0.158902)",
+          "border": "color(srgb 0.404902 0.790196 0.648039)",
+          "width": 273,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 29,
+              "y": 254.609375,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(99, 226, 173)",
+              "font": "14px",
+              "x": 69,
+              "y": 252.078125,
+              "width": 165.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(99, 226, 173)",
+              "font": "28px",
+              "x": 242.625,
+              "y": 253.8125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 69,
+              "y": 272.96875,
+              "width": 165.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.155765 0.148706 0.133804)",
+          "border": "color(srgb 0.863725 0.707843 0.412745)",
+          "width": 273,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 29,
+              "y": 321.6875,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(255, 198, 93)",
+              "font": "14px",
+              "x": 69,
+              "y": 319.15625,
+              "width": 165.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(255, 198, 93)",
+              "font": "28px",
+              "x": 242.625,
+              "y": 320.890625,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(193, 200, 208)",
+              "font": "12px",
+              "x": 69,
+              "y": 340.046875,
+              "width": 165.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "height": 740,
+      "theme": "light",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.969882 0.939765 0.935686)",
+          "border": "color(srgb 0.578431 0.311765 0.283333)",
+          "width": 273,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 29,
+              "y": 187.53125,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(159, 63, 50)",
+              "font": "14px",
+              "x": 69,
+              "y": 185,
+              "width": 165.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(159, 63, 50)",
+              "font": "28px",
+              "x": 242.625,
+              "y": 186.734375,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "позиции",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 69,
+              "y": 205.890625,
+              "width": 165.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "ready",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.926902 0.953569 0.943216)",
+          "border": "color(srgb 0.17549 0.441176 0.353922)",
+          "width": 273,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 29,
+              "y": 254.609375,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(22, 107, 74)",
+              "font": "14px",
+              "x": 69,
+              "y": 252.078125,
+              "width": 165.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "1",
+              "color": "rgb(22, 107, 74)",
+              "font": "28px",
+              "x": 242.625,
+              "y": 253.8125,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "заказ",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 69,
+              "y": 272.96875,
+              "width": 165.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        },
+        {
+          "kind": "open",
+          "state": "ready",
+          "disabled": false,
+          "bg": "color(srgb 0.960157 0.945098 0.92)",
+          "border": "color(srgb 0.487255 0.361765 0.136275)",
+          "width": 273,
+          "height": 59.078125,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 29,
+              "y": 321.6875,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(128, 80, 0)",
+              "font": "14px",
+              "x": 69,
+              "y": 319.15625,
+              "width": 165.625,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "2",
+              "color": "rgb(128, 80, 0)",
+              "font": "28px",
+              "x": 242.625,
+              "y": 320.890625,
+              "width": 17.375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "счёта",
+              "color": "rgb(64, 87, 98)",
+              "font": "12px",
+              "x": 69,
+              "y": 340.046875,
+              "width": 165.625,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": true
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "state": "read-error",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "error",
+          "disabled": true,
+          "bg": "rgb(21, 24, 29)",
+          "border": "rgb(116, 128, 142)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(154, 163, 174)",
+              "font": "14px",
+              "x": 523.328125,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(154, 163, 174)",
+              "font": "14px",
+              "x": 563.328125,
+              "y": 92.21875,
+              "width": 151.046875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "—",
+              "color": "rgb(154, 163, 174)",
+              "font": "28px",
+              "x": 722.375,
+              "y": 95.203125,
+              "width": 21.84375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "Нет связи",
+              "color": "rgb(154, 163, 174)",
+              "font": "12px",
+              "x": 563.328125,
+              "y": 115.578125,
+              "width": 151.046875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": false
+        },
+        {
+          "kind": "ready",
+          "state": "error",
+          "disabled": true,
+          "bg": "rgb(21, 24, 29)",
+          "border": "rgb(116, 128, 142)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(154, 163, 174)",
+              "font": "14px",
+              "x": 798.21875,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(154, 163, 174)",
+              "font": "14px",
+              "x": 838.21875,
+              "y": 92.21875,
+              "width": 151.046875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "—",
+              "color": "rgb(154, 163, 174)",
+              "font": "28px",
+              "x": 997.265625,
+              "y": 95.203125,
+              "width": 21.84375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "Нет связи",
+              "color": "rgb(154, 163, 174)",
+              "font": "12px",
+              "x": 838.21875,
+              "y": 115.578125,
+              "width": 151.046875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": false
+        },
+        {
+          "kind": "open",
+          "state": "error",
+          "disabled": true,
+          "bg": "rgb(21, 24, 29)",
+          "border": "rgb(116, 128, 142)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(154, 163, 174)",
+              "font": "14px",
+              "x": 1073.109375,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(154, 163, 174)",
+              "font": "14px",
+              "x": 1113.109375,
+              "y": 92.21875,
+              "width": 151.046875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "—",
+              "color": "rgb(154, 163, 174)",
+              "font": "28px",
+              "x": 1272.15625,
+              "y": 95.203125,
+              "width": 21.84375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "Нет связи",
+              "color": "rgb(154, 163, 174)",
+              "font": "12px",
+              "x": 1113.109375,
+              "y": 115.578125,
+              "width": 151.046875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": false
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "state": "read-error",
+      "cards": [
+        {
+          "kind": "preparation",
+          "state": "error",
+          "disabled": true,
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(113, 129, 139)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(82, 102, 114)",
+              "font": "14px",
+              "x": 523.328125,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "В приготовлении",
+              "color": "rgb(82, 102, 114)",
+              "font": "14px",
+              "x": 563.328125,
+              "y": 92.21875,
+              "width": 151.046875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "—",
+              "color": "rgb(82, 102, 114)",
+              "font": "28px",
+              "x": 722.375,
+              "y": 95.203125,
+              "width": 21.84375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "Нет связи",
+              "color": "rgb(82, 102, 114)",
+              "font": "12px",
+              "x": 563.328125,
+              "y": 115.578125,
+              "width": 151.046875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": false
+        },
+        {
+          "kind": "ready",
+          "state": "error",
+          "disabled": true,
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(113, 129, 139)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(82, 102, 114)",
+              "font": "14px",
+              "x": 798.21875,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Готовые заказы",
+              "color": "rgb(82, 102, 114)",
+              "font": "14px",
+              "x": 838.21875,
+              "y": 92.21875,
+              "width": 151.046875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "—",
+              "color": "rgb(82, 102, 114)",
+              "font": "28px",
+              "x": 997.265625,
+              "y": 95.203125,
+              "width": 21.84375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "Нет связи",
+              "color": "rgb(82, 102, 114)",
+              "font": "12px",
+              "x": 838.21875,
+              "y": 115.578125,
+              "width": 151.046875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": false
+        },
+        {
+          "kind": "open",
+          "state": "error",
+          "disabled": true,
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(113, 129, 139)",
+          "width": 262.890625,
+          "height": 64,
+          "overflow": false,
+          "children": [
+            {
+              "cls": "pos-workspace-icon",
+              "text": "",
+              "color": "rgb(82, 102, 114)",
+              "font": "14px",
+              "x": 1073.109375,
+              "y": 96,
+              "width": 32,
+              "height": 32
+            },
+            {
+              "cls": "pos-workspace-counter-label",
+              "text": "Открытые счета",
+              "color": "rgb(82, 102, 114)",
+              "font": "14px",
+              "x": 1113.109375,
+              "y": 92.21875,
+              "width": 151.046875,
+              "height": 18.890625
+            },
+            {
+              "cls": "pos-workspace-counter-value",
+              "text": "—",
+              "color": "rgb(82, 102, 114)",
+              "font": "28px",
+              "x": 1272.15625,
+              "y": 95.203125,
+              "width": 21.84375,
+              "height": 33.59375
+            },
+            {
+              "cls": "pos-workspace-counter-unit",
+              "text": "Нет связи",
+              "color": "rgb(82, 102, 114)",
+              "font": "12px",
+              "x": 1113.109375,
+              "y": 115.578125,
+              "width": 151.046875,
+              "height": 16.1875
+            }
+          ],
+          "chevronVisible": false
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "writes": []
+}

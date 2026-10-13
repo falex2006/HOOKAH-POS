@@ -1,0 +1,19 @@
+{
+  "environment": "isolated PostgreSQL and real API; Chrome headless",
+  "createdAt": "2026-10-11T13:55:00.772Z",
+  "results": [
+    "ready counter opens the actual fully prepared orders",
+    "unknown station cancellation writes nothing and restores focus",
+    "mixed dispatch partial failure preserves confirmed bar and unknown direction",
+    "repeat sends only unsent station; repeated click cannot duplicate",
+    "saved dispatch survives reload and table order is stable",
+    "two employees only see their permitted station",
+    "real take/ready transitions reconcile the whole order",
+    "partial payment preserves order and table; authoritative remaining 2950",
+    "full payment closes once and frees table without duplicate payment",
+    "first and next catalog positions create and persist attributed draft without dispatch",
+    "queue read error is unknown, retry restores actual data",
+    "no browser JavaScript exceptions in full integration flow"
+  ],
+  "errors": []
+}

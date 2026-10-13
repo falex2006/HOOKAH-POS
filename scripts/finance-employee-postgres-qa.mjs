@@ -188,12 +188,84 @@ try {
   assert.equal(enrichedReport.data.revenue, dashboard.data.totals.revenue);
   assert.equal(enrichedReport.data.checksCount, dashboard.data.totals.closedOrders, 'closed checks are separate from receipts and include zero-receipt checks'); checks += 8;
 
+  // The additive employee detail endpoint leaves the strict summary/report
+  // payloads above intact, while using exactly the same receipt scope.
+  const ownZone = (await client.query('INSERT INTO zones(venue_id,name) VALUES($1,$2) RETURNING id', [venueId,'QA employee hall'])).rows[0].id;
+  const ownTable = (await client.query('INSERT INTO tables(zone_id,name) VALUES($1,$2) RETURNING id', [ownZone,'QA Стол 7'])).rows[0].id;
+  const foreignZone = (await client.query('INSERT INTO zones(venue_id,name) VALUES($1,$2) RETURNING id', [otherVenueId,'QA foreign hall'])).rows[0].id;
+  const foreignTable = (await client.query('INSERT INTO tables(zone_id,name) VALUES($1,$2) RETURNING id', [foreignZone,'PRIVATE FOREIGN TABLE'])).rows[0].id;
+  await client.query('UPDATE orders SET table_id=$2 WHERE id=$1', [ownToday,ownTable]);
+  // Deliberately malformed legacy linkage must never leak a foreign table name.
+  await client.query('UPDATE orders SET table_id=$2 WHERE id=$1', [stillOpen,foreignTable]);
+  const detailPath = '/api/finance/employee-payments?date=' + forgedDate + '&employeeId=' + coworkerId + '&venueId=' + otherVenueId;
+  const details = await request(detailPath);
+  assert.equal(details.status, 200);
+  assert.deepEqual(Object.keys(details.data).sort(), ['employeeView','scope','date','timezone','generatedAt','revenue','paymentCount','byMethod','items','hasMore'].sort());
+  assert.equal(details.data.employeeView, true);
+  assert.equal(details.data.scope, 'opened_orders');
+  assert.equal(details.data.date, businessDate);
+  assert.equal(details.data.timezone, timezone);
+  assert.ok(Number.isFinite(Date.parse(details.data.generatedAt)));
+  assert.equal(details.data.revenue, enrichedSummary.data.revenue);
+  assert.equal(details.data.paymentCount, 4);
+  assert.equal(details.data.hasMore, false);
+  assert.deepEqual(details.data.byMethod, [{method:'card',total:30,count:1},{method:'cash',total:140,count:2},{method:'qr',total:60,count:1}]);
+  assert.equal(details.data.items.length, 4);
+  assert.ok(details.data.items.filter((entry) => entry.orderId === ownToday).every((entry) => entry.tableName === 'QA Стол 7'), 'own-venue table labels are returned');
+  assert.ok(details.data.items.filter((entry) => entry.orderId === stillOpen).every((entry) => entry.tableName === null), 'foreign table labels are redacted even for malformed legacy linkage'); checks += 2;
+  assert.ok(details.data.items.every((entry) => [ownToday,overnight,stillOpen].includes(entry.orderId)), 'forged actor/venue parameters cannot widen receipt ownership');
+  assert.ok(details.data.items.every((entry) => Object.keys(entry).sort().join(',') === ['id','orderId','tableName','method','amount','createdAt','partial'].sort().join(',')), 'receipt detail has an explicit privacy allowlist');
+  assert.equal(details.data.items.filter((entry) => entry.partial === true).length, 2, 'only persisted partially_paid receipts are marked partial');
+  assert.ok(details.data.items.filter((entry) => entry.partial !== true).every((entry) => entry.partial === null), 'historical settlement is unknown for paid receipts, never inferred from present order status');
+  assert.equal((await request(detailPath, {auth:''})).status, 401); checks += 17;
+
+  await insertReceipt(stillOpen, 500, businessDate, 'pending');
+  await insertReceipt(stillOpen, 600, businessDate, 'refunded');
+  await insertReceipt(stillOpen, 700, businessDate, 'paid', 'reservation');
+  await insertReceipt(ownToday, 10, businessDate, 'paid', 'reservation');
+  await insertReceipt(ownToday, 3, businessDate, 'paid', 'bonus');
+  await insertReceipt(ownToday, 4, businessDate, 'paid', 'deposit');
+  const tenders = (await request(detailPath)).data;
+  assert.equal(tenders.revenue, enrichedRevenue + 17, 'pending/refunded/open reservation excluded; closed reservation and bonus/deposit retained');
+  assert.equal(tenders.revenue, (await request('/api/finance/summary')).data.revenue, 'all supported tenders reconcile with existing employee summary');
+  assert.equal(tenders.paymentCount, 7);
+  assert.deepEqual(tenders.byMethod.map((entry) => entry.method), ['bonus','card','cash','deposit','qr','reservation']); checks += 4;
+
+  for (let index = 0; index < 21; index++) await insertReceipt(stillOpen, index % 2 ? 0.1 : 0.2, businessDate);
+  const paged = (await request(detailPath)).data;
+  assert.equal(paged.paymentCount, 28);
+  assert.equal(paged.items.length, 20);
+  assert.equal(paged.hasMore, true);
+  assert.equal(paged.revenue, enrichedRevenue + 17 + 3.2, 'numeric aggregation preserves cents');
+  assert.equal(paged.byMethod.reduce((sum, entry) => sum + Math.round(entry.total * 100), 0), Math.round(paged.revenue * 100));
+  assert.equal(paged.byMethod.reduce((sum, entry) => sum + entry.count, 0), paged.paymentCount);
+  assert.ok(paged.items.every((entry,index,list) => !index || Date.parse(list[index-1].createdAt) >= Date.parse(entry.createdAt)), 'recent payments ordered newest first');
+  assert.deepEqual((await request(detailPath)).data.items, paged.items, 'deterministic ID tie-breaker stabilizes repeated reads'); checks += 8;
+
+  await client.query("UPDATE users SET role='manager' WHERE id=$1", [employeeId]);
+  assert.equal((await request(detailPath)).status, 403, 'manager cannot use employee detail route');
+  await client.query("UPDATE users SET role='bartender',permission_scopes='[\"orders\"]'::jsonb WHERE id=$1", [employeeId]);
+  assert.equal((await request(detailPath)).status, 403, 'employee without finance permission cannot read payments');
+  await client.query("UPDATE users SET permission_scopes='[]'::jsonb WHERE id=$1", [employeeId]); checks += 2;
+  await client.query('UPDATE orders SET opened_by=$2 WHERE venue_id=$1', [venueId,coworkerId]);
+  const emptyDetails = await request(detailPath);
+  assert.equal(emptyDetails.status, 200);
+  assert.equal(emptyDetails.data.revenue, 0);
+  assert.equal(emptyDetails.data.paymentCount, 0);
+  assert.deepEqual(emptyDetails.data.byMethod, []);
+  assert.deepEqual(emptyDetails.data.items, []);
+  assert.equal(emptyDetails.data.hasMore, false); checks += 6;
+
   console.log('FINANCE EMPLOYEE POSTGRES QA: PASS (' + checks + ' checks; persisted login/session; venue-local date; forged date ignored; employee-only revenue summary and X report)');
 } finally {
   if (server && server.exitCode === null) {
     server.kill();
     await new Promise((resolve) => server.once('exit', resolve)).catch(() => {});
   }
-  if (client._connected) await deleteSyntheticRows();
+  // Fresh owned database launchers remove the whole disposable database.
+  // Immutable financial policies cannot be deleted as row-level fixture cleanup.
+  const disposableDatabase = process.env.FINANCE_EMPLOYEE_QA_OWNED_DATABASE;
+  if (disposableDatabase) assert.equal(disposableDatabase, qaTarget.database, 'cleanup marker must identify the exact guarded disposable database');
+  if (client._connected && !disposableDatabase) await deleteSyntheticRows();
   await client.end().catch(() => {});
 }

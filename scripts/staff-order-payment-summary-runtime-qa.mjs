@@ -13,7 +13,9 @@ function setup(){
   const meta={querySelector:(selector)=>selector==='[data-order-pricing]'?pricingNote:null,append:(node)=>{pricingNote=node;}};
   const document={querySelector:(selector)=>selector==='.meta'?meta:selector==='#order-total'?total:null,createElement:()=>({dataset:{},style:{},textContent:'',children:[],replaceChildren(...children){this.children=children;this.textContent=children.map((child)=>child.textContent).join('');}})};
   const apiJson=(url)=>{const request=deferred();requests.push({url,...request});return request.promise;};
-  const runtime=new Function('apiJson','document',`let currentOrder={id:'order-a'};let floorVenueId='venue-a';let orderPricingRevision=0;${renderer};return{refreshOrderPricingSummary,get:()=>({currentOrder,floorVenueId}),setOrder:(order,venue=floorVenueId)=>{currentOrder=order;floorVenueId=venue;},getView:()=>({total:document.querySelector('#order-total').textContent,note:document.querySelector('.meta').querySelector('[data-order-pricing]')?.children.map((child)=>child.textContent).join(' · ')||'',lines:document.querySelector('.meta').querySelector('[data-order-pricing]')?.children.map((child)=>child.textContent)||[]})}`)(apiJson,document);
+  const runtime=new Function('apiJson','document',`let currentOrder={id:'order-a'};let floorVenueId='venue-a';let orderPricingRevision=0;let openOrders=[currentOrder],tableRefreshes=0,mainActionPayment=null;
+    const updateTableElapsedTimes=()=>{tableRefreshes++;};const updateOrderMainAction=payment=>{mainActionPayment=payment;};
+    ${renderer};return{refreshOrderPricingSummary,get:()=>({currentOrder,floorVenueId}),setOrder:(order,venue=floorVenueId)=>{currentOrder=order;floorVenueId=venue;openOrders=[order];},getView:()=>({total:document.querySelector('#order-total').textContent,note:document.querySelector('.meta').querySelector('[data-order-pricing]')?.children.map((child)=>child.textContent).join(' · ')||'',lines:document.querySelector('.meta').querySelector('[data-order-pricing]')?.children.map((child)=>child.textContent)||[],mainActionPayment,tableRefreshes,listedTotal:openOrders[0]?.pricingTotal})}`)(apiJson,document);
   return{runtime,requests};
 }
 const pricing={due:475,discount:0,minimumAdjustment:0};
@@ -24,6 +26,9 @@ first.requests[0].resolve(pricing);first.requests[1].resolve({due:475,paid:200,r
 assert.equal(first.runtime.getView().total,'475 ₽');
 assert.deepEqual(first.runtime.getView().lines,['Итого 475 ₽','Оплачено 200 ₽','Осталось 275 ₽'],'payment amounts are separate readable lines');
 assert.match(first.runtime.getView().note,/Итого 475 ₽ · Оплачено 200 ₽ · Осталось 275 ₽/);
+assert.equal(first.runtime.getView().listedTotal,475,'table total follows authoritative pricing');
+assert.equal(first.runtime.getView().tableRefreshes,1);
+assert.equal(first.runtime.getView().mainActionPayment.remaining,275,'primary payment receives authoritative remaining');
 
 const partial=setup();
 const afterPartial=partial.runtime.refreshOrderPricingSummary(partial.runtime.get().currentOrder,{due:475,paid:200,remaining:275});
@@ -51,6 +56,7 @@ failed.requests[0].resolve(pricing);failed.requests[1].reject(new Error('payment
 assert.equal(failed.runtime.getView().total,'475 ₽','known final total remains available from pricing endpoint');
 assert.match(failed.runtime.getView().note,/Оплату не удалось обновить/);
 assert.doesNotMatch(failed.runtime.getView().note,/Оплачено \d|Осталось \d/,'unavailable paid/remaining are not guessed');
+assert.equal(failed.runtime.getView().mainActionPayment,null,'unavailable payments clear the primary action amount');
 
 const malformed=setup();
 const malformedRead=malformed.runtime.refreshOrderPricingSummary(malformed.runtime.get().currentOrder);

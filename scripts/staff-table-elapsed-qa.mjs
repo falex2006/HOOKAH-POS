@@ -10,8 +10,11 @@ const now = Date.parse('2026-10-09T12:00:00Z');
 class FixedDate extends Date { static now() { return now; } }
 const intervals = [], events = {};
 const card = (table, status) => ({
-  dataset: { table, status }, children: [], label: `Стол ${table}: ${status}`,
-  querySelector(selector) { assert.equal(selector, '.table-elapsed'); return this.children[0] || null; },
+  dataset: { table, status, tableBaseLabel: `Стол ${table}: ${status}` }, children: [], label: `Стол ${table}: ${status}`,
+  querySelector(selector) {
+    assert.ok(['.table-elapsed', '.table-order-total'].includes(selector));
+    return this.children.find(child => child.className === selector.slice(1)) || null;
+  },
   append(node) { node.parent = this; this.children.push(node); },
   getAttribute(name) { assert.equal(name, 'aria-label'); return this.label; },
   setAttribute(name, value) { assert.equal(name, 'aria-label'); this.label = value; },
@@ -51,13 +54,14 @@ context.openOrders = [
   { tableId: 'table-3', status: 'open', createdAt: '2026-10-09T09:00:00Z' },
 ];
 update();
-assert.equal(occupied.children[0].textContent, '02:00', 'earliest active saved opening wins');
-assert.equal(waiting.children[0].textContent, '—:—');
+assert.equal(occupied.querySelector('.table-elapsed').textContent, '02:00', 'earliest active saved opening wins');
+assert.equal(waiting.querySelector('.table-elapsed').textContent, '—:—');
+assert.equal(occupied.querySelector('.table-order-total').textContent, 'Заказ —', 'unavailable saved pricing is not rendered as zero');
 assert.equal(free.children.length, 0, 'free table never gets a timer');
 assert.match(occupied.label, /Время за столом 02 часов 00 минут/);
 assert.equal(label({createdAt:'2026-10-05T08:00:00Z'}), '100:00', 'hours never wrap after 24h or 99h');
-const timer = occupied.children[0], aria = occupied.label;
-update(); assert.equal(occupied.children.length, 1); assert.equal(occupied.children[0], timer, 'timer node is reused'); assert.equal(occupied.label, aria, 'accessible label does not accumulate');
+const timer = occupied.querySelector('.table-elapsed'), aria = occupied.label;
+update(); assert.equal(occupied.children.filter(child => child.className === 'table-elapsed').length, 1); assert.equal(occupied.querySelector('.table-elapsed'), timer, 'timer node is reused'); assert.equal(occupied.label, aria, 'accessible label does not accumulate');
 assert.equal(context.openOrders[0].createdAt, '2026-10-09T11:00:00Z', 'rendering never sorts source orders in place');
 context.allowed = false; timer.textContent = 'unchanged'; update(); assert.equal(timer.textContent, 'unchanged');
 context.allowed = true; context.floorReady = false; update(); assert.equal(timer.textContent, 'unchanged');

@@ -1,0 +1,1796 @@
+{
+  "generatedAt": "2026-10-13T08:49:27.782Z",
+  "environment": "Owned preview, isolated Chrome, GET-only amenity overrides, all API writes blocked",
+  "results": [
+    {
+      "width": 1366,
+      "theme": "dark",
+      "density": 100,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#63e2ad",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(255, 198, 93)",
+              "contrast": 10.350738192633978
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#ffc65d",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#ffc65d",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "dark",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(193, 200, 208)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(255, 198, 93)"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "dark",
+      "density": 70,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#63e2ad",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(255, 198, 93)",
+              "contrast": 10.350738192633978
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#ffc65d",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#ffc65d",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "dark",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(193, 200, 208)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(255, 198, 93)"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "dark",
+      "density": 130,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#63e2ad",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(255, 198, 93)",
+              "contrast": 10.350738192633978
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#ffc65d",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#ffc65d",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "dark",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(193, 200, 208)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(255, 198, 93)"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "density": 100,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#166b4a",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(128, 80, 0)",
+              "contrast": 6.359049743180634
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#805000",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#805000",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(82, 102, 114)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(128, 80, 0)"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "density": 70,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#166b4a",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(128, 80, 0)",
+              "contrast": 6.359049743180634
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#805000",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#805000",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(82, 102, 114)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(128, 80, 0)"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "density": 130,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#166b4a",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(128, 80, 0)",
+              "contrast": 6.359049743180634
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#805000",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#805000",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "theme": "light",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(82, 102, 114)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(128, 80, 0)"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "density": 100,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#63e2ad",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(255, 198, 93)",
+              "contrast": 10.350738192633978
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#ffc65d",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#ffc65d",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(193, 200, 208)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(255, 198, 93)"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "density": 70,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#63e2ad",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(255, 198, 93)",
+              "contrast": 10.350738192633978
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#ffc65d",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#ffc65d",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(193, 200, 208)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(255, 198, 93)"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "density": 130,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#63e2ad",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(255, 198, 93)",
+              "contrast": 10.350738192633978
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#ffc65d",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#ffc65d",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#c1c8d0",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 10.539874507022557,
+              "size": 20
+            },
+            {
+              "color": "rgb(193, 200, 208)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 10.539874507022557,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(193, 200, 208)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(255, 198, 93)"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "density": 100,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#166b4a",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(128, 80, 0)",
+              "contrast": 6.359049743180634
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#805000",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#805000",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(82, 102, 114)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(128, 80, 0)"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "density": 70,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#166b4a",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(128, 80, 0)",
+              "contrast": 6.359049743180634
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#805000",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#805000",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(82, 102, 114)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(128, 80, 0)"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "density": 130,
+      "overflow": false,
+      "tiles": [
+        {
+          "id": "863f684a-3547-49df-a0de-492f284b9d51",
+          "classes": "table shape-rectangle free",
+          "accent": "#166b4a",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "ccee205c-87dc-46d8-ad61-7ba4a896546d",
+          "classes": "table shape-rectangle busy pos-table-has-attention",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": [
+            {
+              "kind": "warning",
+              "text": "Бар ожидает · +1",
+              "color": "rgb(128, 80, 0)",
+              "contrast": 6.359049743180634
+            }
+          ]
+        },
+        {
+          "id": "ca63caa0-e3b2-4bd0-a03b-afc97d54008d",
+          "classes": "table shape-rectangle reserve",
+          "accent": "#805000",
+          "count": 1,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        },
+        {
+          "id": "d49bc18a-9011-41b3-8348-3912edc01fe9",
+          "classes": "table shape-rectangle awaiting",
+          "accent": "#805000",
+          "count": 0,
+          "right": null,
+          "bottom": null,
+          "overlap": false,
+          "inside": true,
+          "icons": [],
+          "badges": []
+        },
+        {
+          "id": "b6e37a33-c930-4816-9831-beb719d9d8d8",
+          "classes": "table shape-rectangle blocked",
+          "accent": "#526672",
+          "count": 2,
+          "right": 13,
+          "bottom": 13,
+          "overlap": false,
+          "inside": true,
+          "icons": [
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "PlayStation 5",
+              "contrast": 7.615195810057062,
+              "size": 20
+            },
+            {
+              "color": "rgb(64, 87, 98)",
+              "bg": "rgba(0, 0, 0, 0)",
+              "border": "0px",
+              "label": "Телевизор",
+              "contrast": 7.615195810057062,
+              "size": 20
+            }
+          ],
+          "badges": []
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "preparation": [
+        {
+          "state": "in_progress",
+          "color": "rgb(82, 102, 114)"
+        },
+        {
+          "state": "queued",
+          "color": "rgb(128, 80, 0)"
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "writes": []
+}

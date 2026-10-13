@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-10-13T08:39:06.804Z",
+  "environment": "Isolated Chrome, owned preview, all non-GET API requests blocked",
+  "results": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "theme": "dark",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "theme": "light",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "theme": "dark",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "theme": "light",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 1366,
+      "height": 600,
+      "theme": "dark",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 1366,
+      "height": 600,
+      "theme": "light",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 1180,
+      "height": 768,
+      "theme": "dark",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 1180,
+      "height": 768,
+      "theme": "light",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "theme": "dark",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "theme": "light",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "theme": "dark",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "theme": "light",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 320,
+      "height": 740,
+      "theme": "dark",
+      "flow": "floor-selected-preparation-ready-floor"
+    },
+    {
+      "width": 320,
+      "height": 740,
+      "theme": "light",
+      "flow": "floor-selected-preparation-ready-floor"
+    }
+  ],
+  "errors": [],
+  "writes": []
+}
