@@ -7,3 +7,5 @@ Release QA: isolated PostgreSQL employee-payments 79 assertions PASS; integrated
 Local-design, static boundary, clickability, deploy contract, platform/SaaS boundary, syntax and source/dist checks pass. Separate disposable order creation/dispatch/preparation/reload acceptance is recorded below when complete. No live financial writes are used for release QA.
 
 Production procedure: publish reviewed Git commit through PR; build exact merged commit; preserve environment, PostgreSQL volume and rollback image; verified backup/restore; skip menu reseed; verify health/release identity, unchanged business-data fingerprints and public asset hashes. Production receipt will identify the exact deployed commit and verification outcome.
+
+Actual disposable PostgreSQL order flow: PASS. UI-created order and added bar item, dispatch queued, reload, accepted in progress, marked ready, and a fresh page/GET confirmed ready. No production writes. Evidence: docs/design/POS_RELEASE_2026-10-13/evidence/order-flow.json and order-ready.png.
