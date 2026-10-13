@@ -5366,3 +5366,9 @@ Final независимый code-health PASS: exactbaseline onlyselectionoutlin
 - Изменения только в изолированном worktree; старый WIP сохранён. Отчёт и итоговые доказательства: docs/design/POS_BUTTONS_CLARITY_2026-10-13/ACCEPTANCE.md. Без commit/push/merge/deploy.
 
 - Итог этой итерации: browser12 групп PASS, четыре профиля прав, 1366/320 и обе темы; JS errors0/API writes0. Четыре runtime-контракта, local-design, syntax/diff и4 пары source/dist PASS. Design/architect/code-health подтвердили локальный результат.
+
+## 2026-10-13 — Публикация сотруднического POS
+- PR #39 объединён после двух успешных CI workflows. Согласованный пакет интегрирован поверх актуального main с сохранением management-theme/sidebar.
+- Рабочий сервер обновлён до d8651f2c1938834679baecb92eeb88f57ba62137 штатным deploy с backup/restore, сохранением env/PGvolume и SKIP_MENU_SEED_ONCE=true.
+- CRM/PG healthy; контрольные суммы и количества десяти проверенных бизнес-таблиц совпали, 11 публичных файлов совпали с Git. Платежи и заказы production не создавались для проверки.
+- Подробности и ограничения: docs/release/EMPLOYEE_POS_RELEASE_2026_10_13.md.
