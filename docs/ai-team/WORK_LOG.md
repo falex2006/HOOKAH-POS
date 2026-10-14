@@ -5590,3 +5590,12 @@ Final независимый code-health PASS: exactbaseline onlyselectionoutlin
 - Рабочий сервер обновлён до d8651f2c1938834679baecb92eeb88f57ba62137 штатным deploy с backup/restore, сохранением env/PGvolume и SKIP_MENU_SEED_ONCE=true.
 - CRM/PG healthy; контрольные суммы и количества десяти проверенных бизнес-таблиц совпали, 11 публичных файлов совпали с Git. Платежи и заказы production не создавались для проверки.
 - Подробности и ограничения: docs/release/EMPLOYEE_POS_RELEASE_2026_10_13.md.
+
+## 2026-10-14 — Публикация графика сотрудников
+
+- Пользователь разрешил GitHub/VPS. Сохранены изменения актуального main и предыдущий release receipt. PR #41 объединён после двух успешных CI workflows; runtime622be0f0e3ea опубликован из чистого main.
+- Исправлен найденный release-gate: явные type у кнопок графика. Итоговый net diff не меняет существующие submit-кнопки; независимый code-health review PASS. Повторный isolated acceptance:27/27, acceptance-1791962936774.json.
+- Production dump → отдельная восстановленная БД → все миграции PASS; 89 исходных таблиц сохранены. Финальный stopped-write backup/restore PASS, SKIP_MENU_SEED_ONCE=true, env/PGvolume сохранены, CRM/PG healthy.
+- Post-deploy: 89 исходных таблиц совпали по count/hash; 11 публичных HTTPS assets равны Git; анонимному доступу401. Read-only deployed service: owner доступ/чтение, manager без автоматического grant PASS. Live login не запускался: соответствующие текущему owner credentials недоступны; секреты и учётные данные не менялись. Полный браузерный сценарий подтверждён локально.
+- После migration102 возврат старого image без совместимой БД запрещён; после возобновления записей предпочтителен forward-fix. Свободно около982MiB; очистка не расширялась на rollback images/данные.
+- Полный отчёт: docs/release/STAFF_SCHEDULE_RELEASE_2026_10_14.md. Документальный receipt не требует повторного deployment.
