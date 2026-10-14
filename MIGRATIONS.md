@@ -1,5 +1,15 @@
 # Миграция PostgreSQL
 
+## График сотрудников — локальная проверка101/102
+
+Сверка schema-only не заменяет строки SQL. Только в двух вновь созданных проверенных disposable БД CHECK повторно разбираются PostgreSQL до стабильного определения, с сохранением комментариев и проверкой неизменности строк; inherited constraints отклоняются проверяющим скриптом. Нормализация этих тестовых схем фиксируется до сравнения дампов; рабочая БД исключена. Из сравнения исключены лишь случайные psql restrict tokens. Заполненные frozen attendance header/shift/interval и состояния sequences также сверяются. Независимый review и прогон21cca012b5d1 — PASS.
+
+101 создаёт grants и историю доступа;102 добавляет виды/статус/перерыв/версию/историю/идемпотентность и снимает уникальность сотрудник+день. Старые строки, NULL-время, авторство и заметки не переписываются. Удаление unique означает, что старый server с blind upsert несовместим: миграции и новый API/UI должны входить в один выпуск. Запись в новом API требует requestKey, изменение — id/version; см. API.md.
+
+Локальная репетиция: `node scripts/staff-schedule-migration-recovery-qa.cjs`. Скрипт проверяет pinned Docker identity/volume из schedule runtime, создаёт две новые случайно именованные базы исключительно в этом контейнере; рабочую staff_schedule_qa не изменяет. Применяет schema + миграции до101, проверяет101/102 на пустой таблице, создаёт синтетические legacy строки и pg_dump backup, проверяет transactional rollback, upgrade/replay, сохранность всех старых полей и сторонних таблиц. Восстанавливает dump в другую новую БД, сравнивает данные и schema-only dump, затем повторяет upgrade. Базы и backup/report в игнорируемом qa-artifacts/staff-schedule сохраняются для проверки. Production backup или production rollback этим не подтверждаются.
+
+При выпуске заранее сделать полный backup и отдельно проверить восстановление. Откат приложения к старому SQL после записи нескольких смен за день недопустим. Восстановление прежнего backup потеряет последующие записи, поэтому не является автоматической операцией; нужен согласованный порядок остановки записи и переноса изменений. Ни downgrade, ни удаление строк этот модуль не выполняет.
+
 1. Создать базу и пользователя из `.env`.
 2. Применить `schema.sql` одним запуском.
 3. Применить `seed.sql` только для тестовой площадки.
@@ -39,3 +49,8 @@ docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < migration
 ## Migration 100 — table minimum schedule
 
 `migrations/100_table_minimum_schedule.sql` adds nullable `minimum_order_start_time` and `minimum_order_end_time` to `tables`. Both must be set together and cannot be equal. Null values preserve the existing always-on minimum behavior. The release workflow must apply migration 100 before the updated API starts.
+## 103 — локальное расширение планирования
+
+`103_staff_schedule_planning.sql` добавляет can_publish к grants и их истории (default false, CHECK требует manage), отдельные drafts/templates/planning_events. Существующие смены, часы, начисления и frozen snapshots не переписываются. Совместный выпуск требует актуальных backend/UI и миграции103; без колонки разрешений новый backend не совместим со старой схемой. Владелец сохраняет полный доступ, ранее выданный manage не получает публикацию автоматически.
+
+Расширенный `staff-schedule-migration-recovery-qa.cjs` проверяет101–103: пустая/заполненная база, rollback ошибочной транзакции, повторное применение, точное восстановление backup и сохранность legacy/frozen payroll. Прогон `migration-recovery-d78cd4c864cb.json` PASS на отдельных локальных БД; исходная schedule_qa при этом не менялась. Production восстановление этим не подтверждается. Не удалять новые таблицы для downgrade: черновики, шаблоны и аудит являются пользовательскими данными.

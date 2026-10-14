@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
+import { randomUUID } from 'node:crypto';
 
 // Dedicated synthetic PostgreSQL fixture. It deliberately cannot target a VPS.
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -195,7 +196,13 @@ async function seedVenue(ownerToken, org, venueId, prefix, extensive) {
   await ensure(ownerToken, `${prefix}:finance-category:income`, '/api/finance/categories', '/api/finance/categories', { name: 'QA Доход', kind: 'income' });
   for (let index = 0; index < 3; index++) await ensure(ownerToken, `${prefix}:expense:${index}`, '/api/expenses', '/api/expenses', { categoryId: expenseCategory.id, amount: 500 + index * 250, expenseDate: date(-index), description: `QA ${prefix} расход ${index}`, source: 'manual' }, candidate => candidate.description === `QA ${prefix} расход ${index}`);
   for (let index = 0; index < staff.length; index++) {
-    await once(`${prefix}:schedule:${index}`, () => request(ownerToken, '/api/staff/schedule', 'POST', { userId: staff[index].id, workDate: date(0), plannedStart: instant(0,12), plannedEnd: instant(0,20), note: 'QA график' }, [201]));
+    const scheduleKey = `${prefix}:schedule:${index}`;
+    manifest.scheduleRequests ||= {};
+    if (!manifest.scheduleRequests[scheduleKey] && !manifest.actions[scheduleKey]) {
+      manifest.scheduleRequests[scheduleKey] = { userId: staff[index].id, workDate: date(0), plannedStart: instant(0,12), plannedEnd: instant(0,20), note: 'QA график', requestKey: randomUUID(), reason: 'Синтетический QA график' };
+      await save();
+    }
+    await once(scheduleKey, () => request(ownerToken, '/api/staff/schedule', 'POST', manifest.scheduleRequests[scheduleKey], [201]));
     await once(`${prefix}:time:${index}`, () => request(ownerToken, '/api/staff/time', 'POST', { userId: staff[index].id, startedAt: instant(-2,12), endedAt: instant(-2,20), source: 'manual', note: 'QA 8 часов' }, [201]));
   }
   for (let index = 0; index < 4; index++) {

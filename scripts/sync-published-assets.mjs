@@ -40,6 +40,16 @@ const brandHead = `<!-- Hookah POS brand icons -->
 <!-- /Hookah POS brand icons -->`;
 
 // SaaS-only work must not rewrite POS pages just to publish its own assets.
+// Local scheduling handoff: synchronize browser sources only, without touching
+// unrelated HTML revisions, server modules, or deploying anything.
+if (process.argv.includes('--staff-schedule-only')) {
+  mkdirSync(resolve(root, 'dist'), { recursive: true });
+  for (const name of ['portal.js', 'portal-session.js', 'staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js']) {
+    cpSync(resolve(root, name), resolve(root, 'dist', name));
+  }
+  console.log('Synced staff schedule browser assets locally; no publication.');
+  process.exit(0);
+}
 // Keep the full-project sync below for coordinated application releases.
 if (process.argv.includes('--saas-only')) {
   const sources = ['platform.html', 'login.html'];

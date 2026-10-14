@@ -114,7 +114,10 @@ for (const entry of map.entries) {
   assert.ok(rules.includes('### `' + entry.path + '`'), `missing page rule ${entry.path}`);
   assert.ok(tree.includes('| `' + entry.path + '` |'), `page absent from site tree ${entry.path}`);
 }
-for (const subroute of map.adminSubroutes) assert.ok(rules.includes('`' + subroute + '`'), `missing admin rule ${subroute}`);
+for (const subroute of map.adminSubroutes) assert.ok(rules.includes('`' + subroute + '`') || rules.includes('`/admin#' + subroute + '`'), `missing admin rule ${subroute}`);
+assert.deepEqual(map.staffSchedulePresentation.views, ['week','month','day','list']);
+assert.equal(map.staffSchedulePresentation.monthColumns, 7);
+assert.match(rules, /Ночные продолжения открывают исходную запись и не увеличивают итоги/);
 assert.match(rules, /`\/admin#permissions` сохраняет общую боковую панель, верхнюю шапку и заголовок админки[\s\S]*?количеством назначенных сотрудников[\s\S]*?личные профили и имена сотрудников не дублируются[\s\S]*?архивирование недоступно, пока роль назначена/,
   'permissions page must keep the shell and present roles without employee profile cards');
 assert.match(portal, /custom-role-title[\s\S]*?custom-role-description[\s\S]*?custom-role-assignees/,

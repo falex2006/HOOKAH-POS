@@ -1,5 +1,7 @@
 # Локальная PostgreSQL база для полного QA — 01.10.2026
 
+Уточнение14.10 для локальной ветки staff-schedule после миграций101/102: описание schedule upsert ниже историческое. Текущий POST создаёт запись с обязательным requestKey; PATCH/:id требует version, доступ owner либо отдельный schedule grant. Seed сохраняет ключ и payload до отправки. См. API.md и docs/requirements/STAFF_SCHEDULE_PLAN.md. Эта работа не запускала генератор на старой full-local-qa БД.
+
 ## Область и безопасность
 
 Роль: `data_engineer`, экспертиза `warehouse_domain` и `finance_domain`. Изучены профили, `SECURITY_RULES.md`, правила складского каталога, `schema.sql`, миграции до 056, `server.js`, `db.js` и существующие PostgreSQL QA.

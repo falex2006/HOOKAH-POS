@@ -4,10 +4,10 @@
     "version": "1.0",
     "date": "2026-10-09",
     "owner": "system_architect",
-    "scope": "local-working-tree-inventory; no route or permission changes",
+    "scope": "local-working-tree-inventory plus owner-delegated staff-schedule route",
     "baselineHead": "802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf",
     "includesUncommittedChanges": true,
-    "matrix": "docs/design/UNIFIED_UI_2026-10-09/ROUTE_ROLE_MATRIX.md",
+    "matrix": "SITE_MAP.md",
     "sources": ["server.js:staticFile", "portal.js:adminSectionTitles", "portal.js:inventorySections", "portal-session.js:canAccessRoute", "effective-permissions.js:createPermissionResolver"],
     "modeIsAuthorization": false
   },
@@ -62,7 +62,8 @@
     {"view":"premixes","group":"inventory","title":"Заготовки и премиксы"},
     {"view":"directories","group":"inventory","title":"Цеха и категории"}
   ],
-  "adminSubroutes": ["staff","permissions","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics","notifications","help"],
+  "adminSubroutes": ["staff","staff-schedule","permissions","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics","notifications","help"],
+  "staffSchedulePresentation": {"views":["week","month","day","list"],"monthColumns":7,"mobile":"day-strip-and-cards","totals":"start-date","overnight":"linked-continuations"},
   "financeSubroutes": ["payroll"],
   "canonicalization": {
     "htmlAlias": "Each entries.file prefixed with / redirects to entries.path with HTTP 308; query is preserved",
