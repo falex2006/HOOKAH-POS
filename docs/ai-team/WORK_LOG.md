@@ -5584,3 +5584,9 @@ Final независимый code-health PASS: exactbaseline onlyselectionoutlin
 - Recovery101–103: `migration-recovery-eb87f39dda2f.json`, точные pg_dump/restore snapshots, sequences и frozen payroll сохранены, rollback/replay PASS; обе случайные БД и backup сохранены в dedicated контейнере. Production восстановление не заявляется.
 - Исправления тестов: mobile timeline ожидает карточки, не скрытую desktop-шкалу; переключение viewport перед кликом мобильного summary; opt-in --run calendar включён в агрегатор. Предыдущий aggregate1791961516963 сохранил FAIL visual из-за неверного ожидания теста. Общий visual-page-rules contract доходит до старого отсутствующего правила notifications; не объявлен PASS и не расширен на несогласованный ремонт других страниц. Новый календарный контракт, source syntax и git diff --check PASS.
 - Все изменения локальны, без commit/push/PR/merge/deploy. Runtime31944 оставлен для просмотра. Ограничения и подробный путь: STAFF_SCHEDULE_HANDOFF.md; прогресс расширения5/5: STAFF_SCHEDULE_PLAN.md.
+
+## 2026-10-13 — Публикация сотруднического POS
+- PR #39 объединён после двух успешных CI workflows. Согласованный пакет интегрирован поверх актуального main с сохранением management-theme/sidebar.
+- Рабочий сервер обновлён до d8651f2c1938834679baecb92eeb88f57ba62137 штатным deploy с backup/restore, сохранением env/PGvolume и SKIP_MENU_SEED_ONCE=true.
+- CRM/PG healthy; контрольные суммы и количества десяти проверенных бизнес-таблиц совпали, 11 публичных файлов совпали с Git. Платежи и заказы production не создавались для проверки.
+- Подробности и ограничения: docs/release/EMPLOYEE_POS_RELEASE_2026_10_13.md.
