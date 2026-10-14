@@ -28,7 +28,18 @@
       }catch(error){home.error(error.message);}finally{home.pending(false);}
     }
     function createDraft(){
-      const d=dialog('Новый черновик',`<p>Действующий график останется прежним до публикации. Выберите период и сотрудников; после создания область фиксируется.</p><label>Название<input name="name" maxlength="120" required placeholder="Например: следующая неделя"></label><label>С<input name="from" type="date" value="${date}" required></label><label>По<input name="to" type="date" value="${date}" required></label>${checkboxUsers()}`);d.guard();
+      const monthStart = day => day.slice(0,7)+'-01';
+      const nextMonth = day => { const value=new Date(monthStart(day)+'T12:00Z');value.setUTCMonth(value.getUTCMonth()+1);return value.toISOString().slice(0,10); };
+      const monthEnd = day => new Date(Date.parse(nextMonth(day)+'T12:00Z')-86400000).toISOString().slice(0,10);
+      const d=dialog('Новый черновик',`<p>Можно составить график на месяц или любой период до 93 дней. Действующий график останется прежним до публикации; заранее назначенные смены и выходные не перезаписываются автоматически.</p><label>Название<input name="name" maxlength="120" required placeholder="Например: график на следующий месяц"></label><label>Период<select name="periodPreset"><option value="remainder">С выбранной даты до конца месяца</option><option value="month">Выбранный месяц целиком</option><option value="next">Следующий месяц</option><option value="custom">Свой период</option></select></label><label>С<input name="from" type="date" value="${date}" required></label><label>По<input name="to" type="date" value="${monthEnd(date)}" required></label>${checkboxUsers()}`);d.guard();
+      const form=d.node.querySelector('form');
+      form.elements.periodPreset.onchange=()=>{
+        const preset=form.elements.periodPreset.value;
+        if(preset==='custom')return;
+        const from=preset==='next'?nextMonth(local(new Date(),access.timezone).slice(0,10)):preset==='month'?monthStart(date):date;
+        form.elements.from.value=from;form.elements.to.value=monthEnd(from);
+      };
+      for(const field of [form.elements.from,form.elements.to])field.addEventListener('input',()=>{form.elements.periodPreset.value='custom';form.elements.periodPreset._customSelectRefresh?.();});
       submit(d,async(form,data,key)=>{const saved=await api('/drafts','POST',{name:data.get('name'),from:data.get('from'),to:data.get('to'),userIds:users(form),requestKey:key});d.node.close();await reloadHome();await openDraft(saved.id);});
     }
     async function openDraft(id){
@@ -59,6 +70,13 @@
       const p=op?.payload||(op?.sourceId?draft.baseItems.find(item=>item.id===op.sourceId):null)||{}, day=p.workDate||draft.from;
       const d=dialog('Предложение для черновика',`<label>Сотрудник<select name="userId">${draft.userIds.map(id=>`<option value="${esc(id)}" ${p.userId===id?'selected':''}>${esc(name(id))}</option>`).join('')}</select></label><label>Тип<select name="kind">${Object.entries(labels).map(([key,label])=>`<option value="${key}" ${p.kind===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Дата<input type="date" name="workDate" value="${day}" min="${draft.from}" max="${draft.to}" required></label><fieldset data-times><legend>Местное время заведения</legend><label>Начало<input type="datetime-local" name="start" value="${p.plannedStart?local(p.plannedStart,draft.timezone):day+'T10:00'}"></label><label>Окончание<input type="datetime-local" name="end" value="${p.plannedEnd?local(p.plannedEnd,draft.timezone):day+'T18:00'}"></label><label>Неоплачиваемый перерыв, мин<input type="number" name="breakMinutes" min="0" step="1" value="${p.breakMinutes||0}"></label></fieldset><label>Заметка<textarea name="note" maxlength="500">${esc(p.note)}</textarea></label><label>Причина изменения<textarea name="reason" maxlength="500">${esc(op?.reason)}</textarea></label>`);d.guard();
       const form=d.node.querySelector('form');const sync=()=>{d.node.querySelector('[data-times]').hidden=form.elements.kind.value!=='shift';};form.elements.kind.onchange=sync;sync();
+      let previousDay=form.elements.workDate.value;
+      form.elements.workDate.addEventListener('change',()=>{
+        const nextDay=form.elements.workDate.value;if(!nextDay||!previousDay)return;
+        const delta=Date.parse(nextDay+'T12:00Z')-Date.parse(previousDay+'T12:00Z');
+        for(const field of [form.elements.start,form.elements.end])if(field.value&&Number.isFinite(delta))field.value=new Date(Date.parse(field.value.slice(0,10)+'T12:00Z')+delta).toISOString().slice(0,10)+field.value.slice(10);
+        previousDay=nextDay;
+      });
       submit(d,async(form,data,key)=>{const shift=data.get('kind')==='shift',next={operation:op?.sourceId?'update':'create',reason:data.get('reason'),payload:{userId:data.get('userId'),workDate:data.get('workDate'),kind:data.get('kind'),note:data.get('note'),breakMinutes:shift?Number(data.get('breakMinutes')):0,plannedStart:shift?instant(data.get('start'),draft.timezone):null,plannedEnd:shift?instant(data.get('end'),draft.timezone):null}};
         if(op?.sourceId){next.sourceId=op.sourceId;next.sourceVersion=op.sourceVersion;}
         const operations=[...draft.operations];if(index===null)operations.push(next);else operations[index]=next;

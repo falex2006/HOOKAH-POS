@@ -44,6 +44,12 @@
     target.innerHTML = `<div class="schedule-heading"><div><h1>График сотрудников</h1><p class="muted">План работы команды. Не заменяет учёт фактически отработанного времени.</p></div><button type="button" class="button primary" data-create hidden>Назначить смену</button></div>
       <section class="panel"><div class="schedule-toolbar"><div class="schedule-period"><button type="button" class="button" data-prev aria-label="Предыдущий период">←</button><label>Дата<input type="date" data-date></label><button type="button" class="button" data-next aria-label="Следующий период">→</button><button type="button" class="button" data-today>Сегодня</button></div><label>Вид<select data-mode><option value="week">Неделя</option><option value="month">Месяц</option><option value="day">День</option><option value="list">Список</option></select></label></div><details class="schedule-tools"><summary>Фильтры и действия</summary><div class="schedule-toolbar"><label>Сотрудник<select data-person><option value="">Все сотрудники</option></select></label><label>Поиск<input type="search" data-search placeholder="Имя сотрудника"></label><label>Должность<select data-role><option value="">Все должности</option></select></label><label class="schedule-check"><input type="checkbox" data-cancelled>Показывать отменённые</label><button type="button" class="button" data-refresh>Обновить</button><button type="button" class="button" data-grants hidden>Доступ к графику</button></div></details><div data-summary class="schedule-summary"></div><details class="schedule-explanation"><summary>Как считаются часы</summary><p data-context class="muted"></p></details><p data-status role="status" aria-live="polite">Загрузка графика…</p><div data-grid></div></section>`;
     const q = s => target.querySelector(s);
+    q('[data-create]').textContent = 'Смена / выходной';
+    const headingActions = document.createElement('div'); headingActions.className = 'schedule-heading-actions';
+    q('[data-create]').before(headingActions); headingActions.append(q('[data-create]'));
+    const monthJump = document.createElement('label');
+    monthJump.innerHTML = 'Перейти к дате<select data-month-jump><option value="">Выберите период</option><option value="today">Сегодня</option><option value="current">Этот месяц</option><option value="next">Следующий месяц</option></select>';
+    q('[data-mode]').closest('label').after(monthJump);
     q('[data-today]').parentElement.after(q('[data-today]'));
     const explanation = q('[data-context]').parentElement;
     explanation.before(q('[data-context]'));
@@ -167,6 +173,22 @@
       const readonly = !access.manage || entry?.status === 'cancelled';
       const d = dialog(entry ? 'Запись графика' : 'Назначить смену', `<label>Сотрудник<select name="userId">${employees.filter(p => p.active || p.id === entry?.userId).map(p => `<option value="${esc(p.id)}" ${p.id === (entry?.userId || person) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label><label>Тип<select name="kind">${Object.entries(labels).map(([key, value]) => `<option value="${key}" ${key === entry?.kind ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label>Дата<input name="workDate" type="date" required value="${esc(entry?.workDate || day)}"></label><fieldset data-times><legend>Время заведения · ${esc(access.timezone)}</legend><label>Начало<input name="start" type="datetime-local" value="${esc(entry?.plannedStart ? local(entry.plannedStart, access.timezone) : day + 'T10:00')}"></label><label>Окончание<input name="end" type="datetime-local" value="${esc(entry?.plannedEnd ? local(entry.plannedEnd, access.timezone) : day + 'T18:00')}"></label><label>Неоплачиваемый перерыв, минут<input name="breakMinutes" type="number" min="0" step="1" value="${entry?.breakMinutes || 0}"></label></fieldset><label>Заметка<textarea name="note" maxlength="500">${esc(entry?.note)}</textarea></label><label>Причина изменения / отмены<textarea name="reason" maxlength="500"></textarea></label><p class="muted">Изменения прошлого периода требуют причины. Утверждённая зарплата автоматически не изменяется.</p>${entry && !readonly ? '<button type="button" class="button" data-cancel>Отменить смену / отсутствие</button>' : ''}`);
       const form = d.node.querySelector('form'); let requestKey = crypto.randomUUID();
+      if (!entry) {
+        d.node.querySelector('h2').textContent = 'Смена или выходной на любую дату';
+        const hint = document.createElement('p'); hint.className = 'muted';
+        hint.textContent = 'Можно назначить одну запись заранее, даже если график на месяц ещё не составлен. Выберите тип и дату.';
+        form.querySelector('h2').after(hint);
+      }
+      let previousDay = form.elements.workDate.value;
+      form.elements.workDate.addEventListener('change', () => {
+        const nextDay = form.elements.workDate.value;
+        if (!nextDay || !previousDay) return;
+        const delta = Math.round((Date.parse(nextDay + 'T12:00Z') - Date.parse(previousDay + 'T12:00Z')) / 86400000);
+        for (const field of [form.elements.start, form.elements.end]) {
+          if (field.value && Number.isFinite(delta)) field.value = addDays(field.value.slice(0, 10), delta) + field.value.slice(10);
+        }
+        previousDay = nextDay;
+      });
       if (!readonly) d.guard();
       let conflictPending = false;
       const conflictPanel = document.createElement('section'); conflictPanel.setAttribute('aria-live','polite');
@@ -308,7 +330,7 @@
       ready=false;entries=[];actual=[];q('[data-grid]').replaceChildren();q('[data-summary]').textContent='';q('[data-context]').textContent='';status('Загрузка графика…');
       q('[data-create]').disabled=true;if(q('[data-copy-week]'))q('[data-copy-week]').disabled=true;if(q('[data-planning]'))q('[data-planning]').disabled=true;
       q('[data-refresh]').disabled = true;
-      target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person]').forEach(el=>{el.disabled=true;el._customSelectRefresh?.();});
+      target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person],[data-month-jump]').forEach(el=>{el.disabled=true;el._customSelectRefresh?.();});
       try {
       access = await api('/access'); if (!access.view) throw new Error('Владелец ещё не выдал доступ к графику.');
       employees = (await api('/employees')).items;
@@ -322,10 +344,10 @@
       q('[data-create]').hidden = !access.manage; q('[data-grants]').hidden = !access.grant;
       q('[data-planning]')?.remove();
       if (access.manage) {
-        const planningButton=document.createElement('button');planningButton.type='button';planningButton.className='button';planningButton.dataset.planning='';planningButton.textContent='Черновики и шаблоны';
-        planningButton.onclick=()=>window.openSchedulePlanning({api,dialog,employees,access,date,local,instant,refresh:load});q('[data-grants]').before(planningButton);
+        const planningButton=document.createElement('button');planningButton.type='button';planningButton.className='button';planningButton.dataset.planning='';planningButton.textContent='Составить график';
+        planningButton.onclick=()=>window.openSchedulePlanning({api,dialog,employees,access,date,local,instant,refresh:load});q('[data-create]').after(planningButton);
       }
-      q('[data-create]').onclick = () => editor(null);
+      q('[data-create]').onclick = () => editor(null, q('[data-person]').value);
       if (access.manage) {
         q('[data-copy-week]')?.remove();
         const copyButton = document.createElement('button'); copyButton.className = 'button'; copyButton.dataset.copyWeek = ''; copyButton.textContent = 'Копировать неделю'; copyButton.onclick = copyWeek;
@@ -335,12 +357,22 @@
       q('[data-person]').onchange = draw;
       q('[data-search]').oninput=draw; q('[data-role]').onchange=draw; q('[data-cancelled]').onchange=draw;
       q('[data-today]').onclick=()=>{date=local(new Date(),access.timezone).slice(0,10);q('[data-date]').value=date;load();};
+      q('[data-month-jump]').onchange = event => {
+        if (!event.target.value) return;
+        const today = local(new Date(), access.timezone).slice(0, 10);
+        const month = new Date(today.slice(0, 7) + '-01T12:00Z');
+        if (event.target.value === 'next') month.setUTCMonth(month.getUTCMonth() + 1);
+        if (event.target.value === 'today') date = today;
+        else { date = month.toISOString().slice(0, 10); mode = 'month'; }
+        q('[data-date]').value = date; q('[data-mode]').value = mode; q('[data-mode]')._customSelectRefresh?.();
+        event.target.value = ''; event.target._customSelectRefresh?.(); load();
+      };
       q('[data-mode]').onchange = event => { mode = event.target.value; load(); };
       q('[data-date]').onchange = event => { if (event.target.value) { date = event.target.value; load(); } };
       const move = n => { if (mode === 'month') { const next = new Date(date.slice(0,7) + '-01T12:00Z'); next.setUTCMonth(next.getUTCMonth() + n); date = next.toISOString().slice(0,10); } else date = addDays(date, n * (mode==='day'?1:7)); q('[data-date]').value = date; load(); };
       q('[data-prev]').onclick = () => move(-1); q('[data-next]').onclick = () => move(1);
       initialized = true;
-      target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person]').forEach(el=>{el.disabled=false;el._customSelectRefresh?.();});
+      target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person],[data-month-jump]').forEach(el=>{el.disabled=false;el._customSelectRefresh?.();});
       await load();
       } catch (error) { status(error.message + ' Нажмите «Обновить».'); }
       finally { q('[data-refresh]').disabled = false; }

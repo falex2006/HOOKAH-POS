@@ -8,7 +8,7 @@ const assets=['portal.js','portal-session.js','staff-schedule-ui.js','staff-sche
 const sources=['server.js','staff-schedule-domain.js','staff-schedule-access.js','staff-schedule-service.js','staff-schedule-copy.js','staff-schedule-routes.js','staff-schedule-planning.js','staff-schedule-pattern.js','migrations/103_staff_schedule_planning.sql','payroll-attendance-manifest.js',...assets];
 const readHashes=()=>Object.fromEntries(sources.map(name=>[name,createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 const startHashes=readHashes();
-const suites=['local-env','local-guards','domain','actual','access-pg','service-pg','revoke-race-pg','batch-pg','copy-pg','payroll-pg','venue-access-pg','access-http','crud-http','venue-http','planning-pg','planning-concurrency','planning-http','browser-crud','browser-roles','legacy-browser','load-errors-browser','browser','visual','calendar','planning-browser','keyboard','migration-recovery'];
+const suites=['local-env','local-guards','domain','actual','access-pg','service-pg','revoke-race-pg','batch-pg','copy-pg','payroll-pg','venue-access-pg','access-http','crud-http','venue-http','planning-pg','planning-concurrency','planning-http','browser-crud','browser-roles','legacy-browser','load-errors-browser','browser','visual','calendar','role-labels','month-planning','planning-browser','keyboard','migration-recovery'];
 const results=[];
 for(const name of suites){
   const file=`scripts/staff-schedule-${name}-qa.cjs`,started=Date.now();
