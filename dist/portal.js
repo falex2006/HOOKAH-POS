@@ -21,7 +21,7 @@ function getVenueLocalHour(date, timezone) { if (!timezone) return null; try { c
 let venueTimezone = String(portalUser.timezone || '');
 let dashboardGreetingTimer = null;
 function updateDashboardGreeting() { /* Dashboard keeps a stable title; no recurring greeting. */ }
-const adminSectionTitles = { '#staff': 'Персонал', '#permissions': 'Роли и права доступа', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки заведения', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'База знаний' };
+const adminSectionTitles = { '#staff-schedule': 'График сотрудников', '#staff': 'Персонал', '#permissions': 'Роли и права доступа', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки заведения', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'База знаний' };
 function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); if (title) title.textContent = adminSectionTitles[window.location.hash] || 'Главная'; if (document.body?.dataset.page === 'dashboard') {
   document.title = `Hookah POS — ${adminSectionTitles[window.location.hash] || 'Главная'}`;
   document.querySelectorAll('.portal-sidebar a[href]').forEach((link) => {
@@ -146,7 +146,7 @@ const sidebarRouteGroup = (url) => {
   if (['/', '/orders', '/reservations', '/clients', '/delivery'].includes(path)) return 'operations';
   if (path === '/inventory') return ['products', 'recipes'].includes(view) ? 'menu' : 'inventory';
   if (['/finance', '/finance/report', '/finance/categories'].includes(path)) return 'finance';
-  if (path === '/admin' && ['#staff', '#tasks', '#permissions'].includes(hash)) return 'team';
+  if (path === '/admin' && ['#staff', '#staff-schedule', '#tasks', '#permissions'].includes(hash)) return 'team';
   if (['/integrations', '/network'].includes(path) || (path === '/admin' && hash)) return 'system';
   return null;
 };
@@ -443,6 +443,7 @@ const normalizeManagementSidebar = () => {
     if (!adminNav) { adminNav = document.createElement('nav'); adminNav.className = 'portal-nav staff-nav'; adminNav.dataset.staffNav = ''; adminLabel.after(adminNav); }
     const adminLinks = [
       { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'id-badge' },
+      { href: '/admin#staff-schedule', permission: 'staff_schedule_view', label: 'График сотрудников', iconName: 'calendar-event' },
       { href: '/admin#permissions', permission: 'role_editor', label: 'Роли и права доступа', iconName: 'shield-lock' },
       { href: '/admin#tasks', permission: 'tasks', label: 'Задачи', iconName: 'list-check' },
       { href: '/admin#loyalty', permission: 'loyalty', label: 'Лояльность и скидки', iconName: 'gift' },
@@ -473,7 +474,7 @@ const normalizeManagementSidebar = () => {
         hrefs.forEach((href) => { adminNav.querySelectorAll(`a[href="${href}"]`).forEach((link) => nav.append(link)); });
         details.append(nav); rememberGroupState(details, key); return details;
       };
-      groupRoot.append(makeGroup('Команда', ['/admin#staff', '/admin#permissions', '/admin#tasks'], 'team'));
+      groupRoot.append(makeGroup('Команда', ['/admin#staff', '/admin#staff-schedule', '/admin#permissions', '/admin#tasks'], 'team'));
       groupRoot.append(makeGroup('Система', ['/admin#loyalty', '/admin#company', '/admin#settings-dashboard-modules', '/admin#lock-security', '/admin#audit', '/integrations', '/network', '/admin#diagnostics', '/admin#notifications', '/admin#help'], 'system'));
       adminLabel.replaceWith(groupRoot); adminNav.remove();
     }
@@ -1844,7 +1845,7 @@ function getFinanceMetricPreferences() {
   try { return { ...defaults, ...(JSON.parse(localStorage.getItem(`crm_finance_metrics_${identity}`) || '{}')) }; } catch (_) { return defaults; }
 }
 
-const focusedAdminDashboardHashes = new Set(['#staff', '#permissions', '#tasks', '#shift-control', '#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit', '#diagnostics', '#help', '#notifications', '#loyalty']);
+const focusedAdminDashboardHashes = new Set(['#staff-schedule', '#staff', '#permissions', '#tasks', '#shift-control', '#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit', '#diagnostics', '#help', '#notifications', '#loyalty']);
 const focusedAdminDashboardHash = () => window.location.pathname === '/admin' && focusedAdminDashboardHashes.has(window.location.hash) ? window.location.hash : '';
 
 function setupDashboardModules() {
@@ -2230,11 +2231,41 @@ function disposeStaffDrawer() {
   window.__closeStaffDrawer = undefined;
 }
 
+let scheduleAssetsPromise;
+function renderScheduleRoute(target) {
+  target.innerHTML = '<p role="status">Загрузка графика сотрудников…</p>';
+  document.querySelector('[data-admin-section-title]').textContent = 'График сотрудников';
+  document.title = 'Hookah POS — График сотрудников';
+  if (!scheduleAssetsPromise) scheduleAssetsPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('[data-schedule-css]')) {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=2'; css.dataset.scheduleCss = ''; document.head.append(css);
+    }
+    const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=2';
+    script.onload = () => {
+      const planning = document.createElement('script'); planning.src='/staff-schedule-planning-ui.js?rev=2';
+      planning.onload=resolve; planning.onerror=()=>{planning.remove();scheduleAssetsPromise=null;reject(new Error('schedule_planning_assets_unavailable'));}; document.head.append(planning);
+    }; script.onerror = () => { script.remove(); scheduleAssetsPromise = null; reject(new Error('schedule_assets_unavailable')); }; document.head.append(script);
+  });
+  scheduleAssetsPromise.then(() => { if (location.hash === '#staff-schedule') window.mountStaffSchedule(target); }).catch(() => {
+    if (location.hash !== '#staff-schedule') return;
+    target.innerHTML = '<p>Не удалось загрузить график.</p><button type="button" class="button" data-retry-schedule>Повторить</button>';
+    target.querySelector('button').onclick = () => renderScheduleRoute(target);
+  });
+}
+// This boundary is installed outside renderDashboard, including direct schedule entry.
+// A fresh verified bootstrap disposes all old dashboard listeners and pending views.
+window.addEventListener('hashchange', event => {
+  if (location.pathname !== '/admin') return;
+  if ([new URL(event.oldURL).hash, new URL(event.newURL).hash].includes('#staff-schedule')) {
+    event.stopImmediatePropagation(); location.reload();
+  }
+}, true);
 function renderDashboard() {
   if (!window.__portalSessionVerified.demo && !window.__portalSessionGate.canAccessRoute(window.__portalSessionVerified, window.location.pathname, window.location.hash)) { window.__portalSessionGate.block('Доступ к этому разделу ограничен.', true); return; }
   disposeStaffDrawer();
   const target = document.querySelector('#page-content');
   if (!target) return;
+  if (location.hash === '#staff-schedule') { renderScheduleRoute(target); return; }
   target.classList.toggle('ui-admin-pages', window.location.pathname.replace(/\/$/, '') === '/admin' && Boolean(window.location.hash));
   const canViewStaff = hasPortalPermission('staff_view');
   const showStaffPanel = canViewStaff && ['#staff', '#permissions'].includes(focusedAdminDashboardHash());

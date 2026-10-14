@@ -19,6 +19,7 @@
     if (page === '/clients') return any('orders', 'staff', 'staff_view');
     if (page === '/admin') {
       if (hash === '#staff') return any('staff', 'staff_view');
+      if (hash === '#staff-schedule') return any('staff_schedule_view');
       if (hash === '#permissions') return session.user.role === 'owner';
       if (hash === '#tasks') return any('orders', 'tasks_manage');
       if (hash === '#loyalty') return any('loyalty');

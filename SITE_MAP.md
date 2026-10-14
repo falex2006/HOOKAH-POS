@@ -10,6 +10,7 @@
 │  └─ /                        Рабочая панель зала и заказов по правам вошедшего пользователя
 └─ /admin                      Панель управления
    ├─ /admin#staff             Персонал и доступы
+   ├─ /admin#staff-schedule    График сотрудников (owner / выданный доступ)
    ├─ /admin#tasks             Задачи
    ├─ /admin#settings          Центр настроек
    ├─ /admin#company           Данные заведения
@@ -127,6 +128,8 @@
 
 Команда
 ├─ Персонал                        /admin#staff
+├─ График сотрудников              /admin#staff-schedule
+├─ Роли и права доступа            /admin#permissions
 └─ Задачи                          /admin#tasks
 
 Система

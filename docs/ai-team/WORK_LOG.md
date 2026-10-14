@@ -1,3 +1,209 @@
+## 2026-10-14 — Локальная приёмка завершена
+
+- Сводный acceptance1791958992916:20/20 PASS. После усиления runner повтор acceptance1791959117851:20/20 PASS, distParity=true,sourcesUnchanged=true. Текущие SHA256 продуктовых файлов повторно сверены с финальным отчётом. Независимый review runner финальной версии PASS, блокирующих замечаний нет.
+- Отдельный keyboard QA PASS. Первая строгая проверка ожидала фокус исключительно внутри dialog; исследование показало стандартный переход в browser chrome (document.activeElement BODY), не на фоновый контрол. Тест проверяет возврат следующего Tab, запрет фона, Escape и восстановление фокуса. Продуктовый код для этого не менялся.
+- Миграции/recovery, реальные CRUD/роль/tenant/revoke/copy/payroll/ошибки/визуальные состояния подтверждены матрицей STAFF_SCHEDULE_HANDOFF. План обновлён10/10, подробные prompts сохранены. Loopback31944 работает, изображение наполненного результата передано в панель Codex (queued). runtime/fixtures/artifacts исключены из Git.
+- Не выполнялись commit/push/PR/merge/VPS/deploy. Общие исходные payroll/sidebar textual-contract failures отделены от локальных доказательств модуля; production release требует нового workflow. Рабочие изменения/синтетические QA данные/backup БД сохранены, ничего не удалялось.
+
+## 2026-10-14 — Сводная приёмка и draft передачи
+
+- Добавлен acceptance runner20 suites с JSON результатами и SHA256 продуктовых исходников, проверкой4 dist копий. Первые15 suites PASS; browser-roles FAIL на ожидании созданной записи после reload. Общий отчёт acceptance-1791958728642.json остаётся FAIL, не заменён отдельным PASS. Добавлена диагностика role/date/status/guard и screenshot при повторе. Причина ещё не подтверждена.
+- Независимый review migration/recovery финальной версии: PASS, блокирующих замечаний нет; scope локальный, production release исключён.
+- Обновлён актуальный статус плана, сохранены подробные10 prompts, создан STAFF_SCHEDULE_HANDOFF.md с локальным запуском/матрицей доказательств/границами. Передача пока draft до сводного успешного прогона.
+- Отдельный повтор browser-roles PASS обе роли. Второй aggregate остановился crud-http429 (report1791958848085): общий rate limit от локального потока. Использован существующий bounded API_RATE_LIMIT=10000 только в allowlisted local-env, product default не менялся. Проверенный task server перезапущен (launcher18076); новый aggregate99155 выполняется. Auth/tenant/grant проверки не отключались.
+
+## 2026-10-14 — Recovery comparator без текстовых замен
+
+- По замечанию независимого review убраны все замены в dump. canonicalSchema проверяет current_database и allowlist двух новых disposable БД, сохраняет комментарии CHECK, отклоняет inherited CHECK, разбирает определения до стабильности, проверяет неизменность данных и фиксирует только эту нормализацию тестовой схемы. Полные pg_dump далее сравниваются точно (кроме случайных restrict tokens). Рабочая schedule DB исключена; при ошибке rollback.
+- Прогон0c7fb1921f63 PASS: нормализация исходной disposable schema до backup, upgrade/replay/failure rollback/data restore/schema exact comparison/re-upgrade. Никакой глобальной замены, способной затронуть COMMENT/function, больше нет.
+- Расширен fixture заполненными frozen attendance approval/header/shift/interval (синтетические, не финансовый расчёт), сравниваются все поля после upgrade/restore/re-upgrade. Добавлена сверка last_value/is_called всех исходных sequences после failed upgrade и restore. Расширенный прогон21cca012b5d1 PASS; backup/report и обе disposable БД сохранены. Независимый review последней версии ожидается.
+
+## 2026-10-14 — Venue session и недостающие CRUD сценарии
+
+- Новый venue-http QA PASS: настоящий login→select второго venue своей организации→session200 с manage→минимальный selector→POST201; users.venue_id не переписан; чужой tenant select404; возврат в исходный venue запрещает GET/PATCH чужой смены404 без изменения БД. Сессия возвращена в исходный venue.
+- Browser CRUD расширен: замена сотрудника и перенос даты; деактивация выбранного сотрудника при открытой форме→PATCH409, ввод сохранён и исходная запись неизменна; реактивация синтетического QA сотрудника→save200→reload→новый сотрудник/дата/version2 подтверждены. Реальный payroll PG regression PASS.
+- Получен независимый recovery review: стабилизация CHECK допустима, но global replaceAll способен менять совпадение внутри COMMENT/function. Требуется SQL-aware object-scoped замена и current_database identity assertion. Поэтому прошлый checker PASS не закрывает независимую приёмку recovery. Также остаётся явная проверка populated payroll snapshots/sequences; производственные данные не затронуты.
+
+## 2026-10-14 — Schema recovery PASS и локальные dist-копии
+
+- Причина schema text diff: PostgreSQL flatten nested AND при повторном разборе CHECK. QA теперь нормализует только CHECK средствами PostgreSQL (DROP/ADD внутри ROLLBACK-транзакции только новых изолированных БД, до стабильного pg_get_constraintdef); весь остальной schema dump сравнивается точно, без удаления скобок/операторов. Исправлена и JS replacement интерпретация dollar-последовательностей через callback.
+- Полный прогон migration-recovery PASS: schedule_upgrade_969ab044479d / schedule_restore_969ab044479d, backup/report сохранены. Данные всех исходных таблиц, все legacy поля, schema после нормализации CHECK, failure rollback, replay и восстановленный upgrade подтверждены. Скрипт отправлен независимому code-health reviewer; production recovery не заявляется.
+- Добавлен узкий --staff-schedule-only режим существующего sync-published-assets: локально синхронизированы только portal.js,portal-session.js,staff-schedule-ui.js/css в dist. Никакие server модули/секреты/HTML revisions не копировались, публикации нет. Syntax/diff checks PASS.
+
+## 2026-10-14 — Репетиция миграций и восстановления
+
+- Новый migration-recovery QA создаёт только новые random upgrade/restore БД в identity-verified schedule container. Рабочая staff_schedule_qa не откатывалась. schema + pre101 migrations, empty upgrade/replay rollback, synthetic legacy NULL/night/half-NULL записи, pg_dump backup.
+- Первый прогон PASS: injected SQL failure rollback сохраняет старые таблицы/данные;101/102 сохраняют каждый legacy field, прочие таблицы неизменны; replay неизменен; pg_restore в новую БД возвращает исходные данные; восстановленная БД снова upgrade PASS. Артефакты schedule_upgrade_27b48d953d69.dump и migration-recovery-27b48d953d69.json сохранены; обе БД сохранены для инспекции, ничего не удалялось.
+- Добавлено сравнение schema-only dump (constraints/indexes included, исключаются только случайные psql restrict tokens) и повторный прогон. MIGRATIONS.md описывает порядок, границы локального доказательства и несовместимость старого upsert. Запрошен независимый review QA скрипта.
+- Уточнение повторного прогона: строгий schema text comparison FAIL на различном числе скобок в существующем cost_snapshot_json/costCents constraint (offset143651). Все предшествующие data assertions прошли. Текущий скрипт завершается fail, поэтому полный upgrade/recovery gate НЕ закрыт; требуется корректная структурная/семантическая сверка без подавления существенных различий. Диагностика локализована, исходная рабочая БД не затронута.
+
+## 2026-10-14 — Запись делегированных ролей и история NULL
+
+- Расширен browser-roles QA: admin и manager действительно создают смену через форму после owner grant manage;201, DB created_by, reload-visible PASS. Отзыв на том же token запрещает чтение и PATCH403, БД не изменяется. Grants возвращены none.
+- Независимые architect/code-health reviews получены: новые UI/route blockers не найдены, остался дефект отображения NULL окончания истории. Исправлено форматирование каждой границы отдельно; legacy browser QA дополнен реальной отменой half-NULL записи и проверкой «Окончание не задано», без1970, PASS.
+- Нижнее дерево SITE_MAP дополнено графиком и правами. Payroll static QA обновлён только в части перенесённого schedule dispatcher; дальше по-прежнему FAIL на исходном несовпадении textual assertion purchase/P&L, не относящемся к графику. Не объявляется общим PASS. Реальный payroll integration ранее проверен отдельным PG suite.
+
+## 2026-10-14 — Наполненные dark/light visual QA
+
+- Добавлен staff-schedule-visual-qa.cjs: отдельный синтетический сотрудник с длинным именем,3 смены/день,ночная смена,отсутствия;1440/768/375/320 dark/light, editor320, Escape. Снимки dense/cards/editor сохранены в игнорируемом qa-artifacts/staff-schedule. PASS без общего overflow/pageerror.
+- Просмотрены реальные снимки dense light1440, dark1440, editor light320, cards light320/dark768. Найдено наложение длинного выбранного имени: scoped custom-select-trigger получил однострочное усечение/тематические цвета. Исправлен sticky footer offset16px на мобильном, checkbox label min44px. Повторный просмотр подтверждает читаемые имена/карточки/кнопки без наложения.
+- Выявлен функциональный дефект визуальной проверки: общий custom select сохранял disabled trigger после initialization. Добавлен _customSelectRefresh при блокировке/разблокировке. Тест теперь переключает неделю/месяц именно кликами по видимому trigger/menu, PASS. Это не полная accessibility-приёмка.
+
+## 2026-10-14 — Заголовки, карты и HTTP compatibility
+
+- staff-schedule добавлен в общий adminSectionTitles/focusedAdminDashboardHashes; SITE_TREE/SITE_MAP описывают «Команда → График сотрудников» и owner grants. site-map metadata больше не заявляет отсутствие изменений маршрутов и ссылается на существующую карту.
+- Перезапущен проверенный локальный server, launcher session25726. Расширенный HTTP CRUD PASS: defaults from/to, POST без key400, create с version400, legacy DTO venue/author/created и nullable note, GET/:id; прежние cookie Origin/replay/overlap/stale/cancel/history проверки PASS.
+- Browser QA PASS: direct/menu/editor/grants,375/768 без общего overflow; добавлен переход график→персонал→Назад→Вперёд, восстановление правильного заголовка и снятие schedule-route вне графика. Снимки сохранены, это не заменяет повторный визуальный просмотр наполненных light/Fold состояний.
+
+## 2026-10-14 — Единый API и миграция встроенных потребителей
+
+- Удалены недостижимые GET/POST schedule из server.js, включая несовместимый ON CONFLICT. GET service восстановил defaults по дате заведения и legacy DTO поля/nullable note. POST с version теперь отклоняется вместо ошибочного создания.
+- API.md описывает полный контракт и явную несовместимость blind upsert: нужен requestKey для create, конкретный id/version для PATCH; внешние клиенты должны обновиться до выпуска. Генератор seed-local-full-qa сохраняет ключ и весь payload в manifest до отправки, повтор не создаёт новый ключ/дату. Сам генератор не запускался: его отдельная БД вне текущей изоляции.
+- Старый validation QA переписан для действующего dispatcher/domain, а не удалённой VM-ветки. PASS validation, service PG regression, server syntax, diff check. Default GET и DTO ещё требуют отдельного HTTP regression; runtime после server правки не перезапускался.
+
+## 2026-10-14 — Ошибки загрузки и повторная инициализация
+
+- Кнопка refresh подключена до начальных запросов и повторяет initialization после сбоя access/employees. До инициализации управление периодом отключено; повтор не дублирует сотрудников и кнопку copy.
+- При загрузке нового периода старые записи и итоги очищаются, ready=false блокирует редактор/copy; фильтр не перерисовывает старые данные. Контролы записи возвращаются только после валидного items/actual/access ответа. Устаревшие поколения ответов игнорируются.
+- Новый staff-schedule-load-errors-browser-qa.cjs PASS: управляемый503 сотрудников→retry;503 списка после смены периода→нет старых данных/итогов, запись выключена; фильтр не возвращает stale data; retry восстанавливает UI без дублей. Реальные API ответы вне точек fault injection, без мутаций тестовых данных. Повтор legacy/conflict browser PASS; syntax/diff PASS.
+- Полная визуальная/маршрутная приёмка, legacy API, миграционная репетиция и docs/dist ещё открыты.
+
+## 2026-10-14 — Восстановление редактора после409
+
+- Добавлен tenant-scoped GET /api/staff/schedule/:id через общий service с проверкой view/UUID. При version conflict UI сохраняет поля, загружает актуальную запись, показывает исходную/новую версии и все редактируемые данные. Переход на актуальную версию требует явной кнопки, затем отдельного сохранения. Отменённая запись не восстанавливается; черновик остаётся доступным.
+- staff-schedule-legacy-browser-qa.cjs расширен: параллельное реальное PG изменение→browser PATCH409→GET актуальной записи→поля сохранены→явное повторное применение→версия3/history PASS. Параллельная отмена→409→нет кнопки повторного применения, черновик сохранён, DB cancelled PASS. Foreign venue service GET404 PASS.
+- Copy PG regression PASS; UI/service syntax, git diff --check PASS. Только проверенный локальный server перезапущен (launcher session71248). API docs/dist и полная приёмка пока открыты.
+
+## 2026-10-14 — Неполные legacy-планы
+
+- Старые shift-записи с NULL временем не преобразуются в отсутствие и не удаляются. UI показывает «Время требует уточнения», исключает неполные интервалы из часов и явно помечает итог неполным. Редактор не подставляет вымышленные времена вместо отсутствующих. Уточнение проходит обычную версионную запись с before/after history.
+- Copy preview на сервере возвращает schedule_plan_incomplete для отсутствующих границ; apply запрещает выбранный конфликт. Локализована подсказка.
+- Новый staff-schedule-legacy-browser-qa.cjs PASS: PostgreSQL NULL fixture, server-module preview/apply rejection; реальный браузер/readback показывает0ч безNaN, явный ввод времени→PATCH200→8ч, исходные NULL и заметка сохранены в истории. Нет pageerror; syntax/diff checks PASS. Это проверка представления legacy-данных, не полная upgrade/recovery репетиция миграций. HTTP copy после правки модуля требует перезапуска runtime.
+
+## 2026-10-14 — Явная причина копирования в прошлое
+
+- Убрана автоматическая причина «Копирование графика». Сервер проверяет выбранные записи относительно текущей даты заведения, требует непустую пользовательскую причину для прошлого, сохраняет её в истории. В UI добавлены предупреждение, поле причины и локальная проверка с фокусом; изменение причины обновляет requestKey.
+- PASS copy-pg: пустая/пробельная причина отклоняется, нет вставленных смен и ключа replay; с причиной история/readback/replay корректны. Синтаксис UI и git diff --check PASS.
+- Перезапущен только проверенный task server на31944, launcher session61088. Browser CRUD PASS: create→DB→reload→edit; предпросмотр копии в2020 без записи; предупреждение и блокировка пустой причины; успешное копирование с readback причины из истории; видимый целевой период; cancel→history. Ошибок страницы нет. Изолированные синтетические данные, без публикации.
+- Запрошена независимая перепроверка изменения; остальные замечания этапа09 остаются открыты.
+
+## 2026-10-14 — Исправление P1 доступа после итогового аудита
+
+- Получены code-health/security и architect audits. Этап09 не принят: открыты legacy API/данные, восстановление после409, причина копирования в прошлое, dist/docs и полная браузерная матрица.
+- UUID validator принимает канонические PostgreSQL UUID штатного seed. resolveAccess разрешает владельцу выбранное заведение той же организации; остальные роли ограничены домашним заведением. Lock актёра берётся до повторного чтения. Ожидаемый schedule_forbidden не ломает общую session; неожиданные ошибки остаются fail-closed.
+- PASS: domain34, access-pg, revoke-race-pg, новый venue-access-pg (реальный PostgreSQL, legacy IDs, owner same-org venue, foreign/non-owner/inactive denied, тестовые вставки ROLLBACK); server syntax и git diff --check. HTTP session и браузерное переключение ещё не подтверждены; runtime требует перезапуска после правки server.
+- Запрошена повторная независимая проверка P1 diff. Production/GitHub не изменялись.
+
+## 2026-10-14 — Ролевая браузерная матрица и видимый факт
+
+- Browser roles QA PASS для admin и manager: владелец через окно выдаёт none/view/manage/none; direct URL блокируется без grants, view скрывает create/grants и POST403, manage открывает editor без grant controls, отзыв на том же token даёт employees403 и reload guard. Не заявляется этим тестом успешная запись manager: только открытие editor, реальное сохранение ранее проверялось owner и service.
+- Browser CRUD QA повторно PASS, дополнен синтетическими work logs: после reload и фильтра сотрудника видны7,5ч плана,1ч факта и явное предупреждение о незакрытом интервале. План/факт не смешиваются.
+- Запущены независимые read-only code-health/security и architect parity audits; их итог ещё ожидается. Выпуска/публикации нет.
+
+## 2026-10-14 — Раздельный факт и план
+
+- GET графика возвращает фактические итоги по staff_work_logs отдельно от плана. Завершённые интервалы объединяются для устранения двойного учёта пересечений; незакрытые/некорректные считаются отдельно, не выдаются за нулевой завершённый факт. Период выбирается по локальной дате начала интервала; плановый перерыв не вычитается повторно.
+- UI подписывает источник и неполноту факта. Селектор сохраняет минимальные сведения об архивных сотрудниках с планом/фактом, чтобы история не исчезала из таблицы; назначать им новые смены сервер не разрешает.
+- PASS actual totals unit (union/night/open/invalid/employees/empty), service PG и syntaxUI. Runtime/browser новых итогов ещё не проверены. Обновлён реальный контрольный срез10этапов, финальная приёмка не заявлена.
+
+## 2026-10-14 — Копирование недели через браузер
+
+- Добавлено окно копирования: две даты, выбор сотрудников, read-only preview, исключение строк, блокировка конфликтных строк и отдельное подтверждение. При изменении параметров preview сбрасывается. Request key сохраняется для повтора, после успеха открывается целевая неделя.
+- Реальный браузерный CRUD suite расширен и PASS: после edit открыт copy dialog, preview оставляет1строку вБД, apply создаёт2ю, целевая смена видна, возврат к исходной дате → отмена → открытие истории показывает версию3. Runtime перезапущен только свой31944. Без pageerror.
+- Остались copy UI conflict/error/stale scenarios, фактические итоги, финальная адаптивность/roles и независимая приёмка. Цель не завершена.
+
+## 2026-10-14 — Copy preview/apply на PostgreSQL
+
+- staff-schedule-copy.js: семидневный источник, выбранные сотрудники, сохранение местного времени/ночного перехода, preview без записей, конфликты и неактивные сотрудники, fingerprint источника, атомарное применение выбранных строк, replay. Два POST маршрута preview/apply подключены; Docker COPY обновлён.
+- PG copy QA PASS: preview не создаёт строк, ночь20:00–04:00 переносится на нужные местные даты, apply/replay без дублей, существующая цель409, изменённый источник409, DST gap/fold отклонены. Найден и исправлен дефект повторной нормализации ISO с .000Z; domain34 повторно PASS.
+- Copy UI и реальный HTTP/browser copy пока не проверены; runtime требует перезапуска. Этап08 не принят только по service QA.
+
+## 2026-10-14 — Атомарный набор смен для копирования
+
+- Выделено владение транзакцией в save; saveBatch использует одну транзакцию, venue mutation lock, свежие права и общий idempotency key для всех записей. Batch ограничен200, проверяет уникальность дочерних ключей. Пока внутренний сервис, HTTP copy/preview ещё не подключены.
+- PG batch QA PASS: конфликт во второй строке откатывает первую и все ключи повторов; исправленный набор сохраняет две строки; повтор возвращает те же id без дублей. Повторный одиночный service PG PASS. Тест использует отдельного synthetic employee.
+- Следующий обязательный шаг — перенос локальных дат/времени в preview, выбор исключаемых конфликтов, повторная проверка перед применением и UI. Сам saveBatch не считается выполненным этапом копирования недели.
+
+## 2026-10-14 — Браузерное сохранение и история
+
+- staff-schedule-browser-crud-qa.cjs PASS: реальный browser owner login → создание через редактор → PostgreSQL break30 → reload → сохранённая note → изменение → отмена с причиной → видимый статус → SQL version3/history3. Собственный синтетический сотрудник, без pageerror; screenshot crud-complete.png.
+- Добавлен GET /:id/history с tenant record check и явной проекцией вместо отдачи raw audit JSON; в редакторе кнопка истории с actor/time/reason/version/time/break. Пока только syntax PASS; новый history route требует перезапуска runtime и браузерной проверки. Лимит100 последних событий явно требует будущей подписи/пагинации перед финальной приёмкой.
+- Общая цель не завершена: copy/repeat, отдельные plan/fact totals, адаптивные наполненные состояния, grant-role UI E2E, legacy compatibility, документация и независимый final QA остаются.
+
+## 2026-10-14 — Первый браузерный и визуальный прогон
+
+- Исправлен пропуск UI JS/CSS в server static allowlist. Runtime перезапущен только свой31944. Headless Edge, реальный login и session: direct hash, sidebar link, calendar, editor и grants dialog PASS, без pageerror. Снимки в qa-artifacts/staff-schedule.
+- Осмотр screenshot обнаружил невидимые нижние действия editor и мобильную ширину main307 при viewport375. Добавлены sticky dialog actions, перенос заголовка, route-scoped mobile width/grid. Повтор: main375 при375, main768 при768, overflow PASS. Sidebar на первом screenshot находился в середине штатного transition; измерения теперь после завершения500ms, offscreen -280 подтверждён.
+- Браузер пока не сохранял смену через форму; desktop/mobile edit, light theme, Fold, плотный график, navigation boundaries, keyboard и full UI E2E остаются. Не заявляется финальный visual PASS.
+
+## 2026-10-14 — Первый UI графика и меню
+
+- Добавлены route-scoped staff-schedule-ui.js/css: неделя по сотрудникам, обзор дней месяца и список, фильтр, плановые часы, native editor для смены/absence/перерыва/отмены, owner grant dialog. Даты преобразуются по IANA timezone; неоднозначное/несуществующее местное время отклоняется. Pending блокирует controls, ошибки сохраняют форму, readback failure не затирается успехом.
+- Server session добавляет только вычисленные schedule capabilities без изменения обычных scopes. Portal session gate требует view; sidebar team содержит link и правильную группу. Dedicated renderer выходит до dashboard API. На переходе в/из графика выполняется новая verified загрузка, чтобы не наследовать dashboard handlers. Это осознанный промежуточный lifecycle: нужно проверить Back/Forward/reload и визуальный переход.
+- Docker COPY дополнен UI; site-map и visual rules обновлены. PASS syntax portal/session/server/UI, diff check. Браузерная проверка ещё не выполнена, dist ещё не синхронизирован. Не заявляются готовыми: UI visual QA, copy/repeat, история в UI, факт/план totals, role/session regression и route documentation parity.
+
+## 2026-10-14 — Новый CRUD через настоящий HTTP
+
+- Добавлен staff-schedule-crud-http-qa.cjs. Подтверждён путь login → cookie-origin POST → replay → overlap409 → PATCH → stale409 → GET → cancel → SQL readback/history3. Чужой Origin403, same-origin cookie работает, malformed range400. Всё на собственном synthetic employee.
+- Перезапущен только проверенный процесс server.js из schedule worktree на31944. HTTP CRUD PASS. Access HTTP сначала обнаружил устаревшее ожидание теста: employee selector сравнивался только с начальным seed, хотя suites создают новых сотрудников. Проверка исправлена на точное принадлежание реальному venue по PostgreSQL, повтор PASS. DTO по-прежнему проверяется строго по четырём полям.
+- Начат просмотр правил дизайна/точек подключения UI; визуальный интерфейс ещё не реализован. Публикации нет, цель активна.
+
+## 2026-10-14 — Реальная гонка отзыва и сохранения
+
+- Добавлен staff-schedule-revoke-race-pg-qa.cjs. Два независимых соединения, реальное ожидание подтверждается pg_blocking_pids, а не фиксированным sleep. Собственный синтетический manager, чужие fixtures не меняются.
+- PASS оба порядка: когда отзыв первым блокирует actor, ожидающее сохранение после commit получает schedule_forbidden, строк нет; когда сохранение первым удерживает actor, оно завершается до отзыва, а все последующие записи запрещены. Это задаёт транзакционный порядок операций, не обещает отменять уже завершённые сохранения.
+- Проверен новый versioned service напрямую на PostgreSQL. Браузерный сценарий и HTTP прерывание загрузки тела ещё не проверены. Цель остаётся активной.
+
+## 2026-10-14 — Payroll readback и замечания независимого аудита
+
+- Новый реальный PG payroll QA: отдельный venue/owner/employee, смена с перерывом, фактический work log, absence, approval, изменение перерыва, отмена. PASS: нетто450/факт420, absence исключён, изменение до420 даёт stale, snapshot450 неизменён, отмена оставляет лог как причину неполноты. Плановый перерыв не вычитается повторно из факта.
+- Watermark теперь учитывает изменённые нетто-минуты; для нулевого перерыва сохраняется прежний формат hash, чтобы не объявлять все старые approvals устаревшими без изменения источника.
+- По независимому static review разделены блокировка actor и чтение grant на два SQL statement для свежего READ COMMITTED snapshot после ожидания revocation. Нужен отдельный двухсоединительный race QA. Service DTO заменён с spread SQL-row на явные поля; Dockerfile включает четыре новых runtime-модуля (image build ещё не проверен).
+- Повторно PASS service PG, access PG, diff check. Не закрыты: ночная граница payroll, лог на несколько смен, backwards API policy, runtime HTTP нового CRUD, cookie/Origin, immutable/history DB constraints и UI. Аудит корректно обнаружил старый legacy POST и payroll проблемы, часть уже устранена параллельным внедрением router/service; старые недостижимые handlers ещё нужно удалить.
+
+## 2026-10-14 — Версионированное сохранение смен
+
+- Добавлена migration102: несколько записей за день вместо legacy unique employee/day, kind/status/break/version, soft cancellation, transactional history и idempotency requests. Применена только к schedule QA. Нужен совместимый выпуск приложения с миграцией; старый upsert несовместим с удалённым unique constraint.
+- Новый staff-schedule-service подключён к GET/POST/PATCH через отдельный router. Мутации сериализованы по venue; actor row удерживается до commit для упорядочивания с отзывом grant. Проверяются employee/tenant, диапазоны, причина прошлого/отмены, пересечения включая absence, версия и повтор ключа.
+- PG service QA PASS: create/replay, изменённый payload с тем же ключом409, overlap409, соседние смены одного дня, конкурирующая правка409, отмена без удаления, history3, absence conflict, чужой tenant404, readback. Тест создаёт своего синтетического сотрудника, не удаляет предыдущие данные.
+- Payroll source query исключает отмены/absence и вычитает неоплачиваемый перерыв. Независимый аудит и проверка payroll snapshot ещё не завершены; модуль не принят. Новый POST требует requestKey, PATCH — version; legacy HTTP compatibility требует отдельного решения/документации, не заявляется сохранённой автоматически.
+
+## 2026-10-14 — HTTP-контракт доступа графика
+
+- Подключён staff-schedule-routes.js после аутентификации: GET access/grants/employees, PUT grants; legacy GET/POST графика теперь требуют отдельные view/manage вместо широких staff_view/staff_manage. Права проверяются по БД на каждом запросе. В demo без PostgreSQL возвращается явный503.
+- Селектор возвращает только id/name/role/active в текущем venue. Выдача owner-only, мутации защищены existing sameOriginMutation. Внутренние ошибки access-модуля не раскрываются.
+- Подтверждён и перезапущен только собственный listener31944; новый процесс использует очищенное окружение. HTTP QA PASS: 401, отказ без выдачи, view/manage, отзыв на том же токене, запрет self-grant и чужого tenant, точный минимальный DTO. PostgreSQL access QA повторно PASS; diff check PASS.
+- Не готово: интеграция capabilities с sidebar/session, UI управления правами, полный CRUD/version/history смен, аудит гонки revoke/write и сквозной payroll. HTTP gate не доказывает готовность этих частей. Старый runtime smoke актуализирован для новых grants.
+
+## 2026-10-14 — Контролируемое окружение и owner-grants
+
+- Локальный launcher запускает сервер дочерним процессом с allowlist системных переменных, фиксированными auth/loopback/DB и SKIP_LOCAL_ENV. В server.js добавлен opt-out загрузки .env без изменения обычного поведения. ENV QA подтверждает отсутствие наследуемых NODE_OPTIONS/proxy/SMTP и чтения .env.
+- Добавлена additive101 staff_schedule_grants + transactional grant events; применена только к изолированной БД. Отдельный access-service читает актуальную роль/активность из БД, owner выдаёт admin/manager view/manage/none. Не меняет существующие permission_scopes; пользователь не получает кадровые права через график. Версия и блокировка сотрудника защищают конкурентную выдачу даже без исходной grant-строки.
+- PASS: env QA; syntax server/access/launcher; access-pg-qa (выдача, просмотр, управление, отзыв, запрет self-grant, другой tenant, конкурентный409, сохранение scopes, history readback); domain34; git diff --check.
+- Пока service не подключён к HTTP/session/UI. Нужны independent review, два venue одной организации, проверка отзыва в гонке с записью смены и визуальный интерфейс. Этап03 не принят; цель активна. Никаких push/deploy.
+
+## 2026-10-14 — Устранение замечаний к Docker isolation
+
+- Все Docker-вызовы setup/config закреплены за Windows-local named pipe dockerDesktopLinuxEngine; remote context/host/TLS env не наследуются. Docker failure больше не трактуется как отсутствие контейнера.
+- Фактические container ID и anonymous volume проверены read-only и сохранены в игнорируемом identity.json. Проверяются точное совпадение и эксклюзивное использование тома одним контейнером. Потеря контейнера при существующем runtime manifest теперь останавливает setup вместо создания пустой замены; прежний том не удаляется.
+- PASS: guards13; setup повторно применяет0 миграций; config проверяет identity и exclusive volume; git diff --check. Это адресует три найденных P1, но независимый повторный review ещё нужен. Остались защита от .env/наследованного окружения и расширение fixtures на два venue одной организации. Этап01 остаётся в работе.
+
+## 2026-10-14 — График: тестовый runtime и domain-валидация
+
+- Созданы config/seed/serve/smoke scripts для отдельного loopback runtime. Шесть синтетических пользователей двух организаций; повтор seed не меняет существующие пароли. Login/tenant identity, PostgreSQL health, 401 без авторизации и baseline роль чтения проверены настоящими HTTP-запросами. Это не проверка новых owner-grants.
+- После прерывания подтверждено отсутствие listener31944, запущен собственный сервер, smoke PASS повторно. Старые handles субагентов not_found; запущен новый независимый code-health audit вспомогательных скриптов.
+- Начат staff-schedule-domain.js: строгие даты, timezone-дата начала, ночные интервалы, предел 24ч, неоплачиваемый перерыв, отсутствие, версия, ограниченный диапазон, матрица owner/admin/manager grants. Unit suite 34 PASS; git diff --check PASS. API ещё не использует модуль, пересечения/транзакции/DST local-input требуют следующей реализации.
+- Подготовительные этапы01–02 приняты по локальному runtime и документированным правилам; этап03 в работе. Финальная функциональная/визуальная приёмка не заявляется.
+
+## 2026-10-13 — График сотрудников: изоляция и baseline
+
+- Изолированная ветка codex/staff-schedule от d8651f2c; общий checkout и его ранний черновик не изменялись/не переносились. Составлен план 10 этапов с промптами и критериями; зафиксированы бизнес-правила, включая owner-controlled доступ, ночь, перерывы, отсутствие, историю и plan/fact/payroll.
+- Создан отдельный контейнер hookah-staff-schedule-local-20261013, PostgreSQL только 127.0.0.1:31943, собственный anonymous volume без auto-remove. Пароли случайные, только в игнорируемом qa-artifacts/staff-schedule/runtime.json. Общие QA volumes не используются. Приложению зарезервирован 31944, но оно ещё не запущено.
+- PASS: npm ci --ignore-scripts; node --check scripts/staff-schedule-local-setup.cjs; node scripts/staff-schedule-local-guards-qa.cjs (13 проверок); setup (101 миграция); повтор setup (0 миграций); git diff --check.
+- Независимый code-health baseline: синтаксис server/portal/effective-permissions/payroll PASS; local-schedule-validation 51 PASS, local-role-contract PASS. Старые payroll-qa и два sidebar-контракта FAIL из-за текстовых ожиданий, не соответствующих текущему коду; это не новые регрессии и не доказательство функциональной исправности.
+- Архитектор подтвердил отдельный #staff-schedule и разделение плана/факта/snapshot. Предложение фильтровать полный /api/staff только на клиенте отклонено: нужен минимальный серверный ответ. Автоматический доступ через staff_manage не соответствует запросу.
+- Пока не готово: синтетические пользователи, runtime, миграция модуля, API/UI, браузерный и визуальный QA. Production/GitHub/VPS не затрагивались.
+
 ## 2026-10-05 — Tobacco catalog authenticated API boundaries
 
 - Добавлен отдельный authenticated PostgreSQL QA сценарий каталога табака: owner, manager с `inventory`, manager с `inventory_read`, bartender, второе заведение той же организации и другой tenant. Проверяются shared/venue visibility, GET/list, create/PATCH, read-only и network-owner запреты, canonical foreign-tenant 404 и фактические строки PostgreSQL после запросов.
@@ -5366,6 +5572,18 @@ Final независимый code-health PASS: exactbaseline onlyselectionoutlin
 - Изменения только в изолированном worktree; старый WIP сохранён. Отчёт и итоговые доказательства: docs/design/POS_BUTTONS_CLARITY_2026-10-13/ACCEPTANCE.md. Без commit/push/merge/deploy.
 
 - Итог этой итерации: browser12 групп PASS, четыре профиля прав, 1366/320 и обе темы; JS errors0/API writes0. Четыре runtime-контракта, local-design, syntax/diff и4 пары source/dist PASS. Design/architect/code-health подтвердили локальный результат.
+## 2026-10-14 — Расширение графика: календарь, черновики и шаблоны (локально)
+
+Причина: повторный продуктовый аудит выявил отсутствие настоящего месяца, отображения ночных продолжений, компактного мобильного планирования и повторяемых шаблонов. Пользователь согласовал реализацию поэтапно. Работа только в worktree staff-schedule на codex/staff-schedule; общий checkout, GitHub/VPS не изменялись.
+
+- Этап1: service.list добавляет continuations отдельно от items, UI показывает ночные продолжения на обеих датах без повторного учёта. Неделя закрепляет имена/даты и итоги; месяц Пн–Вс открывает день, показывает краткий состав; день использует фактическую длительность местных суток и доступные карточки. Телефон — свёрнутые фильтры и лента дат. Поиск/должность/отменённые, «Сегодня», семантические цвета с подписями.
+- Этап2: dirty-confirm и beforeunload, обновление сотрудников без reload, переход к дате переноса. Ошибка обновления после сохранения черновика видна в родителе с retry и без устаревших действий.
+- Этап3–4: migration103, planning/pattern modules, отдельный planning UI. Черновик с версиями/снимком исходной области/явными create-update-cancel; публикация атомарно валидирует конечное состояние (включая обмен сменами) и сохраняет live ID, историю, replay. Шаблоны days/cycle, несколько интервалов, диапазоны отсутствий, preview/apply только в черновик, архив шаблонов и discard с историей. canPublish только owner-granted; manage намеренно сохраняет прежнюю прямую правку, это явно отражено в UI/API/правилах, не обязательное согласование.
+- Независимые роли: product/design/frontend contract, architect/backend/data/security; code-health baseline и финальный обзор. Review нашёл дваP2: cancel-to-edit терял payload, ошибка readback уходила в закрытый диалог. Оба исправлены координатором с реальными browser-регрессиями. Повторная независимая сверка после исправлений не завершилась: native agents вернули429; финальный diff/syntax/доказательства проверены координатором. Не выдаём отсутствие ответа роли за PASS.
+- Проверки: `node scripts/staff-schedule-acceptance-qa.cjs` с локальным PLAYWRIGHT_PACKAGE_PATH: **27/27 PASS**, `acceptance-1791962120575.json`, distParity=true, sourcesUnchanged=true; текущие SHA256 совпали после прогона. Включены20 прежних suites и planning-pg(34), planning-concurrency, planning-http(32), calendar(10), planning-browser, keyboard, migration-recovery. Новый browser подтверждает шаблон2/2 → черновик без live writes → публикация → DB/reload; также cancel-to-edit и injected503 после успешного PATCH. Calendar проверяет реальные carry-in, midnight, month/week границы, фильтры, dirty cancel, refreshemployees, readonly и375×812/320×900 first-card. Visual обе темы1440/768/375/320; изображения просмотрены координатором.
+- Recovery101–103: `migration-recovery-eb87f39dda2f.json`, точные pg_dump/restore snapshots, sequences и frozen payroll сохранены, rollback/replay PASS; обе случайные БД и backup сохранены в dedicated контейнере. Production восстановление не заявляется.
+- Исправления тестов: mobile timeline ожидает карточки, не скрытую desktop-шкалу; переключение viewport перед кликом мобильного summary; opt-in --run calendar включён в агрегатор. Предыдущий aggregate1791961516963 сохранил FAIL visual из-за неверного ожидания теста. Общий visual-page-rules contract доходит до старого отсутствующего правила notifications; не объявлен PASS и не расширен на несогласованный ремонт других страниц. Новый календарный контракт, source syntax и git diff --check PASS.
+- Все изменения локальны, без commit/push/PR/merge/deploy. Runtime31944 оставлен для просмотра. Ограничения и подробный путь: STAFF_SCHEDULE_HANDOFF.md; прогресс расширения5/5: STAFF_SCHEDULE_PLAN.md.
 
 ## 2026-10-13 — Публикация сотруднического POS
 - PR #39 объединён после двух успешных CI workflows. Согласованный пакет интегрирован поверх актуального main с сохранением management-theme/sidebar.

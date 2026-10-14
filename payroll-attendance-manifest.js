@@ -72,9 +72,9 @@ const buildSourceManifest = async (db, actor, period) => {
   if (!Number.isFinite(periodStart) || !Number.isFinite(periodEnd) || periodEnd <= periodStart) fail('payroll_attendance_period_unavailable', 409);
 
   const schedulesResult = await db.query(`SELECT s.id AS schedule_id,s.user_id AS employee_id,s.work_date::text AS work_date,
-      s.planned_start,s.planned_end,NULLIF(btrim(u.full_name),'') AS employee_name
+      s.planned_start,s.planned_end,s.break_minutes,NULLIF(btrim(u.full_name),'') AS employee_name
     FROM staff_schedules s JOIN users u ON u.venue_id=s.venue_id AND u.id=s.user_id
-    WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date
+    WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date AND s.status='planned' AND s.kind='shift'
     ORDER BY s.work_date,s.user_id,s.id`, [actor.venueId, period.periodFrom, period.periodTo]);
   const logsResult = await db.query(`SELECT w.id AS log_id,w.user_id AS employee_id,w.started_at,w.ended_at,w.source,
       NULLIF(btrim(u.full_name),'') AS employee_name
@@ -87,7 +87,7 @@ const buildSourceManifest = async (db, actor, period) => {
     const startMs = row.planned_start ? new Date(row.planned_start).getTime() : NaN;
     const endMs = row.planned_end ? new Date(row.planned_end).getTime() : NaN;
     const durationMs = endMs - startMs;
-    const plannedMinutes = durationMs / 60000;
+    const plannedMinutes = durationMs / 60000 - Number(row.break_minutes || 0);
     if (!row.employee_name) reasons.add('payroll_attendance_employee_identity_missing');
     if (!Number.isSafeInteger(plannedMinutes) || plannedMinutes <= 0 || plannedMinutes > 1440) reasons.add('payroll_attendance_planned_shift_invalid');
     return {
@@ -161,8 +161,9 @@ const buildSourceManifest = async (db, actor, period) => {
     venueId: actor.venueId,
     timezone: actor.timezone,
     period,
-    schedules: schedules.map(({ scheduleId, employeeId, employeeName, workDate, plannedStart, plannedEnd }) =>
-      ({ scheduleId, employeeId, employeeName, workDate, plannedStart, plannedEnd })),
+    schedules: schedules.map(({ scheduleId, employeeId, employeeName, workDate, plannedStart, plannedEnd, plannedMinutes }) =>
+      ({ scheduleId, employeeId, employeeName, workDate, plannedStart, plannedEnd,
+        ...((Date.parse(plannedEnd) - Date.parse(plannedStart)) / 60000 !== plannedMinutes ? { plannedMinutes } : {}) })),
     logs: logs.map(({ id, employeeId, employeeName, startedAt, endedAt, source: sourceKind }) =>
       ({ id, employeeId, employeeName, startedAt, endedAt, source: sourceKind }))
   };

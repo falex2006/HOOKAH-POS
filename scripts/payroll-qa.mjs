@@ -6,7 +6,9 @@ const lifecycle = fs.readFileSync('migrations/040_payroll_lifecycle.sql', 'utf8'
 const server = fs.readFileSync('server.js', 'utf8');
 const payroll = fs.readFileSync('payroll.js', 'utf8');
 for (const token of ['staff_schedules','staff_work_logs','payroll_rules','payroll_entries']) assert.match(migration, new RegExp(`CREATE TABLE IF NOT EXISTS ${token}`));
-for (const route of ['/api/staff/schedule','/api/staff/time','/api/payroll/rules','/api/payroll/entries']) assert.match(server, new RegExp(route.replaceAll('/', '\\/')));
+for (const route of ['/api/staff/time','/api/payroll/rules','/api/payroll/entries']) assert.match(server, new RegExp(route.replaceAll('/', '\\/')));
+assert.match(fs.readFileSync('staff-schedule-routes.js','utf8'), /\/api\/staff\/schedule/);
+assert.match(server,/await handleScheduleAccessRoute/);
 assert.match(server, /EXTRACT\(EPOCH FROM/);
 assert.match(server, /calculatePayrollAmount\(\{ ruleType: rule\.rule_type/);
 assert.match(payroll, /ruleType === 'hourly'/);

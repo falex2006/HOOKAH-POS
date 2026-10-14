@@ -6,6 +6,8 @@ const { createRepositories, allocatePremixBatchConsumption } = require('./db');
 const { handleOrderPreparation, refreshPgPreparation, refreshMemoryPreparation, preparationItems } = require('./order-preparation');
 const { venueTimezoneSql, refreshTableReservationStatus, reservationDateTimeIsFuture } = require('./reservation-calendar');
 const { createPermissionResolver } = require('./effective-permissions');
+const { handleScheduleAccessRoute } = require('./staff-schedule-routes');
+const { resolveAccess: resolveScheduleAccess } = require('./staff-schedule-access');
 const { normalizeTableMinimumSchedule, tableMinimumForTime, tableMinimumForClock } = require('./table-minimum-schedule');
 const { orderAttentionReasons } = require('./order-attention');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
@@ -56,7 +58,7 @@ const root = __dirname;
 // Local development convenience: load ignored .env without adding a runtime dependency.
 try {
   const envPath = path.join(root, '.env');
-  if (fs.existsSync(envPath)) {
+  if (process.env.SKIP_LOCAL_ENV !== 'true' && fs.existsSync(envPath)) {
     for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
       const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
       if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
@@ -1405,6 +1407,7 @@ async function api(req, res) {
     }
   }
   const requestVenueId = req.user?.venueId || currentVenueId;
+  if (await handleScheduleAccessRoute({ req, res, url, pool: repositories?.pool, readBody: body, json })) return;
   if (await handlePayrollSchemeRoute({ req, res, url, service: payrollSchemeService, readBody: body, json })) return;
   if (pathname === '/api/health') {
     if (repositories?.pool) {
@@ -3946,6 +3949,16 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   if (pathname === '/api/session') {
     const persistedSession = await sessionFromRequest(req);
     const user = withEffectivePermissions(req.user || persistedSession?.user || { name: 'Демо сотрудник', role: 'bartender' });
+    if (repositories?.pool && ['owner', 'admin', 'manager'].includes(user.role)) {
+      try {
+        const scheduleAccess = await resolveScheduleAccess(repositories.pool, { userId: user.id, venueId: user.venueId });
+        user.workspacePermissions = [...user.workspacePermissions,
+          ...(scheduleAccess.view ? ['staff_schedule_view'] : []), ...(scheduleAccess.manage ? ['staff_schedule_manage'] : [])];
+      } catch (error) {
+        // Expected schedule denial must not prevent unrelated workspace access.
+        if (error.code !== 'schedule_forbidden') return json(res, 503, { error: 'schedule_access_unavailable' });
+      }
+    }
     return json(res, 200, { user, permissions: user.workspacePermissions, permissionPolicy: user.permissionPolicy, permissionScopes: normalizePermissionScopes(user.permissionScopes), trustedDevice: Boolean(persistedSession?.trustedDevice) });
   }
   const systemRolePath = pathname.match(/^\/api\/staff\/system-roles(?:\/([^/]+))?$/);
@@ -4354,12 +4367,6 @@ if (staffProfile && req.method === 'PATCH') {
   recordAudit(req, 'staff.profile_updated', 'staff', before.id, auditBefore, publicPerson);
   return json(res, 200, publicPerson);
 }
-  if (pathname === '/api/staff/schedule' && req.method === 'GET') {
-    if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
-    const from = url.searchParams.get('from') || today(); const to = url.searchParams.get('to') || from;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT s.*,u.full_name AS "userName" FROM staff_schedules s JOIN users u ON u.id=s.user_id AND u.venue_id=s.venue_id WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date ORDER BY s.work_date,s.planned_start', [venueDbId, from, to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'schedule_unavailable', detail: error.message }); } }
-    return json(res, 200, { items: [] });
-  }
   if (pathname === '/api/inventory/subdepartments' && req.method === 'GET') {
     if (denyUnless(req, res, 'inventory_read')) return;
     const status = ['active','archived','all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'active';
@@ -4451,13 +4458,6 @@ if (staffProfile && req.method === 'PATCH') {
     const stock = repositories?.inventory ? (await repositories.inventory.list(venueDbId)).items : inventory;
     let lines; try { lines = calculateRecipeCostLines(recipe.ingredients, stock); } catch (error) { return json(res, 409, { error: error.code || 'recipe_cost_invalid', ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); }
     const totalCost = Math.round(lines.reduce((sum, line) => sum + line.cost, 0) * 100) / 100; const portionCount = Math.max(1, Number(recipe.portionCount || 1)); return json(res, 200, { recipeId: recipe.id, yieldQuantity: Number(recipe.yieldQuantity || 1), yieldUnit: recipe.yieldUnit || 'порция', portionCount, lines, totalCost, costPerPortion: Math.round((totalCost / portionCount) * 100) / 100, missing: lines.filter((line) => !line.linked) });
-  }
-  if (pathname === '/api/staff/schedule' && req.method === 'POST') {
-    if (denyUnless(req, res, 'staff_manage')) return;
-    const input = await body(req); const userId = String(input.userId || '').trim(); const workDate = String(input.workDate || '').trim(); const plannedStart = input.plannedStart === '' || input.plannedStart == null ? null : input.plannedStart; const plannedEnd = input.plannedEnd === '' || input.plannedEnd == null ? null : input.plannedEnd;
-    if (!userId || !isValidIsoDate(workDate)) return json(res, 400, { error: 'invalid_schedule_entry' });
-    if ((plannedStart !== null && !isValidIsoTimestamp(plannedStart)) || (plannedEnd !== null && !isValidIsoTimestamp(plannedEnd)) || (plannedStart !== null && plannedEnd !== null && Date.parse(plannedEnd) <= Date.parse(plannedStart))) return json(res, 400, { error: 'invalid_schedule_time' });
-    if (repositories?.pool) { if (!/^[0-9a-f-]{36}$/i.test(userId)) return json(res, 400, { error: 'invalid_schedule_employee' }); try { const employee = await repositories.pool.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [userId, venueDbId]); if (!employee.rows[0]) return json(res, 404, { error: 'staff_member_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (venue_id,user_id,work_date) DO UPDATE SET planned_start=EXCLUDED.planned_start,planned_end=EXCLUDED.planned_end,note=EXCLUDED.note RETURNING *', [venueDbId, userId, workDate, plannedStart, plannedEnd, String(input.note || '').slice(0,500) || null, req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'schedule_save_failed', detail: error.message }); } }
   }
   if (pathname === '/api/staff/time' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
@@ -6714,6 +6714,7 @@ function staticFile(req, res) {
   requestPath = aliases[routePath] || requestPath;
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
+    '/staff-schedule-ui.js', '/staff-schedule-ui.css', '/staff-schedule-planning-ui.js',
     '/phone-format.js', '/staff-display-name.js', '/management-theme.js', '/management-theme.css',
     ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/pos-dispatch.js', '/pos-workspace.js', '/pos-workspace.css', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js', '/shift-close-contract.js',

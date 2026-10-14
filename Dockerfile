@@ -9,6 +9,10 @@ COPY assets ./assets
 COPY notification-center.js ./
 COPY audit-privacy.js ./
 COPY effective-permissions.js order-preparation.js reservation-calendar.js ./
+COPY staff-schedule-domain.js staff-schedule-access.js staff-schedule-service.js staff-schedule-routes.js ./
+COPY staff-schedule-ui.js staff-schedule-ui.css ./
+COPY staff-schedule-copy.js ./
+COPY staff-schedule-planning.js staff-schedule-pattern.js staff-schedule-planning-ui.js ./
 COPY table-minimum-schedule.js ./
 COPY ui-dialog.js ./
 COPY management-theme.js management-theme.css ./

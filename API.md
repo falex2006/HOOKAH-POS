@@ -2,6 +2,36 @@
 
 Базовый URL локально: `http://localhost:3000`.
 
+## График сотрудников — локальный контракт после миграций101/102
+
+Префикс `/api/staff/schedule`. Только PostgreSQL; без него503 `schedule_postgres_required`. Контекст пользователя/заведения берётся из авторизованной сессии, не из тела. Владелец имеет полный доступ в своих заведениях; admin/manager — только по выданному владельцем grant текущего заведения. `staff_manage` сам по себе доступа не даёт. Изменения cookie-сессией требуют допустимый Origin.
+
+| Метод и путь | Доступ | Результат |
+| --- | --- | --- |
+| GET /access | Авторизованный пользователь | view/manage/grant, role, timezone |
+| GET /employees | view | id/name/role/active; без персональных контактов |
+| GET ?from=YYYY-MM-DD&to=YYYY-MM-DD | view | items, actual, timezone, access |
+| GET /:id | view | Актуальная запись текущего заведения |
+| POST | manage | Создание новой записи,201; не upsert |
+| PATCH /:id | manage | Изменение или отмена,200 |
+| GET /:id/history | view | Последние100 событий, от новых к старым |
+| GET /grants | Только owner | Доступ eligible admin/manager, текущая version |
+| PUT /grants | Только owner | userId, access=none/view/manage, version (0 для первого назначения) |
+| POST /copy/preview | manage | sourceFrom,targetFrom,userIds → items/conflict,fingerprint,today,timezone; без записи |
+| POST /copy/apply | manage | Параметры preview + fingerprint, sourceIds, requestKey, reason; атомарная запись выбранного |
+
+Пустой `from` означает текущую дату заведения, пустой `to` — from; диапазон максимум92 дня разницы. Список содержит отменённые записи и отсутствия. DTO: id,userId,workDate,plannedStart,plannedEnd,breakMinutes,kind,status,version,note,cancelReason,userName. Для прежних читателей сохранены user_id,work_date,planned_start,planned_end,venue_id,created_by,created_at; note сохраняет null. Время — ISO с часовым смещением; workDate — дата начала по timezone заведения. Старые неполные времена остаются NULL и требуют уточнения, не считаются выходными.
+
+Создание: userId,workDate,kind (shift по умолчанию),plannedStart/plannedEnd для смены,breakMinutes (0 по умолчанию),note,reason,requestKey UUID. Смена больше0 и максимум24 часа; целые минуты, неоплачиваемый перерыв меньше длительности. Виды отсутствия: day_off/vacation/sick/other_absence, без времени и перерыва. Пересечения запрещены, соседние интервалы допустимы. PATCH редактирования передаёт все поля записи и прочитанную version. Отмена: status=cancelled,version,reason,requestKey; физического удаления и восстановления нет. Прошлые даты и отмена требуют явно введённой причины, максимум500 символов.
+
+requestKey стабилен для одного действия и повторной отправки неизменного JSON. Успешный повтор возвращает сохранённый результат без новой записи; другое содержимое с тем же ключом409. Новый черновик — новый ключ. Создание с version отклоняется400 `schedule_create_version_forbidden`: для изменения нужен PATCH /:id. Устаревшая version409 `schedule_version_conflict`; клиент перечитывает /:id, сохраняет черновик и требует явного согласования перед повтором.
+
+Совместимость записи: прежний POST без ключа возвращает400 `schedule_request_key_required` без изменения данных. Blind upsert по сотруднику/дате намеренно не поддерживается: теперь за день может быть несколько смен. Старый клиент должен перейти на создание с ключом либо выбрать конкретный id и передать version в PATCH; сервер не угадывает цель и не подставляет текущую версию. Обновлены встроенный UI и seed-local-full-qa; внешние клиенты требуют такой же адаптации до выпуска. Старые недостижимые handlers удалены.
+
+Ошибки:401 без аутентификации,403 нет прав/недопустимый Origin,404 запись или сотрудник другого заведения/не найдены,400 валидация,409 overlap/version/request/grant/copy conflict,503 недоступность. SQL-детали не возвращаются. Copy сохраняет локальное время, отвергает неоднозначное/несуществующее время при переводе часов; изменившийся источник требует нового preview. Неполный исходный план не копируется.
+
+actual — отдельные итоги закрытых staff_work_logs (объединённые пересечения), openIntervals/invalidIntervals помечают неполный факт. Итоги относятся к дате начала; плановый перерыв не вычитается из факта. План не создаёт кассовую смену, work log или зарплату; утверждённые payroll snapshots не переписываются.
+
 ## Служебные
 - `GET /api/health` — состояние сервиса.
 - `GET /api/products?expectedVenueId=<id>` — активные позиции меню текущего заведения; необязательный `expectedVenueId` сверяется с заведением текущей сессии и при несовпадении возвращается `409 venue_context_changed`. Ответ помечается `Cache-Control: no-store`; чтение доступно по действующим правам `floor`, `inventory_read` или `inventory`. Рабочее место запрашивает список при открытии меню, возвращении к открытому меню и раз в 60 секунд, пока меню открыто и вкладка видима; исторические строки заказа не переписываются.
@@ -192,3 +222,18 @@
 ## Table minimum schedule API
 
 `POST /api/floor/tables` and `PATCH /api/floor/tables/:id` accept `minimumOrderStartTime` and `minimumOrderEndTime` in `HH:mm` format. Supply both values or both as `null`; equal or malformed times return `invalid_table_minimum_schedule`. `GET /api/floor` includes both fields. New-order minimums are calculated server-side in the venue timezone; client-supplied minimum amounts do not override the table policy. Reservation create/update validates the deposit against the schedule at the reservation's local start time.
+# Расширение графика: календарь и планирование (локально)
+
+`GET /api/staff/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD` сохраняет прежнее значение `items` (дата начала внутри периода) и добавляет `continuations`: действующие смены, начавшиеся раньше, но пересекающие период. Продолжения показываются в календаре, не прибавляясь к итогам по дате начала.
+
+Под `/api/staff/schedule` доступны `/drafts` и `/templates` (GET список, POST создание), `/:id` (GET чтение, PATCH версия). Эти сущности требуют `manage`, ограничены текущим заведением, все изменения требуют UUID `requestKey`. Изменения черновика не пишут `staff_schedules` и не меняют payroll. POST/PATCH действующего графика и copy сохраняют прежнее немедленное управление; это дополнительный процесс планирования, не обязательное согласование всех изменений.
+
+Черновик создаётся с `{name,from,to,userIds,requestKey}` (до 93 дней, 100 сотрудников). DTO: `{id,name,from,to,userIds,timezone,state,version,operations,baseItems,publishedAt,capabilities}`. PATCH принимает полный явный массив `operations` (до 200) и `version`. Операция: `{operation:'create',payload}` либо `{operation:'update'|'cancel',sourceId,sourceVersion,payload?,reason?}`. Пропуск существующей смены не отменяет её. Закрытие — POST `/drafts/:id/discard` с версией и ключом; история сохраняется.
+
+POST `/drafts/:id/range-preview` принимает `{version,from,to,userIds,definition}` или вместо definition — `{templateId,templateVersion}`. Возвращает `operations,conflicts,fingerprint`, ничего не сохраняет. `/range-apply` с теми же параметрами плюс `fingerprint,requestKey` атомарно добавляет предложения в черновик; при конфликте не применяет частичный результат.
+
+Шаблон: `{name,definition:{pattern,slots},requestKey}`. Pattern: `{type:'weekdays',weekdays:[1..7]}` либо `{type:'cycle',anchorDate,cycleDays,dayOffsets:[0..cycleDays-1]}`. Slot смены: `{kind:'shift',startTime,endTime,endDayOffset:0|1,breakMinutes,note}`; отсутствие: `{kind:'vacation'|'sick'|'day_off'|'other_absence',breakMinutes:0,note}`. Неуказанные дни не становятся выходными. PATCH шаблона требует версию; `archived:true` исключает его из применения, не удаляя историю и не меняя уже составленные планы.
+
+POST `/drafts/:id/publish-preview` с `{version}` возвращает точные операции, конфликты и fingerprint. `/publish` требует `{version,fingerprint,reason?,requestKey}` и отдельного `canPublish`. Владелец имеет его автоматически; admin/manager — только по явной выдаче владельцем через PUT `/grants`. Необязательный `canPublish` сохраняется при прежнем manage и сбрасывается при понижении ниже manage; самовыдача запрещена. Сервер повторно проверяет права, исходное состояние, сотрудников, часовой пояс и конечные пересечения в транзакции. Перестановки проверяются по конечному состоянию, не промежуточным строкам. После публикации черновик неизменяем, live ID обновляемых записей сохранены, история и версия увеличены; утверждённые payroll snapshots не переписываются.
+
+Конфликты версии/базы/предпросмотра возвращают 409, отсутствие прав — 403; чужая сущность — 404. Повтор ключа и того же тела возвращает исходный результат, другое тело с тем же ключом — 409. При изменившейся основе требуется новый черновик, автоматического rebase нет.
