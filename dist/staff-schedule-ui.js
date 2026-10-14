@@ -30,7 +30,7 @@
     messages.schedule_plan_incomplete = 'Сначала уточните время исходной смены.';
     const token = localStorage.getItem('crm_session_token');
     let generation = 0, employees = [], entries = [], actual = [], access, date, mode = 'week', ready = false, initialized = false;
-    const roleNames = { owner: 'Владелец', admin: 'Администратор', manager: 'Управляющий', bartender: 'Бармен', waiter: 'Официант', hookah: 'Кальянный мастер' };
+    const roleNames = { owner: 'Владелец', admin: 'Администратор', manager: 'Управляющий', developer: 'Разработчик', senior_bartender: 'Старший бармен', senior_hookah_master: 'Старший кальянщик', bartender: 'Бармен', hookah_master: 'Кальянщик', cleaner: 'Уборщица / уборщик', security: 'Охрана', technician: 'Техник', other_staff: 'Другая должность', staff: 'Сотрудник', waiter: 'Официант', hookah: 'Кальянный мастер' };
     const alive = () => target.isConnected && location.hash === '#staff-schedule' && localStorage.getItem('crm_session_token') === token;
     async function api(suffix = '', method = 'GET', input) {
       const response = await fetch('/api/staff/schedule' + suffix, { method, cache: 'no-store', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: input === undefined ? undefined : JSON.stringify(input) });
