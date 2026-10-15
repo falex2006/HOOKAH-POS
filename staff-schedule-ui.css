@@ -128,8 +128,12 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .planning-dialog [data-slot]{margin:12px 0}.planning-dialog [data-range-result]{max-height:320px;overflow:auto}.planning-dialog summary{cursor:pointer;min-height:44px}
 .template-row{display:flex;align-items:center;gap:8px}.template-row>.planning-list-item{flex:1;min-width:0}
 /* Clear calendar hierarchy. Colour supports explicit text, never replaces it. */
-#page-content.schedule-page .schedule-help-button{color:var(--ui-warning);background:transparent;gap:6px;flex-shrink:0}
-.schedule-help-button>span:first-child{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid currentColor;border-radius:50%;font-size:15px;line-height:1}
+#page-content.schedule-page .schedule-help-button{color:var(--ui-warning);background:transparent;gap:8px;flex-shrink:0}
+.management-help-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 10px;border:1px solid transparent;border-radius:12px;background:transparent;color:var(--ui-warning,#e28a3e);font:inherit;font-weight:600;white-space:nowrap;cursor:pointer;flex:0 0 auto}
+.management-help-icon{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:28px;height:28px;flex:0 0 28px;border:1px solid currentColor;border-radius:50%;font-size:17px;font-weight:500;line-height:1}
+.management-help-label{line-height:1.2}
+.management-help-button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.management-help-button:focus-visible{outline:2px solid currentColor;outline-offset:3px}
 .schedule-help-topic>summary{justify-content:space-between;gap:12px}.schedule-help-topic>summary::after{content:'+';font-size:18px;color:var(--ui-warning)}.schedule-help-topic[open]>summary::after{content:'−'}
 .schedule-help-dialog{width:min(920px,calc(100vw - 32px))}.schedule-help-dialog details{border-top:1px solid var(--ui-border-subtle);padding:8px 0}.schedule-help-dialog summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600}.schedule-help-dialog li{margin:8px 0;line-height:1.65}.schedule-help-dialog ol,.schedule-help-dialog ul{padding-left:24px}
 .schedule-help-intro{color:var(--ui-text-secondary);line-height:1.65;max-width:72ch;margin-bottom:18px}
@@ -170,7 +174,7 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .schedule-month-day:active,.schedule-date-link:active{background:color-mix(in srgb,var(--ui-link) 12%,var(--ui-panel))}
 .schedule-day-group{padding:12px;border:1px solid var(--ui-border-subtle);border-radius:8px;margin-bottom:12px}.schedule-day-group h3{font-size:15px;margin:0 0 10px;color:var(--ui-text-primary)}
 @media(prefers-reduced-motion:reduce){.schedule-month-day,.schedule-date-link,.schedule-day-strip button{transition:none}}
-@media(max-width:600px){.schedule-help-label{display:none}#page-content.schedule-page .schedule-heading-actions>.schedule-help-button{padding:0;min-width:44px}.schedule-heading-actions{flex-wrap:wrap}.schedule-month-day .schedule-month-count{font-size:10px;line-height:14px;padding:2px;white-space:normal}.schedule-month-day .schedule-month-absence{font-size:10px;line-height:14px}}
+@media(max-width:600px){.management-help-label{display:none}.management-help-button{min-width:44px;padding:6px}.schedule-heading-actions{flex-wrap:wrap}.schedule-month-day .schedule-month-count{font-size:10px;line-height:14px;padding:2px;white-space:normal}.schedule-month-day .schedule-month-absence{font-size:10px;line-height:14px}}
 @media(min-width:1101px){.schedule-day-detail{display:none}}
 @media(max-width:1100px){
 .schedule-heading{align-items:flex-start;flex-wrap:wrap}.schedule-week,.schedule-timeline{display:none}.schedule-mobile{display:block}
@@ -180,7 +184,7 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 @media(max-width:600px){
 .schedule-heading{gap:12px;margin-bottom:12px}.schedule-heading h1{font-size:22px}.schedule-heading p{display:none}
 .schedule-heading-actions{width:100%;flex-wrap:nowrap;justify-content:flex-end}
-#page-content.schedule-page .schedule-heading-actions>.button{font-size:13px;padding:10px 8px;min-width:0}#page-content.schedule-page .schedule-heading-actions>.schedule-help-button{padding:0;min-width:44px}.schedule-heading-actions{gap:4px;flex-wrap:wrap}
+#page-content.schedule-page .schedule-heading-actions>.button{font-size:13px;padding:10px 8px;min-width:0}#page-content.schedule-page .schedule-heading-actions>.schedule-help-button{padding:6px;min-width:44px}.schedule-heading-actions{gap:4px;flex-wrap:wrap}
 .schedule-page>.panel{padding:10px}.schedule-commandbar{flex-direction:row;flex-wrap:wrap;align-items:center}.schedule-period{justify-content:center;width:100%}.schedule-filters{flex:1}.schedule-more{margin-left:auto}
 .schedule-period-title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.schedule-period-picker{min-width:0;flex:1}.schedule-period-picker>summary{padding-inline:6px}.schedule-period{flex-wrap:nowrap;gap:4px}.schedule-period>button{flex-shrink:0}
 .schedule-view-tabs{width:100%;box-sizing:border-box}#page-content.schedule-page .schedule-view-tabs button{flex:1;min-width:0;min-height:44px;padding-inline:5px;font-size:13px}

@@ -1728,7 +1728,7 @@ const refreshSidebarCounters = () => {
     if (!badge) { badge = document.createElement('span'); badge.className = 'sidebar-count'; link.append(badge); }
     badge.textContent = markProblem ? '!' : count > 99 ? '99+' : String(count); badge.title = label; badge.setAttribute('aria-label', `${label}: ${count}`); link.dataset.sidebarAttention = 'true';
   });
-  Promise.allSettled([api('/api/metrics'), api('/api/notifications?limit=1&filter=unread'), api('/api/shifts'), api('/api/integrations')]).then(([metrics, notifications, shifts, integrations]) => {
+  Promise.allSettled([api('/api/metrics'), api('/api/notifications?limit=1&filter=unread'), api('/api/shifts')]).then(([metrics, notifications, shifts]) => {
     const data = metrics.status === 'fulfilled' ? metrics.value : {};
     setBadge(employeePortalRole ? employeeOrdersRoute : '/orders', data.openOrders, 'Открытые заказы');
     setBadge('/reservations', data.reservationsToday, 'Брони на сегодня');
@@ -1736,9 +1736,6 @@ const refreshSidebarCounters = () => {
     setBadge('/admin#tasks', data.discountRequests, 'Заявки, требующие внимания');
     setBadge('/admin#notifications', notifications.status === 'fulfilled' ? notifications.value.unreadCount : 0, 'Непрочитанные уведомления');
     setBadge('/', shifts.status === 'fulfilled' && shifts.value?.current ? 1 : 0, 'Незакрытая смена');
-    const integrationData = integrations.status === 'fulfilled' ? integrations.value : null;
-    const integrationProblem = integrationData && integrationData.telegram && integrationData.telegram.status !== 'connected';
-    setBadge('/integrations', integrationProblem ? 1 : 0, 'Проблема интеграции', { markProblem: true });
   });
 };
 refreshSidebarCounters();
@@ -2279,9 +2276,9 @@ function renderScheduleRoute(target) {
   document.title = `Hookah POS — ${scheduleTitle}`;
   if (!scheduleAssetsPromise) scheduleAssetsPromise = new Promise((resolve, reject) => {
     if (!document.querySelector('[data-schedule-css]')) {
-      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=4'; css.dataset.scheduleCss = ''; document.head.append(css);
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=5'; css.dataset.scheduleCss = ''; document.head.append(css);
     }
-    const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=3';
+    const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=4';
     script.onload = () => {
       const personal = document.createElement('script'); personal.src = '/staff-schedule-personal-ui.js?rev=1';
       const permissions = new Set(window.__portalSessionVerified?.permissions || []);
@@ -2321,11 +2318,11 @@ function loadAttendanceAssets() {
   if (attendanceAssetsPromise) return attendanceAssetsPromise;
   attendanceAssetsPromise = new Promise((resolve, reject) => {
     if (!document.querySelector('[data-attendance-css]')) {
-      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-attendance-ui.css?rev=3'; css.dataset.attendanceCss = '';
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-attendance-ui.css?rev=4'; css.dataset.attendanceCss = '';
       css.onerror = () => { css.remove(); };
       document.head.append(css);
     }
-    const script = document.createElement('script'); script.src = '/staff-attendance-ui.js?rev=3';
+    const script = document.createElement('script'); script.src = '/staff-attendance-ui.js?rev=4';
     script.onload = () => window.HOOKAH_ATTENDANCE?.mountManagement ? resolve(window.HOOKAH_ATTENDANCE) : reject(new Error('attendance_ui_unavailable'));
     script.onerror = () => { script.remove(); reject(new Error('attendance_ui_unavailable')); };
     document.head.append(script);

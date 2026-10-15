@@ -65,7 +65,7 @@ assert.match(portal, /href: '\/admin#staff-attendance'.*anyPermissions: \['staff
   'team navigation must show attendance management to either delegated capability');
 assert.match(portal, /function renderAttendanceManagementRoute\(target\)[\s\S]*?mountManagement\(target, \{ api, selfUserId: attendanceSession\?\.user\?\.id \}\)/,
   'management route must load the bounded attendance UI and mount the management view');
-assert.match(portal, /staff-attendance-ui\.css\?rev=3/,
+assert.match(portal, /staff-attendance-ui\.css\?rev=4/,
   'management route must request the responsive attendance styles');
 assert.match(attendanceUi, /classList\.add\('attendance-route'\)/,
   'attendance renderer must scope its route-specific shell styles');
@@ -124,7 +124,7 @@ assert.equal(distAttendanceUi, attendanceUi, 'published attendance UI must match
 assert.equal(distAttendanceCss, attendanceCss, 'published attendance styles must match their source');
 assert.match(portal, /personal\.onload\s*=\s*\(\)\s*=>\s*selfOnly\s*\?\s*resolve\(\)\s*:\s*loadPlanning\(\)/,
   'self-only schedule access must load its personal view without waiting for management planning UI');
-assert.match(portal, /staff-schedule-ui\.css\?rev=4/,
+assert.match(portal, /staff-schedule-ui\.css\?rev=5/,
   'schedule CSS cache revision must be bumped with the latest visual styles');
 assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`));
 assert.doesNotMatch(html, /Мария|Darkside Blueberry|2 100 ₽|<span>Смена открыта<\/span>/,

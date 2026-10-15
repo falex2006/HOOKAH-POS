@@ -5,8 +5,11 @@ const labels = ['Рабочий зал','Заказы','Гости','Брони�
 for (const label of labels) assert.ok(portal.includes(`label: '${label}'`), `sidebar label missing: ${label}`);
 for (const href of ['/','/orders','/clients','/reservations','/delivery','/inventory?view=products','/inventory?view=recipes','/inventory?view=stock','/inventory?view=auto-orders','/inventory?view=movements','/inventory?view=premixes','/inventory?view=directories','/finance','/finance#payroll','/finance/report','/finance/categories','/admin#staff','/admin#permissions','/admin#tasks','/admin#company','/admin#settings-dashboard-modules','/admin#lock-security','/admin#audit','/admin#notifications','/integrations','/network','/admin#diagnostics','/admin#help']) assert.ok(portal.includes(`href: '${href}'`), `sidebar route missing: ${href}`);
 assert.ok(portal.includes('const refreshSidebarCounters = () =>'));
-for (const source of ['/api/metrics','/api/notifications?limit=1&filter=unread','/api/shifts','/api/integrations']) assert.ok(portal.includes(`api('${source}')`), `indicator source missing: ${source}`);
+for (const source of ['/api/metrics','/api/notifications?limit=1&filter=unread','/api/shifts']) assert.ok(portal.includes(`api('${source}')`), `indicator source missing: ${source}`);
+const sidebarCounters = portal.slice(portal.indexOf('const refreshSidebarCounters = () =>'), portal.indexOf('refreshSidebarCounters();'));
+assert.ok(!sidebarCounters.includes("setBadge('/integrations'"), 'paused integrations must not show a sidebar attention badge');
+assert.ok(!sidebarCounters.includes("api('/api/integrations')"), 'sidebar counters must not fetch paused integration status');
 assert.ok(portal.includes('sidebar-menu-search'));
-assert.ok(portal.includes("summary.setAttribute('aria-expanded'"));
-assert.match(portal, /requestedDashboardFocus === 'permissions' && !portalPermissions\.has\('staff_manage'\)/, 'permissions route is guarded by the effective server permission');
+assert.ok(portal.includes("summary?.setAttribute('aria-expanded'"));
+assert.match(portal, /requestedDashboardFocus === 'permissions' && portalUser\.role !== 'owner'/, 'permissions route is guarded for non-owner roles');
 console.log(`SIDEBAR MENU AUDIT CONTRACT: PASS (${labels.length} labels, 26 routes, counters and accessibility hooks)`);

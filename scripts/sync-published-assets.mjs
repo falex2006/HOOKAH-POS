@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '2026101203';
-const portalRevision = '2026101502';
-const portalSessionRevision = '2026101502';
+const cssRevision = '2026101504';
+const portalRevision = '2026101503';
+const portalSessionRevision = '2026101503';
 // This employee-page iteration invalidates only its own HTML asset URLs.
 const employeePaymentsCssRevision = '2026101301';
 const employeePaymentsSessionRevision = '2026101502';
@@ -141,6 +141,7 @@ writeFileSync(resolve(root, 'portal-session.js'), portalBootstrap);
 cpSync(resolve(root, 'portal-session.js'), resolve(root, 'dist', 'portal-session.js'));
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 for (const name of ['staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js', 'staff-schedule-personal-ui.js']) cpSync(resolve(root, name), resolve(root, 'dist', name));
+for (const name of ['staff-attendance-ui.js', 'staff-attendance-ui.css']) cpSync(resolve(root, name), resolve(root, 'dist', name));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
 for (const asset of ['pos-dispatch.js', 'pos-workspace.js', 'pos-workspace.css']) cpSync(resolve(root, asset), resolve(root, 'dist', asset));

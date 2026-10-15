@@ -2989,6 +2989,7 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 
 /* Nested sidebar links use the same type scale as primary navigation. */
 .velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a{font-size:14px;line-height:17.5px;font-weight:400}
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav{padding-bottom:8px}
 
 /* Keep disclosure groups keyboard-visible in the dark sidebar. */
 .velora-theme .portal-sidebar .sidebar-nav-group>summary:focus-visible{outline:2px solid #ff687a;outline-offset:-2px;border-radius:10px}
@@ -5018,6 +5019,6 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .portal.velora-theme .staff-catalog .staff-directory-table td[data-label="Дата приёма"]{white-space:nowrap}
 
 /* Branded circular disclosure affordance; keep native summary/details behavior. */
-.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{content:'›';display:grid;place-items:center;box-sizing:border-box;width:28px;height:28px;flex:0 0 28px;margin:0 0 0 auto;padding:0;border:1px solid rgba(255,132,94,.48);border-radius:50%;background:rgba(255,132,94,.035);color:#ff9b79;font:400 21px/1 Arial,sans-serif;text-align:center;transform:none}
-.velora-theme .portal-sidebar .sidebar-nav-group[open]>summary::after{border-color:#ff855f;background:rgba(255,117,82,.11);color:#ff9b79;transform:rotate(90deg)}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{content:'';display:grid;place-items:center;box-sizing:border-box;width:28px;height:28px;flex:0 0 28px;margin:0 0 0 auto;padding:0;border:1px solid rgba(255,132,94,.48);border-radius:50%;background-color:rgba(255,132,94,.035);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ff9b79' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");background-position:center;background-repeat:no-repeat;color:#ff9b79;transform:none;transition:transform .18s ease}
+.velora-theme .portal-sidebar .sidebar-nav-group[open]>summary::after{border-color:#ff855f;background-color:rgba(255,117,82,.11);transform:rotate(90deg)}
 @media(max-width:900px){.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{display:none}.velora-theme .portal-sidebar.is-expanded .sidebar-nav-group>summary::after{display:grid}}
