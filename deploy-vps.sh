@@ -53,6 +53,7 @@ dirty_paths="$(git status --porcelain --untracked-files=all)"
 [ -z "$dirty_paths" ] || { echo 'Commit or remove all untracked and modified release files before deploying' >&2; exit 1; }
 project_name="${COMPOSE_PROJECT_NAME:-hookah-pos}"
 [[ "$project_name" =~ ^[A-Za-z0-9._-]{1,63}$ ]] || { echo 'COMPOSE_PROJECT_NAME has an invalid format' >&2; exit 1; }
+case "$project_name" in .|..) echo 'COMPOSE_PROJECT_NAME cannot be a dot segment' >&2; exit 1;; esac
 export COMPOSE_PROJECT_NAME="$project_name"
 export ACME_WEBROOT="/var/www/territory-crm/$project_name/acme-webroot"
 install -d -o root -g root -m 0755 "$ACME_WEBROOT"

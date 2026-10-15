@@ -47,6 +47,7 @@ assert.match(migrate, /if \[ "\$skip_menu_seed" = 'true' \]; then[\s\S]*?Skippin
 assert.match(deploy, /git rev-parse --verify HEAD/, 'deployments must identify a committed release');
 assert.match(deploy, /release_branch=.*git symbolic-ref --short HEAD[\s\S]*?\[ \"\$release_branch\" = 'main' \]/, 'deployments must come from canonical main');
 assert.match(deploy, /git status --porcelain --untracked-files=all/, 'dirty and untracked release files must block deployment');
+assert.match(deploy, /case "\$project_name" in \.\|\.\.\).*cannot be a dot segment/, 'project names must not escape shared state and webroot directories');
 assert.match(deploy, /flock 8/, 'parallel deployments must be serialized');
 assert.match(deploy, /\/var\/lock\/\$project_name-deploy\.lock/, 'deploy lock must be stable across checkouts of one Compose project');
 assert.match(deploy, /config_hash=.*openssl dgst -sha256 -hmac/, 'release identity must include a private-key HMAC of resolved Compose configuration');
