@@ -1,0 +1,64 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const {randomUUID}=require('node:crypto');
+const {Pool}=require('pg');
+const {config,folder,options}=require('./staff-schedule-local-config.cjs');
+const series=require('../staff-schedule-series');
+const planning=require('../staff-schedule-planning');
+const schedule=require('../staff-schedule-service');
+async function main(){
+ const runtime=config(),fixtures=JSON.parse(fs.readFileSync(path.join(folder,'fixtures.json'),'utf8'));
+ assert.equal(runtime.database,'staff_schedule_qa');
+ const pool=new Pool(options(runtime)),principal={userId:fixtures.users[0].id,venueId:fixtures.venues[0]},employeeId=randomUUID();
+ const key=()=>randomUUID(),ok=value=>assert.ok(value);
+ const call=(resource,id,action,method,input)=>planning.handle(pool,principal,resource,id,action,method,input);
+ try{
+  assert.equal((await pool.query('SELECT current_database() name')).rows[0].name,'staff_schedule_qa');
+  await pool.query('INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,$4,$5,$6)',[employeeId,principal.venueId,fixtures.organizations[0],'Series QA Employee',`series-qa-${employeeId}@example.test`,'bartender']);
+  const oldSeries=(await pool.query("SELECT count(*)::int n FROM staff_schedule_series WHERE venue_id=$1",[principal.venueId])).rows[0].n;
+  const body={name:'Series PG QA',userId:employeeId,functionId:null,anchorDate:'2035-06-04',untilDate:'2035-06-10',
+    recurrence:{pattern:{type:'weekdays',weekdays:[1,3,5]},slots:[{kind:'shift',startTime:'10:00',endTime:'14:00',endDayOffset:0,breakMinutes:15,note:'series test'}]},exceptions:[],state:'active',reason:'series QA',requestKey:key()};
+  let saved=await series.saveSeries(pool,principal,null,body,'POST');assert.equal(saved.version,1);assert.equal(saved.exceptions.length,0);ok(saved.recurrence.slotKeys?.length===1);
+  assert.equal((await series.saveSeries(pool,principal,null,body,'POST')).id,saved.id);
+  await assert.rejects(()=>series.saveSeries(pool,{userId:fixtures.users[4].id,venueId:fixtures.venues[1]},saved.id,{...body,version:1,requestKey:key()},'PATCH'),e=>e.code==='schedule_series_not_found');
+  const dbCount=async()=>Number((await pool.query('SELECT count(*)::int n FROM staff_schedules WHERE venue_id=$1 AND user_id=$2 AND work_date BETWEEN $3 AND $4',[principal.venueId,employeeId,body.anchorDate,body.untilDate])).rows[0].n);
+  const before=await dbCount();
+  let draft=await call('drafts',null,null,'POST',{name:'Series QA plan',from:body.anchorDate,to:body.untilDate,userIds:[employeeId],requestKey:key()});
+  const input={version:draft.version,from:body.anchorDate,to:body.untilDate,seriesId:saved.id,seriesVersion:saved.version};
+  const preview=await call('drafts',draft.id,'range-preview','POST',input);assert.equal(preview.operations.length,3);assert.equal(preview.conflicts.length,0,JSON.stringify(preview.conflicts));
+  assert.equal(await dbCount(),before,'preview must not write live schedules');
+  draft=await call('drafts',draft.id,'range-apply','POST',{...input,fingerprint:preview.fingerprint,requestKey:key(),confirmWarnings:true,reason:'QA'});
+  const publishedPreview=await call('drafts',draft.id,'publish-preview','POST',{version:draft.version});
+  draft=await call('drafts',draft.id,'publish','POST',{version:draft.version,fingerprint:publishedPreview.fingerprint,requestKey:key(),confirmWarnings:true,reason:'QA'});
+  assert.equal(draft.state,'published');
+  const rows=(await pool.query('SELECT series_id,series_occurrence_date::text,series_occurrence_key FROM staff_schedules WHERE venue_id=$1 AND user_id=$2 AND work_date BETWEEN $3 AND $4 ORDER BY work_date',[principal.venueId,employeeId,body.anchorDate,body.untilDate])).rows;
+  assert.equal(rows.length,before+3);assert.ok(rows.slice(-3).every(row=>row.series_id===saved.id&&row.series_occurrence_key));
+  let repeat=await call('drafts',null,null,'POST',{name:'Series repeat QA',from:body.anchorDate,to:body.untilDate,userIds:[employeeId],requestKey:key()});
+  const repeatInput={version:repeat.version,from:body.anchorDate,to:body.untilDate,seriesId:saved.id,seriesVersion:saved.version};
+  const repeated=await call('drafts',repeat.id,'range-preview','POST',repeatInput);assert.equal(repeated.operations.length,3);assert.ok(repeated.operations.every(op=>op.operation==='update'));
+  repeat=await call('drafts',repeat.id,'range-apply','POST',{...repeatInput,fingerprint:repeated.fingerprint,requestKey:key(),confirmWarnings:true,reason:'QA repeat'});
+  const publishRepeat=await call('drafts',repeat.id,'publish-preview','POST',{version:repeat.version});
+  await call('drafts',repeat.id,'publish','POST',{version:repeat.version,fingerprint:publishRepeat.fingerprint,requestKey:key(),confirmWarnings:true,reason:'QA repeat'});
+  assert.equal(await dbCount(),before+3,'reapplying a series updates linked occurrences rather than duplicating them');
+  const target=(await pool.query('SELECT *,work_date::text AS work_date_text FROM staff_schedules WHERE venue_id=$1 AND series_id=$2 ORDER BY work_date LIMIT 1',[principal.venueId,saved.id])).rows[0],targetDate=target.work_date_text;
+  await assert.rejects(()=>schedule.save(pool,principal,{userId:employeeId,workDate:targetDate,plannedStart:target.planned_start.toISOString(),plannedEnd:target.planned_end.toISOString(),kind:'shift',breakMinutes:15,version:target.version,requestKey:key()},target.id),e=>e.code==='schedule_series_reason_required');
+  const manuallyChanged=await schedule.save(pool,principal,{userId:employeeId,workDate:targetDate,plannedStart:new Date(target.planned_start.getTime()+3600000).toISOString(),plannedEnd:new Date(target.planned_end.getTime()+3600000).toISOString(),kind:'shift',breakMinutes:15,version:target.version,reason:'Manual series override',confirmWarnings:true,requestKey:key()},target.id);
+  const refreshed=await series.readSeries(pool,principal,saved.id);assert.ok(refreshed.exceptions.some(ex=>ex.kind==='manual'&&ex.schedule?.scheduleId===manuallyChanged.id));
+  let manualDraft=await call('drafts',null,null,'POST',{name:'Series manual override QA',from:body.anchorDate,to:body.untilDate,userIds:[employeeId],requestKey:key()});
+  const manualPreview=await call('drafts',manualDraft.id,'range-preview','POST',{version:manualDraft.version,from:body.anchorDate,to:body.untilDate,seriesId:saved.id,seriesVersion:refreshed.version});
+  assert.ok(manualPreview.skippedManual.some(item=>item.date===targetDate));
+  assert.equal(manualPreview.operations.length,2);
+  const draftTarget=(await pool.query('SELECT *,work_date::text AS work_date_text FROM staff_schedules WHERE venue_id=$1 AND series_id=$2 AND work_date<>$3 ORDER BY work_date DESC LIMIT 1',[principal.venueId,saved.id,targetDate])).rows[0];
+  let draftOverride=await call('drafts',null,null,'POST',{name:'Series draft override QA',from:draftTarget.work_date_text,to:draftTarget.work_date_text,userIds:[employeeId],requestKey:key()});
+  const updatedPayload={userId:employeeId,workDate:draftTarget.work_date_text,kind:'shift',plannedStart:new Date(draftTarget.planned_start.getTime()+1800000).toISOString(),plannedEnd:new Date(draftTarget.planned_end.getTime()+1800000).toISOString(),breakMinutes:15,functionId:null,note:'Changed through draft'};
+  draftOverride=await call('drafts',draftOverride.id,null,'PATCH',{version:draftOverride.version,operations:[{operation:'update',sourceId:draftTarget.id,sourceVersion:draftTarget.version,payload:updatedPayload}],requestKey:key()});
+  const draftOverridePreview=await call('drafts',draftOverride.id,'publish-preview','POST',{version:draftOverride.version});
+  await call('drafts',draftOverride.id,'publish','POST',{version:draftOverride.version,fingerprint:draftOverridePreview.fingerprint,requestKey:key(),confirmWarnings:true,reason:'Draft manual series override'});
+  const afterDraftOverride=await series.readSeries(pool,principal,saved.id);assert.ok(afterDraftOverride.exceptions.some(ex=>ex.kind==='manual'&&ex.schedule?.scheduleId===draftTarget.id));
+  assert.equal((await pool.query("SELECT count(*)::int n FROM staff_schedule_config_events WHERE venue_id=$1 AND entity_type='series_exception' AND entity_id=(SELECT id FROM staff_schedule_series_exceptions WHERE series_id=$2 AND exception_kind='manual' AND active ORDER BY created_at DESC LIMIT 1)",[principal.venueId,saved.id])).rows[0].n>0,true);
+  console.log('STAFF SCHEDULE SERIES PG PASS: access/tenant boundary, preview no-write, draft publish lineage, repeat update without duplicates, direct and draft manual overrides.');
+ }finally{await pool.end();}
+}
+main().catch(error=>{console.error(error.stack||error.message);process.exitCode=1;});

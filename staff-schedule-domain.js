@@ -31,17 +31,20 @@ function localDate(value, timezone) {
 }
 function normalize(input, timezone) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('schedule_input_invalid');
-  if (!UUID.test(String(input.userId || ''))) fail('schedule_employee_invalid');
-  const workDate = date(input.workDate);
   const kind = input.kind || 'shift';
-  if (!['shift', 'day_off', 'vacation', 'sick', 'other_absence'].includes(kind)) fail('schedule_kind_invalid');
+  const isOpenShift = kind === 'open_shift';
+  if (isOpenShift ? input.userId != null : !UUID.test(String(input.userId || ''))) fail('schedule_employee_invalid');
+  const workDate = date(input.workDate);
+  if (!['shift', 'open_shift', 'day_off', 'vacation', 'sick', 'other_absence'].includes(kind)) fail('schedule_kind_invalid');
+  const functionId = input.functionId == null ? null : UUID.test(String(input.functionId)) ? String(input.functionId).toLowerCase() : fail('schedule_function_id_invalid');
   const note = input.note == null ? '' : input.note;
   if (typeof note !== 'string' || note.length > 500) fail('schedule_note_invalid');
   const breakMinutes = input.breakMinutes === undefined ? 0 : input.breakMinutes;
   if (!Number.isSafeInteger(breakMinutes) || breakMinutes < 0) fail('schedule_break_invalid');
-  if (kind !== 'shift') {
+  if (kind === 'day_off' || kind === 'vacation' || kind === 'sick' || kind === 'other_absence') {
     if (input.plannedStart != null || input.plannedEnd != null || breakMinutes !== 0) fail('schedule_absence_time_forbidden');
-    return { userId: input.userId, workDate, kind, plannedStart: null, plannedEnd: null, breakMinutes: 0, note: note.trim() };
+    if (functionId) fail('schedule_absence_function_forbidden');
+    return { userId: input.userId, workDate, kind, plannedStart: null, plannedEnd: null, breakMinutes: 0, note: note.trim(), functionId: null };
   }
   const plannedStart = timestamp(input.plannedStart);
   const plannedEnd = timestamp(input.plannedEnd);
@@ -49,7 +52,19 @@ function normalize(input, timezone) {
   if (duration <= 0 || duration > 1440) fail('schedule_duration_invalid');
   if (breakMinutes >= duration) fail('schedule_break_invalid');
   if (localDate(plannedStart, timezone) !== workDate) fail('schedule_start_date_mismatch');
-  return { userId: input.userId, workDate, kind, plannedStart, plannedEnd, breakMinutes, note: note.trim() };
+  if (isOpenShift && !functionId) fail('schedule_open_shift_function_required');
+  const breakIntervals = input.breakIntervals === undefined ? [] : input.breakIntervals;
+  if (!Array.isArray(breakIntervals) || breakIntervals.length > 20) fail('schedule_break_intervals_invalid');
+  let breakTotal = 0, priorEnd = Date.parse(plannedStart);
+  const normalizedBreaks = breakIntervals.map(item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) fail('schedule_break_intervals_invalid');
+    const start = timestamp(item.start), end = timestamp(item.end), startMs = Date.parse(start), endMs = Date.parse(end);
+    if (startMs < Date.parse(plannedStart) || endMs > Date.parse(plannedEnd) || endMs <= startMs || startMs < priorEnd) fail('schedule_break_intervals_invalid');
+    priorEnd = endMs; breakTotal += (endMs - startMs) / 60000;
+    return { start, end };
+  });
+  if (normalizedBreaks.length && breakTotal !== breakMinutes) fail('schedule_break_intervals_mismatch');
+  return { userId: isOpenShift ? null : String(input.userId).toLowerCase(), workDate, kind, plannedStart, plannedEnd, breakMinutes, breakIntervals: normalizedBreaks, note: note.trim(), functionId };
 }
 function range(from, to) {
   date(from); date(to);

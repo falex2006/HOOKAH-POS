@@ -25,7 +25,7 @@ async function main() {
     await pool.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,'Race QA manager',$4,'manager')`, [manager.userId,manager.venueId,f.organizations[0],`${manager.userId}@example.test`]);
     await setGrant(pool, owner, { userId: manager.userId, access: 'manage', version: 0 });
     const revoke = await pool.connect(), writer = await pool.connect();
-    const entry = { userId: manager.userId, workDate: '2026-12-12', plannedStart: '2026-12-12T10:00+05:00', plannedEnd: '2026-12-12T18:00+05:00', reason: 'QA', requestKey: randomUUID() };
+    const entry = { userId: manager.userId, workDate: '2026-12-12', plannedStart: '2026-12-12T10:00+05:00', plannedEnd: '2026-12-12T18:00+05:00', reason: 'QA', requestKey: randomUUID(),confirmWarnings:true };
     try {
       await revoke.query('BEGIN');
       await revoke.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [manager.userId]);

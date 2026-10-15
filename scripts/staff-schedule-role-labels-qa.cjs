@@ -34,7 +34,8 @@ async function main() {
         assert.ok((await page.locator('.schedule-week').innerText()).includes(label), `Week row: ${role}`);
       }
       await page.locator('[data-role]').selectOption('hookah_master');
-      assert.equal(await page.locator('.schedule-week tbody tr').count(), 1);
+      assert.equal(await page.locator('.schedule-week tbody tr:not(.schedule-open-shifts)').count(), 1,
+        'one employee row matches the selected role; the dedicated open-shifts lane remains separate');
       assert.ok((await page.locator('.schedule-week tbody').innerText()).includes('Кальянщик'));
       assert.ok(!(await page.locator('.schedule-week tbody').innerText()).includes('hookah_master'));
     }

@@ -9,10 +9,11 @@ const planning=require('../staff-schedule-planning');
 const service=require('../staff-schedule-service');
 const {setGrant,resolveAccess}=require('../staff-schedule-access');
 const patterns=require('../staff-schedule-pattern');
+const {capturePolicy}=require('./staff-schedule-policy-fixture.cjs');
 async function main(){
  const c=config(), f=JSON.parse(fs.readFileSync(path.join(folder,'fixtures.json'),'utf8'));
  assert.equal(f.database,c.database);
- const pool=new Pool(options(c)),p={userId:f.users[0].id,venueId:f.venues[0]};
+ const pool=new Pool(options(c)),p={userId:f.users[0].id,venueId:f.venues[0]},restorePolicy=await capturePolicy(pool,f.venues[0]);
  let checks=0;
  const ok=(value)=>{assert.ok(value);checks++;};
  const rejects=async(fn,code)=>{await assert.rejects(fn,e=>e.code===code);checks++;};
@@ -21,49 +22,61 @@ async function main(){
  try{
   // Only the identity-verified dedicated schedule DB. No resets/deletes or shared grant edits.
   const db=await pool.connect();try{await db.query('BEGIN');await db.query(fs.readFileSync(path.join(__dirname,'../migrations/103_staff_schedule_planning.sql'),'utf8'));await db.query('COMMIT');}catch(e){await db.query('ROLLBACK');throw e;}finally{db.release();}
-  const ids=[key(),key(),key()];
+  const ids=[key(),key(),key(),key()];
   for(let i=0;i<ids.length;i++)await pool.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,'Planning QA',$4,$5)`,[ids[i],p.venueId,f.organizations[0],`planning-${ids[i]}@example.test`,i===2?'manager':'bartender']);
   const manager={userId:ids[2],venueId:p.venueId};
   await setGrant(pool,p,{userId:manager.userId,access:'manage',version:0});ok(!(await resolveAccess(pool,manager)).canPublish);
+  ok(!(await resolveAccess(pool,manager)).canManageSettings);
   const entry=(userId,start='10:00',end='14:00')=>({userId,workDate:'2031-06-02',plannedStart:`2031-06-02T${start}+05:00`,plannedEnd:`2031-06-02T${end}+05:00`,reason:'synthetic QA',requestKey:key()});
-  const a=await service.save(pool,p,entry(ids[0])), b=await service.save(pool,p,entry(ids[0],'14:00','18:00'));
+  const a=await service.save(pool,p,{...entry(ids[0]),confirmWarnings:true}), b=await service.save(pool,p,{...entry(ids[0],'14:00','18:00'),confirmWarnings:true});
   const make=()=>call('drafts',null,null,'POST',{name:'QA plan',from:'2031-06-02',to:'2031-06-08',userIds:ids.slice(0,2),requestKey:key()});
-  let d=await make();const original=await pool.query('SELECT id,version,planned_start FROM staff_schedules WHERE id=ANY($1::uuid[]) ORDER BY id',[[a.id,b.id]]);
-  const swap=[{operation:'update',sourceId:a.id,sourceVersion:1,payload:entry(ids[0],'14:00','18:00')},{operation:'update',sourceId:b.id,sourceVersion:1,payload:entry(ids[0])}];
+  await pool.query(`INSERT INTO staff_schedule_venue_policies(venue_id,minimum_rest_minutes,version,created_by,updated_by) VALUES($1,360,1,$2,$2)
+    ON CONFLICT(venue_id) DO UPDATE SET minimum_rest_minutes=360,version=staff_schedule_venue_policies.version+1,updated_by=EXCLUDED.updated_by,updated_at=now()`,[p.venueId,p.userId]);
+  const previous=await service.save(pool,p,{...entry(ids[3],'20:00','08:00'),workDate:'2031-06-02',plannedStart:'2031-06-02T20:00+05:00',plannedEnd:'2031-06-03T08:00+05:00',confirmWarnings:true});
+  const target=await service.save(pool,p,{...entry(ids[3],'10:00','14:00'),workDate:'2031-06-03',plannedStart:'2031-06-03T10:00+05:00',plannedEnd:'2031-06-03T14:00+05:00',confirmWarnings:true});
+  const warningDraft=await call('drafts',null,null,'POST',{name:'Policy update QA',from:'2031-06-03',to:'2031-06-09',userIds:[ids[3]],requestKey:key()});
+  const changed={operation:'update',sourceId:target.id,sourceVersion:1,payload:{...entry(ids[3],'11:00','15:00'),workDate:'2031-06-03',plannedStart:'2031-06-03T11:00+05:00',plannedEnd:'2031-06-03T15:00+05:00'}};
+  const warningEdit=await call('drafts',warningDraft.id,null,'PATCH',{version:1,operations:[changed],requestKey:key()});
+  const warningPreview=await call('drafts',warningEdit.id,'publish-preview','POST',{version:warningEdit.version});
+  ok(warningPreview.warnings.some(item=>item.code==='schedule_minimum_rest'&&item.scheduleId===target.id&&item.previousScheduleId===previous.id));
+  let d=await make(); const original=await pool.query('SELECT id,version,planned_start FROM staff_schedules WHERE id=ANY($1::uuid[]) ORDER BY id',[[a.id,b.id]]);
+  const swap=[{operation:'update',sourceId:a.id,sourceVersion:1,payload:{...entry(ids[0],'14:00','18:00'),breakMinutes:0}},{operation:'update',sourceId:b.id,sourceVersion:1,payload:{...entry(ids[0]),breakMinutes:0}}];
   const edit={version:d.version,operations:swap,requestKey:key()};d=await call('drafts',d.id,null,'PATCH',edit);ok(d.version===2);
   assert.deepEqual((await pool.query('SELECT id,version,planned_start FROM staff_schedules WHERE id=ANY($1::uuid[]) ORDER BY id',[[a.id,b.id]])).rows,original.rows);checks++;
   ok((await call('drafts',d.id,null,'PATCH',edit)).version===2);
   await rejects(()=>call('drafts',d.id,null,'PATCH',{...edit,operations:[]}), 'schedule_request_conflict');
   await rejects(()=>call('drafts',d.id,null,'PATCH',{...edit,requestKey:key()}),'draft_version_conflict');
   const preview=await call('drafts',d.id,'publish-preview','POST',{version:2});ok(preview.conflicts.length===0);
-  const publish={version:2,fingerprint:preview.fingerprint,reason:'QA swaps',requestKey:key()};
+  const publish={version:2,fingerprint:preview.fingerprint,reason:'QA swaps',confirmWarnings:true,requestKey:key()};
   await rejects(()=>call('drafts',d.id,'publish','POST',publish,manager),'schedule_publish_forbidden');
-  const granted=await setGrant(pool,p,{userId:manager.userId,access:'manage',version:1,canPublish:true});ok(granted.canPublish);
+  const granted=await setGrant(pool,p,{userId:manager.userId,access:'manage',version:1,canPublish:true,canManageSettings:true});ok(granted.canPublish&&granted.canManageSettings);
+  ok((await resolveAccess(pool,manager)).canManageSettings);
+  await rejects(()=>setGrant(pool,p,{userId:manager.userId,access:'view',version:2,canManageSettings:true}),'schedule_grant_invalid');
   await rejects(()=>setGrant(pool,manager,{userId:manager.userId,access:'manage',version:2,canPublish:true}),'schedule_forbidden');
   d=await call('drafts',d.id,'publish','POST',publish,manager);ok(d.state==='published');
   ok((await call('drafts',d.id,'publish','POST',publish,manager)).version===d.version);
   ok((await pool.query('SELECT count(*)::int n FROM staff_schedule_events WHERE schedule_id=ANY($1::uuid[])',[[a.id,b.id]])).rows[0].n===4);
   await rejects(()=>call('drafts',d.id,null,'PATCH',{version:d.version,operations:[],requestKey:key()}),'draft_closed');
-  let stale=await make();await service.save(pool,p,entry(ids[1]));
+  let stale=await make();await service.save(pool,p,{...entry(ids[1]),confirmWarnings:true});
   await rejects(()=>call('drafts',stale.id,'publish-preview','POST',{version:1}),'draft_base_changed');
   let discarded=await call('drafts',stale.id,'discard','POST',{version:1,requestKey:key()});ok(discarded.state==='discarded');
   const definition={pattern:{type:'cycle',anchorDate:'2031-06-03',cycleDays:2,dayOffsets:[0]},slots:[{kind:'vacation'}]};
   let template=await call('templates',null,null,'POST',{name:'QA absence',definition,requestKey:key()});
   let rangeDraft=await make();const input={version:1,from:'2031-06-03',to:'2031-06-08',userIds:[ids[1]],templateId:template.id,templateVersion:1};
-  const rp=await call('drafts',rangeDraft.id,'range-preview','POST',input);ok(rp.operations.length===3&&rp.conflicts.length===0);
-  rangeDraft=await call('drafts',rangeDraft.id,'range-apply','POST',{...input,fingerprint:rp.fingerprint,requestKey:key()});ok(rangeDraft.operations.length===3);
+  const rp=await call('drafts',rangeDraft.id,'range-preview','POST',input);assert.equal(rp.operations.length,3);ok(rp.conflicts.length===0);
+  rangeDraft=await call('drafts',rangeDraft.id,'range-apply','POST',{...input,fingerprint:rp.fingerprint,requestKey:key(),confirmWarnings:true,reason:'Synthetic policy QA'});ok(rangeDraft.operations.length===3);
   const pp=await call('drafts',rangeDraft.id,'publish-preview','POST',{version:2});
-  await setGrant(pool,p,{userId:manager.userId,access:'manage',version:2,canPublish:false});
+  await setGrant(pool,p,{userId:manager.userId,access:'manage',version:2,canPublish:false,canManageSettings:true});
   await rejects(()=>call('drafts',rangeDraft.id,'publish','POST',{version:2,fingerprint:pp.fingerprint,requestKey:key()},manager),'schedule_publish_forbidden');
-  await call('drafts',rangeDraft.id,'publish','POST',{version:2,fingerprint:pp.fingerprint,requestKey:key()});
+  await call('drafts',rangeDraft.id,'publish','POST',{version:2,fingerprint:pp.fingerprint,requestKey:key(),confirmWarnings:true,reason:'Synthetic policy QA'});
   template=await call('templates',template.id,null,'PATCH',{version:1,archived:true,requestKey:key()});ok(template.archived);
   const rd=await make();await rejects(()=>call('drafts',rd.id,'range-preview','POST',{...input,templateVersion:2}),'template_version_conflict');
   const races=await Promise.allSettled([1,2].map(()=>call('drafts',rd.id,null,'PATCH',{version:1,operations:[],requestKey:key()})));ok(races.filter(r=>r.status==='fulfilled').length===1);
   const foreign={userId:f.users[4].id,venueId:f.venues[1]};
   await rejects(()=>call('drafts',rd.id,null,'GET',{},foreign),'planning_not_found');
-  const conflict=await make();const conflicts=[{operation:'create',payload:entry(ids[0])}];
+  const conflict=await make();const conflicts=[{operation:'create',payload:{...entry(ids[0]),breakMinutes:0}}];
   const cd=await call('drafts',conflict.id,null,'PATCH',{version:1,operations:conflicts,requestKey:key()});
-  const cp=await call('drafts',cd.id,'publish-preview','POST',{version:2});ok(cp.conflicts.some(x=>x.code==='schedule_overlap'));
+  const cp=await call('drafts',cd.id,'publish-preview','POST',{version:2}); ok(cp.conflicts.some(x=>x.code==='schedule_overlap'));
   await rejects(()=>call('drafts',cd.id,'publish','POST',{version:2,fingerprint:cp.fingerprint,requestKey:key()}),'planning_conflict');
   ok((await call('drafts',cd.id,null,'GET')).state==='open');
   await rejects(()=>call('drafts',cd.id,null,'PATCH',{version:2,operations:Array(201).fill(conflicts[0]),requestKey:key()}),'planning_operations_limit');
@@ -76,13 +89,14 @@ async function main(){
   cancelDraft=await call('drafts',cancelDraft.id,null,'PATCH',{version:1,requestKey:key(),operations:[{operation:'cancel',sourceId:a.id,sourceVersion:2}]});
   const cancelPreview=await call('drafts',cancelDraft.id,'publish-preview','POST',{version:2});
   await rejects(()=>call('drafts',cancelDraft.id,'publish','POST',{version:2,fingerprint:cancelPreview.fingerprint,requestKey:key()}),'schedule_cancel_reason_required');
-  await call('drafts',cancelDraft.id,'publish','POST',{version:2,fingerprint:cancelPreview.fingerprint,reason:'QA cancellation',requestKey:key()});
+  await call('drafts',cancelDraft.id,'publish','POST',{version:2,fingerprint:cancelPreview.fingerprint,reason:'QA cancellation',requestKey:key(),confirmWarnings:true});
   const cancelled=(await pool.query('SELECT status,version,cancel_reason FROM staff_schedules WHERE id=$1',[a.id])).rows[0];
   ok(cancelled.status==='cancelled'&&cancelled.version===3&&cancelled.cancel_reason==='QA cancellation');
-  await setGrant(pool,p,{userId:manager.userId,access:'manage',version:3,canPublish:true});
+  await setGrant(pool,p,{userId:manager.userId,access:'manage',version:3,canPublish:true,canManageSettings:true});
   ok((await setGrant(pool,p,{userId:manager.userId,access:'manage',version:4})).canPublish);
   ok(!(await setGrant(pool,p,{userId:manager.userId,access:'view',version:5})).canPublish);
+  ok(!(await resolveAccess(pool,manager)).canManageSettings);
   console.log(`PLANNING PG PASS ${checks}: isolated fixtures; swap/atomicity/replay/versions/base phantom/roles/revoke/tenant/template/cycle/absence/range/limits/DST.`);
- }finally{await pool.end();}
+ }finally{await restorePolicy();await pool.end();}
 }
-main().catch(e=>{console.error(e.code||e.message);process.exitCode=1;});
+main().catch(e=>{console.error(e.stack||e.message);process.exitCode=1;});

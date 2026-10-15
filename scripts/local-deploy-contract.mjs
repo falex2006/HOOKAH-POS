@@ -47,6 +47,7 @@ assert.match(migrate, /if \[ "\$skip_menu_seed" = 'true' \]; then[\s\S]*?Skippin
 assert.match(deploy, /git rev-parse --verify HEAD/, 'deployments must identify a committed release');
 assert.match(deploy, /release_branch=.*git symbolic-ref --short HEAD[\s\S]*?\[ \"\$release_branch\" = 'main' \]/, 'deployments must come from canonical main');
 assert.match(deploy, /git status --porcelain --untracked-files=all/, 'dirty and untracked release files must block deployment');
+assert.match(deploy, /case "\$project_name" in \.\|\.\.\).*cannot be a dot segment/, 'project names must not escape shared state and webroot directories');
 assert.match(deploy, /flock 8/, 'parallel deployments must be serialized');
 assert.match(deploy, /\/var\/lock\/\$project_name-deploy\.lock/, 'deploy lock must be stable across checkouts of one Compose project');
 assert.match(deploy, /config_hash=.*openssl dgst -sha256 -hmac/, 'release identity must include a private-key HMAC of resolved Compose configuration');
@@ -55,6 +56,8 @@ assert.match(deploy, /docker inspect --format/, 'in-progress retries must verify
 assert.match(compose, /CRM_RELEASE_ID:/, 'Compose must pass the release id into the service');
 assert.match(compose, /name: \$\{COMPOSE_PROJECT_NAME:-hookah-pos\}/, 'new local Compose projects must use the HOOKAH POS name by default');
 assert.match(compose, /name: \$\{POSTGRES_VOLUME_NAME:-territory-crm_pgdata\}/, 'the renamed default project must keep the existing PostgreSQL volume name');
+assert.match(compose, /\$\{ACME_WEBROOT:-\.\/acme-webroot\}:\/var\/www\/certbot:ro/, 'nginx ACME challenges use the stable host webroot during releases');
+assert.match(deploy, /export ACME_WEBROOT="\/var\/www\/territory-crm\/\$project_name\/acme-webroot"[\s\S]*?install -d -o root -g root -m 0755 "\$ACME_WEBROOT"[\s\S]*?\$COMPOSE config --quiet/, 'deployment creates a traversable persistent Certbot webroot before resolving Compose');
 for (const secret of ['DEMO_ADMIN_PASSWORD', 'DEMO_OWNER_PASSWORD', 'DEMO_STAFF_PASSWORD']) {
   assert.ok(compose.split(/\r?\n/).some(line => line.trim() === `${secret}: \${${secret}:-}`), `${secret} must default to empty so direct Compose startup cannot expose a known demo credential`);
   assert.match(envExample, new RegExp(`^${secret}\\s*=\\s*$`, 'm'), `${secret} in the sample environment must be blank so it cannot enable a known password`);

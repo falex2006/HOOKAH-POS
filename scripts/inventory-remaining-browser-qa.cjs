@@ -66,7 +66,7 @@ const assert = require('node:assert/strict');
       await page.screenshot({ path: `${folder}/premix-empty-${width}.png`, fullPage: true });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'page width');
     }
-    const recipe = await post('/api/recipes', { name: 'QA Premix recipe', recipeType: 'premix', yieldQuantity: 1, yieldUnit: 'шт', portionCount: 1, ingredients: [{ ingredientId: items[0].id, quantity: 1, unit: 'шт' }] });
+    const recipe = await post('/api/recipes', { name: 'QA Premix recipe', recipeType: 'premix', outputIngredientId: items[1].id, yieldQuantity: 1, yieldUnit: 'шт', portionCount: 1, ingredients: [{ ingredientId: items[0].id, quantity: 1, unit: 'шт' }] });
     for (const width of [1920, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
       await page.goto(base + '/inventory?view=premixes', { waitUntil: 'networkidle' }); await closeMenu();
@@ -74,10 +74,20 @@ const assert = require('node:assert/strict');
       assert.equal(await page.locator('#premix-form').isVisible(), true, 'ready form shown');
       assert.equal(await page.locator('#premix-submit').isDisabled(), false);
       await choose('#premix-recipe', recipe.id);
-      await choose('#premix-output', items[1].id);
+      await page.waitForFunction(expected => document.querySelector('#premix-output')?.value === expected, items[1].id);
+      assert.equal(await page.locator('#premix-output').inputValue(), items[1].id, 'recipe output is pre-bound and cannot be changed at production time');
       await page.screenshot({ path: `${folder}/premix-ready-${width}.png`, fullPage: true });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     }
+    const stockMovement = await page.request.post(base + '/api/inventory/movements', { data: { itemId: items[0].id, delta: 2, unit: 'шт', reason: 'QA premix production source' } });
+    assert.equal(stockMovement.status(), 201, await stockMovement.text());
+    await page.locator('#premix-submit').click();
+    await page.locator('#premix-message.success-message').getByText('Партия приготовлена', { exact: false }).waitFor();
+    const produced = await (await page.request.get(base + '/api/inventory/premixes')).json();
+    assert.equal(produced.items.length, 1, 'UI production persists the generated batch');
+    assert.equal(produced.items[0].outputItemId, items[1].id, 'produced batch uses the recipe-bound output');
+    assert.equal(produced.items[0].outputQuantity, 1);
+    assert.equal((await page.request.get(base + '/api/inventory')).status(), 200, 'inventory can be reread after UI production');
     assert.deepEqual(errors, []);
     console.log('PASS remaining inventory:40 items,stock search/filter/cancel,bounded recommendations,selection persistence,premix empty+ready,1920/390');
   } catch (error) {

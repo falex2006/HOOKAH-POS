@@ -76,7 +76,8 @@ async function apply(pool, principal, input) {
     const reason = input.reason === undefined ? '' : input.reason;
     if (typeof reason !== 'string' || reason.length > 500) fail('schedule_reason_invalid');
     if (selected.some(item => item.workDate < current.today) && !reason.trim()) fail('schedule_past_reason_required');
-    const result = await saveBatch(pool, principal, { requestKey: randomUUID(), items: selected.map(item => ({ userId:item.userId, workDate:item.workDate, kind:item.kind, plannedStart:item.plannedStart, plannedEnd:item.plannedEnd, breakMinutes:item.breakMinutes, note:item.note, reason, requestKey:randomUUID() })) }, db);
+    if(selected.some(item=>item.kind==='shift')&&(input.confirmWarnings!==true||!reason.trim()))fail('schedule_warnings_confirmation_required',409);
+    const result = await saveBatch(pool, principal, { requestKey: randomUUID(), items: selected.map(item => ({ userId:item.userId, workDate:item.workDate, kind:item.kind, plannedStart:item.plannedStart, plannedEnd:item.plannedEnd, breakMinutes:item.breakMinutes, note:item.note, reason, requestKey:randomUUID(), confirmWarnings:input.confirmWarnings===true })) }, db);
     await db.query('INSERT INTO staff_schedule_requests(venue_id,actor_id,request_key,fingerprint,response) VALUES($1,$2,$3,$4,$5::jsonb)', [principal.venueId,principal.userId,input.requestKey,fingerprint,JSON.stringify(result)]);
     await db.query('COMMIT'); return result;
   } catch (error) { await db.query('ROLLBACK'); throw error; }

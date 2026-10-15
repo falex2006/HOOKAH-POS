@@ -46,7 +46,6 @@ done
 [ -n "${SAAS_OWNER_EMAIL:-}" ] || { echo 'SAAS_OWNER_EMAIL is required' >&2; exit 1; }
 case "${SAAS_OWNER_EMAIL}" in platform-owner@example.com|change_*|replace-*|replace_*|*@example.com) echo 'Replace placeholder in SAAS_OWNER_EMAIL' >&2; exit 1;; esac
 
-$COMPOSE config --quiet
 release_commit="$(git rev-parse --verify HEAD 2>/dev/null)" || { echo 'Deploy from a committed Git checkout' >&2; exit 1; }
 release_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
 [ "$release_branch" = 'main' ] || { echo 'Deployments must come from the canonical main branch' >&2; exit 1; }
@@ -54,8 +53,12 @@ dirty_paths="$(git status --porcelain --untracked-files=all)"
 [ -z "$dirty_paths" ] || { echo 'Commit or remove all untracked and modified release files before deploying' >&2; exit 1; }
 project_name="${COMPOSE_PROJECT_NAME:-hookah-pos}"
 [[ "$project_name" =~ ^[A-Za-z0-9._-]{1,63}$ ]] || { echo 'COMPOSE_PROJECT_NAME has an invalid format' >&2; exit 1; }
+case "$project_name" in .|..) echo 'COMPOSE_PROJECT_NAME cannot be a dot segment' >&2; exit 1;; esac
 export COMPOSE_PROJECT_NAME="$project_name"
+export ACME_WEBROOT="/var/www/territory-crm/$project_name/acme-webroot"
+install -d -o root -g root -m 0755 "$ACME_WEBROOT"
 export CRM_RELEASE_ID=unreleased
+$COMPOSE config --quiet
 exec 8>"/var/lock/$project_name-deploy.lock"
 flock 8
 state_dir="/var/lib/territory-crm/$project_name"

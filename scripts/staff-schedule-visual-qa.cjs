@@ -10,7 +10,7 @@ async function main(){
   const employee=randomUUID(),principal={userId:f.users[0].id,venueId:f.venues[0]};let browser;
   try{
     await pool.query("INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,$4,$5,'bartender')",[employee,principal.venueId,f.organizations[0],'Александра Константинопольская — старший администратор',`${employee}@example.test`]);
-    for(const [day,start,end] of [['07','08:00','12:00'],['07','13:00','17:00'],['07','18:00','22:00'],['08','20:00','04:00']]) await save(pool,principal,{userId:employee,workDate:`2026-12-${day}`,plannedStart:`2026-12-${day}T${start}+05:00`,plannedEnd:`2026-12-${day==='08'?'09':day}T${end}+05:00`,breakMinutes:30,requestKey:randomUUID(),reason:'Visual QA'});
+    for(const [day,start,end] of [['07','08:00','12:00'],['07','13:00','17:00'],['07','18:00','22:00'],['08','20:00','04:00']]) await save(pool,principal,{userId:employee,workDate:`2026-12-${day}`,plannedStart:`2026-12-${day}T${start}+05:00`,plannedEnd:`2026-12-${day==='08'?'09':day}T${end}+05:00`,breakMinutes:30,requestKey:randomUUID(),reason:'Visual QA',confirmWarnings:true});
     for(const [day,kind] of [['10','day_off'],['11','vacation'],['12','sick']]) await save(pool,principal,{userId:employee,workDate:`2026-12-${day}`,kind,requestKey:randomUUID(),reason:'Visual QA'});
     browser=await chromium.launch({channel:'msedge',headless:true});const context=await browser.newContext(),page=await context.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));

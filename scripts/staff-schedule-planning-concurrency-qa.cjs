@@ -15,13 +15,13 @@ async function main(){
  try{
   for(const [id,role] of [[employee,'bartender'],[manager,'manager']])await pool.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,'Planning concurrency QA',$4,$5)`,[id,p.venueId,f.organizations[0],`planning-race-${id}@example.test`,role]);
   const payload=(start,end)=>({userId:employee,workDate:'2033-06-01',plannedStart:`2033-06-01T${start}+05:00`,plannedEnd:`2033-06-01T${end}+05:00`,requestKey:key()});
-  const a=await live.save(pool,p,payload('10:00','14:00')),b=await live.save(pool,p,payload('14:00','18:00'));
+  const a=await live.save(pool,p,{...payload('10:00','14:00'),confirmWarnings:true,reason:'QA policy acknowledgement'}),b=await live.save(pool,p,{...payload('14:00','18:00'),confirmWarnings:true,reason:'QA policy acknowledgement'});
   const call=(id,action,method,input,actor=p,db=pool)=>planning.handle(db,actor,'drafts',id,action,method,input);
   let d=await call(null,null,'POST',{name:'Atomic swap',from:'2033-06-01',to:'2033-06-02',userIds:[employee],requestKey:key()});
   const ops=[{operation:'update',sourceId:a.id,sourceVersion:1,payload:payload('14:00','18:00')},{operation:'update',sourceId:b.id,sourceVersion:1,payload:payload('10:00','14:00')}];
   d=await call(d.id,null,'PATCH',{version:1,operations:ops,requestKey:key()});
   const preview=await call(d.id,'publish-preview','POST',{version:2});
-  const pub={version:2,fingerprint:preview.fingerprint,requestKey:key()};
+  const pub={version:2,fingerprint:preview.fingerprint,requestKey:key(),confirmWarnings:true,reason:'QA warning acknowledgement'};
   const read=async()=>({rows:(await pool.query('SELECT * FROM staff_schedules WHERE user_id=$1 ORDER BY id',[employee])).rows,events:(await pool.query('SELECT * FROM staff_schedule_events WHERE schedule_id=ANY($1::uuid[]) ORDER BY id',[[a.id,b.id]])).rows});
   const before=await read();
   const injected={connect:async()=>{const db=await pool.connect();let writes=0;return {query:async(sql,args)=>{if(sql.startsWith('UPDATE staff_schedules')&&++writes===2)throw new Error('QA injected second-write failure');return db.query(sql,args);},release:()=>db.release()};}};
@@ -48,7 +48,7 @@ async function main(){
   assert.equal(races.find(x=>x.status==='rejected').reason.code,'draft_closed');
   assert.equal((await read()).events.length,before.events.length+2);
   // Cross-midnight row outside the draft's date range still blocks a new early shift.
-  await live.save(pool,p,{userId:employee,workDate:'2033-06-02',plannedStart:'2033-06-02T22:00+05:00',plannedEnd:'2033-06-03T04:00+05:00',requestKey:key()});
+  await live.save(pool,p,{userId:employee,workDate:'2033-06-02',plannedStart:'2033-06-02T22:00+05:00',plannedEnd:'2033-06-03T04:00+05:00',requestKey:key(),confirmWarnings:true,reason:'QA policy acknowledgement'});
   let night=await call(null,null,'POST',{name:'Night boundary',from:'2033-06-03',to:'2033-06-03',userIds:[employee],requestKey:key()});
   night=await call(night.id,null,'PATCH',{version:1,requestKey:key(),operations:[{operation:'create',payload:{userId:employee,workDate:'2033-06-03',plannedStart:'2033-06-03T02:00+05:00',plannedEnd:'2033-06-03T06:00+05:00'}}]});
   assert.ok((await call(night.id,'publish-preview','POST',{version:2})).conflicts.some(x=>x.code==='schedule_overlap'));

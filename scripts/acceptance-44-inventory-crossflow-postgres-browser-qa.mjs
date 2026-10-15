@@ -98,7 +98,7 @@ const createProduct = async (name) => {
   await page.locator(`#visual-catalog .visual-product[data-product-id="${product.id}"]`).waitFor({ state: 'visible' });
   return product;
 };
-const createRecipe = async (name, productId, ingredientId, quantity, { recipeType = 'sale', yieldQuantity = '1', yieldUnit = 'порция' } = {}) => {
+const createRecipe = async (name, productId, ingredientId, quantity, { recipeType = 'sale', outputIngredientId = null, yieldQuantity = '1', yieldUnit = 'порция' } = {}) => {
   await page.goto(`${base}/inventory?view=recipes`, { waitUntil: 'networkidle' });
   await page.locator('#new-recipe').waitFor({ state: 'visible' });
   await page.locator('#new-recipe').click();
@@ -110,6 +110,11 @@ const createRecipe = async (name, productId, ingredientId, quantity, { recipeTyp
     await page.locator('#recipe-product').selectOption(productId);
   }
   await page.locator('#recipe-type').selectOption(recipeType);
+  if (recipeType === 'premix') {
+    assert.ok(outputIngredientId, 'premix test recipe requires an explicit stock output');
+    await page.locator(`#recipe-output-ingredient option[value="${outputIngredientId}"]`).waitFor({ state: 'attached' });
+    await page.locator('#recipe-output-ingredient').selectOption(outputIngredientId);
+  }
   await page.locator('#recipe-yield-quantity').fill(yieldQuantity);
   await page.locator('#recipe-yield-unit').selectOption(yieldUnit);
   await page.locator('#recipe-portion-count').fill('1');
@@ -654,7 +659,7 @@ try {
   assert.equal(await balance(premixOutput.id), 0, 'synthetic premix output starts at zero stock'); checks++;
 
   const premixRecipe = await createRecipe(`QA44 Премикс партия ${marker}`, null, premixComponent.id, '250 мл', {
-    recipeType: 'premix', yieldQuantity: '500', yieldUnit: 'мл',
+    recipeType: 'premix', outputIngredientId: premixOutput.id, yieldQuantity: '500', yieldUnit: 'мл',
   });
   const premixRecipeRow = await db.query('SELECT id,name,recipe_type,yield_quantity,yield_unit,ingredients FROM inventory_recipe_cards WHERE venue_id=$1 AND id=$2', [ids.venue, premixRecipe.id]);
   assert.equal(premixRecipeRow.rowCount, 1, 'separate synthetic premix recipe is persisted for the batch fixture'); checks++;
@@ -669,7 +674,7 @@ try {
   await page.locator(`#premix-recipe option[value="${premixRecipe.id}"]`).waitFor({ state: 'attached' });
   await page.locator(`#premix-output option[value="${premixOutput.id}"]`).waitFor({ state: 'attached' });
   await page.locator('#premix-recipe').selectOption(premixRecipe.id);
-  await page.locator('#premix-output').selectOption(premixOutput.id);
+  assert.equal(await page.locator('#premix-output').inputValue(), premixOutput.id, 'production output is fixed by the saved recipe binding');
   await page.locator('#premix-multiplier').fill('1.5');
   const premixMovementBaseline = await db.query(`SELECT id,ingredient_id,direction,quantity,reason FROM stock_movements
     WHERE venue_id=$1 AND ingredient_id=ANY($2::uuid[]) ORDER BY created_at,id`, [ids.venue, [premixComponent.id, premixOutput.id]]);
@@ -1609,10 +1614,17 @@ try {
     ['foreign organization', foreignHeaders, tenantBoundCreatedItems.find((item) => item.venueId === foreignVenueId)],
     ['sibling venue', siblingHeaders, tenantBoundCreatedItems.find((item) => item.venueId === siblingVenueId)],
   ]) {
+    const outputResponse = await fetch(`${base}/api/inventory/items`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ name: `QA ${label} premix output ${marker}`, unit: 'мл', itemType: 'ingredient', cost: 0 }),
+    });
+    assert.equal(outputResponse.status, 201, `${label} owner creates an output item in its own venue`); checks++;
+    const ownOutput = await outputResponse.json();
     const ownRecipeCreate = await fetch(`${base}/api/recipes`, {
       method: 'POST', headers,
       body: JSON.stringify({
         name: `QA ${label} own recipe ${marker}`, category: 'Кальяны', recipeType: 'premix',
+        outputIngredientId: ownOutput.id,
         ingredients: [{ ingredientId: scopedIngredient.id, name: scopedIngredient.name, quantity: '1 мл' }],
         yieldQuantity: 1, yieldUnit: 'мл', portionCount: 1,
       }),

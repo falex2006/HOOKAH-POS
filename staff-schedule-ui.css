@@ -9,6 +9,7 @@
 .schedule-week th,.schedule-week td{border:1px solid var(--ui-border-subtle);padding:8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
 .schedule-week th:first-child{width:170px}.schedule-week small{display:block;color:var(--ui-text-muted)}
 .schedule-entry{display:grid;width:100%;text-align:left;gap:4px;min-height:44px;padding:8px;margin:4px 0;background:var(--ui-raised);color:var(--ui-text-primary);border:1px solid var(--ui-border-control);border-radius:var(--ui-radius-small,8px);font:inherit;cursor:pointer;overflow-wrap:anywhere}
+.schedule-open-shifts>th{color:var(--ui-warning,#b45309)}.schedule-entry.schedule-kind-open_shift{border-style:dashed;border-color:var(--ui-warning,#b45309)}.schedule-coverage{display:grid;gap:4px;margin:10px 0;padding:10px;border:1px solid var(--ui-border-subtle);border-radius:10px;font-size:13px;color:var(--ui-text-secondary)}
 .schedule-entry small{color:var(--ui-text-secondary)}
 .schedule-page .custom-select,.schedule-dialog .custom-select{min-width:0;max-width:100%}
 .schedule-page .custom-select-trigger,.schedule-dialog .custom-select-trigger{display:block;width:100%;min-height:44px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:32px;background:var(--ui-input,var(--ui-panel));color:var(--ui-text-primary);border-color:var(--ui-border-control)}
@@ -33,11 +34,42 @@
 @media(max-width:768px){.schedule-month-preview{display:none}}
 .planning-dialog{width:min(800px,calc(100vw - 32px))}.planning-dialog summary{cursor:pointer;min-height:44px;padding:8px 0}.planning-users{max-height:260px;overflow:auto}.planning-list-item{display:grid;gap:6px;text-align:left;width:100%;min-height:64px;padding:12px;margin:8px 0;border:1px solid var(--ui-border-control);border-radius:8px;background:var(--ui-raised);color:var(--ui-text-primary);font:inherit;cursor:pointer;overflow-wrap:anywhere}.planning-operations{max-height:360px;overflow:auto}.planning-operations article{padding:12px 0;border-bottom:1px solid var(--ui-border-subtle)}.planning-footer{padding-top:16px}.planning-dialog [data-slot-time]{display:grid;grid-template-columns:1fr 1fr;gap:12px}.planning-dialog [data-weekdays]{display:flex;flex-wrap:wrap;gap:12px}.planning-dialog [data-slot]{margin:12px 0}.planning-dialog [data-range-result]{max-height:320px;overflow:auto}
 @media(max-width:480px){.planning-dialog [data-slot-time]{grid-template-columns:1fr}.planning-dialog .schedule-toolbar{display:grid;grid-template-columns:1fr}.planning-dialog .schedule-toolbar button{width:100%;white-space:normal}}
+
+/* Mobile schedule UX: keep the calendar inside the viewport and retain full labels. */
+@media(max-width:480px){
+  .schedule-heading-actions{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}
+  .schedule-heading-actions>.button{width:100%;min-width:0;min-height:48px;white-space:normal;line-height:1.25}
+  .schedule-period{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;width:100%;gap:6px}
+  .schedule-period>label{grid-column:2;grid-row:1}
+  .schedule-period>[data-prev]{grid-column:1;grid-row:1}
+  .schedule-period>[data-next]{grid-column:3;grid-row:1}
+  .schedule-period>[data-today]{grid-column:1/-1;display:block!important;width:100%}
+  .schedule-page>.panel>.schedule-toolbar{display:grid;grid-template-columns:1fr 1fr;align-items:end}
+  .schedule-page>.panel>.schedule-toolbar>label{min-width:0}
+  .schedule-page>.panel>.schedule-toolbar>label:first-of-type{grid-column:1/-1}
+  .schedule-page>.panel>.schedule-toolbar>label:last-of-type{grid-column:1/-1}
+  .schedule-page>.panel>.schedule-toolbar>label select,.schedule-page>.panel>.schedule-toolbar>label input{min-width:0}
+  .schedule-month-scroll{overflow-x:hidden}
+  .schedule-month.schedule-days{min-width:0;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+  .schedule-month-day{min-width:0;min-height:76px;padding:4px 2px;gap:2px;overflow:hidden;align-content:start}
+  .schedule-month-day strong{font-size:13px}
+  .schedule-month-day span,.schedule-month-day small{font-size:9px!important;line-height:1.15;overflow-wrap:anywhere}
+  .schedule-month-preview{display:none}
+  .schedule-month-open{color:var(--ui-warning)}
+  .schedule-save-hint{margin:0;font-size:12px}
+}
+@media(max-width:350px){
+  .schedule-heading-actions{grid-template-columns:1fr}
+  .schedule-page>.panel>.schedule-toolbar{grid-template-columns:1fr}
+  .schedule-page>.panel>.schedule-toolbar>label:first-of-type,.schedule-page>.panel>.schedule-toolbar>label:last-of-type{grid-column:1}
+  .schedule-month-day{min-height:68px}
+}
 .schedule-tools{margin-top:12px}.schedule-tools>summary,.schedule-explanation>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--ui-text-secondary)}
 .schedule-tools .schedule-toolbar{padding:12px 0}.schedule-page .schedule-check{display:flex;align-items:center;gap:8px}.schedule-page .schedule-check input{width:20px;min-height:20px}
 .schedule-summary{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-top:12px}.schedule-summary span{padding:4px 8px;border:1px solid var(--ui-border-subtle);border-radius:8px}
 .schedule-warning{color:var(--ui-warning)}.schedule-explanation{font-size:12px}.schedule-explanation p{margin-top:0}
 .schedule-week{max-height:65vh;border:1px solid var(--ui-border-subtle)}.schedule-week table{border-collapse:separate;border-spacing:0}
+.schedule-open-shifts>th{color:var(--ui-warning,#b45309)}.schedule-entry.schedule-kind-open_shift{border-style:dashed;border-color:var(--ui-warning,#b45309)}
 .schedule-week thead th{position:sticky;top:0;background:var(--ui-panel);z-index:2}.schedule-week tr>th:first-child{position:sticky;left:0;background:var(--ui-panel);z-index:1}.schedule-week thead th:first-child{z-index:3}
 .schedule-date-link{border:0;background:transparent;color:inherit;font:inherit;min-height:44px;cursor:pointer;text-align:left;padding:0}
 .schedule-week .is-today,.schedule-month-day.is-today{box-shadow:inset 0 0 0 2px var(--ui-focus)}
@@ -53,5 +85,51 @@
 .schedule-page [data-status]:empty{display:none}
 .schedule-heading-actions{display:flex;gap:8px;flex-wrap:wrap}.schedule-heading-actions .button{min-height:44px}
 @media(max-width:480px){.schedule-heading-actions{width:100%}.schedule-heading-actions .button{flex:1 1 120px;font-size:13px;padding-inline:10px}}
+@media(max-width:480px){.schedule-heading-actions [data-demand]{flex:0 0 44px;width:44px;min-width:44px;padding-inline:0;font-size:0}.schedule-heading-actions [data-demand]::after{content:"⚙";font-size:19px}}
+@media(max-width:480px){.schedule-page>.panel{padding:8px}.schedule-heading h1{font-size:21px}.schedule-heading-actions .button{padding-block:6px}.schedule-page>.panel>.schedule-toolbar{gap:6px}.schedule-period{gap:2px}.schedule-period label,.schedule-page>.panel>.schedule-toolbar>label{display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px}.schedule-period input,.schedule-page>.panel>.schedule-toolbar>label select{flex:1;min-width:0;font-size:14px}.schedule-summary{margin-bottom:4px}.schedule-coverage{margin-block:4px}.schedule-explanation>summary{min-height:36px}}
+@media(max-width:340px){.schedule-heading-actions [data-create],.schedule-heading-actions [data-planning]{flex:1 1 0;min-width:0;padding-inline:4px;font-size:0}.schedule-heading-actions [data-create]::after{content:"Смена";font-size:12px}.schedule-heading-actions [data-planning]::after{content:"План";font-size:12px}}
+@media print{.portal-sidebar,.portal-header,.schedule-heading-actions,.schedule-tools,.schedule-period,.schedule-toolbar,.schedule-explanation,[data-status],[data-create],[data-copy-week],[data-grants]{display:none!important}.portal-app,.portal-main,.portal-content,.schedule-page,.schedule-page>.panel{display:block!important;width:100%!important;max-width:none!important;min-height:0!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important;color:#111!important;box-shadow:none!important;border:0!important}.schedule-page h1,.schedule-page h2,.schedule-page p,.schedule-page strong,.schedule-page small,.schedule-summary span,.schedule-week th,.schedule-week td{color:#111!important}.schedule-page h1{font-size:20pt!important}.schedule-summary{margin:4mm 0!important}.schedule-coverage{display:block!important;background:#fff!important;color:#111!important;border-color:#777!important}.schedule-week,.schedule-month-scroll{max-width:none!important;overflow:visible!important}.schedule-week table{min-width:0!important;width:100%!important;border-collapse:collapse}.schedule-week th,.schedule-week td,.schedule-month-day,.schedule-timeline-header,.schedule-timeline-row,.schedule-timeline-tracks{border:1px solid #999!important;background:#fff!important;color:#111!important}.schedule-time-bar,.schedule-entry{background:#fff!important;color:#111!important;border-color:#666!important;break-inside:avoid}.schedule-entry small{color:#333!important}.schedule-day-strip{display:none!important}.schedule-days,.schedule-month-days{break-inside:avoid}.schedule-export-meta{display:block!important;margin:4mm 0!important;font-size:10pt!important;color:#111!important}@page{size:landscape;margin:12mm}}
 @media(max-width:480px){.schedule-page>.panel>.schedule-toolbar>[data-today]{display:none}.schedule-page>.panel>.schedule-toolbar>label{flex:1 1 0}}
 @media(max-width:480px){.schedule-context-short{display:none}.schedule-day-strip{margin:4px 0}.schedule-summary{margin-top:8px}.schedule-explanation>summary{min-height:44px}.schedule-heading{margin-bottom:8px}}
+.template-row{display:flex;align-items:stretch;gap:8px}.template-row>.planning-list-item{flex:1;min-width:0}.template-row>[data-template-duplicate]{flex:0 0 auto}
+@media(max-width:480px){.template-row{display:grid;grid-template-columns:1fr}.template-row>[data-template-duplicate]{width:100%}}
+
+/* Final mobile overrides follow legacy rules so date controls keep their width. */
+@media(max-width:480px){
+  .schedule-page>.panel>.schedule-toolbar>[data-today]{display:none!important}
+  .schedule-period{display:grid!important;grid-template-columns:44px minmax(0,1fr) 44px;gap:4px;width:100%;min-width:0}
+  .schedule-period>label{display:grid!important;grid-column:2;grid-row:1;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:4px;min-width:0;white-space:normal;font-size:12px}
+  .schedule-period>label input{display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;padding:4px;font-size:13px}
+  .schedule-period>[data-prev]{grid-column:1;grid-row:1}
+  .schedule-period>[data-next]{grid-column:3;grid-row:1}
+  .schedule-month-scroll{overflow-x:hidden!important}
+  .schedule-month.schedule-days{min-width:0!important;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+  .schedule-month-day{min-width:0;min-height:74px;padding:4px 2px;gap:2px;overflow:hidden}
+  .schedule-month-day span,.schedule-month-day small{font-size:9px!important;line-height:1.15;overflow-wrap:anywhere}
+}
+@media(max-width:350px){.schedule-month-day{min-height:68px}.schedule-period{grid-template-columns:40px minmax(0,1fr) 40px}}
+/* Final mobile overrides intentionally follow the legacy toolbar rules above. */
+@media(max-width:480px){.schedule-heading-actions{display:grid!important;grid-template-columns:1fr 1fr!important}}
+@media(max-width:350px){.schedule-heading-actions{grid-template-columns:1fr!important}}
+@media(max-width:480px){
+  .schedule-heading-actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px!important}
+  .schedule-heading-actions>.button{padding-inline:6px!important;font-size:12px!important;white-space:normal!important;line-height:1.15;overflow-wrap:anywhere}
+  .schedule-heading-actions>[data-demand]{font-size:0!important;padding-inline:4px!important}
+  .schedule-heading-actions>[data-demand]::after{content:"⚙";font-size:18px}
+  .schedule-period{display:grid!important;grid-column:1/-1!important;grid-template-columns:40px minmax(0,1fr) 40px!important;width:100%!important;min-width:0!important;gap:4px!important}
+  .schedule-period>label{display:grid!important;grid-column:2!important;grid-row:1!important;grid-template-columns:auto minmax(0,1fr)!important;align-items:center;gap:4px;min-width:0!important;white-space:normal!important}
+  .schedule-period>label input{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;padding:4px!important}
+  .schedule-period>[data-prev]{grid-column:1!important;grid-row:1!important}
+  .schedule-period>[data-next]{grid-column:3!important;grid-row:1!important}
+  .schedule-page>.panel>.schedule-toolbar>label:last-of-type{display:none!important}
+}
+@media(max-width:350px){
+  .schedule-heading-actions{grid-template-columns:minmax(0,1fr) 40px!important}
+  .schedule-heading-actions>[data-create]{grid-column:1/-1!important}
+  .schedule-heading-actions>[data-planning]{grid-column:1!important}
+  .schedule-heading-actions>[data-demand]{grid-column:2!important;width:40px!important}
+  .schedule-heading-actions>.button{font-size:12px!important;padding-inline:6px!important}
+  .schedule-heading-actions>[data-create]::after,.schedule-heading-actions>[data-planning]::after{content:none!important}
+  .schedule-heading-actions>[data-demand]{font-size:0!important;padding-inline:4px!important}
+  .schedule-heading-actions>[data-demand]::after{content:"⚙";font-size:18px}
+}

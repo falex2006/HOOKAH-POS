@@ -50,7 +50,7 @@ try {
   const mixedUnitOutput = await req('/api/inventory/items', 'POST', { name: 'QA premix mixed-unit output', unit: 'порция', itemType: 'ingredient', cost: 0 }, 201);
   await req('/api/inventory/movements', 'POST', { itemId: mixedUnitSource.id, delta: 1, unit: 'л', reason: 'Premix mixed-unit regression fixture' }, 201);
   const mixedUnitRecipe = await req('/api/recipes', 'POST', {
-    name: 'QA mixed-unit duplicate premix', recipeType: 'premix', yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+    name: 'QA mixed-unit duplicate premix', recipeType: 'premix', outputIngredientId: mixedUnitOutput.id, yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
     ingredients: [
       { ingredientId: mixedUnitSource.id, name: mixedUnitSource.name, quantity: '500 мл' },
       { ingredientId: mixedUnitSource.id, name: mixedUnitSource.name, quantity: '0.5 л' },
@@ -70,7 +70,7 @@ try {
   const premixOutput = await req('/api/inventory/items', 'POST', { name: 'QA premix duplicate output', unit: 'порция', itemType: 'ingredient', cost: 0 }, 201);
   await req('/api/inventory/movements', 'POST', { itemId: premixSource.id, delta: 1, unit: 'л', reason: 'Premix duplicate regression fixture' }, 201);
   const premixRecipe = await req('/api/recipes', 'POST', {
-    name: 'QA duplicate ingredient premix', recipeType: 'premix', yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+    name: 'QA duplicate ingredient premix', recipeType: 'premix', outputIngredientId: premixOutput.id, yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
     ingredients: [
       { ingredientId: premixSource.id, name: premixSource.name, quantity: '0.75 л' },
       { ingredientId: premixSource.id, name: premixSource.name, quantity: '0.75 л' },
