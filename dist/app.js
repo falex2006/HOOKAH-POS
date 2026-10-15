@@ -85,12 +85,69 @@ const staffPermissionAliases={inventory_read:'inventory',finance_read:'finance'}
 const hasStaffPermission=(required,permissions)=>permissions.has(required)||Boolean(staffPermissionAliases[required]&&permissions.has(staffPermissionAliases[required]));
 let staffShiftReadable=false,staffShiftManageable=false,staffNotificationCenter=null,staffSessionPermissions=new Set();
 const staffManagementShellRole=(role)=>['owner','admin','manager','developer'].includes(role);
+let staffAttendanceAssetsPromise=null,staffAttendanceDialog=null,staffAttendanceView=null;
+const ensureStaffAttendanceEntry=()=>{
+  const nav=document.querySelector('#staff-primary-navigation .portal-nav');
+  if(!nav||nav.querySelector('#staff-attendance-open'))return;
+  const button=document.createElement('button');button.type='button';button.id='staff-attendance-open';button.dataset.permission='staff_attendance_self';button.hidden=true;button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-controls','staff-attendance-dialog');button.setAttribute('aria-label','Выход на работу');button.title='Выход на работу';button.innerHTML=`${staffIcon('clock')}<span>Выход на работу</span>`;
+  button.addEventListener('click',openStaffAttendanceDialog);nav.append(button);
+};
+const loadStaffAttendanceUi=()=>{
+  if(window.HOOKAH_ATTENDANCE?.mountSelf)return Promise.resolve(window.HOOKAH_ATTENDANCE);
+  if(staffAttendanceAssetsPromise)return staffAttendanceAssetsPromise;
+  staffAttendanceAssetsPromise=new Promise((resolve,reject)=>{
+    if(!document.querySelector('[data-attendance-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/staff-attendance-ui.css?rev=3';css.dataset.attendanceCss='';document.head.append(css);}
+    const script=document.createElement('script');script.src='/staff-attendance-ui.js?rev=3';
+    script.onload=()=>window.HOOKAH_ATTENDANCE?.mountSelf?resolve(window.HOOKAH_ATTENDANCE):reject(new Error('attendance_ui_unavailable'));
+    script.onerror=()=>{script.remove();reject(new Error('attendance_ui_unavailable'));};document.head.append(script);
+  }).catch(error=>{staffAttendanceAssetsPromise=null;throw error;});
+  return staffAttendanceAssetsPromise;
+};
+const closeStaffAttendanceDialog=()=>{
+  const dialog=staffAttendanceDialog;if(!dialog)return;
+  const opener=dialog._attendanceOpener;staffAttendanceView?.dispose?.();staffAttendanceView=null;staffAttendanceDialog=null;
+  if(dialog.open)dialog.close();dialog.remove();
+  if(opener?.isConnected&&!opener.disabled&&!opener.hidden)opener.focus({preventScroll:true});
+};
+async function openStaffAttendanceDialog(event){
+  const opener=event?.currentTarget||document.querySelector('#staff-attendance-open');
+  if(!staffSessionVerified||!staffSessionPermissions.has('staff_attendance_self')||staffAttendanceDialog)return;
+  const dialog=document.createElement('dialog');dialog.id='staff-attendance-dialog';dialog.className='modal action-modal open';dialog.setAttribute('aria-labelledby','staff-attendance-dialog-title');dialog._attendanceOpener=opener;
+  Object.assign(dialog.style,{position:'fixed',inset:'0',maxWidth:'none',maxHeight:'none',width:'100%',height:'100%',boxSizing:'border-box',border:'0',padding:'16px',background:'transparent',color:'inherit',overflow:'auto'});
+  dialog.innerHTML=`<section class="action-box" style="background:var(--ui-panel);border-color:var(--ui-border-subtle);color:var(--ui-text-primary);box-shadow:0 24px 80px rgba(0,0,0,.42)"><header class="modal-head"><div><h2 id="staff-attendance-dialog-title">Выход на работу</h2><small>Личная отметка фактического времени</small></div><button type="button" data-close-attendance aria-label="Закрыть окно">${staffIcon('x')}</button></header><div data-attendance-self-host><p role="status">Загружаем данные…</p></div></section>`;
+  staffAttendanceDialog=dialog;document.body.append(dialog);
+  const close=()=>{if(staffAttendanceDialog===dialog)closeStaffAttendanceDialog();};
+  dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+  dialog.addEventListener('click',event=>{if(event.target===dialog)close();});
+  dialog.querySelector('[data-close-attendance]')?.addEventListener('click',close);
+  try{dialog.showModal();}catch(_){closeStaffAttendanceDialog();return;}
+  dialog.querySelector('[data-close-attendance]')?.focus({preventScroll:true});
+  const host=dialog.querySelector('[data-attendance-self-host]');
+  const mount=async()=>{
+    host.innerHTML='<p role="status">Загружаем отметку…</p>';
+    try{
+      const ui=await loadStaffAttendanceUi();
+      if(staffAttendanceDialog!==dialog||!dialog.open||!staffSessionVerified||!staffSessionPermissions.has('staff_attendance_self'))return;
+      host.replaceChildren();staffAttendanceView=ui.mountSelf(host,{api:staffFetchJson});
+    }catch(_){
+      if(staffAttendanceDialog!==dialog||!dialog.open)return;
+      host.innerHTML='<div class="attendance-empty"><h2>Не удалось открыть отметку</h2><p>Проверьте соединение и повторите.</p><button class="button" type="button" data-retry-attendance>Повторить</button></div>';
+      host.querySelector('[data-retry-attendance]')?.addEventListener('click',mount);
+    }
+  };
+  mount();
+}
+ensureStaffAttendanceEntry();
+const openSelfAttendanceDeepLink=()=>{if(location.pathname==='/'&&location.hash==='#staff-attendance'&&staffSessionVerified&&staffSessionPermissions.has('staff_attendance_self'))openStaffAttendanceDialog();};
+window.addEventListener('hashchange',openSelfAttendanceDeepLink);
+window.addEventListener('staff-attendance:open-self',openSelfAttendanceDeepLink);
 const applyStaffSession=(s)=>{if(!s?.user)return;const actor=s.user;const financeButton=document.querySelector('aside nav button[data-permission="finance_read"]');if(financeButton){const financeLabel=staffManagementShellRole(actor.role)?'Финансы':'Оплаты';financeButton.querySelector('span')?.replaceChildren(document.createTextNode(financeLabel));financeButton.setAttribute('aria-label',financeLabel);financeButton.title=financeLabel;}document.body.classList.toggle('staff-management-shell',staffManagementShellRole(actor.role));staffFloorActorId=String(actor.id||'');document.body.classList.toggle('staff-red-cursor',['bartender','hookah_master'].includes(actor.role));applyStaffHeader(actor);const permissions=new Set(Array.isArray(s.permissions)?s.permissions:[]);staffSessionPermissions=permissions;const primaryNav=document.querySelector('#staff-primary-navigation .portal-nav');if(primaryNav){let personalScheduleLink=primaryNav.querySelector('#staff-personal-schedule-link');if(!personalScheduleLink){personalScheduleLink=document.createElement('button');personalScheduleLink.type='button';personalScheduleLink.id='staff-personal-schedule-link';personalScheduleLink.dataset.permission='staff_schedule_self';personalScheduleLink.setAttribute('aria-label','Мой график');personalScheduleLink.title='Мой график';personalScheduleLink.innerHTML='<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=3#calendar-event"></use></svg><span>Мой график</span>';primaryNav.append(personalScheduleLink);}personalScheduleLink.onclick=()=>{if(staffSessionPermissions.has('staff_schedule_self'))window.location.href=preserveWorkspaceRoute('/admin#staff-schedule');};}staffNotificationCenter?.dispose();staffNotificationCenter=window.mountCrmNotifications({user:actor,permissions,api:(url,options)=>staticStaffDemo()?staticShiftNotificationsApi(url,options):staffFetchJson(url,options),bellHost:document.querySelector('.staff-header-user')});staffNotificationCenter.refresh();staffShiftReadable=['floor','orders','finance_read','finance'].some(p=>permissions.has(p));staffShiftManageable=['floor','orders'].some(p=>permissions.has(p));const shiftControl=document.querySelector('#shift-toggle');if(shiftControl)shiftControl.hidden=!staffShiftReadable;const navItems=[...document.querySelectorAll('.portal-sidebar .portal-nav [data-permission]')];navItems.forEach((item)=>{item.hidden=!hasStaffPermission(item.dataset.permission,permissions);});document.querySelectorAll('.portal-sidebar .portal-nav:not(.staff-admin-nav)').forEach((nav)=>{const hasVisibleItem=[...nav.querySelectorAll('[data-permission]')].some((item)=>!item.hidden);nav.hidden=!hasVisibleItem;const label=nav.previousElementSibling;if(label?.classList.contains('side-label'))label.hidden=!hasVisibleItem;});document.querySelectorAll('.portal-sidebar .portal-nav:not([hidden])').forEach((nav)=>nav.removeAttribute('aria-busy'));document.querySelectorAll('.portal-sidebar .portal-nav').forEach((nav)=>nav.removeAttribute('data-session-pending'));
 const canOpenAdmin=canOpenStaffAdmin(permissions);document.querySelectorAll('.staff-admin-nav,.staff-admin-nav-label').forEach(node=>{node.hidden=!canOpenAdmin;});const ensureAdminPanelLink=()=>{if(!canOpenAdmin)return;const sidebar=document.querySelector('.portal-sidebar');const operationNav=sidebar?.querySelector('.portal-nav');if(!sidebar||!operationNav||sidebar.querySelector('a.staff-admin-nav-link'))return;const label=document.createElement('div');label.className='side-label staff-admin-nav-label';label.textContent=actor.role==='manager'?'УПРАВЛЕНИЕ':'АДМИНИСТРИРОВАНИЕ';const nav=document.createElement('nav');nav.className='portal-nav staff-admin-nav';const link=document.createElement('a');link.className='staff-admin-nav-link';link.href=preserveWorkspaceRoute('/admin');link.title=actor.role==='manager'?'Открыть панель управления':'Открыть панель администратора';link.innerHTML='<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6-6 6 6 6M4 12h16"></path></svg><span><strong>'+(actor.role==='manager'?'Панель управления':'Панель администратора')+'</strong></span>';nav.append(link);const footer=sidebar.querySelector('.sidebar-footer,.user,.logout-button');if(footer){sidebar.insertBefore(label,footer);sidebar.insertBefore(nav,footer);}else sidebar.append(label,nav);};ensureAdminPanelLink();const loyaltyLink=document.querySelector('#staff-loyalty-link');if(loyaltyLink)loyaltyLink.onclick=()=>{if(staffSessionPermissions.has('loyalty'))window.location.href=preserveWorkspaceRoute('/admin#loyalty');};const guestsLink=document.querySelector('#staff-guests-link');if(guestsLink)guestsLink.onclick=()=>{if(staffSessionPermissions.has('orders'))window.location.href=preserveWorkspaceRoute('/clients');};const user=document.querySelector('.user');if(user){user.innerHTML='<label class="staff-self-avatar" title="Изменить свой аватар"><span aria-hidden="true">'+(String(actor.name||'Сотрудник').split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]).join('')||'С').toLocaleUpperCase('ru-RU')+'</span><input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Изменить свой аватар"></label><div class="staff-self-identity"><b>'+escapeStaffHtml(actor.name||'Сотрудник')+'</b><small>'+escapeStaffHtml(staffRoleLabels[actor.role]||'Персонал')+'</small></div><button class="staff-logout" id="logout" type="button">'+staffIcon('logout')+'<span>Выйти</span></button>';applyStaffHeader(actor);const picker=user.querySelector('.staff-self-avatar input');const headerAvatar=document.querySelector('.staff-header-avatar');if(headerAvatar&&picker){headerAvatar.setAttribute('role','button');headerAvatar.setAttribute('tabindex','0');headerAvatar.setAttribute('aria-label','Изменить свой аватар');headerAvatar.onclick=()=>picker.click();headerAvatar.onkeydown=(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();picker.click();}};}picker?.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;if(!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)||file.size>1500000){notice('Аватар: PNG, JPG или WebP до 1.5 МБ');picker.value='';return;}const reader=new FileReader();reader.onerror=()=>notice('Не удалось прочитать аватар');reader.onload=()=>fetch('/api/staff/'+encodeURIComponent(actor.id)+'/avatar',{method:'POST',headers:{...sessionHeaders(),'Content-Type':'application/json'},body:JSON.stringify({imageData:reader.result})}).then((response)=>response.ok?response.json():Promise.reject(new Error('avatar_failed'))).then((person)=>{actor.avatarUrl=person.avatarUrl||reader.result;localStorage.setItem('crm_session_user',JSON.stringify(actor));applyStaffSession(s);notice('Аватар обновлён');}).catch(()=>notice('Не удалось обновить аватар'));reader.readAsDataURL(file);});}};
 const resolveStaticStaffPermissions=(role)=>({owner:['floor','orders','reservations','inventory','finance','loyalty'],admin:['floor','orders','reservations','inventory','finance','loyalty'],manager:['floor','orders','reservations','inventory_read','finance_read','loyalty'],senior_bartender:['floor','orders','finance_read'],senior_hookah_master:['floor','orders','finance_read'],bartender:['floor','orders','finance_read'],hookah_master:['floor','orders','finance_read'],cleaner:[],security:[],technician:[],other_staff:[],developer:['floor','orders','reservations','inventory_read','finance_read']})[role]||[];
 if(staticStaffDemo()){try{const localUser=JSON.parse(localStorage.getItem('crm_session_user')||'{}');if(localUser.role)applyStaffSession({user:localUser,permissions:resolveStaticStaffPermissions(localUser.role)});}catch(_){}}
 // A changed authoritative session invalidates pending reads and open editors.
 const clearStaffAccessState=(phase='denied')=>{
+  closeStaffAttendanceDialog();
   document.body.classList.remove('staff-red-cursor');
   staffAccessRevision++;catalogRequestRevision++;catalogRequest=null;catalogRequestContext='';floorRequestRevision++;floorRefreshPending=null;ordersRequestRevision++;orderPricingRevision++;paymentLoadRevision++;
   paymentState=null;products=[];catalogState='ready';currentShift=null;shiftRefreshPending=null;
@@ -119,7 +176,7 @@ const verifyStaffSession=()=>{
     staffSessionVerified=true;staffSessionSignature=signature;
     if(changed)applyStaffSession(session);else applyStaffHeader(session.user);
     localStorage.setItem('crm_session_user',JSON.stringify({...session.user,workspacePermissions:session.permissions,permissionPolicy:session.permissionPolicy}));
-    mountStaffExtensions();applyStaffWorkAccess();if(changed)loadPreparationQueue();
+    mountStaffExtensions();applyStaffWorkAccess();if(changed)loadPreparationQueue();openSelfAttendanceDeepLink();
     if(!staffCanWork())showFloorUnavailable('Рабочее место недоступно для текущих прав','denied');
     if(status){status.hidden=staffCanWork();status.textContent='Нет доступа к рабочему залу и заказам. Доступные разделы находятся в меню.';status.setAttribute('role','status');}
     if(changed){if(staffCanWork())refreshFloor();if(staffShiftReadable)refreshShift();}

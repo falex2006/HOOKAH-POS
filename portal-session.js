@@ -20,6 +20,7 @@
     if (page === '/admin') {
       if (hash === '#staff') return any('staff', 'staff_view');
       if (hash === '#staff-schedule') return any('staff_schedule_view', 'staff_schedule_self');
+      if (hash === '#staff-attendance') return any('staff_attendance_policy_manage', 'staff_attendance_approval', 'staff_attendance_close');
       if (hash === '#permissions') return session.user.role === 'owner';
       if (hash === '#tasks') return any('orders', 'tasks_manage');
       if (hash === '#loyalty') return any('loyalty');

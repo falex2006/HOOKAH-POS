@@ -1,19 +1,24 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+const portalSession = fs.readFileSync(new URL('../portal-session.js', import.meta.url), 'utf8');
+const siteTree = fs.readFileSync(new URL('../SITE_TREE.md', import.meta.url), 'utf8');
+const siteMap = JSON.parse(fs.readFileSync(new URL('../site-map.json', import.meta.url), 'utf8'));
 const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-assert.ok(portal.includes('const normalizeManagementSidebar = ({ routeChange = false } = {}) => {'));
-assert.match(portal, /disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'menu', 'inventory', 'finance', 'team', 'system'\]/);
-assert.match(portal, /const rememberGroupState = \(details, key\) => \{/);
-// Navigation now restores a single preferred group. Restoring every saved group
-// was deliberately removed because it reopened multiple sections after reload.
-assert.match(portal, /const savedOpenGroup = normalizedGroups\.find\(\(group\) => savedGroupState\(group\.dataset\.navGroup\) === true\);/);
-assert.ok(portal.includes('const preferCurrentRoute = routeChange || !initialDocumentReload;'));
-assert.ok(portal.includes('const preferredGroup = preferCurrentRoute ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup'));
-assert.match(portal, /normalizedGroups\.forEach\(\(group\) => \{ group\.open = group === preferredGroup; \}\)/);
-assert.match(portal, /homeLink\.addEventListener\('click', \(\) => \{\s*normalizedGroups\.forEach\(\(group\) => \{\s*group\.open = false;/);
-assert.doesNotMatch(portal, /activeGroup\.open = true/);
+assert.ok(portal.includes('const normalizeManagementSidebar = () => {'));
+assert.match(portal, /const sidebarGroupKeys = \['operations', 'menu', 'inventory', 'finance', 'team', 'system'\]/);
+assert.match(portal, /const sidebarRouteGroup = \(url\) =>/);
+assert.match(portal, /openGroup = reload && saved\?\.route === lastRoute[\s\S]*?routeGroup\(\);/);
+assert.match(portal, /const home = \(event\) => \{[\s\S]*?openGroup = null; refresh\(\); save\(\);/);
+assert.match(portal, /\(!permission \|\| hasNavigationPermission\(link\)\)/,
+  'group visibility must honor any-of permission links as well as single permissions');
 assert.match(portal, /href: '\/admin#permissions'/);
 assert.match(portal, /href: '\/admin#diagnostics'/);
+assert.match(portal, /href: '\/admin#staff-attendance'.*anyPermissions: \['staff_attendance_policy_manage', 'staff_attendance_approval', 'staff_attendance_close'\].*label: 'Выходы сотрудников'/);
+assert.match(portal, /#staff-attendance.*return 'team'/);
+assert.match(portalSession, /hash === '#staff-attendance'.*staff_attendance_policy_manage.*staff_attendance_approval.*staff_attendance_close/);
+assert.ok(siteTree.includes('/admin#staff-attendance') && siteTree.includes('staff_schedule_self'));
+assert.ok(siteMap.adminSubroutes.includes('staff-attendance'));
+assert.equal(siteMap.staffAttendancePresentation.selfEntry, 'workspace-dialog');
 assert.match(css, /sidebar-mobile-toggle\{[^}]*width:44px;height:44px/);
 console.log('SIDEBAR NAVIGATION CONTRACT: PASS (canonical routes, one restored group, home collapses all)');

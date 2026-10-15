@@ -11,6 +11,7 @@ const dto = row => ({ id: row.id, venue_id: row.venue_id, created_by: row.create
   plannedStart: row.planned_start, plannedEnd: row.planned_end,
   planned_start: row.planned_start, planned_end: row.planned_end,
   breakMinutes: row.break_minutes, breakIntervals: row.break_intervals || [], kind: row.kind, status: row.status, version: row.version,
+  preparationMinutes: row.preparation_minutes ?? null,
   functionId: row.function_id || null, functionName: row.functionName || null,
   note: row.note ?? null, cancelReason: row.cancel_reason || '', userName: row.userName || null,
   seriesId: row.series_id || null, seriesOccurrenceDate: row.series_occurrence_date ? String(row.series_occurrence_date).slice(0,10) : null,
@@ -95,6 +96,9 @@ async function save(pool, principal, input, id = null, transaction = null) {
     if (input.status !== undefined && !['planned', 'cancelled'].includes(input.status)) fail('schedule_status_invalid');
     if (cancel && (!before || !reason.trim())) fail('schedule_cancel_reason_required');
     const entry = cancel ? dto(before) : normalize(input, access.timezone);
+    if (entry.preparationMinutes === undefined && ['shift','open_shift'].includes(entry.kind)) {
+      entry.preparationMinutes = before?.preparation_minutes ?? null;
+    }
     if (entry.kind === 'open_shift') fail('schedule_open_shift_requires_draft', 409);
     if (!cancel && before?.kind === 'open_shift' && entry.kind !== 'open_shift') fail('schedule_open_shift_requires_draft', 409);
     const today = localDate(new Date(), access.timezone);
@@ -127,12 +131,12 @@ async function save(pool, principal, input, id = null, transaction = null) {
       if((availabilityWarnings.length||policyWarnings.length)&&(input.confirmWarnings!==true||!reason.trim()))fail('schedule_warnings_confirmation_required',409);
     }
     const values = [principal.venueId, entry.userId, entry.workDate, entry.plannedStart, entry.plannedEnd, entry.note,
-      entry.kind, entry.breakMinutes, principal.userId, cancel ? 'cancelled' : 'planned', cancel ? reason.trim() : null, entry.functionId, JSON.stringify(entry.breakIntervals||[])];
+      entry.kind, entry.breakMinutes, principal.userId, cancel ? 'cancelled' : 'planned', cancel ? reason.trim() : null, entry.functionId, JSON.stringify(entry.breakIntervals||[]), entry.preparationMinutes ?? null];
     const result = before ? await db.query(`UPDATE staff_schedules SET user_id=$2,work_date=$3,planned_start=$4,planned_end=$5,
-      note=$6,kind=$7,break_minutes=$8,updated_by=$9,status=$10,cancel_reason=$11,function_id=$12,break_intervals=$13::jsonb,version=version+1,updated_at=now()
-      WHERE venue_id=$1 AND id=$14 RETURNING *,work_date::text AS work_date`, [...values, id])
-      : await db.query(`INSERT INTO staff_schedules(venue_id,user_id,work_date,planned_start,planned_end,note,kind,break_minutes,created_by,status,cancel_reason,updated_by,function_id,break_intervals)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$9,$12,$13::jsonb) RETURNING *,work_date::text AS work_date`, values);
+      note=$6,kind=$7,break_minutes=$8,updated_by=$9,status=$10,cancel_reason=$11,function_id=$12,break_intervals=$13::jsonb,preparation_minutes=$14,version=version+1,updated_at=now()
+      WHERE venue_id=$1 AND id=$15 RETURNING *,work_date::text AS work_date`, [...values, id])
+      : await db.query(`INSERT INTO staff_schedules(venue_id,user_id,work_date,planned_start,planned_end,note,kind,break_minutes,created_by,status,cancel_reason,updated_by,function_id,break_intervals,preparation_minutes)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$9,$12,$13::jsonb,$14) RETURNING *,work_date::text AS work_date`, values);
     const after = result.rows[0];
     if (before?.series_id) await require('./staff-schedule-series').markManualOccurrence(db, principal, before, after, reason.trim());
     const confirmation=(availabilityWarnings.length||policyWarnings.length)?{warningConfirmation:{action:before?'update':'create',actorId:principal.userId,requestKey:input.requestKey,

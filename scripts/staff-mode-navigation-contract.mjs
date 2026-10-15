@@ -8,6 +8,12 @@ const distApp = fs.readFileSync(new URL('../dist/app.js', import.meta.url), 'utf
 const distHtml = fs.readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const distPortal = fs.readFileSync(new URL('../dist/portal.js', import.meta.url), 'utf8');
+const portalSession = fs.readFileSync(new URL('../portal-session.js', import.meta.url), 'utf8');
+const distPortalSession = fs.readFileSync(new URL('../dist/portal-session.js', import.meta.url), 'utf8');
+const attendanceUi = fs.readFileSync(new URL('../staff-attendance-ui.js', import.meta.url), 'utf8');
+const attendanceCss = fs.readFileSync(new URL('../staff-attendance-ui.css', import.meta.url), 'utf8');
+const distAttendanceUi = fs.readFileSync(new URL('../dist/staff-attendance-ui.js', import.meta.url), 'utf8');
+const distAttendanceCss = fs.readFileSync(new URL('../dist/staff-attendance-ui.css', import.meta.url), 'utf8');
 const syncScript = fs.readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
 const appRevision = syncScript.match(/appRevision = '(\d+)'/)?.[1];
 assert.ok(appRevision, 'app cache revision must be declared in the asset sync script');
@@ -43,6 +49,40 @@ assert.match(app, /staffSessionPermissions\.has\('staff_schedule_self'\).*preser
   'the self-schedule action must re-check the session permission before navigating');
 assert.match(app, /#staff-primary-navigation \.portal-nav[\s\S]*?staff-personal-schedule-link[\s\S]*?Мой график/,
   'the actual employee primary navigation must render the self-schedule entry');
+assert.match(app, /staff_attendance_self/,
+  'personal attendance entry must use only the server-provided self permission');
+assert.match(app, /staff-attendance:open-self/,
+  'personal attendance deep links and same-hash notification clicks must open the self dialog');
+assert.match(app, /staff-attendance-ui\.js\?rev=3/,
+  'personal attendance loader must request the responsive UI revision');
+assert.match(app, /dialog\.showModal\(\)[\s\S]*?mountSelf\(host,\{api:staffFetchJson\}\)/,
+  'personal attendance must open an accessible in-workspace dialog and mount its self view');
+assert.match(app, /const clearStaffAccessState=\(phase='denied'\)=>\{\s*closeStaffAttendanceDialog\(\)/,
+  'session/access changes must dispose the personal attendance dialog');
+assert.match(portalSession, /hash === '#staff-attendance'.*any\('staff_attendance_policy_manage', 'staff_attendance_approval', 'staff_attendance_close'\)/,
+  'management route requires a narrow attendance capability, not general settings');
+assert.match(portal, /href: '\/admin#staff-attendance'.*anyPermissions: \['staff_attendance_policy_manage', 'staff_attendance_approval', 'staff_attendance_close'\].*label: 'Выходы сотрудников'/,
+  'team navigation must show attendance management to either delegated capability');
+assert.match(portal, /function renderAttendanceManagementRoute\(target\)[\s\S]*?mountManagement\(target, \{ api, selfUserId: attendanceSession\?\.user\?\.id \}\)/,
+  'management route must load the bounded attendance UI and mount the management view');
+assert.match(portal, /staff-attendance-ui\.css\?rev=3/,
+  'management route must request the responsive attendance styles');
+assert.match(attendanceUi, /classList\.add\('attendance-route'\)/,
+  'attendance renderer must scope its route-specific shell styles');
+assert.match(attendanceUi, /dispose\(\)\s*\{[^}]*classList\.remove\('attendance-route'\)/,
+  'attendance renderer must remove its shell scope during disposal');
+assert.match(attendanceCss, /@media\(max-width:900px\)\{body\.attendance-route \.portal-main\{[^}]*flex-basis:100%\}body\.attendance-route \.portal-app\{grid-template-columns:minmax\(0,1fr\)\}\}/,
+  'the attendance workspace must take the full mobile width like the schedule route');
+assert.match(attendanceCss, /body\.portal\.light-theme\.attendance-route \.portal-sidebar/,
+  'light-theme shell corrections must be isolated to the attendance route');
+assert.match(attendanceUi, /Отменить черновик и обновить[\s\S]*?window\.confirm/,
+  'dirty forms must have an explicit confirmed discard path');
+assert.match(attendanceUi, /content\.addEventListener\('input'/,
+  'dirty tracking must be attached to the persistent content host once');
+assert.match(attendanceUi, /openOverview\(\)[\s\S]*?hasUnsavedInput\(\)/,
+  'same-hash management notification links open overview without discarding drafts');
+assert.match(attendanceUi, /item\.plannedEnd \? Date\.parse\(item\.plannedEnd\) \+ 60 \* 60 \* 1000 : Date\.parse\(item\.startedAt\) \+ 16 \* 60 \* 60 \* 1000/,
+  'overdue sessions use the frozen planned end or a 16-hour fallback');
 
 // Exercise the exact permission predicate used by the UI against the server's
 // manager permission profile, including the inventory/finance read aliases.
@@ -79,6 +119,9 @@ assert.match(app, /manager:\['floor','orders','reservations','inventory_read','f
 assert.equal(distApp, app);
 assert.equal(distHtml, html);
 assert.equal(distPortal, portal, 'published portal loader must match its source');
+assert.equal(distPortalSession, portalSession, 'published session gate must match its source');
+assert.equal(distAttendanceUi, attendanceUi, 'published attendance UI must match its source');
+assert.equal(distAttendanceCss, attendanceCss, 'published attendance styles must match their source');
 assert.match(portal, /personal\.onload\s*=\s*\(\)\s*=>\s*selfOnly\s*\?\s*resolve\(\)\s*:\s*loadPlanning\(\)/,
   'self-only schedule access must load its personal view without waiting for management planning UI');
 assert.match(portal, /staff-schedule-ui\.css\?rev=4/,

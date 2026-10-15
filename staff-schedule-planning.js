@@ -15,14 +15,14 @@ const hash=value=>createHash('sha256').update(JSON.stringify(stable(value))).dig
 const name=value=>{if(typeof value!=='string'||!value.trim()||value.trim().length>120)fail('planning_name_invalid');return value.trim();};
 const uuid=value=>{if(typeof value!=='string'||!UUID.test(value))fail('planning_id_invalid');return value.toLowerCase();};
 const reason=value=>{if(value===undefined)return '';if(typeof value!=='string'||value.length>500)fail('schedule_reason_invalid');return value.trim();};
-const scheduleDTO=r=>({id:r.id,userId:r.user_id,workDate:r.work_date,plannedStart:r.planned_start?new Date(r.planned_start).toISOString():null,plannedEnd:r.planned_end?new Date(r.planned_end).toISOString():null,kind:r.kind,status:r.status,breakMinutes:r.break_minutes,breakIntervals:r.break_intervals||[],functionId:r.function_id||null,note:r.note,version:r.version,seriesId:r.series_id||null,seriesOccurrenceDate:r.series_occurrence_date?String(r.series_occurrence_date).slice(0,10):null,seriesOccurrenceKey:r.series_occurrence_key||null});
-const canonicalSnapshot=rows=>rows.map(row=>({...row,function_id:row.function_id??null}));
+const scheduleDTO=r=>({id:r.id,userId:r.user_id,workDate:r.work_date,plannedStart:r.planned_start?new Date(r.planned_start).toISOString():null,plannedEnd:r.planned_end?new Date(r.planned_end).toISOString():null,kind:r.kind,status:r.status,breakMinutes:r.break_minutes,preparationMinutes:r.preparation_minutes??null,breakIntervals:r.break_intervals||[],functionId:r.function_id||null,note:r.note,version:r.version,seriesId:r.series_id||null,seriesOccurrenceDate:r.series_occurrence_date?String(r.series_occurrence_date).slice(0,10):null,seriesOccurrenceKey:r.series_occurrence_key||null});
+const canonicalSnapshot=rows=>rows.map(row=>({...row,function_id:row.function_id??null,preparation_minutes:row.preparation_minutes??null}));
 const draftDTO=(r,access)=>({id:r.id,name:r.name,from:r.from_date,to:r.to_date,userIds:r.user_ids,timezone:r.timezone,state:r.state,version:r.version,operations:r.operations,baseItems:r.base_snapshot.filter(x=>x.work_date>=r.from_date&&x.work_date<=r.to_date).map(scheduleDTO),publishedAt:r.published_at,capabilities:{manage:access.manage,canPublish:access.canPublish}});
 const templateDTO=r=>({id:r.id,name:r.name,version:r.version,archived:r.archived,definition:r.definition});
 async function snapshot(db,p,d) {
   // Include adjacent dates AND actual overlaps: legacy rows can exceed the new 24h limit.
   // The snapshot also detects new rows (phantoms), cancellations and moved intervals.
-  const result=await db.query(`SELECT id,user_id,work_date::text,planned_start::text,planned_end::text,kind,status,break_minutes,break_intervals,function_id,note,version,series_id,series_occurrence_date::text,series_occurrence_key
+  const result=await db.query(`SELECT id,user_id,work_date::text,planned_start::text,planned_end::text,kind,status,break_minutes,preparation_minutes,break_intervals,function_id,note,version,series_id,series_occurrence_date::text,series_occurrence_key
     FROM staff_schedules WHERE venue_id=$1 AND (user_id=ANY($2::uuid[]) OR (kind='open_shift' AND status='planned'))
     AND (work_date BETWEEN $3::date-1 AND $4::date+1 OR (
       COALESCE(planned_start,work_date::timestamp AT TIME ZONE $5) < ($4::date+2)::timestamp AT TIME ZONE $5
@@ -73,6 +73,12 @@ function operations(d,raw,allowStoredSource=false) {
     }
     if(op.operation!=='cancel') {
       out.payload=normalize(op.payload,d.timezone);
+      // Legacy editors omit new optional fields. Preserve the concrete source
+      // value on ordinary updates; series reapplication supplies a fresh slot.
+      if(out.operation==='update'&&!out.sourceSeries&&out.payload.preparationMinutes===undefined&&['shift','open_shift'].includes(out.payload.kind)){
+        const before=d.base_snapshot.find(row=>row.id===out.sourceId);
+        if(before?.preparation_minutes!=null)out.payload.preparationMinutes=before.preparation_minutes;
+      }
       if(out.payload.userId&&!d.user_ids.includes(out.payload.userId))fail('planning_scope_invalid');
       if(out.payload.workDate<d.from_date||out.payload.workDate>d.to_date)fail('planning_scope_invalid');
       if(out.sourceSeries&&out.payload.workDate!==out.sourceSeries.occurrenceDate)fail('planning_series_source_invalid');
@@ -144,6 +150,9 @@ async function audit(db,p,type,id,action,before,after) {
   await db.query('INSERT INTO staff_schedule_planning_events(venue_id,actor_id,entity_type,entity_id,action,before_data,after_data) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)',[p.venueId,p.userId,type,id,action,before?JSON.stringify(before):null,JSON.stringify(after)]);
 }
 async function mutateDraft(db,p,d,access,action,ops,state='open') {
+  // Stable identities let later optional-field edits preserve draft-local values,
+  // including manually created operations (range application already has IDs).
+  ops=ops.map(op=>op.operationId?op:{...op,operationId:randomUUID()});
   const row=(await db.query(`UPDATE staff_schedule_drafts SET operations=$3::jsonb,state=$4,version=version+1,updated_at=now(),
     published_by=CASE WHEN $4='published' THEN $5::uuid ELSE published_by END,
     published_at=CASE WHEN $4='published' THEN now() ELSE published_at END
@@ -157,7 +166,8 @@ function templateComposition(template,raw,ids){
     if(!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).some(key=>!['userId','selected','functionId','slots'].includes(key)))fail('planning_template_composition_invalid');
     const userId=uuid(item.userId),functionId=item.functionId==null?null:uuid(item.functionId);
     if(typeof item.selected!=='boolean'||!Array.isArray(item.slots)||item.slots.length>24)fail('planning_template_composition_invalid');
-    const slots=item.slots.length?pattern.definition({schemaVersion:2,mode:'selected',pattern:source.pattern,slots:item.slots}).slots:[];
+    const previousSlots=sourceMembers?sourceMembers.find(member=>member.userId===userId)?.slots:source.slots;
+    const slots=item.slots.length?pattern.definition({schemaVersion:2,mode:'selected',pattern:source.pattern,slots:item.slots},{slots:previousSlots}).slots:[];
     return {userId,selected:item.selected,functionId,slots};
   });
   if(new Set(rows.map(row=>row.userId)).size!==rows.length)fail('planning_template_composition_invalid');
@@ -243,10 +253,10 @@ async function publish(db,p,d,input,access) {
     else {
       const e=op.payload,values=[p.venueId,e.userId,e.workDate,e.plannedStart,e.plannedEnd,e.kind,e.breakMinutes,e.note,p.userId,e.functionId,JSON.stringify(e.breakIntervals||[])];
       const lineage=op.sourceSeries?[op.sourceSeries.seriesId,op.sourceSeries.occurrenceDate,op.sourceSeries.occurrenceKey]:before?.series_id?[before.series_id,before.series_occurrence_date,before.series_occurrence_key]:[null,null,null];
-      after=op.operation==='create'?(await db.query(`INSERT INTO staff_schedules(venue_id,user_id,work_date,planned_start,planned_end,kind,break_minutes,note,created_by,updated_by,function_id,break_intervals,series_id,series_occurrence_date,series_occurrence_key)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10,$11::jsonb,$12,$13,$14) RETURNING *`,[...values,...lineage])).rows[0]
-        :(await db.query(`UPDATE staff_schedules SET user_id=$2,work_date=$3,planned_start=$4,planned_end=$5,kind=$6,break_minutes=$7,note=$8,updated_by=$9,function_id=$10,break_intervals=$11::jsonb,series_id=$12,series_occurrence_date=$13,series_occurrence_key=$14,updated_at=now(),version=version+1
-          WHERE venue_id=$1 AND id=$15 RETURNING *`,[...values,...lineage,op.sourceId])).rows[0];
+      after=op.operation==='create'?(await db.query(`INSERT INTO staff_schedules(venue_id,user_id,work_date,planned_start,planned_end,kind,break_minutes,note,created_by,updated_by,function_id,break_intervals,series_id,series_occurrence_date,series_occurrence_key,preparation_minutes)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10,$11::jsonb,$12,$13,$14,$15) RETURNING *`,[...values,...lineage,e.preparationMinutes??null])).rows[0]
+        :(await db.query(`UPDATE staff_schedules SET user_id=$2,work_date=$3,planned_start=$4,planned_end=$5,kind=$6,break_minutes=$7,note=$8,updated_by=$9,function_id=$10,break_intervals=$11::jsonb,series_id=$12,series_occurrence_date=$13,series_occurrence_key=$14,preparation_minutes=$15,updated_at=now(),version=version+1
+          WHERE venue_id=$1 AND id=$16 RETURNING *`,[...values,...lineage,e.preparationMinutes??null,op.sourceId])).rows[0];
     }
     if(before?.series_id&&!op.sourceSeries)await require('./staff-schedule-series').markManualOccurrence(db,p,before,after,op.reason||globalReason);
     const source=op.sourceTemplate?{planningSource:{draftId:d.id,templateId:op.sourceTemplate.templateId,templateVersion:op.sourceTemplate.templateVersion,templateName:op.sourceTemplate.templateName}}:{};
@@ -270,7 +280,7 @@ async function execute(db,p,resource,id,action,method,input,access) {
     if(method==='GET')return templateDTO(row);
     if(version(input.version)!==row.version)fail('template_version_conflict',409);
     if(input.archived!==undefined&&typeof input.archived!=='boolean')fail('planning_template_invalid');
-    const next=(await db.query('UPDATE staff_schedule_templates SET name=$3,definition=$4::jsonb,archived=$5,version=version+1,updated_at=now() WHERE venue_id=$1 AND id=$2 RETURNING *',[p.venueId,row.id,input.name===undefined?row.name:name(input.name),JSON.stringify(input.definition===undefined?row.definition:pattern.definition(input.definition)),input.archived??row.archived])).rows[0];
+    const next=(await db.query('UPDATE staff_schedule_templates SET name=$3,definition=$4::jsonb,archived=$5,version=version+1,updated_at=now() WHERE venue_id=$1 AND id=$2 RETURNING *',[p.venueId,row.id,input.name===undefined?row.name:name(input.name),JSON.stringify(input.definition===undefined?row.definition:pattern.definition(input.definition,row.definition)),input.archived??row.archived])).rows[0];
     await audit(db,p,'template',row.id,'update',row,next);return templateDTO(next);
   }
   if(!id&&method==='GET')return {items:(await db.query('SELECT *,from_date::text,to_date::text FROM staff_schedule_drafts WHERE venue_id=$1 ORDER BY created_at,id',[p.venueId])).rows.map(r=>draftDTO(r,access))};
@@ -304,11 +314,15 @@ async function execute(db,p,resource,id,action,method,input,access) {
   if(action==='discard')return mutateDraft(db,p,d,access,'discard',d.operations,'discarded');
   const existingById=new Map(d.operations.filter(op=>op.operationId).map(op=>[op.operationId,op]));
   const incoming=Array.isArray(input.operations)?input.operations.map(op=>{
-    const existing=op?.operationId?existingById.get(op.operationId):null;
+    const existing=op?.operationId?existingById.get(op.operationId)
+      :op?.sourceId?d.operations.find(item=>item.sourceId===op.sourceId):null;
     if(op?.operationId&&!existing)fail('planning_operation_invalid');
     if(op?.sourceTemplate!==undefined&&JSON.stringify(op.sourceTemplate)!==JSON.stringify(existing?.sourceTemplate))fail('planning_template_source_invalid');
     if(op?.sourceSeries!==undefined&&JSON.stringify(op.sourceSeries)!==JSON.stringify(existing?.sourceSeries))fail('planning_series_source_invalid');
     if(existing?.sourceTemplate&&op.operationId&&op.payload?.userId!==existing.payload?.userId)fail('planning_operation_invalid');
+    if(op?.payload&&op.payload.preparationMinutes===undefined&&existing?.payload?.preparationMinutes!==undefined&&['shift','open_shift'].includes(op.payload.kind||'shift')){
+      op={...op,payload:{...op.payload,preparationMinutes:existing.payload.preparationMinutes}};
+    }
     return {...(existing?.sourceTemplate?{...op,sourceTemplate:existing.sourceTemplate}:op),...(existing?.sourceSeries?{sourceSeries:existing.sourceSeries}:{})};
   }):input.operations;
   return mutateDraft(db,p,d,access,'edit',operations(d,incoming,true));

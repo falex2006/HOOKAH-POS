@@ -1,3 +1,12 @@
+## 2026-10-15 — Attendance: operational workflow and in-app notifications
+
+- User requested completion of the local attendance workflow, renamed management section and linked notifications. Manager section is «Выходы сотрудников», existing route stays `/admin#staff-attendance`; personal action stays «Выход на работу». Daily overview is separate from «Правила и доступ».
+- Reuse the existing notification bell and per-user `notification_reads`. Attendance notifications are derived from committed requests/sessions with stable keys and current server-side access, so failed/rolled-back mutations cannot send phantom events. No external push, SMS or Telegram is introduced. Active clients poll; after mutation and cross-tab signals refresh promptly.
+- Only owner and current approval delegates see pending requests; personal decisions/expiry/recovery are visible only to the subject. Operational employees must not gain existing financial/order notification categories. Revoke is effective on the next server read. Pending/overdue alerts disappear when no longer actionable; a read receipt never means approval.
+- Forgotten-session recovery has an independent owner-delegated permission, separate from approval/policy. The action closes an open other-employee session at the server's current time with mandatory reason, optimistic version and immutable audit. It does not invent a historical actual end, close cash, modify a schedule or write payroll. Self sessions use ordinary self-end.
+- Reminder is advisory: an open session is prompted one hour after its snapshotted planned end; without a planned end, after16 hours from start. The reminder is not a no-show/disciplinary decision and never auto-closes work. These thresholds are explained in help; future configurable thresholds are outside this local iteration.
+- No publication or production migration is included in this stage. Preserve existing calendar/attendance WIP and unrelated shared-root work.
+
 ## 2026-10-02 — безопасный контракт управления акциями L11.5
 
 - Кампания — отдельная сущность от группы гостя, с version history, tenant scope, явным периодом, IANA timezone, выбранными товарами/категориями, размером выгоды и приоритетом. Интервалы храним как UTC instants; ценовой evaluator должен трактовать их как `[start,end)`.

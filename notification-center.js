@@ -9,7 +9,10 @@
     || (['owner', 'admin'].includes(role) && (portalPermissions.has('staff_view') || portalPermissions.has('staff')))
     || (['owner', 'admin', 'manager'].includes(role) && ['floor','orders','finance_read'].some(p=>portalPermissions.has(p)));
 
-    if(!bellHost||!['owner','admin','manager','developer'].includes(role)||!hasNotificationPermission){const bell=bellHost?.querySelector('#notification-bell');if(bell)bell.hidden=true;return {refresh:()=>{},dispose:()=>{}};}
+    const attendanceTypes = new Set(['attendance_request','attendance_decision','attendance_expired','attendance_overdue','attendance_closed','attendance_warning']);
+    const hasAttendancePermission = ['staff_attendance_self','staff_attendance_policy_manage','staff_attendance_approval','staff_attendance_close'].some(permission=>portalPermissions.has(permission));
+    const attendanceOnly = hasAttendancePermission && !hasNotificationPermission;
+    if(!bellHost||(!['owner','admin','manager','developer'].includes(role)&&!attendanceOnly)||(!hasNotificationPermission&&!attendanceOnly)){const bell=bellHost?.querySelector('#notification-bell');if(bell)bell.hidden=true;return {refresh:()=>{},dispose:()=>{}};}
     let disposed=false;
     const lifecycle=new AbortController();
     let interval;
@@ -29,7 +32,7 @@ let notificationFilter = 'all';
 let notificationData = { items: [], unreadCount: 0 };
 let notificationBusy = false;
 let notificationRefreshQueued = false;
-const allowedNotificationHrefs = new Set(['/orders', '/inventory?view=auto-orders', '/admin', '/admin#shift-control', '/finance']);
+const allowedNotificationHrefs = new Set(['/orders', '/inventory?view=auto-orders', '/admin', '/admin#shift-control', '/finance', '/admin#staff-attendance', '/#staff-attendance']);
 const notificationContent = notificationPanel.querySelector('#notification-panel-content');
 const notificationBadge = bellHost.querySelector('#notification-count');
 const notificationCountLabel = notificationPanel.querySelector('#notification-panel-count');
@@ -39,7 +42,7 @@ const updateNotificationCount = (count) => {
   if (notificationBadge) { notificationBadge.textContent = value > 99 ? '99+' : String(value); notificationBadge.hidden = value === 0; }
   if (notificationBell) { notificationBell.title = value ? `Непрочитанные уведомления: ${value}` : 'Уведомления'; notificationBell.setAttribute('aria-label', value ? `Уведомления, непрочитанных: ${value}` : 'Уведомления'); }
   if (notificationCountLabel) notificationCountLabel.textContent = value ? `${value} непрочитанных` : 'Все просмотрено';
-  notificationPanel.querySelector('.notification-read-all').hidden = value === 0;
+  notificationPanel.querySelector('.notification-read-all').hidden = attendanceOnly || value === 0;
 };
 updateNotificationCount(0);
 const renderNotificationState = (kind, message = '') => {
@@ -50,7 +53,7 @@ const renderNotificationState = (kind, message = '') => {
   notificationContent.append(state);
 };
 const renderNotifications = () => {
-  const items = notificationData.items.filter((item) => notificationFilter !== 'unread' || !item.readAt);
+  const items = notificationData.items.filter((item) => (!attendanceOnly || attendanceTypes.has(item.type)) && (notificationFilter !== 'unread' || !item.readAt));
   notificationContent.replaceChildren(); notificationContent.setAttribute('aria-busy', 'false');
   if (!items.length) { renderNotificationState('empty', notificationFilter === 'unread' && notificationData.unreadCount === 0 ? 'Непрочитанных уведомлений нет' : 'Пока нет уведомлений'); return; }
   const list = document.createElement('ul'); list.className = 'notification-list';
@@ -62,7 +65,7 @@ const renderNotifications = () => {
     const meta = document.createElement('small'); meta.textContent = formatNotificationTime(item.createdAt); copy.append(meta); row.append(copy);
     const actions = document.createElement('div'); actions.className = 'notification-item-actions';
     const href = allowedNotificationHrefs.has(item.href) ? item.href : null;
-    if (href) { const open = document.createElement('a'); open.href = href; open.className = 'notification-open-link'; open.textContent = item.requiresAction ? 'Открыть запрос' : 'Открыть'; open.addEventListener('click', async (event) => { if (item.readAt) return; event.preventDefault(); try { await setNotificationRead(item.id); window.location.assign(href); } catch (_) { renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(open); }
+    if (href && (!attendanceOnly || attendanceTypes.has(item.type))) { const open = document.createElement('a'); open.href = href; open.className = 'notification-open-link'; open.textContent = item.requiresAction ? 'Открыть запрос' : 'Открыть'; open.addEventListener('click', async (event) => { event.preventDefault(); try { if (!item.readAt) await setNotificationRead(item.id); const target = new URL(href, location.origin); if (target.pathname === location.pathname && target.hash === location.hash) { closeNotificationPanel(false); window.dispatchEvent(new CustomEvent(target.hash === '#staff-attendance' && target.pathname === '/' ? 'staff-attendance:open-self' : 'staff-attendance:open-management')); } else window.location.assign(href); } catch (_) { renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(open); }
     if (!item.readAt) { const read = document.createElement('button'); read.type = 'button'; read.className = 'notification-mark-read'; read.textContent = 'Отметить прочитанным'; read.setAttribute('aria-label', `Отметить прочитанным: ${String(item.title || 'уведомление')}`); read.addEventListener('click', async () => { read.disabled = true; try { await setNotificationRead(item.id); } catch (_) { read.disabled = false; renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(read); }
     row.append(actions); list.append(row);
   }
@@ -71,7 +74,7 @@ const renderNotifications = () => {
 const loadNotifications = async (showLoading = false) => {
   if(disposed)return;
   if (notificationBusy) { notificationRefreshQueued = true; return; } notificationBusy = true; if (showLoading) renderNotificationState('loading');
-  try { const data = await api(`/api/notifications?limit=20&filter=${notificationFilter}`,{signal:AbortSignal.any([lifecycle.signal,AbortSignal.timeout(15000)])}); if(disposed)return; notificationData = { items: Array.isArray(data.items) ? data.items : [], unreadCount: Number(data.unreadCount || 0) }; updateNotificationCount(notificationData.unreadCount); if (!notificationPanel.hidden) renderNotifications(); }
+  try { const data = await api(`/api/notifications?limit=20&filter=${notificationFilter}`,{signal:AbortSignal.any([lifecycle.signal,AbortSignal.timeout(15000)])}); if(disposed)return; const items=Array.isArray(data.items)?data.items:[]; notificationData = { items, unreadCount: Number(data.unreadCount || 0) }; updateNotificationCount(notificationData.unreadCount); if (!notificationPanel.hidden) renderNotifications(); }
   catch (error) {
     if(disposed)return;if(error.status===403||error.payload?.error==='forbidden'){dispose();return;}
     if (!notificationPanel.hidden) {
@@ -113,6 +116,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Tab' && window.matchMedia('(max-width: 768px)').matches) { const controls = [...notificationPanel.querySelectorAll('button:not(:disabled):not([hidden]), a[href]')].filter((node) => node.getClientRects().length); if (!controls.length) return; const first = controls[0], last = controls[controls.length - 1], heading = notificationPanel.querySelector('#notification-panel-title'); if (event.shiftKey && (document.activeElement === first || document.activeElement === heading || document.activeElement === notificationPanel)) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === heading)) { event.preventDefault(); first.focus(); } }
 },{signal:lifecycle.signal});
 notificationChannel?.addEventListener('message', () => { if (document.visibilityState === 'visible') loadNotifications(!notificationPanel.hidden); });
+window.addEventListener('staff-attendance:changed',()=>{if(document.visibilityState==='visible')loadNotifications(false);},{signal:lifecycle.signal});
 const refreshLeaderNotifications = () => {if(!disposed&&document.visibilityState==='visible')loadNotifications(false);};
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadNotifications(false); },{signal:lifecycle.signal});
 

@@ -21,7 +21,7 @@ function getVenueLocalHour(date, timezone) { if (!timezone) return null; try { c
 let venueTimezone = String(portalUser.timezone || '');
 let dashboardGreetingTimer = null;
 function updateDashboardGreeting() { /* Dashboard keeps a stable title; no recurring greeting. */ }
-const adminSectionTitles = { '#staff-schedule': 'График сотрудников', '#staff': 'Персонал', '#permissions': 'Роли и права доступа', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки заведения', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'База знаний' };
+const adminSectionTitles = { '#staff-schedule': 'График сотрудников', '#staff-attendance': 'Выходы сотрудников', '#staff': 'Персонал', '#permissions': 'Роли и права доступа', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки заведения', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'База знаний' };
 function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); const sessionPermissions = new Set(window.__portalSessionVerified?.permissions || []); const personalSchedule = window.location.hash === '#staff-schedule' && sessionPermissions.has('staff_schedule_self') && !sessionPermissions.has('staff_schedule_view'); const sectionTitle = personalSchedule ? 'Мой график' : adminSectionTitles[window.location.hash] || 'Главная'; if (title) title.textContent = sectionTitle; if (document.body?.dataset.page === 'dashboard') {
   document.title = `Hookah POS — ${sectionTitle}`;
   document.querySelectorAll('.portal-sidebar a[href]').forEach((link) => {
@@ -64,6 +64,9 @@ const hasPortalPermission = (permission) => {
   if (permission === 'tasks') return portalPermissions.has('orders') || portalPermissions.has('tasks_manage');
   return portalPermissions.has(permission);
 };
+const hasNavigationPermission = (node) => node?.dataset?.anyPermissions
+  ? node.dataset.anyPermissions.split(/\s+/).filter(Boolean).some((permission) => portalPermissions.has(permission))
+  : hasPortalPermission(node?.dataset?.permission);
 const operationsNav = document.querySelectorAll('.portal-nav')[1];
 if (operationsNav) {
   const sharedLinks = [
@@ -84,7 +87,7 @@ if (administrationNav && !administrationNav.querySelector('a[href="/integrations
   link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#plug"></use></svg><span>Интеграции</span>';
   administrationNav.append(link);
 }
-const adminNavigationAllowed = ['owner', 'admin', 'developer', 'manager'].includes(portalUser.role) || ['staff', 'staff_view', 'settings', 'diagnostics', 'tasks_manage', 'loyalty'].some((permission) => portalPermissions.has(permission));
+const adminNavigationAllowed = ['owner', 'admin', 'developer', 'manager'].includes(portalUser.role) || ['staff', 'staff_view', 'settings', 'diagnostics', 'tasks_manage', 'loyalty', 'staff_attendance_policy_manage', 'staff_attendance_approval', 'staff_attendance_close'].some((permission) => portalPermissions.has(permission));
 const employeePortalRole = ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'cleaner', 'security', 'technician', 'other_staff', 'staff'].includes(String(portalUser.role || '').toLowerCase());
 const canOpenEmployeeWorkspace = hasPortalPermission('floor') && hasPortalPermission('orders');
 const employeeOrdersRoute = canOpenEmployeeWorkspace ? '/?view=orders' : '/orders';
@@ -147,7 +150,7 @@ const sidebarRouteGroup = (url) => {
   if (['/', '/orders', '/reservations', '/clients', '/delivery'].includes(path)) return 'operations';
   if (path === '/inventory') return ['products', 'recipes'].includes(view) ? 'menu' : 'inventory';
   if (['/finance', '/finance/report', '/finance/categories'].includes(path)) return 'finance';
-  if (path === '/admin' && ['#staff', '#staff-schedule', '#tasks', '#permissions'].includes(hash)) return 'team';
+  if (path === '/admin' && ['#staff', '#staff-schedule', '#staff-attendance', '#tasks', '#permissions'].includes(hash)) return 'team';
   if (['/integrations', '/network'].includes(path) || (path === '/admin' && hash)) return 'system';
   return null;
 };
@@ -160,7 +163,7 @@ const createSidebarNavigation = (sidebar, syncActive) => {
   const allowed = (link) => {
     const permission = link.dataset.permission;
     const url = new URL(link.getAttribute('href'), location.href);
-    return (!permission || hasPortalPermission(permission)) && link.dataset.interfacePreferenceHidden !== 'true'
+    return (!permission || hasNavigationPermission(link)) && link.dataset.interfacePreferenceHidden !== 'true'
       && !(portalUser.role === 'manager' && url.pathname === '/network') && link.dataset.menuBaseHidden !== 'true';
   };
   const available = (group) => [...group.querySelectorAll('.portal-nav a')].some(allowed);
@@ -312,14 +315,14 @@ const normalizeManagementSidebar = () => {
     syncToggle(false);
   }
   sidebar.querySelectorAll('.portal-nav:not(.staff-nav) a[href="/integrations"]').forEach((link) => link.remove());
-  const makeLink = ({ href, permission, label, iconName, navigationModule }) => {
+  const makeLink = ({ href, permission, anyPermissions, label, iconName, navigationModule }) => {
     const link = document.createElement('a');
     const targetUrl = new URL(href, location.origin);
     if (targetUrl.pathname === '/inventory') {
       const currentUrl = new URL(location.href);
       currentUrl.searchParams.forEach((value, key) => { if (!['view', 'mode', 'operator'].includes(key) && !targetUrl.searchParams.has(key)) targetUrl.searchParams.set(key, value); });
     }
-    link.href = targetUrl.pathname + targetUrl.search + targetUrl.hash; link.dataset.permission = permission; if (navigationModule) link.dataset.navigationModule = navigationModule; link.hidden = !hasPortalPermission(permission); link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
+    link.href = targetUrl.pathname + targetUrl.search + targetUrl.hash; link.dataset.permission = permission; if (anyPermissions?.length) link.dataset.anyPermissions = anyPermissions.join(' '); if (navigationModule) link.dataset.navigationModule = navigationModule; link.hidden = !hasNavigationPermission(link); link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
   };
   if (employeePortalRole) { normalizeEmployeeSidebar(sidebar, makeLink); return; }
   // Include nav blocks inside disclosure groups so hash-based re-renders do
@@ -448,6 +451,7 @@ const normalizeManagementSidebar = () => {
     const adminLinks = [
       { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'id-badge' },
       { href: '/admin#staff-schedule', permission: 'staff_schedule_view', label: 'График сотрудников', iconName: 'calendar-event' },
+      { href: '/admin#staff-attendance', permission: 'staff_attendance_policy_manage', anyPermissions: ['staff_attendance_policy_manage', 'staff_attendance_approval', 'staff_attendance_close'], label: 'Выходы сотрудников', iconName: 'clock' },
       { href: '/admin#permissions', permission: 'role_editor', label: 'Роли и права доступа', iconName: 'shield-lock' },
       { href: '/admin#tasks', permission: 'tasks', label: 'Задачи', iconName: 'list-check' },
       { href: '/admin#loyalty', permission: 'loyalty', label: 'Лояльность и скидки', iconName: 'gift' },
@@ -478,7 +482,7 @@ const normalizeManagementSidebar = () => {
         hrefs.forEach((href) => { adminNav.querySelectorAll(`a[href="${href}"]`).forEach((link) => nav.append(link)); });
         details.append(nav); rememberGroupState(details, key); return details;
       };
-      groupRoot.append(makeGroup('Команда', ['/admin#staff', '/admin#staff-schedule', '/admin#permissions', '/admin#tasks'], 'team'));
+      groupRoot.append(makeGroup('Команда', ['/admin#staff', '/admin#staff-schedule', '/admin#staff-attendance', '/admin#permissions', '/admin#tasks'], 'team'));
       groupRoot.append(makeGroup('Система', ['/admin#loyalty', '/admin#company', '/admin#settings-dashboard-modules', '/admin#lock-security', '/admin#audit', '/integrations', '/network', '/admin#diagnostics', '/admin#notifications', '/admin#help'], 'system'));
       adminLabel.replaceWith(groupRoot); adminNav.remove();
     }
@@ -582,7 +586,7 @@ const operationsNavGuard = document.querySelector('.portal-sidebar') && new Muta
 });
 operationsNavGuard?.observe(document.querySelector('.portal-sidebar'), { childList: true, subtree: true });
 document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
-  if (!hasPortalPermission(link.dataset.permission)) link.hidden = true;
+  if (!hasNavigationPermission(link)) link.hidden = true;
 });
 if (portalUser.role === 'manager') document.querySelectorAll('.portal-nav a[href="/network"]').forEach((link) => { link.hidden = true; });
 // Do not leave empty headings or navigation blocks after role filtering.
@@ -886,7 +890,7 @@ let notificationFilter = 'all';
 let notificationData = { items: [], unreadCount: 0 };
 let notificationBusy = false;
 let notificationRefreshQueued = false;
-const allowedNotificationHrefs = new Set(['/orders', '/inventory?view=auto-orders', '/admin']);
+const allowedNotificationHrefs = new Set(['/orders', '/inventory?view=auto-orders', '/admin', '/admin#staff-attendance', '/#staff-attendance']);
 const notificationContent = notificationPanel.querySelector('#notification-panel-content');
 const notificationBadge = document.querySelector('#notification-count');
 const notificationCountLabel = notificationPanel.querySelector('#notification-panel-count');
@@ -918,7 +922,7 @@ const renderNotifications = () => {
     const meta = document.createElement('small'); meta.textContent = formatNotificationTime(item.createdAt); copy.append(meta); row.append(copy);
     const actions = document.createElement('div'); actions.className = 'notification-item-actions';
     const href = allowedNotificationHrefs.has(item.href) ? item.href : null;
-    if (href) { const open = document.createElement('a'); open.href = href; open.className = 'notification-open-link'; open.textContent = item.requiresAction ? 'Открыть запрос' : 'Открыть'; open.addEventListener('click', async (event) => { if (item.readAt) return; event.preventDefault(); try { await setNotificationRead(item.id); window.location.assign(href); } catch (_) { renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(open); }
+    if (href) { const open = document.createElement('a'); open.href = href; open.className = 'notification-open-link'; open.textContent = item.requiresAction ? 'Открыть запрос' : 'Открыть'; open.addEventListener('click', async (event) => { event.preventDefault(); try { if (!item.readAt) await setNotificationRead(item.id); const target=new URL(href,location.origin); if(target.pathname===location.pathname&&target.hash===location.hash){closeNotificationPanel(false);window.dispatchEvent(new CustomEvent(target.pathname==='/'?'staff-attendance:open-self':'staff-attendance:open-management'));} else window.location.assign(href); } catch (_) { renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(open); }
     if (!item.readAt) { const read = document.createElement('button'); read.type = 'button'; read.className = 'notification-mark-read'; read.textContent = 'Отметить прочитанным'; read.setAttribute('aria-label', `Отметить прочитанным: ${String(item.title || 'уведомление')}`); read.addEventListener('click', async () => { read.disabled = true; try { await setNotificationRead(item.id); } catch (_) { read.disabled = false; renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(read); }
     row.append(actions); list.append(row);
   }
@@ -981,6 +985,7 @@ const refreshLeaderNotifications = () => {
   if (document.visibilityState === 'visible') loadNotifications(false);
 };
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadNotifications(false); });
+window.addEventListener('staff-attendance:changed', () => { if (document.visibilityState === 'visible') loadNotifications(false); });
 const bindKpiNavigation = () => { const activate = (card) => { const route = card.dataset.kpiRoute; const target = card.dataset.kpiTarget; if (target) { document.querySelector(target)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.querySelector(target)?.focus?.({ preventScroll: true }); return; } if (route) window.location.href = route; }; document.querySelectorAll('[data-kpi-route], [data-kpi-target]').forEach((card) => { if (card.dataset.kpiBound === '1') return; card.dataset.kpiBound = '1'; card.setAttribute('role', 'button'); card.setAttribute('tabindex', '0'); card.addEventListener('click', () => activate(card)); card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(card); } }); }); };
 const staticDemo = () => String(localStorage.getItem('crm_session_token') || '').startsWith('demo-static-');
 const demoKey = 'territory_crm_demo_state';
@@ -1877,7 +1882,7 @@ function getFinanceMetricPreferences() {
   try { return { ...defaults, ...(JSON.parse(localStorage.getItem(`crm_finance_metrics_${identity}`) || '{}')) }; } catch (_) { return defaults; }
 }
 
-const focusedAdminDashboardHashes = new Set(['#staff-schedule', '#staff', '#permissions', '#tasks', '#shift-control', '#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit', '#diagnostics', '#help', '#notifications', '#loyalty']);
+const focusedAdminDashboardHashes = new Set(['#staff-schedule', '#staff-attendance', '#staff', '#permissions', '#tasks', '#shift-control', '#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit', '#diagnostics', '#help', '#notifications', '#loyalty']);
 const focusedAdminDashboardHash = () => window.location.pathname === '/admin' && focusedAdminDashboardHashes.has(window.location.hash) ? window.location.hash : '';
 
 function setupDashboardModules() {
@@ -2303,11 +2308,68 @@ function renderScheduleRoute(target) {
     target.querySelector('button').onclick = () => renderScheduleRoute(target);
   });
 }
+let attendanceAssetsPromise;
+let attendanceRouteView = null;
+let attendanceRouteTarget = null;
+function disposeAttendanceRoute() {
+  attendanceRouteView?.dispose?.();
+  attendanceRouteView = null;
+  attendanceRouteTarget = null;
+}
+function loadAttendanceAssets() {
+  if (window.HOOKAH_ATTENDANCE?.mountManagement) return Promise.resolve(window.HOOKAH_ATTENDANCE);
+  if (attendanceAssetsPromise) return attendanceAssetsPromise;
+  attendanceAssetsPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('[data-attendance-css]')) {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-attendance-ui.css?rev=3'; css.dataset.attendanceCss = '';
+      css.onerror = () => { css.remove(); };
+      document.head.append(css);
+    }
+    const script = document.createElement('script'); script.src = '/staff-attendance-ui.js?rev=3';
+    script.onload = () => window.HOOKAH_ATTENDANCE?.mountManagement ? resolve(window.HOOKAH_ATTENDANCE) : reject(new Error('attendance_ui_unavailable'));
+    script.onerror = () => { script.remove(); reject(new Error('attendance_ui_unavailable')); };
+    document.head.append(script);
+  }).catch((error) => { attendanceAssetsPromise = null; throw error; });
+  return attendanceAssetsPromise;
+}
+function renderAttendanceManagementRoute(target) {
+  disposeAttendanceRoute();
+  const initialPermissions = new Set(window.__portalSessionVerified?.permissions || []);
+  if (!initialPermissions.has('staff_attendance_policy_manage') && !initialPermissions.has('staff_attendance_approval') && !initialPermissions.has('staff_attendance_close')) {
+    target.innerHTML = '<section class="panel"><h2>Нет доступа к управлению выходами</h2><p class="muted">Для личной отметки используйте кнопку «Выход на работу» в рабочем меню.</p></section>';
+    return;
+  }
+  target.innerHTML = '<section class="panel" role="status">Загружаем раздел «Выходы сотрудников»…</section>';
+  target.classList.add('ui-admin-pages');
+  const attendanceSession = window.__portalSessionVerified;
+  const isCurrent = () => window.__portalSessionVerified === attendanceSession
+    && location.pathname === '/admin' && location.hash === '#staff-attendance'
+    && (attendanceSession?.demo || window.__portalSessionGate?.canAccessRoute(attendanceSession, location.pathname, location.hash) === true);
+  attendanceRouteTarget = target;
+  setupThemePreference({ isCurrent });
+  document.querySelector('[data-admin-section-title]')?.replaceChildren(document.createTextNode('Выходы сотрудников'));
+  document.title = 'Hookah POS — Выходы сотрудников';
+  loadAttendanceAssets().then((attendanceUi) => {
+    if (!isCurrent() || !target.isConnected) return;
+    attendanceRouteView = attendanceUi.mountManagement(target, { api, selfUserId: attendanceSession?.user?.id });
+  }).catch(() => {
+    if (!isCurrent() || !target.isConnected) return;
+    target.innerHTML = '<section class="panel"><h2>Не удалось загрузить раздел «Выходы сотрудников»</h2><p class="muted">Проверьте соединение и повторите загрузку.</p><button type="button" class="button" data-retry-attendance>Повторить</button></section>';
+    target.querySelector('[data-retry-attendance]')?.addEventListener('click', () => renderAttendanceManagementRoute(target));
+  });
+}
+window.addEventListener('staff-attendance:open-management', () => {
+  if (location.pathname !== '/admin' || location.hash !== '#staff-attendance') return;
+  if (attendanceRouteView?.openOverview) attendanceRouteView.openOverview();
+  else if (attendanceRouteTarget !== document.querySelector('#page-content')) renderAttendanceManagementRoute(document.querySelector('#page-content'));
+});
 // This boundary is installed outside renderDashboard, including direct schedule entry.
 // A fresh verified bootstrap disposes all old dashboard listeners and pending views.
 window.addEventListener('hashchange', event => {
   if (location.pathname !== '/admin') return;
-  if ([new URL(event.oldURL).hash, new URL(event.newURL).hash].includes('#staff-schedule')) {
+  const oldHash = new URL(event.oldURL).hash, newHash = new URL(event.newURL).hash;
+  if (oldHash === '#staff-attendance' || newHash === '#staff-attendance') disposeAttendanceRoute();
+  if ([oldHash, newHash].some((hash) => ['#staff-schedule', '#staff-attendance'].includes(hash))) {
     event.stopImmediatePropagation(); location.reload();
   }
 }, true);
@@ -2317,6 +2379,7 @@ function renderDashboard() {
   const target = document.querySelector('#page-content');
   if (!target) return;
   if (location.hash === '#staff-schedule') { renderScheduleRoute(target); return; }
+  if (location.hash === '#staff-attendance') { renderAttendanceManagementRoute(target); return; }
   target.classList.toggle('ui-admin-pages', window.location.pathname.replace(/\/$/, '') === '/admin' && Boolean(window.location.hash));
   const canViewStaff = hasPortalPermission('staff_view');
   const showStaffPanel = canViewStaff && ['#staff', '#permissions'].includes(focusedAdminDashboardHash());
@@ -3232,7 +3295,7 @@ function renderDashboard() {
     // structural grouping here can attempt to move an existing nav into one
     // of its descendants on staff routes; refresh visibility only after the
     // server session has replaced the cached permissions.
-    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !hasPortalPermission(link.dataset.permission); });
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !hasNavigationPermission(link); });
     document.querySelector('.portal-sidebar')?._navigationController?.refresh();
     if (page === 'dashboard') {
       if (window.location.hash === '#tasks') renderTasks();
@@ -3410,7 +3473,7 @@ function renderInventory() {
     const nextUrl = new URL(location.href);
     if (view === 'stock') nextUrl.searchParams.delete('view'); else nextUrl.searchParams.set('view', view);
     if (nextUrl.search !== location.search && historyMode) history[historyMode + 'State']({}, '', nextUrl.pathname + nextUrl.search + nextUrl.hash);
-    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !hasPortalPermission(link.dataset.permission); });
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !hasNavigationPermission(link); });
     document.querySelector('.portal-sidebar')?._navigationController?.refresh();
     window.__applyInterfacePreferences?.();
     document.querySelector('.portal-sidebar')?._navigationController?.syncRoute();
@@ -5228,7 +5291,7 @@ function renderFinance() {
     document.title = `Hookah POS — ${payroll ? 'Зарплата' : 'Финансы'}`;
     const anchor = document.getElementById(location.hash.slice(1));
     for (let parent = anchor?.parentElement; parent && parent !== target; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
-    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !hasPortalPermission(link.dataset.permission); });
+    document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !hasNavigationPermission(link); });
     document.querySelector('.portal-sidebar')?._navigationController?.refresh();
     requestAnimationFrame(() => (payroll ? payrollTitle : anchor || target.querySelector('.page-title'))?.scrollIntoView({ block: 'start' }));
   };

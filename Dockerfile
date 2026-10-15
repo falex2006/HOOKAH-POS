@@ -11,6 +11,9 @@ COPY audit-privacy.js ./
 COPY effective-permissions.js order-preparation.js reservation-calendar.js ./
 COPY staff-schedule-domain.js staff-schedule-access.js staff-schedule-service.js staff-schedule-routes.js staff-schedule-personal.js ./
 COPY staff-schedule-ui.js staff-schedule-ui.css staff-schedule-personal-ui.js ./
+COPY staff-attendance-domain.js staff-attendance-access.js staff-attendance-service.js staff-attendance-mutations.js staff-attendance-routes.js ./
+COPY staff-attendance-ui.js staff-attendance-ui.css ./
+COPY staff-attendance-notifications.js ./
 COPY staff-schedule-copy.js ./
 COPY staff-schedule-planning.js staff-schedule-pattern.js staff-schedule-planning-ui.js ./
 COPY staff-schedule-availability.js staff-schedule-settings.js staff-schedule-defaults.js staff-schedule-bindings.js ./
