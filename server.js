@@ -3989,10 +3989,11 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   if (pathname === '/api/session') {
     const persistedSession = await sessionFromRequest(req);
     const user = withEffectivePermissions(req.user || persistedSession?.user || { name: 'Демо сотрудник', role: 'bartender' });
-    if (repositories?.pool && ['owner', 'admin', 'manager'].includes(user.role)) {
+    if (repositories?.pool) {
       try {
         const scheduleAccess = await resolveScheduleAccess(repositories.pool, { userId: user.id, venueId: user.venueId });
         user.workspacePermissions = [...user.workspacePermissions,
+          ...(scheduleAccess.self ? ['staff_schedule_self'] : []),
           ...(scheduleAccess.view ? ['staff_schedule_view'] : []), ...(scheduleAccess.manage ? ['staff_schedule_manage'] : [])];
       } catch (error) {
         // Expected schedule denial must not prevent unrelated workspace access.
@@ -6758,7 +6759,7 @@ function staticFile(req, res) {
   requestPath = aliases[routePath] || requestPath;
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
-    '/staff-schedule-ui.js', '/staff-schedule-ui.css', '/staff-schedule-planning-ui.js',
+    '/staff-schedule-ui.js', '/staff-schedule-ui.css', '/staff-schedule-planning-ui.js', '/staff-schedule-personal-ui.js',
     '/phone-format.js', '/staff-display-name.js', '/management-theme.js', '/management-theme.css',
     ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/pos-dispatch.js', '/pos-workspace.js', '/pos-workspace.css', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js', '/shift-close-contract.js',

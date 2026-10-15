@@ -2,6 +2,7 @@
 const { resolveAccess, setGrant } = require('./staff-schedule-access');
 const { ScheduleError } = require('./staff-schedule-domain');
 const schedule = require('./staff-schedule-service');
+const { listPersonal } = require('./staff-schedule-personal');
 const copy = require('./staff-schedule-copy');
 const planning = require('./staff-schedule-planning');
 const settings = require('./staff-schedule-settings');
@@ -10,6 +11,9 @@ const demand = require('./staff-schedule-demand');
 const series = require('./staff-schedule-series');
 const defaults = require('./staff-schedule-defaults');
 const bindings = require('./staff-schedule-bindings');
+const { MAX_OUTPUT_BYTES } = require('./staff-avatar-image');
+const MAX_AVATAR_DATA_URL_CHARS = 110_000;
+const MAX_EMPLOYEE_AVATAR_PAYLOAD_CHARS = 1024 * 1024;
 const { sameOriginMutation } = require('./payroll-scheme-routes');
 async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json }) {
   const base = '/api/staff/schedule';
@@ -21,6 +25,10 @@ async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json }
   try {
     const access = await resolveAccess(pool, principal);
     if (url.pathname === `${base}/access` && req.method === 'GET') return reply(200, access);
+    if (url.pathname === `${base}/personal`) {
+      if (req.method !== 'GET') return reply(405, { error: 'method_not_allowed' });
+      return reply(200, await listPersonal(pool, principal, url.searchParams.get('from'), url.searchParams.get('to')));
+    }
     const grantRoute = url.pathname === `${base}/grants`;
     if (grantRoute && !access.grant) return reply(403, { error: 'schedule_forbidden' });
     if (grantRoute && req.method === 'GET') {
@@ -142,10 +150,26 @@ async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json }
     if (url.pathname === `${base}/copy/preview` && req.method === 'POST') return reply(200, await copy.preview(pool, principal, await readBody(req)));
     if (url.pathname === `${base}/copy/apply` && req.method === 'POST') return reply(200, await copy.apply(pool, principal, await readBody(req)));
     if (url.pathname === `${base}/employees` && req.method === 'GET') {
-      const result = await pool.query(`SELECT u.id,u.full_name AS name,u.role,(u.is_active AND u.deleted_at IS NULL) AS active FROM users u
+      const result = await pool.query(`SELECT u.id,u.full_name AS name,u.role,(u.is_active AND u.deleted_at IS NULL) AS active,
+        u.avatar_url AS "avatarUrl" FROM users u
         WHERE u.venue_id=$1 AND (u.deleted_at IS NULL OR EXISTS(SELECT 1 FROM staff_schedules s WHERE s.user_id=u.id AND s.venue_id=u.venue_id)
         OR EXISTS(SELECT 1 FROM staff_work_logs w WHERE w.user_id=u.id AND w.venue_id=u.venue_id)) ORDER BY u.full_name,u.id`, [principal.venueId]);
-      return reply(200, { items: result.rows });
+      let avatarPayloadChars = 0;
+      const items = result.rows.map(employee => {
+        const match = typeof employee.avatarUrl === 'string' && employee.avatarUrl.length <= MAX_AVATAR_DATA_URL_CHARS &&
+          employee.avatarUrl.match(/^data:image\/(?:png|jpeg|jpg|webp);base64,([A-Za-z0-9+/]+={0,2})$/);
+        let avatarUrl = null;
+        if (match && avatarPayloadChars + employee.avatarUrl.length <= MAX_EMPLOYEE_AVATAR_PAYLOAD_CHARS) {
+          const encoded = match[1];
+          const bytes = Buffer.from(encoded, 'base64');
+          if (bytes.length > 0 && bytes.length <= MAX_OUTPUT_BYTES && bytes.toString('base64') === encoded) {
+            avatarUrl = employee.avatarUrl;
+            avatarPayloadChars += employee.avatarUrl.length;
+          }
+        }
+        return { id: employee.id, name: employee.name, role: employee.role, active: employee.active, avatarUrl };
+      });
+      return reply(200, { items });
     }
     if (url.pathname === base && req.method === 'GET') return reply(200, await schedule.list(pool, principal, url.searchParams.get('from'), url.searchParams.get('to')));
     const history = url.pathname.match(/^\/api\/staff\/schedule\/([0-9a-f-]{36})\/history$/i);

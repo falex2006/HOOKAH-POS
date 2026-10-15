@@ -6,13 +6,13 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '2026101203';
-const portalRevision = '2026101301';
-const portalSessionRevision = '2026101202';
+const portalRevision = '2026101502';
+const portalSessionRevision = '2026101502';
 // This employee-page iteration invalidates only its own HTML asset URLs.
 const employeePaymentsCssRevision = '2026101301';
-const employeePaymentsSessionRevision = '2026101301';
+const employeePaymentsSessionRevision = '2026101502';
 const lockRevision = '2026101103';
-const appRevision = '2026101305';
+const appRevision = '2026101501';
 const posWorkspaceRevision = '5';
 const posWorkspaceCssRevision = '10';
 const platformRevision = '2026101102';
@@ -44,7 +44,7 @@ const brandHead = `<!-- Hookah POS brand icons -->
 // unrelated HTML revisions, server modules, or deploying anything.
 if (process.argv.includes('--staff-schedule-only')) {
   mkdirSync(resolve(root, 'dist'), { recursive: true });
-  for (const name of ['portal.js', 'portal-session.js', 'staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js']) {
+  for (const name of ['app.js', 'portal.js', 'portal-session.js', 'staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js', 'staff-schedule-personal-ui.js']) {
     cpSync(resolve(root, name), resolve(root, 'dist', name));
   }
   console.log('Synced staff schedule browser assets locally; no publication.');
@@ -140,6 +140,7 @@ const portalBootstrap = readFileSync(resolve(root, 'portal-session.js'), 'utf8')
 writeFileSync(resolve(root, 'portal-session.js'), portalBootstrap);
 cpSync(resolve(root, 'portal-session.js'), resolve(root, 'dist', 'portal-session.js'));
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
+for (const name of ['staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js', 'staff-schedule-personal-ui.js']) cpSync(resolve(root, name), resolve(root, 'dist', name));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
 for (const asset of ['pos-dispatch.js', 'pos-workspace.js', 'pos-workspace.css']) cpSync(resolve(root, asset), resolve(root, 'dist', asset));

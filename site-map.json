@@ -4,7 +4,7 @@
     "version": "1.0",
     "date": "2026-10-09",
     "owner": "system_architect",
-    "scope": "local-working-tree-inventory plus owner-delegated staff-schedule route",
+    "scope": "local-working-tree-inventory plus owner-delegated staff-schedule and self-only personal calendar on the same route",
     "baselineHead": "802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf",
     "includesUncommittedChanges": true,
     "matrix": "SITE_MAP.md",
