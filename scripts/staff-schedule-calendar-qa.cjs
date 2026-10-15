@@ -8,6 +8,7 @@ const { randomUUID, randomBytes, scryptSync, createHash } = require('node:crypto
 const { Pool } = require('pg');
 const { config, folder, options } = require('./staff-schedule-local-config.cjs');
 const service = require('../staff-schedule-service');
+const planning = require('../staff-schedule-planning');
 const { setGrant } = require('../staff-schedule-access');
 const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_PATH || 'playwright');
 
@@ -136,15 +137,25 @@ async function main() {
     await employeeRow(employee, employeeName);
     async function shift(day, start, end) {
       return service.save(pool, principal, { userId: employee, workDate: day, plannedStart: start,
-        plannedEnd: end, breakMinutes: 0, reason: 'Synthetic calendar QA', requestKey: randomUUID() });
+        plannedEnd: end, breakMinutes: 0, reason: 'Synthetic calendar QA', requestKey: randomUUID(),confirmWarnings:true });
     }
     const sunday = await shift('2026-11-22', '2026-11-22T22:00+05:00', '2026-11-23T06:00+05:00');
     const month = await shift('2026-11-30', '2026-11-30T22:00+05:00', '2026-12-01T06:00+05:00');
+    const availableFunction=(await pool.query('SELECT id FROM staff_schedule_functions WHERE venue_id=$1 AND active ORDER BY id LIMIT 1',[principal.venueId])).rows[0];
+    assert.ok(availableFunction,'calendar fixture needs an active function for a free shift');
+    const planCall=(id,action,method,input)=>planning.handle(pool,principal,'drafts',id,action,method,input);
+    let openDraft=await planCall(null,null,'POST',{name:`Calendar QA vacancy ${run}`,from:'2026-12-04',to:'2026-12-04',userIds:[employee],requestKey:randomUUID()});
+    openDraft=await planCall(openDraft.id,null,'PATCH',{version:openDraft.version,requestKey:randomUUID(),operations:[{operation:'create',payload:{userId:null,workDate:'2026-12-04',kind:'open_shift',functionId:availableFunction.id,plannedStart:'2026-12-04T10:00:00+05:00',plannedEnd:'2026-12-04T18:00:00+05:00',breakMinutes:0,breakIntervals:[],note:'Synthetic calendar QA'}}]});
+    const openPreview=await planCall(openDraft.id,'publish-preview','POST',{version:openDraft.version});
+    openDraft=await planCall(openDraft.id,'publish','POST',{version:openDraft.version,fingerprint:openPreview.fingerprint,requestKey:randomUUID(),confirmWarnings:true,reason:'Synthetic calendar QA'});
+    const openShift=(await pool.query("SELECT id FROM staff_schedules WHERE venue_id=$1 AND work_date='2026-12-04' AND kind='open_shift' ORDER BY created_at DESC LIMIT 1",[principal.venueId])).rows[0];
+    assert.ok(openShift,'published fixture open shift');
+    const expectedOpenCount=Number((await pool.query("SELECT count(*)::int AS n FROM staff_schedules WHERE venue_id=$1 AND work_date='2026-12-04' AND kind='open_shift' AND status='planned'",[principal.venueId])).rows[0].n);
     const midnight = await shift('2026-12-02', '2026-12-02T20:00+05:00', '2026-12-03T00:00+05:00');
     const cancelled = await shift('2026-11-25', '2026-11-25T10:00+05:00', '2026-11-25T12:00+05:00');
     await service.save(pool, principal, { status: 'cancelled', version: cancelled.version,
       reason: 'Synthetic cancelled fixture', requestKey: randomUUID() }, cancelled.id);
-    Object.assign(report.syntheticIds, { sunday: sunday.id, month: month.id, midnight: midnight.id, cancelled: cancelled.id });
+    Object.assign(report.syntheticIds, { sunday: sunday.id, month: month.id, midnight: midnight.id, cancelled: cancelled.id, openShift:openShift.id });
     await check('PG service + HTTP: Sunday carry-in, month boundary, exclusive midnight', async () => {
       for (const list of [(from, to) => service.list(pool, principal, from, to),
         (from, to) => httpList(owner, from, to)]) {
@@ -190,10 +201,21 @@ async function main() {
     });
     await check('month grid seven columns; real day click; midnight absent next day; week 12h', async () => {
       await date('2026-12-01'); await mode('month'); await total(4);
+      await select('[data-person]', '');
       assert.equal(await page.locator('.schedule-month-day[data-open-day]').count(), 31);
       assert.equal(await page.locator('.schedule-month').evaluate(el =>
         getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length), 7);
+      const vacancyDay=page.locator('.schedule-month-day[data-open-day="2026-12-04"]');
+      assert.equal(await vacancyDay.locator('small').first().innerText(),'0 отсутств.','open shift must not inflate the absence count');
+      assert.equal(await vacancyDay.locator('.schedule-month-open').innerText(),`${expectedOpenCount} свободн.`);
+      assert.match(await vacancyDay.getAttribute('aria-label'),new RegExp(`0 отсутствий, ${expectedOpenCount} `));
+      for(const width of [375,320]){
+        await page.setViewportSize({width,height:812});
+        assert.ok(await page.locator('.schedule-month').evaluate(el=>el.scrollWidth<=el.clientWidth),`${width}px month must not scroll horizontally`);
+      }
+      await page.setViewportSize({width:1440,height:1000});
       await screenshot('month');
+      await select('[data-person]', employee);
       await load(() => page.locator('.schedule-month-day[data-open-day="2026-12-01"]').click());
       assert.equal(await page.locator('[data-mode]').inputValue(), 'day');
       assert.equal(await page.locator(`.schedule-days [data-entry="${month.id}"]:visible`).count(), 1);
@@ -259,6 +281,15 @@ async function main() {
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await screenshot(`week-${width}`);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}: page overflow`);
+        const coverage=page.locator('[data-coverage]');
+        assert.equal(await coverage.count(),1,`${width}: coverage panel must be present`);
+        assert.ok(await coverage.isVisible(),`${width}: coverage panel must be visible`);
+        assert.match(await coverage.locator('summary').innerText(),/Подробности покрытия/);
+        await coverage.locator('summary').click();
+        assert.equal(await coverage.evaluate(node=>node.open),true,`${width}: coverage details open`);
+        await coverage.getByText('Дефицит').first().waitFor();
+        await coverage.locator('summary').click();
+        assert.equal(await coverage.evaluate(node=>node.open),false,`${width}: coverage details can be collapsed`);
         const first = page.locator(`[data-entry="${sunday.id}"]:visible`).first();
         const box = await first.boundingBox();
         assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0 && box.y + box.height <= height,

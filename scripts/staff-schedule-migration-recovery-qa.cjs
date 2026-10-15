@@ -9,7 +9,7 @@ async function main(){
   const c=config(),root=path.join(__dirname,'..'),tag=randomUUID().replaceAll('-','').slice(0,12);
   const names=[`schedule_upgrade_${tag}`,`schedule_restore_${tag}`];
   const admin=new Client(options(c));await admin.connect();const clients=[];
-  const upgrade=['101_staff_schedule_grants.sql','102_staff_schedule_versions.sql','103_staff_schedule_planning.sql'].map(name=>fs.readFileSync(path.join(root,'migrations',name),'utf8')).join('\n');
+  const upgrade=['101_staff_schedule_grants.sql','102_staff_schedule_versions.sql','103_staff_schedule_planning.sql','104_staff_schedule_foundation.sql','105_staff_schedule_binding_versions.sql','106_staff_schedule_venue_policy.sql','107_staff_schedule_series_occurrences.sql','108_staff_schedule_series_replace_exceptions.sql','109_staff_schedule_demand_rules.sql','110_premix_recipe_output_binding.sql','111_premix_batch_binding_guard_ambiguity.sql','112_staff_schedule_actor_tenant_fks.sql'].map(name=>fs.readFileSync(path.join(root,'migrations',name),'utf8')).join('\n');
   const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
   async function snapshot(db){
     const tables=(await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")).rows;
@@ -33,10 +33,14 @@ async function main(){
     await db.query(fs.readFileSync(path.join(root,'schema.sql'),'utf8'));
     for(const name of fs.readdirSync(path.join(root,'migrations')).filter(n=>n.endsWith('.sql')&&Number(n.split('_')[0])<101).sort()) await db.query(fs.readFileSync(path.join(root,'migrations',name),'utf8'));
     await db.query('BEGIN');await db.query(upgrade);await db.query(upgrade);await db.query('ROLLBACK'); // empty table + replay rehearsal
-    const org=randomUUID(),venue=randomUUID(),owner=randomUUID(),employee=randomUUID();
+    const org=randomUUID(),venue=randomUUID(),siblingVenue=randomUUID(),owner=randomUUID(),employee=randomUUID(),otherOrg=randomUUID(),otherVenue=randomUUID(),otherOwner=randomUUID();
     await db.query("INSERT INTO organizations(id,name,slug) VALUES($1,'Migration QA',$2)",[org,tag]);
     await db.query("INSERT INTO venues(id,organization_id,name,timezone) VALUES($1,$2,'Migration QA','Asia/Yekaterinburg')",[venue,org]);
+    await db.query("INSERT INTO venues(id,organization_id,name,timezone) VALUES($1,$2,'Migration QA sibling','Asia/Yekaterinburg')",[siblingVenue,org]);
+    await db.query("INSERT INTO organizations(id,name,slug) VALUES($1,'Migration QA other',$2)",[otherOrg,`${tag}-other`]);
+    await db.query("INSERT INTO venues(id,organization_id,name,timezone) VALUES($1,$2,'Migration QA other','Asia/Yekaterinburg')",[otherVenue,otherOrg]);
     for(const [id,role] of [[owner,'owner'],[employee,'bartender']])await db.query('INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,$4,$5,$6)',[id,venue,org,role,`${id}@example.test`,role]);
+    await db.query('INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,$4,$5,$6)',[otherOwner,otherVenue,otherOrg,'Other tenant owner',`${otherOwner}@example.test`,'owner']);
     await db.query("INSERT INTO staff_schedules(venue_id,user_id,work_date,planned_start,planned_end,note,created_by) VALUES($1,$2,'2026-11-01',NULL,NULL,'legacy null',$3),($1,$2,'2026-11-02','2026-11-02T20:00+05:00','2026-11-03T04:00+05:00','night',$3),($1,$2,'2026-11-03','2026-11-03T10:00+05:00',NULL,'half null',$3)",[venue,employee,owner]);
     const approval=randomUUID(),approvedShift=randomUUID();
     const scheduleId=(await db.query("SELECT id FROM staff_schedules WHERE venue_id=$1 AND work_date='2026-11-02'",[venue])).rows[0].id;
@@ -82,6 +86,34 @@ async function main(){
     assert.deepEqual(await snapshot(db),before,'Failed transactional upgrade must leave original schema/data');
     assert.deepEqual(await sequences(db),beforeSequences,'Failed upgrade changed sequences');
     await db.query('BEGIN');await db.query(upgrade);await db.query('COMMIT');
+    await db.query('INSERT INTO staff_schedule_functions(venue_id,name,created_by) VALUES($1,$2,$3)',[siblingVenue,'Same-organization owner is allowed',owner]);
+    const siblingFunction=(await db.query("SELECT id FROM staff_schedule_functions WHERE venue_id=$1 AND name='Same-organization owner is allowed'",[siblingVenue])).rows[0].id;
+    await assert.rejects(
+      db.query('INSERT INTO staff_schedule_functions(venue_id,name,created_by) VALUES($1,$2,$3)',[venue,'Cross-tenant actor must fail',otherOwner]),
+      /staff_schedule_actor_organization_mismatch/,
+      'schedule audit authors from another organization must be rejected while sibling-venue owners remain allowed'
+    );
+    await db.query('BEGIN');
+    await db.query(`INSERT INTO staff_schedule_venue_policies(venue_id,created_by,updated_by) VALUES($1,$2,$2)`,[siblingVenue,owner]);
+    await db.query(`INSERT INTO staff_schedule_venue_business_intervals(venue_id,weekday,start_time,end_time,created_by,updated_by) VALUES($1,1,'10:00','22:00',$2,$2)`,[siblingVenue,owner]);
+    await db.query(`INSERT INTO staff_schedule_demand_rules(venue_id,function_id,weekday,start_time,end_time,required_count,timezone,created_by,updated_by) VALUES($1,$2,1,'10:00','22:00',1,'Asia/Yekaterinburg',$3,$3)`,[siblingVenue,siblingFunction,owner]);
+    const siblingEmployee=randomUUID();
+    await db.query('INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,$4,$5,$6)',[siblingEmployee,siblingVenue,org,'Sibling QA employee',`${siblingEmployee}@example.test`,'bartender']);
+    const siblingSeries=(await db.query(`INSERT INTO staff_schedule_series(venue_id,name,user_id,function_id,anchor_date,until_date,timezone,recurrence,created_by)
+      VALUES($1,'Sibling QA series',$2,$3,'2026-11-01','2026-11-30','Asia/Yekaterinburg','{}'::jsonb,$4) RETURNING id`,[siblingVenue,siblingEmployee,siblingFunction,owner])).rows[0].id;
+    await db.query(`INSERT INTO staff_schedule_series_exceptions(venue_id,series_id,occurrence_date,occurrence_key,exception_kind,reason,actor_id)
+      VALUES($1,$2,'2026-11-02','slot-1','skip','Sibling owner audit',$3)`,[siblingVenue,siblingSeries,owner]);
+    async function rejectsForeignActor(label,query,values){
+      await db.query('SAVEPOINT actor_guard_case');
+      await assert.rejects(query(values),/staff_schedule_actor_organization_mismatch/,label);
+      await db.query('ROLLBACK TO SAVEPOINT actor_guard_case');
+      await db.query('RELEASE SAVEPOINT actor_guard_case');
+    }
+    await rejectsForeignActor('Venue policy must allow sibling-venue owners and reject foreign organizations',values=>db.query('INSERT INTO staff_schedule_venue_policies(venue_id,created_by,updated_by) VALUES($1,$2,$3)',values),[siblingVenue,otherOwner,owner]);
+    await rejectsForeignActor('Business-hour intervals must reject foreign-organization authors',values=>db.query(`INSERT INTO staff_schedule_venue_business_intervals(venue_id,weekday,start_time,end_time,created_by,updated_by) VALUES($1,2,'10:00','22:00',$2,$3)`,values),[siblingVenue,owner,otherOwner]);
+    await rejectsForeignActor('Demand rules must reject foreign-organization authors',values=>db.query(`INSERT INTO staff_schedule_demand_rules(venue_id,function_id,weekday,start_time,end_time,required_count,timezone,created_by,updated_by) VALUES($1,$2,2,'10:00','22:00',1,'Asia/Yekaterinburg',$3,$4)`,values),[siblingVenue,siblingFunction,owner,otherOwner]);
+    await rejectsForeignActor('Series exceptions must reject foreign-organization authors',values=>db.query(`INSERT INTO staff_schedule_series_exceptions(venue_id,series_id,occurrence_date,occurrence_key,exception_kind,reason,actor_id) VALUES($1,$2,'2026-11-03','slot-1','skip','Foreign actor',$3)`,values),[siblingVenue,siblingSeries,otherOwner]);
+    await db.query('ROLLBACK');
     const after=await snapshot(db);
     for(const table of ['staff_schedule_drafts','staff_schedule_templates','staff_schedule_planning_events'])assert.deepEqual(after[table],[],'Planning migration must not create live proposals or events');
     for(const [table,rows] of Object.entries(before)){
@@ -98,9 +130,9 @@ async function main(){
     await recovery.query('BEGIN');await recovery.query(upgrade);await recovery.query('COMMIT');
     const restored=await snapshot(recovery);for(const old of before.staff_schedules){const row=restored.staff_schedules.find(r=>r.id===old.id);for(const [key,value] of Object.entries(old))assert.deepEqual(row[key],value);}
     for(const table of ['payroll_attendance_approvals','payroll_attendance_approval_shifts','payroll_attendance_approval_intervals'])assert.deepEqual(restored[table],before[table],'Frozen payroll changed');
-    const report={databases:names,backup:path.basename(backupFile),beforeDigest:digest(before),upgradeDigest:digest(after),checks:['empty-upgrade/replay rollback','populated failed-upgrade rollback','all legacy columns preserved','unrelated tables unchanged','upgrade replay unchanged','pg_dump/pg_restore exact schema-data snapshot','restored upgrade preserves schedules'],retained:true};
+    const report={databases:names,backup:path.basename(backupFile),beforeDigest:digest(before),upgradeDigest:digest(after),checks:['empty-upgrade/replay rollback','populated failed-upgrade rollback','organization-level schedule actor guard allows sibling-venue owners and rejects foreign organizations for functions, venue policy/intervals, demand rules, and series exceptions','all legacy columns preserved','unrelated table data unchanged','upgrade replay unchanged','pg_dump/pg_restore exact schema-data snapshot','restored upgrade preserves schedules'],retained:true};
     fs.writeFileSync(path.join(folder,`migration-recovery-${tag}.json`),JSON.stringify(report,null,2),{flag:'wx'});
     console.log('MIGRATION RECOVERY PASS: '+JSON.stringify(report));
   }finally{for(const db of clients)await db.end();await admin.end();}
 }
-main().catch(e=>{console.error(e.message);process.exitCode=1;});
+main().catch(e=>{console.error(e.stack||e.message);process.exitCode=1;});

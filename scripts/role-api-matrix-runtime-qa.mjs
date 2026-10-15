@@ -201,7 +201,7 @@ try {
   expectStatus(premixSource, 201, 'admin creates premix source');
   expectStatus(premixOutput, 201, 'admin creates premix output');
   expectStatus(await request('/api/inventory/movements', { method: 'POST', token: adminToken, body: { itemId: premixSource.data.id, delta: 500, unit: 'мл', reason: 'Role matrix premix fixture' } }), 201, 'admin stocks premix source');
-  const premixRecipe = await request('/api/recipes', { method: 'POST', token: adminToken, body: { name: `QA role premix recipe ${suffix}`, recipeType: 'premix', yieldQuantity: 500, yieldUnit: 'мл', portionCount: 1, ingredients: [{ ingredientId: premixSource.data.id, name: premixSource.data.name, quantity: '250 мл' }] } });
+  const premixRecipe = await request('/api/recipes', { method: 'POST', token: adminToken, body: { name: `QA role premix recipe ${suffix}`, recipeType: 'premix', outputIngredientId: premixOutput.data.id, yieldQuantity: 500, yieldUnit: 'мл', portionCount: 1, ingredients: [{ ingredientId: premixSource.data.id, name: premixSource.data.name, quantity: '250 мл' }] } });
   expectStatus(premixRecipe, 201, 'admin creates premix recipe');
   const producedPremix = await request('/api/inventory/premixes/produce', { method: 'POST', token: adminToken, body: { recipeId: premixRecipe.data.id, outputItemId: premixOutput.data.id, multiplier: 1 } });
   expectStatus(producedPremix, 201, 'admin produces premix');

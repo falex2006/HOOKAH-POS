@@ -16,3 +16,4 @@ node_modules/
 qa-fold/
 qa-artifacts/
 /tmp/full-local-qa/
+/tmp/inventory-remaining-visual/

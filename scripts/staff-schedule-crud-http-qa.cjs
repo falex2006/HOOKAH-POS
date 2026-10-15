@@ -20,7 +20,7 @@ async function main() {
       const res = await fetch(base + route, { method, headers: { 'Content-Type': 'application/json', ...headers }, body: input === undefined ? undefined : JSON.stringify(input) });
       return { status: res.status, value: await res.json() };
     }
-    const input = { userId: employee, workDate: '2026-12-15', plannedStart: '2026-12-15T20:00+05:00', plannedEnd: '2026-12-16T04:00+05:00', breakMinutes: 30, requestKey: randomUUID(), reason: 'HTTP QA' };
+    const input = { userId: employee, workDate: '2026-12-15', plannedStart: '2026-12-15T20:00+05:00', plannedEnd: '2026-12-16T04:00+05:00', breakMinutes: 30, requestKey: randomUUID(), reason: 'HTTP QA',confirmWarnings:true };
     assert.equal((await request(prefix)).status,200,'Default venue date GET');
     assert.equal((await request(prefix+'?from=2026-12-15')).status,200,'Default to=from');
     assert.equal((await request(prefix,'POST',{...input,requestKey:undefined})).value.error,'schedule_request_key_required');

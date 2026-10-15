@@ -42,17 +42,26 @@ async function main() {
     await dialog.locator('[name=start]').fill('2026-11-10T10:00');
     await dialog.locator('[name=end]').fill('2026-11-10T18:00');
     await dialog.locator('[name=reason]').fill('Уточнение старого плана');
-    await service.save(pool,principal,{userId:employee,workDate:'2026-11-10',plannedStart:'2026-11-10T12:00+05:00',plannedEnd:'2026-11-10T19:00+05:00',note:'Изменено параллельно',reason:'QA',version:1,requestKey:randomUUID()},row.id);
+    await service.save(pool,principal,{userId:employee,workDate:'2026-11-10',plannedStart:'2026-11-10T12:00+05:00',plannedEnd:'2026-11-10T19:00+05:00',note:'Изменено параллельно',reason:'QA',confirmWarnings:true,version:1,requestKey:randomUUID()},row.id);
     const stale=page.waitForResponse(r=>r.url().endsWith('/'+row.id)&&r.request().method()==='PATCH');
-    await dialog.getByRole('button',{name:'Сохранить',exact:true}).click();
+    await dialog.getByRole('button',{name:'Сохранить изменения',exact:true}).click();
     assert.equal((await stale).status(),409);
     await dialog.getByText('Запись изменена другим пользователем',{exact:true}).waitFor();
     assert.equal(await dialog.locator('[name=start]').inputValue(),'2026-11-10T10:00');
     assert.equal(await dialog.locator('[name=note]').inputValue(),'Original legacy note');
     await dialog.getByRole('button',{name:'Применить мой черновик к новой версии',exact:true}).click();
-    const saved=page.waitForResponse(r=>r.url().endsWith('/'+row.id)&&r.request().method()==='PATCH');
-    await dialog.getByRole('button',{name:'Сохранить',exact:true}).click();
-    assert.equal((await saved).status(),200);
+    const firstSave=page.waitForResponse(r=>r.url().endsWith('/'+row.id)&&r.request().method()==='PATCH');
+    await dialog.getByRole('button',{name:'Сохранить изменения',exact:true}).click();
+    await Promise.race([page.waitForFunction(() => !document.querySelector('dialog[open]'), { timeout: 5000 }), dialog.locator('[name=confirmWarnings]').waitFor({ state: 'visible', timeout: 5000 })]);
+    if (await dialog.locator('[name=confirmWarnings]').count()) {
+      await dialog.locator('[name=confirmWarnings]').check();
+      await dialog.locator('[name=reason]').fill('QA подтверждает повторное сохранение изменённого плана');
+      const saved=page.waitForResponse(r=>r.url().endsWith('/'+row.id)&&r.request().method()==='PATCH');
+      await dialog.locator('[type=submit]').click();
+      const response=await saved;assert.equal(response.status(),200,await response.text());
+    } else {
+      const response=await firstSave;assert.equal(response.status(),200,await response.text());
+    }
     await page.locator('[data-context]').filter({hasText:'8 ч по плану'}).waitFor({state:'attached'});
     const event=(await pool.query('SELECT before_data,after_data FROM staff_schedule_events WHERE schedule_id=$1 ORDER BY id',[row.id])).rows[0];
     assert.equal(event.before_data.planned_start,null);
@@ -64,7 +73,7 @@ async function main() {
     await dialog.locator('[name=note]').fill('Черновик после отмены');
     await service.save(pool,principal,{status:'cancelled',version:3,reason:'Параллельная отмена',requestKey:randomUUID()},row.id);
     const cancelledConflict=page.waitForResponse(r=>r.url().endsWith('/'+row.id)&&r.request().method()==='PATCH');
-    await dialog.getByRole('button',{name:'Сохранить',exact:true}).click();
+    await dialog.getByRole('button',{name:'Сохранить изменения',exact:true}).click();
     assert.equal((await cancelledConflict).status(),409);
     await dialog.getByText('Запись отменена. Повторное сохранение запрещено; черновик доступен для копирования.',{exact:false}).waitFor();
     assert.equal(await dialog.locator('[name=note]').inputValue(),'Черновик после отмены');

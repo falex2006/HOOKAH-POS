@@ -14,10 +14,11 @@ async function main() {
     await pool.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,role) VALUES($1,$2,$3,'Batch QA',$4,'bartender')`, [employee, principal.venueId, f.organizations[0], `${employee}@example.test`]);
     const item = { userId: employee, workDate: '2026-12-21', plannedStart: '2026-12-21T10:00+05:00', plannedEnd: '2026-12-21T18:00+05:00', reason: 'QA', requestKey: randomUUID() };
     const input = { requestKey: randomUUID(), items: [item, { ...item, requestKey: randomUUID() }] };
-    await assert.rejects(() => saveBatch(pool, principal, input), e => e.code === 'schedule_overlap');
+    await assert.rejects(() => saveBatch(pool, principal, {...input,items:input.items.map(item=>({...item,confirmWarnings:true}))}), e => e.code === 'schedule_overlap');
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM staff_schedules WHERE user_id=$1', [employee])).rows[0].n, 0);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM staff_schedule_requests WHERE request_key=ANY($1::uuid[])', [[input.requestKey,...input.items.map(i => i.requestKey)]])).rows[0].n, 0);
     input.items[1] = { ...input.items[1], workDate: '2026-12-22', plannedStart: '2026-12-22T10:00+05:00', plannedEnd: '2026-12-22T18:00+05:00' };
+    input.items=input.items.map(item=>({...item,confirmWarnings:true}));
     const result = await saveBatch(pool, principal, input);
     assert.equal(result.items.length, 2);
     const replay = await saveBatch(pool, principal, input);

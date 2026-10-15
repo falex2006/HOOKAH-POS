@@ -4,13 +4,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { config, folder, options } = require('./staff-schedule-local-config.cjs');
 const {Pool}=require('pg');
+const {capturePolicy}=require('./staff-schedule-policy-fixture.cjs');
 const {randomUUID}=require('node:crypto');
 const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_PATH || 'playwright');
 async function main() {
   const c = config(), f = JSON.parse(fs.readFileSync(path.join(folder, 'fixtures.json'), 'utf8'));
   const base = `http://127.0.0.1:${c.appPort}`;
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
-  const pool=new Pool(options(c));
+  const pool=new Pool(options(c)),restorePolicy=await capturePolicy(pool,f.venues[0]);
   async function open(user) {
     const context = await browser.newContext({viewport:{width:1440,height:1000}});
     const response = await context.request.post(base+'/api/login',{data:{username:user.login,password:f.password}});
@@ -20,6 +21,8 @@ async function main() {
     return {context,page:await context.newPage(),token:session.token};
   }
   try {
+    await pool.query(`INSERT INTO staff_schedule_venue_policies(venue_id,max_weekly_minutes,created_by,updated_by) VALUES($1,1,$2,$2)
+      ON CONFLICT(venue_id) DO UPDATE SET max_weekly_minutes=1,version=staff_schedule_venue_policies.version+1,updated_by=EXCLUDED.updated_by,updated_at=now()`,[f.venues[0],f.users[0].id]);
     const owner=await open(f.users[0]);
     await owner.page.goto(base+'/admin#staff-schedule');
     await owner.page.locator('[data-grants]:visible').waitFor();
@@ -56,8 +59,10 @@ async function main() {
       const dialog=actor.page.locator('dialog[open]'),day=await actor.page.locator('[data-date]').inputValue();
       await dialog.locator('[name=userId]').selectOption(employee);
       await dialog.locator('[name=start]').fill(day+'T10:00');await dialog.locator('[name=end]').fill(day+'T18:00');
-      const saved=actor.page.waitForResponse(r=>r.url().endsWith('/api/staff/schedule')&&r.request().method()==='POST');
-      await dialog.getByRole('button',{name:'Сохранить',exact:true}).click();
+      const rejected=actor.page.waitForResponse(r=>r.url().endsWith('/api/staff/schedule')&&r.request().method()==='POST'&&r.status()===409);
+      await dialog.getByRole('button',{name:'Добавить в график',exact:true}).click();
+      assert.equal((await rejected).status(),409);await dialog.locator('[name=reason]').fill('Подтверждение предупреждений role QA');await dialog.locator('[name=confirmWarnings]').check();
+      const saved=actor.page.waitForResponse(r=>r.url().endsWith('/api/staff/schedule')&&r.request().method()==='POST'&&r.status()===201);await dialog.locator('form').evaluate(form=>form.requestSubmit());
       const response=await saved;assert.equal(response.status(),201);const record=await response.json();
       assert.equal((await pool.query('SELECT created_by FROM staff_schedules WHERE id=$1',[record.id])).rows[0].created_by,user.id);
       await actor.page.reload();
@@ -74,6 +79,6 @@ async function main() {
       console.log(`SCHEDULE ROLE UI ${user.role}: PASS owner grants, actual form save201/DB author/reload; revoke denies same-token reads/writes with unchanged DB`);
     }
     await owner.context.close();
-  } finally {await browser.close();await pool.end();}
+  } finally {await browser.close();await restorePolicy();await pool.end();}
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

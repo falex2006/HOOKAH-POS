@@ -33,7 +33,7 @@ assert.notEqual(firstDemoItem.id, secondDemoItem.id, 'rapid demo inventory creat
 assert.equal(demoItems.inventory.length, 2);
 
 // Ingredient quantity is converted into the stock item's unit before debit/costing.
-const gramsState = stateFor({ id: 'recipe-g', name: 'Тест, г → кг', recipeType: 'premix', ingredients: [{ ingredientId: 'sugar', name: 'Сахар', quantity: '1000 г' }], yieldQuantity: 1, yieldUnit: 'шт' }, [
+const gramsState = stateFor({ id: 'recipe-g', name: 'Тест, г → кг', recipeType: 'premix', outputIngredientId: 'out-g', ingredients: [{ ingredientId: 'sugar', name: 'Сахар', quantity: '1000 г' }], yieldQuantity: 1, yieldUnit: 'шт' }, [
   { id: 'sugar', name: 'Сахар', unit: 'кг', onHand: 2, cost: 250 },
   { id: 'out-g', name: 'Сироп', unit: 'шт', onHand: 0, cost: 0 },
 ]);
@@ -44,7 +44,7 @@ assert.equal(gramsBatch.ingredients[0].unit, 'кг');
 assert.equal(gramsBatch.totalCost, 250, 'cost is based on the converted stock quantity');
 
 // Ingredient debit and batch yield are both converted independently (mL → L).
-const litersState = stateFor({ id: 'recipe-ml', name: 'Тест, мл → л', recipeType: 'premix', ingredients: [{ ingredientId: 'juice', name: 'Сок', quantity: '500 мл' }], yieldQuantity: 1500, yieldUnit: 'мл' }, [
+const litersState = stateFor({ id: 'recipe-ml', name: 'Тест, мл → л', recipeType: 'premix', outputIngredientId: 'out-l', ingredients: [{ ingredientId: 'juice', name: 'Сок', quantity: '500 мл' }], yieldQuantity: 1500, yieldUnit: 'мл' }, [
   { id: 'juice', name: 'Сок', unit: 'л', onHand: 2, cost: 120 },
   { id: 'out-l', name: 'Премикс', unit: 'л', onHand: 0.25, cost: 0 },
 ]);
@@ -57,11 +57,14 @@ assert.equal(litersState.inventory[1].onHand, 1.75);
 assert.equal(litersBatch.outputUnit, 'л');
 
 // Incompatible units fail closed before stock, output, audit, or batch mutation.
-const mismatchState = stateFor({ id: 'recipe-bad', name: 'Тест несовместимых единиц', recipeType: 'premix', ingredients: [{ ingredientId: 'powder', name: 'Порошок', quantity: '2 шт' }], yieldQuantity: 1, yieldUnit: 'л' }, [
+const mismatchState = stateFor({ id: 'recipe-bad', name: 'Тест несовместимых единиц', recipeType: 'premix', outputIngredientId: 'out-bad', ingredients: [{ ingredientId: 'powder', name: 'Порошок', quantity: '2 шт' }], yieldQuantity: 1, yieldUnit: 'л' }, [
   { id: 'powder', name: 'Порошок', unit: 'кг', onHand: 4, cost: 30 },
   { id: 'out-bad', name: 'Жидкость', unit: 'л', onHand: 0, cost: 0 },
 ]);
 await assert.rejects(produce(mismatchState, { recipeId: 'recipe-bad', outputItemId: 'out-bad', multiplier: 1 }), /recipe_ingredient_unit_mismatch/);
+const wrongOutputState = stateFor({ id: 'recipe-bound', name: 'Закреплённый выход', recipeType: 'premix', outputIngredientId: 'out-l', ingredients: [] }, [{ id: 'out-l', name: 'Премикс', unit: 'л', onHand: 0, cost: 0 }, { id: 'other-output', name: 'Другой выход', unit: 'л', onHand: 0, cost: 0 }]);
+await assert.rejects(produce(wrongOutputState, { recipeId: 'recipe-bound', outputItemId: 'other-output', multiplier: 1 }), /premix_output_binding_mismatch/);
+assert.deepEqual(wrongOutputState.inventory.map((item) => item.onHand), [0, 0], 'a forged output binding is rejected before mutation');
 assert.deepEqual(mismatchState.inventory.map((item) => item.onHand), [4, 0]);
 assert.equal(mismatchState.premixBatches.length, 0);
 assert.equal(mismatchState.audit.length, 0);

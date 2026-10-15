@@ -13,6 +13,8 @@ COPY staff-schedule-domain.js staff-schedule-access.js staff-schedule-service.js
 COPY staff-schedule-ui.js staff-schedule-ui.css ./
 COPY staff-schedule-copy.js ./
 COPY staff-schedule-planning.js staff-schedule-pattern.js staff-schedule-planning-ui.js ./
+COPY staff-schedule-availability.js staff-schedule-settings.js staff-schedule-defaults.js staff-schedule-bindings.js ./
+COPY staff-schedule-coverage.js staff-schedule-demand.js staff-schedule-demand-domain.js staff-schedule-series.js staff-schedule-series-domain.js staff-schedule-venue-policy.js ./
 COPY table-minimum-schedule.js ./
 COPY ui-dialog.js ./
 COPY management-theme.js management-theme.css ./

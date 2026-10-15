@@ -1,0 +1,25 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {randomUUID}=require('node:crypto');
+const {normalizeSeries,expandSeries}=require('../staff-schedule-series-domain');
+const id=()=>randomUUID();
+const slot=(start='10:00',end='18:00',offset=0)=>({kind:'shift',startTime:start,endTime:end,endDayOffset:offset,breakMinutes:30,note:'series QA'});
+const base={name:'Bounded cycle',userId:id(),functionId:null,anchorDate:'2030-01-01',untilDate:'2030-12-31',
+  recurrence:{pattern:{type:'cycle',anchorDate:'2030-01-01',cycleDays:4,dayOffsets:[0,1]},slots:[slot('22:00','04:00',1)],slotKeys:[id()],cycleOffset:0}};
+const series=normalizeSeries(base,'America/New_York');
+assert.deepEqual(expandSeries(series,'2030-01-01','2030-01-05','America/New_York').map(item=>item.occurrenceDate),['2030-01-01','2030-01-02','2030-01-05']);
+assert.equal(expandSeries(series,'2030-01-01','2030-01-05','America/New_York')[0].payload.plannedEnd,'2030-01-02T09:00:00.000Z');
+const offset=normalizeSeries({...base,recurrence:{...base.recurrence,cycleOffset:1}},'America/New_York');
+assert.deepEqual(expandSeries(offset,'2030-01-01','2030-01-05','America/New_York').map(item=>item.occurrenceDate),['2030-01-01','2030-01-04','2030-01-05']);
+const key=base.recurrence.slotKeys[0],exceptions=normalizeSeries({...base,exceptions:[{occurrenceDate:'2030-01-01',occurrenceKey:key,kind:'skip',reason:'planned leave'}]},'America/New_York');
+assert.deepEqual(expandSeries(exceptions,'2030-01-01','2030-01-05','America/New_York').map(item=>item.occurrenceDate),['2030-01-02','2030-01-05']);
+assert.throws(()=>normalizeSeries({...base,exceptions:[{occurrenceDate:'2030-01-03',occurrenceKey:key,kind:'skip',reason:'not a recurrence date'}]},'America/New_York'),error=>error.code==='schedule_series_exceptions_invalid');
+assert.deepEqual(expandSeries({...series,exceptions:[{occurrenceDate:'2030-01-01',occurrenceKey:key,kind:'manual',reason:'manual change'}]},'2030-01-01','2030-01-01','America/New_York'),[]);
+const replace=normalizeSeries({...base,exceptions:[{occurrenceDate:'2030-01-01',occurrenceKey:key,kind:'replace',slot:slot('12:00','20:00'),reason:'one date changed'}]},'America/New_York');
+assert.equal(expandSeries(replace,'2030-01-01','2030-01-01','America/New_York')[0].payload.plannedStart,'2030-01-01T17:00:00.000Z');
+assert.throws(()=>normalizeSeries({...base,untilDate:'2031-01-02'},'America/New_York'),error=>error.code==='schedule_series_horizon_invalid');
+assert.throws(()=>expandSeries(series,'2029-12-31','2030-01-05','America/New_York'),error=>error.code==='schedule_series_range_invalid');
+assert.throws(()=>expandSeries(series,'2030-01-01','2030-04-04','America/New_York'),error=>error.code==='schedule_range_invalid');
+const dst={...base,anchorDate:'2030-03-10',untilDate:'2030-03-10',recurrence:{pattern:{type:'weekdays',weekdays:[7]},slots:[slot('02:30','04:00')],slotKeys:[id()]}};
+assert.throws(()=>expandSeries(normalizeSeries(dst,'America/New_York'),'2030-03-10','2030-03-10','America/New_York'),error=>error.code==='schedule_copy_time_ambiguous');
+console.log('STAFF SCHEDULE SERIES DOMAIN PASS 9: cycles/custom offset, stable slot lineage, overnight, skip/replace exception, horizon/range bounds, DST rejection.');
