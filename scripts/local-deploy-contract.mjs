@@ -55,6 +55,8 @@ assert.match(deploy, /docker inspect --format/, 'in-progress retries must verify
 assert.match(compose, /CRM_RELEASE_ID:/, 'Compose must pass the release id into the service');
 assert.match(compose, /name: \$\{COMPOSE_PROJECT_NAME:-hookah-pos\}/, 'new local Compose projects must use the HOOKAH POS name by default');
 assert.match(compose, /name: \$\{POSTGRES_VOLUME_NAME:-territory-crm_pgdata\}/, 'the renamed default project must keep the existing PostgreSQL volume name');
+assert.match(compose, /\$\{ACME_WEBROOT:-\.\/acme-webroot\}:\/var\/www\/certbot:ro/, 'nginx ACME challenges use the stable host webroot during releases');
+assert.match(deploy, /export ACME_WEBROOT="\/var\/www\/territory-crm\/\$project_name\/acme-webroot"[\s\S]*?install -d -o root -g root -m 0755 "\$ACME_WEBROOT"[\s\S]*?\$COMPOSE config --quiet/, 'deployment creates a traversable persistent Certbot webroot before resolving Compose');
 for (const secret of ['DEMO_ADMIN_PASSWORD', 'DEMO_OWNER_PASSWORD', 'DEMO_STAFF_PASSWORD']) {
   assert.ok(compose.split(/\r?\n/).some(line => line.trim() === `${secret}: \${${secret}:-}`), `${secret} must default to empty so direct Compose startup cannot expose a known demo credential`);
   assert.match(envExample, new RegExp(`^${secret}\\s*=\\s*$`, 'm'), `${secret} in the sample environment must be blank so it cannot enable a known password`);
