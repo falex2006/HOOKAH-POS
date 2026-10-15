@@ -2,7 +2,7 @@
 (() => {
   const tokenKey = 'crm_session_token';
   const userKey = 'crm_session_user';
-  const portalScript = '/portal.js?rev=2026101502';
+  const portalScript = '/portal.js?rev=2026101503';
   let pending = null;
   let accepted = null;
   let loaded = false;

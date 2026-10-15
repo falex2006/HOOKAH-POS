@@ -69,8 +69,9 @@
     const feedback = target.querySelector('[data-attendance-feedback]');
     if (kind === 'management') {
       const helpButton = document.createElement('button');
-      helpButton.type = 'button'; helpButton.className = 'attendance-help-toggle';
-      helpButton.textContent = '?'; helpButton.setAttribute('aria-label', 'Справка: выход на работу');
+      helpButton.type = 'button'; helpButton.className = 'attendance-help-toggle management-help-button';
+      helpButton.setAttribute('aria-label', 'Справка: выход на работу');
+      helpButton.innerHTML = '<span class="management-help-icon" aria-hidden="true">?</span><span class="management-help-label">Справка</span>';
       helpButton.setAttribute('aria-expanded', 'false');
       const help = document.createElement('section'); help.hidden = true; help.className = 'attendance-card attendance-help-guide';
       help.setAttribute('aria-label', 'Справка по выходу на работу');

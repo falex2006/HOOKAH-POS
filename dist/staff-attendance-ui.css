@@ -10,8 +10,12 @@
 @media(max-width:900px){.attendance-self-grid,.attendance-management-grid{grid-template-columns:minmax(0,1fr)}.attendance-management-grid>.attendance-card:first-child,.attendance-management-grid>.attendance-management-help{grid-column:auto}.attendance-grant-row{grid-template-columns:minmax(0,1fr) auto auto}.attendance-grant-row>div{grid-column:1/-1}.attendance-grant-row>.button{grid-column:1/-1}.attendance-policy-form{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px){.attendance-page{gap:12px;padding:12px 10px}.attendance-heading h1{font-size:22px}.attendance-card,.attendance-empty{padding:13px}.attendance-card-head,.attendance-section-title{flex-wrap:wrap}.attendance-row{grid-template-columns:minmax(0,1fr)}.attendance-row>.attendance-chip{justify-self:start}.attendance-row>.button{grid-column:auto}.attendance-grant-row{grid-template-columns:minmax(0,1fr)}.attendance-grant-row>div,.attendance-grant-row>.button{grid-column:auto}.attendance-grant-row label{min-height:44px}.attendance-decision-form{grid-template-columns:minmax(0,1fr)}.attendance-actions{display:grid;grid-template-columns:1fr 1fr}.attendance-actions>.button{width:100%;padding-inline:8px}.attendance-chip{white-space:normal}.attendance-status{align-items:flex-start}}
 @media(prefers-reduced-motion:reduce){.attendance-page *{scroll-behavior:auto!important;transition:none!important}}
-.attendance-help-toggle { width:44px; height:44px; min-width:44px; border:1px solid var(--ui-accent, #df8d45); border-radius:50%; background:transparent; color:var(--ui-accent, #df8d45); font-family:inherit; font-weight:700; font-size:20px; line-height:1; cursor:pointer; }
-.attendance-help-toggle:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+.management-help-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 10px;border:1px solid transparent;border-radius:12px;background:transparent;color:var(--ui-warning,#e28a3e);font:inherit;font-weight:600;white-space:nowrap;cursor:pointer;flex:0 0 auto}
+.management-help-icon{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:28px;height:28px;flex:0 0 28px;border:1px solid currentColor;border-radius:50%;font-size:17px;font-weight:500;line-height:1}
+.management-help-label{line-height:1.2}
+.management-help-button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.management-help-button:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+@media(max-width:600px){.management-help-label{display:none}.management-help-button{min-width:44px;padding:6px}}
 .attendance-help-guide { margin-bottom:20px; }
 .attendance-help-guide[hidden] { display:none; }
 .attendance-help-guide details { padding:12px 0; border-top:1px solid var(--ui-border, #7776); }

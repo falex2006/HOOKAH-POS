@@ -6,7 +6,14 @@ const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'staff-attendance-ui.js'), 'utf8');
+const scheduleSource = fs.readFileSync(path.join(root, 'staff-schedule-ui.js'), 'utf8');
 assert.equal(source, fs.readFileSync(path.join(root, 'dist/staff-attendance-ui.js'), 'utf8'), 'Published UI must match source');
+assert.match(source, /management-help-button[\s\S]*?management-help-icon[\s\S]*?management-help-label[^>]*>Справка/,
+  'attendance help must use the same visible icon and label pattern as schedule help');
+assert.match(source, /helpButton\.onclick\s*=\s*\(\)\s*=>\s*\{\s*help\.hidden\s*=\s*!help\.hidden/,
+  'attendance help toggle must remain functional');
+assert.match(scheduleSource, /management-help-icon[\s\S]*?management-help-label[^>]*>Справка/,
+  'schedule help must use the shared visible icon and label pattern');
 const uiAssets = ['staff-attendance-ui.js', 'staff-attendance-ui.css'];
 const dockerfile = fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8');
 function assertUiAssetsCopied(dockerSource) {

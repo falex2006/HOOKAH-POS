@@ -69,10 +69,10 @@
     q('[data-create]').setAttribute('aria-label','Назначить смену или выходной');q('[data-create]').title='Назначить смену или выходной';
     const headingActions = document.createElement('div'); headingActions.className = 'schedule-heading-actions';
     q('[data-create]').before(headingActions); headingActions.append(q('[data-create]'));
-    const helpButton = document.createElement('button'); helpButton.type = 'button'; helpButton.className = 'schedule-help-button button';
+    const helpButton = document.createElement('button'); helpButton.type = 'button'; helpButton.className = 'schedule-help-button management-help-button button';
     helpButton.dataset.help = ''; helpButton.setAttribute('aria-label', 'Справка по графику');
     helpButton.hidden = !access.view || !['owner','admin','manager'].includes(access.role);
-    helpButton.innerHTML = '<span class="schedule-help-icon" aria-hidden="true">?</span><span class="schedule-help-label">Справка</span>';
+    helpButton.innerHTML = '<span class="schedule-help-icon management-help-icon" aria-hidden="true">?</span><span class="schedule-help-label management-help-label">Справка</span>';
     headingActions.append(helpButton);
     helpButton.onclick = () => {
       if (!access.view || !['owner','admin','manager'].includes(access.role)) return;
