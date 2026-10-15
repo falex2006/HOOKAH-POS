@@ -2,7 +2,7 @@
 (() => {
   const tokenKey = 'crm_session_token';
   const userKey = 'crm_session_user';
-  const portalScript = '/portal.js?rev=2026101301';
+  const portalScript = '/portal.js?rev=2026101502';
   let pending = null;
   let accepted = null;
   let loaded = false;
@@ -19,7 +19,7 @@
     if (page === '/clients') return any('orders', 'staff', 'staff_view');
     if (page === '/admin') {
       if (hash === '#staff') return any('staff', 'staff_view');
-      if (hash === '#staff-schedule') return any('staff_schedule_view');
+      if (hash === '#staff-schedule') return any('staff_schedule_view', 'staff_schedule_self');
       if (hash === '#permissions') return session.user.role === 'owner';
       if (hash === '#tasks') return any('orders', 'tasks_manage');
       if (hash === '#loyalty') return any('loyalty');

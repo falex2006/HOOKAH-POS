@@ -27,9 +27,13 @@
   }
   const messages = { schedule_overlap: 'Есть пересекающаяся смена или отсутствие.', schedule_version_conflict: 'Запись уже изменена. Закройте редактор и обновите график; ваши значения пока сохранены в форме.', schedule_forbidden: 'Доступ отозван или недостаточно прав.', schedule_past_reason_required: 'Для изменения прошлого периода укажите причину.', schedule_employee_unavailable: 'Сотрудник недоступен для назначения.', schedule_duration_invalid: 'Смена должна длиться больше 0 и не больше 24 часов.', schedule_break_invalid: 'Перерыв должен быть короче смены.',schedule_break_intervals_invalid:'Проверьте, что каждый перерыв целиком внутри смены и интервалы не пересекаются.',schedule_break_intervals_mismatch:'Сумма интервалов перерыва должна совпадать с указанным количеством минут.',schedule_open_shift_function_required:'Для свободной смены укажите рабочую функцию.', schedule_grant_conflict: 'Права уже изменены. Обновите список.', schedule_availability_unavailable:'Смена попадает на интервал недоступности.',schedule_availability_outside_window:'Смена выходит за доступное окно.',schedule_availability_time_ambiguous:'Часы доступности попадают на неоднозначное или несуществующее местное время.',schedule_warnings_confirmation_required:'Есть мягкое предупреждение. Подтвердите его и укажите причину перед сохранением.',schedule_demand_overlap:'Этот интервал пересекается с другим правилом потребности.',schedule_demand_version_conflict:'Правило уже изменено. Обновите список.',schedule_demand_timezone_changed:'Часовой пояс заведения изменился. Переподтвердите правила потребности.' };
   window.mountStaffSchedule = async target => {
+    target._schedulePersonalMount = null;
     messages.schedule_plan_incomplete = 'Сначала уточните время исходной смены.';
+    messages.schedule_series_horizon_invalid = 'Проверьте период серии: окончание не раньше начала, горизонт не больше 365 дней.';
+    messages.schedule_series_recurrence_invalid = 'Проверьте повторение и интервалы серии. Для изменения структуры существующей серии создайте новую.';
     const token = localStorage.getItem('crm_session_token');
     let generation = 0, employees = [], entries = [], actual = [], coverage = [], access, date, mode = 'week', ready = false, initialized = false;
+    let monthReturnDate = null;
     const roleNames = { owner: 'Владелец', admin: 'Администратор', manager: 'Управляющий', developer: 'Разработчик', senior_bartender: 'Старший бармен', senior_hookah_master: 'Старший кальянщик', bartender: 'Бармен', hookah_master: 'Кальянщик', cleaner: 'Уборщица / уборщик', security: 'Охрана', technician: 'Техник', other_staff: 'Другая должность', staff: 'Сотрудник', waiter: 'Официант', hookah: 'Кальянный мастер' };
     const alive = () => target.isConnected && location.hash === '#staff-schedule' && localStorage.getItem('crm_session_token') === token;
     async function api(suffix = '', method = 'GET', input) {
@@ -41,24 +45,173 @@
     }
     target.classList.add('schedule-page', 'ui-components');
     document.body.classList.add('schedule-route');
+    target.classList.remove('schedule-personal-page');
+    target.innerHTML = '<p role="status" aria-live="polite">Загрузка графика…</p>';
+    try {
+      access = await api('/access');
+      if (!access.view) {
+        if (!access.self) throw new Error('Доступ к графику не предоставлен.');
+        if (typeof window.mountStaffSchedulePersonal !== 'function') throw new Error('Личный график не загружен. Обновите страницу.');
+        await window.mountStaffSchedulePersonal(target, { access });
+        return;
+      }
+    } catch (error) {
+      if (!alive()) return;
+      target.innerHTML = '<p role="alert"></p><button type="button" class="button" data-schedule-access-retry>Повторить загрузку</button>';
+      target.querySelector('[role=alert]').textContent = error.message;
+      target.querySelector('[data-schedule-access-retry]').onclick = () => window.mountStaffSchedule(target);
+      return;
+    }
     target.innerHTML = `<div class="schedule-heading"><div><h1>График сотрудников</h1><p class="muted">План работы команды. Не заменяет учёт фактически отработанного времени.</p></div><button type="button" class="button primary" data-create hidden>Назначить смену</button></div>
       <section class="panel"><div class="schedule-toolbar"><div class="schedule-period"><button type="button" class="button" data-prev aria-label="Предыдущий период">←</button><label>Дата<input type="date" data-date></label><button type="button" class="button" data-next aria-label="Следующий период">→</button><button type="button" class="button" data-today>Сегодня</button></div><label>Вид<select data-mode><option value="week">Неделя</option><option value="month">Месяц</option><option value="day">День</option><option value="list">Список</option></select></label></div><details class="schedule-tools"><summary>Фильтры, действия и экспорт</summary><div class="schedule-toolbar"><label>Сотрудник<select data-person><option value="">Все сотрудники</option></select></label><label>Поиск<input type="search" data-search placeholder="Имя сотрудника"></label><label>Должность<select data-role><option value="">Все должности</option></select></label><label class="schedule-check"><input type="checkbox" data-cancelled>Показывать отменённые</label><button type="button" class="button" data-refresh>Обновить</button><button type="button" class="button" data-csv>Скачать CSV</button><button type="button" class="button" data-print>Печать</button><button type="button" class="button" data-grants hidden>Доступ к графику</button></div></details><div data-summary class="schedule-summary"></div><details data-coverage class="schedule-coverage" hidden></details><details class="schedule-explanation"><summary>Как считаются часы</summary><p data-context class="muted"></p></details><p data-export-meta class="schedule-export-meta" hidden></p><p data-status role="status" aria-live="polite">Загрузка графика…</p><div data-grid></div></section>`;
     const q = s => target.querySelector(s);
-    q('[data-create]').textContent = 'Добавить смену или отсутствие';
+    q('[data-create]').textContent = '+ Добавить';
     q('[data-create]').setAttribute('aria-label','Назначить смену или выходной');q('[data-create]').title='Назначить смену или выходной';
     const headingActions = document.createElement('div'); headingActions.className = 'schedule-heading-actions';
     q('[data-create]').before(headingActions); headingActions.append(q('[data-create]'));
+    const helpButton = document.createElement('button'); helpButton.type = 'button'; helpButton.className = 'schedule-help-button button';
+    helpButton.dataset.help = ''; helpButton.setAttribute('aria-label', 'Справка по графику');
+    helpButton.hidden = !access.view || !['owner','admin','manager'].includes(access.role);
+    helpButton.innerHTML = '<span class="schedule-help-icon" aria-hidden="true">?</span><span class="schedule-help-label">Справка</span>';
+    headingActions.append(helpButton);
+    helpButton.onclick = () => {
+      if (!access.view || !['owner','admin','manager'].includes(access.role)) return;
+      const existing = target.querySelector('[data-schedule-help]');
+      if (existing) { existing.querySelector('[data-help-close]').focus(); return; }
+      const node = document.createElement('dialog'); node.className = 'schedule-dialog schedule-help-dialog ui-components'; node.dataset.scheduleHelp = '';
+      const titleId = `schedule-help-${crypto.randomUUID()}`; node.setAttribute('aria-labelledby', titleId);
+      node.innerHTML = `<h2 id="${titleId}">Справка по графику</h2><div class="schedule-help-content">
+        <p class="schedule-help-intro">Выберите задачу или найдите её по словам. Названия кнопок ниже соответствуют интерфейсу; доступность действий зависит от ваших прав. Все часы относятся к часовому поясу заведения.</p>
+        <div class="schedule-help-tools"><label>Найти тему<input type="search" data-help-search aria-label="Найти в справке" placeholder="Например: 2/2, больничный, шаблон"></label><button type="button" class="button" data-help-clear hidden>Показать все темы</button></div>
+        <p class="schedule-help-status" data-help-status role="status" aria-live="polite" aria-atomic="true"></p>
+        <section><h3>Быстрый старт: Роман утром, Виктория и Борис вечером</h3><ol><li>Для одной даты нажмите «+ Добавить»: выберите Романа, дату, тип «Смена», часы 09:00–15:00 и «Добавить в график». Повторите для Виктории и Бориса с часами 15:00–23:00. Каждое сохранение сразу меняет календарь.</li><li>Для повторяющегося состава откройте «Составить график → Заготовки → Шаблоны → Создать шаблон». Выберите «Фиксированный состав команды» и добавьте этих трёх сотрудников со своими часами.</li><li>Сохраните шаблон. Создайте «Новый черновик» на нужный период, включив всех троих. В нём нажмите «Заполнить период», выберите шаблон, затем «Предпросмотр → Добавить в черновик».</li><li>Нажмите «Проверить перед публикацией», проверьте предложения и завершите кнопкой «Опубликовать график», если вам выдано право публикации.</li></ol><p class="schedule-help-example">Пример: шаблон «Утро и вечер» хранит состав и часы, черновик «Следующий месяц» — конкретные предложения. Сохранение шаблона или черновика ещё не публикует график.</p></section>
+        <section><h3>Прямое назначение, черновик и права доступа</h3><ol><li>Для одной немедленной правки используйте «+ Добавить» или откройте запись календаря. Сохранение относится к действующему графику.</li><li>Для согласованного набора изменений используйте «Составить график»: до публикации предложения остаются в черновике.</li><li>Если нужной кнопки нет, владелец проверяет «Ещё → Доступ к графику»: просмотр, управление, публикация и настройка графика — разные полномочия.</li></ol><p>Право управления не означает право публикации. «Заготовки» и «Настройки» требуют отдельного права настройки. Шаблон и рабочая функция не выдают доступ к CRM. Плановые часы не заменяют табель фактически отработанного времени и автоматически не меняют утверждённую зарплату.</p></section>
+        <section><h3>Следующий месяц, свои даты и публикация</h3><ol><li>«Составить график → Новый черновик»: введите название и выберите «Следующий месяц», «Выбранный месяц целиком», «С выбранной даты до конца месяца» или «Свой период».</li><li>Проверьте поля «С» и «По», отметьте всех нужных сотрудников, включая возможную замену, и нажмите «Сохранить».</li><li>Добавляйте отдельные записи через «Добавить смену / отсутствие» или повторения через «Заполнить период». В последнем случае проверьте «Предпросмотр» и нажмите «Добавить в черновик».</li><li>«Проверить перед публикацией»: устраните конфликты, прочитайте предупреждения и покрытие. Если требуется, отметьте подтверждение и заполните причину. Затем «Опубликовать график».</li></ol><p>«Следующий месяц» рассчитывается от сегодняшней даты заведения; выбранный месяц — от даты в календаре. Черновик: до 93 дней, от 1 до 100 сотрудников и не более 200 изменений. Неизменённые записи сохраняются. Для прошлого периода нужна причина; без права публикации финальная кнопка недоступна.</p><p class="schedule-help-example">Для графика с 10-го по 25-е выберите «Свой период», задайте обе даты и заполните только этот диапазон. Если превышен лимит изменений, уменьшите период или число сотрудников.</p></section>
+        <section><h3>Шаблон времени для одного или нескольких сотрудников</h3><ol><li>«Составить график → Заготовки → Шаблоны → Создать шаблон». Назовите его, например «Утро 09–15».</li><li>Выберите «Время для выбранных сотрудников». Настройте дни недели или цикл, тип записи, часы, перерыв и при необходимости функцию. Нажмите «Сохранить».</li><li>В черновике откройте «Заполнить период», выберите шаблон и отметьте Романа либо нескольких сотрудников. Проверьте интервалы каждого в «Состав и интервалы для этого применения».</li><li>Нажмите «Предпросмотр → Добавить в черновик», затем проверьте публикацию.</li></ol><p>Такой шаблон не привязан навсегда к одному человеку. Изменения часов при применении относятся к текущему черновику. Изменение самого шаблона не переписывает составленные графики. «Дублировать» создаёт отдельную копию заготовки.</p></section>
+        <section><h3>Шаблон фиксированной команды с разными часами</h3><ol><li>Создайте шаблон типа «Фиксированный состав команды» и задайте общие дни повторения.</li><li>В «Участники и их интервалы» выберите Романа и нажмите «Добавить участника», задайте 09:00–15:00. Добавьте Викторию и Бориса с интервалами 15:00–23:00.</li><li>Для каждого можно указать свою функцию, перерыв и дополнительные интервалы. Сохраните шаблон.</li><li>При заполнении черновика проверьте участников. Снимите отметку, чтобы исключить человека только из этого применения; при необходимости измените его часы. Затем выполните предпросмотр и добавление.</li></ol><p class="schedule-help-example">Виктория в этот период нужна только до 21:00: измените её окончание в составе применения. Шаблон «Утро и вечер» сохранит прежние 23:00.</p><p>Участники вне состава черновика недоступны для выбора. Внутри одного шаблона команды дни повторения общие; для разных календарных ритмов используйте отдельные заготовки или серии.</p></section>
+        <section><h3>Повторение по дням недели и цикл 2/2</h3><ol><li>В шаблоне, серии или ручном заполнении периода найдите «Повторение».</li><li>Для обычной недели выберите «По дням недели» и отметьте нужные дни.</li><li>Для 2/2 выберите «Цикл (например 2/2)», задайте первый день цикла, длительность 4 дня и рабочие дни «1, 2». Настройте интервал смены.</li><li>В предпросмотре проверьте первые даты и границы периода, затем добавьте предложения.</li></ol><p class="schedule-help-example">Если первый день цикла — 1-е число, смены появятся 1-го, 2-го, 5-го, 6-го и далее. 3-е и 4-е останутся незапланированными: система не создаёт записи «Выходной» автоматически.</p><p>Для явного выходного добавьте отдельную запись. Для второго состава с другим ритмом используйте отдельный шаблон с другой датой начала цикла или отдельную серию. У серии есть «Сдвиг фазы цикла, дней»; результат обязательно проверяется в предпросмотре.</p></section>
+        <section><h3>Несколько смен, ночь и перерывы</h3><ol><li>Для двух интервалов одного сотрудника создайте две отдельные смены либо используйте «Добавить интервал / отсутствие в день» в шаблоне. В составе команды есть «Добавить интервал».</li><li>Для ночи в шаблоне выберите «Окончание → На следующий день». В редакторе отдельной записи укажите следующую дату в поле «Окончание».</li><li>Введите «Неоплачиваемый перерыв» в минутах. В редакторе календаря дополнительные поля находятся в «Перерывы, заметка и причина».</li><li>Если нужно точное покрытие, добавьте интервалы перерывов. Они должны находиться внутри смены, не пересекаться; сумма должна совпадать с количеством минут перерыва.</li></ol><p class="schedule-help-example">Роман работает 09:00–13:00 и 17:00–21:00: это две записи. Для Виктории 22:00–06:00 окончание относится к следующему дню. Карточка «↳ до 06:00» показывает продолжение той же смены.</p><p>Смена длится больше нуля и не больше 24 часов; перерыв короче смены. Отсутствия нельзя использовать как совместимую с пересекающейся сменой отметку. Без размещённых перерывов точное покрытие может быть неизвестно.</p></section>
+        <section><h3>Создать и применить повторяющуюся серию</h3><ol><li>«Составить график → Заготовки → Повторяющиеся смены → Создать серию».</li><li>Выберите одного сотрудника, название, начало и конец периода, функцию, дни недели или цикл и интервалы. Нажмите «Сохранить».</li><li>Создайте или откройте черновик с этим сотрудником. «Заполнить период → Источник → Повторяющаяся смена»: выберите серию и диапазон дат.</li><li>Выполните «Предпросмотр», изучите добавляемые/обновляемые записи и пропущенные ручные правки. Затем «Добавить в черновик», проверка и публикация.</li></ol><p>Серия задаётся для одного человека на срок до 365 дней, но применение ограничено периодом черновика. Сохранение определения не заполняет весь календарь автоматически. В выборе для применения показываются активные серии.</p></section>
+        <section><h3>Исключения серии и область изменений</h3><ol><li>Сначала сохраните новую серию. Затем откройте её через «Изменить → Добавить пропуск или замену даты».</li><li>Выберите дату и конкретный «Интервал серии». Укажите «Пропустить смену» либо «Заменить интервал на эту дату», заполните причину и сохраните.</li><li>Примените серию к нужному диапазону через черновик и проверьте результат перед публикацией. Сохранённые ручные правки отмечаются отдельно и не должны молча перезаписываться.</li></ol><p class="schedule-help-example">Роману нужен другой интервал только 15-го: используйте замену даты, а не изменение общих часов серии. Замена интервала не назначает Викторию вместо Романа — для другого сотрудника нужна отдельная смена.</p><p>У существующей серии нельзя менять количество и типы интервалов: для иной структуры создайте новую серию. Переключателя «эта / эта и последующие / вся серия» нет. «Пауза» и «Архивировать» не отменяют опубликованные смены автоматически. Для отмены уже действующих записей используйте отдельные предложения в черновике.</p></section>
+        <section><h3>Функции, личные часы и привязки к роли</h3><ol><li>«Составить график → Настройки → Функции и сотрудники»: создайте рабочую функцию, выберите сотрудника, отметьте допустимые функции и нажмите «Сохранить функции сотрудника».</li><li>Для выбранного человека откройте «Время по умолчанию». Задайте общее значение либо значение для функции; источник — «Указать часы» или «Взять из шаблона». Сохраните.</li><li>Для общих подсказок откройте «Заготовки → Шаблоны → Создать привязку»: выберите шаблон и получателя — сотрудника, роль CRM или рабочую функцию.</li><li>При назначении проверьте подставленные часы. Если предложено несколько шаблонов, выберите вариант и нажмите «Применить выбранный шаблон».</li></ol><p class="schedule-help-example">Роману можно задать личное утро, а роли бармена предложить вечерний шаблон. Это подсказки для заполнения, а не запрет вручную выбрать другое время.</p><p>Рабочая функция, системная/пользовательская роль CRM и права доступа различаются. Личные часы по функции имеют преимущество перед общими; число «Приоритет» не устраняет выбор между несколькими подходящими шаблонами. Подсказка из шаблона для одиночного редактора требует одного интервала типа «Смена»; многосменную заготовку применяйте через черновик.</p></section>
+        <section><h3>Доступность: запреты, окна и предпочтения</h3><ol><li>«Составить график → Настройки → Функции и сотрудники»: выберите человека и найдите «Доступность и предпочтения».</li><li>Для повторения нажмите «Добавить правило по дням», задайте день недели, период действия, тип и часы.</li><li>Для конкретной даты используйте «Добавить исключение», укажите дату, тип и интервал. Нажмите «Сохранить доступность».</li><li>Снова выполните предпросмотр планируемых смен и проверьте сообщения.</li></ol><p>Недоступность блокирует назначение. Доступные окна ограничивают смены на соответствующие дни. Предпочтение даёт мягкое предупреждение. Запланированное отсутствие в графике имеет приоритет; изменение настроек доступности само по себе не оформляет больничный и замену.</p></section>
+        <section><h3>Потребность, свободные смены и предупреждения</h3><ol><li>В календаре откройте «Ещё → Потребность»: задайте функцию, недельное правило или диапазон дат, часы и необходимое число сотрудников. Сохраните.</li><li>В черновике через «Добавить смену / отсутствие» можно выбрать тип «Свободная смена», функцию и часы: это незанятое место, а не назначенный человек.</li><li>Чтобы назначить человека на уже опубликованную свободную смену, создайте черновик на её дату с нужным сотрудником. В «Действующий график при создании» у свободной смены выберите «Предложить изменение», тип «Смена» и сотрудника. Проверьте его допустимую функцию, часы и перерывы, сохраните предложение, проверьте и опубликуйте черновик. Не добавляйте вторую запись поверх свободной — измените существующую.</li><li>В проверке публикации прочитайте покрытие потребности. Свободные смены не считаются закрытыми местами; дефицит не исправляется автоматически.</li><li>Если доступен выбор подтверждения мягких предупреждений, прочитайте их, отметьте подтверждение и укажите причину. Жёсткие конфликты сначала исправьте.</li></ol><p>«Составить график → Настройки → Правила заведения» содержит ориентиры недельной нагрузки, отдыха, рабочих дней подряд и часов заведения. Это предупреждения для проверки, а не автоматическая юридическая оценка. Датированное правило потребности заменяет недельное для той же функции; неизвестное размещение перерыва мешает точной оценке покрытия.</p></section>
+        <section><h3>Больничный и замена сотрудника</h3><ol><li>Создайте черновик на нужные даты, включив заболевшего Романа и заменяющую Викторию.</li><li>В «Действующий график при создании» найдите смену Романа → «Предложить изменение». Выберите «Больничный», заполните причину и сохраните. Если смены не было, добавьте отсутствие через «Добавить смену / отсутствие».</li><li>Через «Добавить смену / отсутствие» создайте смену Виктории на нужные часы и функцию. Если она уже работает в это время, сначала устраните пересечение.</li><li>Проверьте остальные смены Романа на дату и ночные переходы: больничный не отменяет их автоматически. При необходимости предложите их отмену.</li><li>Проверьте весь набор перед публикацией и опубликуйте при наличии права.</li></ol><p class="schedule-help-example">Роман заболел перед утром 09:00–15:00: в одном черновике измените его запись на больничный и добавьте Виктории утреннюю смену. Её вечернюю смену также проверьте на отдых и пересечения.</p><p>Единой кнопки «Больничный + замена» нет. Для нескольких дат оформите необходимые записи отдельно. «Замена даты» в серии меняет интервал того же сотрудника, а не подбирает замену.</p></section>
+        <section><h3>Изменить, отменить и разобраться с конфликтом версий</h3><ol><li>В календаре откройте запись, измените поля и нажмите «Сохранить изменения» — правка действует сразу. Для согласования используйте в черновике «Предложить изменение».</li><li>Для отмены через черновик выберите «Предложить отмену», укажите причину, сохраните, затем проверьте и опубликуйте. В календаре «Отменить смену / отсутствие» действует напрямую; если причина ещё не заполнена, введите её и повторите действие.</li><li>«Убрать предложение» убирает только предложение. «Закрыть без публикации» закрывает весь черновик без изменения календаря, сохраняя историю.</li><li>Если запись изменилась другим пользователем, сравните исходные, актуальные и введённые данные. «Применить мой черновик к новой версии» доступно, пока запись не отменена; после сравнения потребуется повторное сохранение.</li><li>Если устарел предпросмотр, проверьте заново. Если изменена основа черновика, создайте новый на актуальном графике; автоматического объединения нет. При конфликте версии черновика или шаблона откройте актуальную версию.</li></ol><p>Массовые «Сдвинуть время выбранных» и «Отменить выбранные» находятся в действующем графике внутри черновика и применимы к доступным обычным сменам; смены серии исключены. Сдвиг перемещает начало, окончание и размещённые перерывы на одинаковое число минут. Отменённая запись не редактируется обычным сохранением; кнопки восстановления отмены сейчас нет.</p></section>
+        <section><h3>Чтение календаря, фильтры, копирование и экспорт</h3><ol><li>Выберите день, неделю, месяц или список. Сегодня — текущая дата заведения; выбранная дата может отличаться. Нажмите день месяца для полного списка и полных имён, «← К месяцу» — для возврата без редактора.</li><li>В «Фильтры» задайте сотрудника, должность, поиск или показ отменённых. «Фильтры · N» показывает число активных условий; «Сбросить фильтры» очищает их.</li><li>Для переноса недели: «Ещё → Копировать неделю», даты начала исходной и новой недели, сотрудники → «Предварительный просмотр». Проверьте доступные выбранные записи и подтвердите копирование кнопкой внизу окна; для прошлого периода укажите причину.</li><li>Для выгрузки текущего периода и фильтров используйте «Ещё → Скачать CSV»; для печатного представления — «Ещё → Печать».</li></ol><p>Копирование недели изменяет действующий календарь напрямую, не создаёт черновик. Конфликтующие строки недоступны для выбора. «На смене: N» / «N чел.» — люди с плановыми сменами; «Отс.» — отсутствия и выходные, «Св.» — свободные смены. «Ещё N смен» считает только скрытые рабочие/свободные смены. Отмены показаны отдельно. «+1 день» и «↳ до …» обозначают ночной переход. План суммируется по дате начала; факт — по завершённым интервалам работы, плановый перерыв из факта автоматически не вычитается.</p></section>
+        </div><div class="schedule-actions"><button type="button" class="button" data-help-close>Закрыть</button></div>`;
+      node.querySelectorAll('.schedule-help-content > section').forEach((section, index) => {
+        const heading = section.querySelector('h3');
+        const details = document.createElement('details'); details.className = 'schedule-help-topic'; details.open = index === 0;
+        const summary = document.createElement('summary'); summary.append(...heading.childNodes); heading.remove();
+        details.append(summary, ...section.childNodes);
+        section.replaceWith(details);
+      });
+      const helpSearch = node.querySelector('[data-help-search]');
+      const helpClear = node.querySelector('[data-help-clear]');
+      const helpStatus = node.querySelector('[data-help-status]');
+      const helpTopics = [...node.querySelectorAll('.schedule-help-content > details')];
+      const normalizeHelp = value => String(value).toLocaleLowerCase('ru-RU').replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+      const topicTexts = new Map(helpTopics.map(topic => [topic, normalizeHelp(topic.textContent)]));
+      const topicTitles = new Map(helpTopics.map(topic => [topic, normalizeHelp(topic.querySelector('summary').textContent)]));
+      const helpContent = node.querySelector('.schedule-help-content');
+      let savedTopicStates = null;
+      const filterHelp = () => {
+        const query = normalizeHelp(helpSearch.value);
+        const tokens = query ? query.split(' ') : [];
+        helpClear.hidden = tokens.length === 0;
+        if (!tokens.length) {
+          helpTopics.forEach(topic => { topic.hidden = false; if (savedTopicStates) topic.open = savedTopicStates.get(topic); });
+          helpTopics.forEach(topic => helpContent.append(topic));
+          savedTopicStates = null;
+          helpStatus.textContent = `Все темы: ${helpTopics.length}. Раскройте нужную тему.`;
+          return;
+        }
+        if (!savedTopicStates) savedTopicStates = new Map(helpTopics.map(topic => [topic, topic.open]));
+        let matches = 0;
+        helpTopics.forEach(topic => {
+          const match = tokens.every(token => topicTexts.get(topic).includes(token));
+          topic.hidden = !match;
+          topic.open = match;
+          if (match) matches++;
+        });
+        // Prefer a direct topic match over incidental mentions in another instruction.
+        [...helpTopics].sort((a, b) => tokens.filter(token => topicTitles.get(b).includes(token)).length - tokens.filter(token => topicTitles.get(a).includes(token)).length)
+          .forEach(topic => helpContent.append(topic));
+        helpStatus.textContent = matches ? `Найдено тем: ${matches} из ${helpTopics.length}.` : 'Темы не найдены. Попробуйте другие слова или нажмите «Показать все темы».';
+      };
+      helpSearch.addEventListener('input', filterHelp);
+      helpClear.addEventListener('click', () => { helpSearch.value = ''; filterHelp(); helpSearch.focus(); });
+      filterHelp();
+      const previous = document.activeElement;
+      node.querySelector('[data-help-close]').onclick = () => node.close();
+      node.addEventListener('close', () => { node.remove(); if (previous?.isConnected) previous.focus(); }, { once: true });
+      target.append(node); node.showModal();
+    };
+    const commandbar = q('.schedule-period').parentElement;
+    commandbar.classList.add('schedule-commandbar');
+    const backToMonth = document.createElement('button'); backToMonth.type = 'button'; backToMonth.className = 'button schedule-back-month'; backToMonth.dataset.backMonth = ''; backToMonth.textContent = '← К месяцу'; backToMonth.hidden = true;
+    commandbar.prepend(backToMonth);
+    backToMonth.onclick = () => { if (!ready || !monthReturnDate) return; date = monthReturnDate; mode = 'month'; q('[data-date]').value = date; load(); };
+    const picker = document.createElement('details'); picker.className = 'schedule-period-picker';
+    picker.innerHTML = '<summary class="schedule-period-title">Выбрать период</summary><div class="schedule-period-popover"></div>';
+    q('[data-prev]').after(picker);
+    const popover = picker.querySelector('div');
+    popover.append(q('[data-date]').closest('label'), q('[data-today]'));
     const monthJump = document.createElement('label');
+    monthJump.hidden = true;
     monthJump.innerHTML = 'Перейти к дате<select data-month-jump><option value="">Выберите период</option><option value="today">Сегодня</option><option value="current">Этот месяц</option><option value="next">Следующий месяц</option></select>';
-    q('[data-mode]').closest('label').after(monthJump);
-    q('[data-today]').parentElement.after(q('[data-today]'));
-    const explanation = q('[data-context]').parentElement;
-    explanation.before(q('[data-context]'));
-    q('[data-context]').classList.add('schedule-context-short');
-    const explanationText = document.createElement('p'); explanation.append(explanationText);
-    q('.schedule-tools').open = window.innerWidth > 1100;
-    const compactQuery=window.matchMedia('(max-width:1100px)');
-    compactQuery.addEventListener('change',event=>{if(alive())q('.schedule-tools').open=!event.matches;});
+    popover.append(monthJump);
+    for (const [value, text] of [['current', 'Этот месяц'], ['next', 'Следующий месяц']]) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'button';
+      button.dataset.periodQuick = value; button.textContent = text;
+      button.onclick = () => { if (!ready) return; q('[data-month-jump]').value = value; q('[data-month-jump]').dispatchEvent(new Event('change', { bubbles: true })); };
+      popover.append(button);
+    }
+    q('[data-mode]').closest('label').hidden = true;
+    const viewTabs = document.createElement('div'); viewTabs.className = 'schedule-view-tabs';
+    viewTabs.setAttribute('role', 'group'); viewTabs.setAttribute('aria-label', 'Вид графика');
+    viewTabs.innerHTML = [['day','День'],['week','Неделя'],['month','Месяц'],['list','Список']].map(([value,text]) => `<button type="button" class="button" data-view-mode="${value}" aria-pressed="${value === mode}" disabled>${text}</button>`).join('');
+    commandbar.append(viewTabs);
+    viewTabs.querySelectorAll('button').forEach(button => button.onclick = () => {
+      if (!ready) return;
+      q('[data-mode]').value = button.dataset.viewMode;
+      q('[data-mode]').dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const filters = q('.schedule-tools'); filters.classList.add('schedule-filters');
+    filters.querySelector('summary').textContent = 'Фильтры';
+    const resetFilters = document.createElement('button'); resetFilters.type = 'button'; resetFilters.className = 'button';
+    resetFilters.dataset.resetFilters = ''; resetFilters.textContent = 'Сбросить фильтры';
+    filters.querySelector('.schedule-toolbar').append(resetFilters);
+    function syncFilters() {
+      const count = [q('[data-person]').value, q('[data-role]').value, q('[data-search]').value.trim(), q('[data-cancelled]').checked].filter(Boolean).length;
+      filters.querySelector('summary').textContent = count ? `Фильтры · ${count}` : 'Фильтры';
+      resetFilters.disabled = count === 0;
+    }
+    resetFilters.onclick = () => {
+      for (const selector of ['[data-person]', '[data-role]', '[data-search]']) { const control = q(selector); control.value = ''; control._customSelectRefresh?.(); }
+      q('[data-cancelled]').checked = false;
+      draw();
+    };
+    syncFilters();
+    const more = document.createElement('details'); more.className = 'schedule-more';
+    more.innerHTML = '<summary>Ещё</summary><div class="schedule-more-actions"></div>';
+    for (const selector of ['[data-csv]', '[data-print]', '[data-refresh]', '[data-grants]']) more.querySelector('div').append(q(selector));
+    commandbar.append(filters, more);
+    more.querySelector('.schedule-more-actions').append(q('.schedule-explanation'));
+    q('[data-summary]').classList.add('schedule-meta');
+    function syncNavigation() {
+      backToMonth.hidden = mode !== 'day' || !monthReturnDate; backToMonth.disabled = !ready;
+      q('[data-mode]').value = mode;
+      viewTabs.querySelectorAll('button').forEach(button => { button.disabled = !ready; button.setAttribute('aria-pressed', String(button.dataset.viewMode === mode)); });
+      target.querySelectorAll('[data-period-quick],[data-today],[data-planning],[data-demand]').forEach(button => { button.disabled = !ready; });
+      if (date) {
+        const [from, to] = bounds();
+        picker.querySelector('summary').textContent = mode === 'month'
+          ? new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(date + 'T12:00Z'))
+          : from === to ? dayName(from) : `${dayName(from)} — ${dayName(to)}`;
+      }
+    }
     const status = text => { if (alive()) q('[data-status]').textContent = text; };
     const dayName = day => new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(day + 'T12:00Z'));
     function bounds() {
@@ -68,6 +221,33 @@
       const from = addDays(date, -((weekday + 6) % 7)); return [from, addDays(from, 6)];
     }
     const hours = minutes => `${(minutes / 60).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ч`;
+    function safeScheduleAvatar(value) {
+      if (typeof value !== 'string' || value.length > 110000) return '';
+      const match = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+      if (!match || match[2].length % 4 !== 0) return '';
+      const bytes = match[2].length * 3 / 4 - (match[2].endsWith('==') ? 2 : match[2].endsWith('=') ? 1 : 0);
+      if (bytes > 80 * 1024) return '';
+      try {
+        const header = atob(match[2].slice(0,32));
+        const valid = match[1] === 'png' ? header.startsWith('\x89PNG\r\n\x1a\n') : match[1] === 'webp' ? header.startsWith('RIFF') && header.slice(8,12) === 'WEBP' : header.startsWith('\xff\xd8\xff');
+        return valid ? value : '';
+      } catch { return ''; }
+    }
+    function personIdentity(person, displayName = person?.name || 'Сотрудник') {
+      const initials = String(person?.name || displayName).trim().split(/\s+/).slice(0,2).map(part => Array.from(part)[0] || '').join('').toLocaleUpperCase('ru-RU') || '?';
+      return `<span class="schedule-person-identity"><span class="schedule-person-avatar" aria-hidden="true" data-schedule-avatar="${esc(person?.id || '')}"><span class="schedule-person-initials">${esc(initials)}</span></span><span class="schedule-person-name">${esc(displayName)}</span></span>`;
+    }
+    function hydrateScheduleAvatars() {
+      q('[data-grid]').querySelectorAll('[data-schedule-avatar]').forEach(holder => {
+        const source = safeScheduleAvatar(employees.find(person => person.id === holder.dataset.scheduleAvatar)?.avatarUrl);
+        if (!source) return;
+        const fallback = holder.querySelector('.schedule-person-initials');
+        const img = document.createElement('img'); img.className = 'schedule-person-avatar-image'; img.alt = ''; img.setAttribute('aria-hidden','true'); img.width = 28; img.height = 28; img.hidden = true; img.decoding = 'async';
+        img.addEventListener('load', () => { if (!img.isConnected) return; fallback.hidden = true; img.hidden = false; }, { once: true });
+        img.addEventListener('error', () => { fallback.hidden = false; img.remove(); }, { once: true });
+        holder.append(img); img.src = source;
+      });
+    }
     function exportEntries() {
       const [from,to]=bounds(),personId=q('[data-person]').value,role=q('[data-role]').value,search=q('[data-search]').value.trim().toLocaleLowerCase('ru-RU');
       const byId=new Map(employees.map(person=>[person.id,person]));
@@ -91,13 +271,20 @@
     }
     function card(entry, day = entry.workDate) {
       if ((entry.kind === 'shift' || entry.kind === 'open_shift') && planMinutes(entry) === null) return `<button type="button" class="schedule-entry" data-entry="${esc(entry.id)}"><b>Время требует уточнения</b><small>${entry.status === 'cancelled' ? 'Отменена' : 'Неполный план · часы не учтены'}</small></button>`;
-      const text = entry.kind === 'shift' || entry.kind === 'open_shift' ? `${local(entry.plannedStart, access.timezone).slice(11)}–${local(entry.plannedEnd, access.timezone).slice(11)}${local(entry.plannedEnd, access.timezone).slice(0, 10) !== entry.workDate ? ' +1 день' : ''}` : labels[entry.kind];
-      const carry = day !== entry.workDate;
-      const detail=carry?'Продолжение ночной смены':entry.kind==='open_shift'?'Свободная смена · не назначена':entry.status==='cancelled'?'Отменена':(['shift','open_shift'].includes(entry.kind)?labels[entry.kind]:'');
-      return `<button type="button" class="schedule-entry schedule-kind-${esc(entry.kind)} ${entry.status === 'cancelled' ? 'is-cancelled' : ''}" data-entry="${esc(entry.id)}"><b>${carry ? `До ${esc(local(entry.plannedEnd, access.timezone).slice(11))}` : esc(text)}</b>${detail||entry.functionName||entry.breakMinutes?`<small>${detail?esc(detail):''}${entry.functionName?`${detail?' · ':''}${esc(entry.functionName)}`:''}${!carry && entry.breakMinutes ? ` · перерыв ${entry.breakMinutes} мин` : ''}</small>`:''}</button>`;
+      const timed = entry.kind === 'shift' || entry.kind === 'open_shift';
+      const start = timed ? local(entry.plannedStart, access.timezone) : '';
+      const end = timed ? local(entry.plannedEnd, access.timezone) : '';
+      const carry = timed && day !== entry.workDate;
+      const nextDay = timed && end.slice(0, 10) !== entry.workDate;
+      const text = timed ? `${start.slice(11)}–${end.slice(11)}` : labels[entry.kind];
+      const detail = [entry.status === 'cancelled' ? 'Отменена' : entry.kind === 'open_shift' ? 'Не назначена' : '', entry.functionName, entry.breakMinutes ? `перерыв ${entry.breakMinutes} мин` : ''].filter(Boolean).join(' · ');
+      const accessible = [carry ? 'Продолжение ночной смены' : '', timed ? `${start.replace('T', ' ')} — ${end.replace('T', ' ')} · ${access.timezone}` : text, detail].filter(Boolean).join(' · ');
+      return `<button type="button" class="schedule-entry schedule-kind-${esc(entry.kind)} ${entry.status === 'cancelled' ? 'is-cancelled' : ''}${carry ? ' schedule-entry-continuation' : ''}" data-entry="${esc(entry.id)}" title="${esc(accessible)}" aria-label="${esc(accessible)}"><b class="schedule-entry-time"${timed ? ' style="white-space:nowrap"' : ''}>${carry ? `↳ до ${esc(end.slice(11))}` : esc(text)}</b>${!carry && nextDay ? '<small class="schedule-entry-detail schedule-entry-next-day">+1 день</small>' : ''}${!carry && detail ? `<small class="schedule-entry-detail">${esc(detail)}</small>` : ''}</button>`;
     }
     function draw() {
+      syncFilters();
       if (!ready) return;
+      syncNavigation();
       const [from, to] = bounds();
       const search = q('[data-search]').value.trim().toLocaleLowerCase('ru-RU');
       const people = employees.filter(p => (!q('[data-person]').value || p.id === q('[data-person]').value)
@@ -110,13 +297,12 @@
       const facts = actual.filter(row => people.some(p => p.id === row.userId));
       const worked = facts.reduce((sum,row)=>sum+row.minutes,0), incomplete = facts.reduce((sum,row)=>sum+row.openIntervals+row.invalidIntervals,0);
       const dateCoverage=coverage.filter(item=>!item.workDate||(item.workDate>=from&&item.workDate<=to));
-      q('[data-summary]').innerHTML = `<strong>${esc(dayName(from))}${from !== to ? ` — ${esc(dayName(to))}` : ''}</strong><span>${planned.length} назначенных смен</span><span>План: ${hours(minutes)}</span>${openShifts.length?`<span class="schedule-warning">Свободных смен: ${openShifts.length}</span>`:''}<span>Факт: ${hours(worked)}</span>${dateCoverage.length?`<span class="schedule-warning">Покрытие: ${dateCoverage.length} замечаний</span>`:''}${incompletePlans || incomplete ? '<span class="schedule-warning">Есть неполные данные</span>' : ''}`;
+      q('[data-summary]').innerHTML = `<span>${planned.length} назначенных смен</span><span>План: ${hours(minutes)}</span>${openShifts.length?`<span class="schedule-warning">Свободных смен: ${openShifts.length}</span>`:''}<span>Факт: ${hours(worked)}</span>${dateCoverage.length?`<span class="schedule-warning">Покрытие: ${dateCoverage.length} замечаний</span>`:''}${incompletePlans || incomplete ? '<span class="schedule-warning">Есть неполные данные</span>' : ''}`;
       const coverageMessages={schedule_coverage_deficit:'Дефицит',schedule_coverage_surplus:'Избыток',schedule_coverage_break_unknown:'Перерыв не размещён · покрытие оценить точно нельзя',schedule_coverage_time_unverifiable:'Время потребности неоднозначно из-за перехода часов',schedule_coverage_double_assigned:'Сотрудник одновременно указан на разных функциях и не засчитан',schedule_demand_timezone_changed:'Часовой пояс изменён · переподтвердите правила потребности'};
       q('[data-coverage]').hidden=!dateCoverage.length;q('[data-coverage]').innerHTML=dateCoverage.length?`<summary>Подробности покрытия · ${dateCoverage.length}</summary><div class="schedule-coverage-details">${dateCoverage.slice(0,12).map(item=>`<div><strong>${esc(coverageMessages[item.code]||item.code)}</strong>${item.workDate?` · ${esc(item.workDate)}`:''}${item.start&&item.end?` · ${esc(local(item.start,access.timezone).slice(11))}–${esc(local(item.end,access.timezone).slice(11))}`:''}${item.functionId?` · ${esc(entries.find(e=>e.functionId===item.functionId)?.functionName||'Функция')}`:''}${item.required!==undefined?` · нужно ${item.required}, есть ${item.covered}`:''}</div>`).join('')}</div>`:'';
       q('[data-context]').textContent = `${dayName(from)} — ${dayName(to)} · ${access.timezone} · ${planned.length} смен · ${(minutes / 60).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ч по плану. Итоги по дате начала.`;
       if (incompletePlans) q('[data-context]').textContent += ` План неполный: ${incompletePlans} смен требуют уточнения времени и не включены в часы.`;
       q('[data-context]').textContent += ` Факт: ${(worked/60).toLocaleString('ru-RU',{maximumFractionDigits:2})} ч по завершённым интервалам.${incomplete ? ` Незакрытых или некорректных интервалов: ${incomplete}; факт неполный.` : ''} Плановый перерыв из факта автоматически не вычитается.`;
-      explanationText.textContent=q('[data-context]').textContent;
       const days = []; for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
       const dailyByDay = new Map(days.map(day => [day, []]));
       for (const entry of filtered) {
@@ -126,47 +312,90 @@
         const lastDay = local(new Date(Date.parse(entry.plannedEnd) - 1), access.timezone).slice(0, 10);
         for (let carryDay = firstDay; carryDay <= lastDay; carryDay = addDays(carryDay, 1)) dailyByDay.get(carryDay)?.push(entry);
       }
-      if (!people.length&&!openShifts.length) { q('[data-grid]').innerHTML = '<p>Сотрудники не найдены.</p>'; return; }
+      if (!people.length&&!filtered.length) { q('[data-grid]').innerHTML = '<p>Сотрудники не найдены.</p>'; return; }
       const today = local(new Date(), access.timezone).slice(0,10);
       const daily = day => dailyByDay.get(day) || [];
       const staffing = day => new Set(daily(day).filter(e => e.kind === 'shift' && e.status === 'planned'&&e.userId).map(e => e.userId)).size;
       const openCount = day => daily(day).filter(e=>e.kind==='open_shift'&&e.status==='planned').length;
-      const desktop = mode === 'week' ? `<div class="schedule-week" tabindex="0" aria-label="График недели, прокручиваемая таблица"><table><thead><tr><th>Сотрудник / часы</th>${days.map(d => `<th class="${d === today ? 'is-today' : ''}"><button type="button" class="schedule-date-link" data-open-day="${d}">${esc(dayName(d))}</button><small>На сменах: ${staffing(d)}${openCount(d)?` · свободно: ${openCount(d)}`:''}</small></th>`).join('')}</tr></thead><tbody>${people.map(p => `<tr><th>${esc(p.name)}<small>${esc(roleNames[p.role] || p.role)} · ${hours(planned.filter(e => e.userId === p.id).reduce((sum,e) => sum + (planMinutes(e) ?? 0),0))}</small>${!p.active ? '<small>Неактивен</small>' : ''}</th>${days.map(d => `<td class="${d === today ? 'is-today' : ''}">${daily(d).filter(e => e.userId === p.id).map(e => card(e,d)).join('') || '<small>Не запланировано</small>'}${access.manage && p.active ? `<button type="button" class="schedule-add" data-add="${esc(p.id)}" data-day="${d}" aria-label="Назначить: ${esc(p.name)}, ${d}">+</button>` : ''}</td>`).join('')}</tr>`).join('')}<tr class="schedule-open-shifts"><th>Свободные смены<small>Не входят в персональные часы</small></th>${days.map(d=>`<td class="${d===today?'is-today':''}">${daily(d).filter(e=>e.kind==='open_shift').map(e=>card(e,d)).join('')||'<small>Нет</small>'}</td>`).join('')}</tr></tbody></table></div>` : '';
+      const desktop = mode === 'week' ? `<div class="schedule-week" tabindex="0" aria-label="График недели, прокручиваемая таблица"><table><thead><tr><th>Сотрудник / часы</th>${days.map(d => `<th class="${d === today ? 'is-today' : ''} ${d === date ? 'is-selected-date' : ''}"><button type="button" class="schedule-date-link" data-open-day="${d}"${d===today?' aria-current="date"':''}>${esc(dayName(d))}${d===today?'<span class="schedule-today-marker">Сегодня</span>':''}</button><small>На сменах: ${staffing(d)}${openCount(d)?` · свободно: ${openCount(d)}`:''}</small></th>`).join('')}</tr></thead><tbody>${people.map(p => `<tr><th>${personIdentity(p)}<small>${esc(roleNames[p.role] || p.role)} · ${hours(planned.filter(e => e.userId === p.id).reduce((sum,e) => sum + (planMinutes(e) ?? 0),0))}</small>${!p.active ? '<small>Неактивен</small>' : ''}</th>${days.map(d => `<td class="${d === today ? 'is-today' : ''} ${d === date ? 'is-selected-date' : ''}">${daily(d).filter(e => e.userId === p.id).map(e => card(e,d)).join('') || '<span class="schedule-cell-empty" aria-label="Не запланировано">—</span>'}${access.manage && p.active ? `<button type="button" class="schedule-add schedule-add-quiet" data-add="${esc(p.id)}" data-day="${d}" aria-label="Назначить: ${esc(p.name)}, ${d}">+</button>` : ''}</td>`).join('')}</tr>`).join('')}<tr class="schedule-open-shifts"><th>Свободные смены<small>Не входят в персональные часы</small></th>${days.map(d=>`<td class="${d===today?'is-today':''} ${d===date?'is-selected-date':''}">${daily(d).filter(e=>e.kind==='open_shift').map(e=>card(e,d)).join('')||'<small>Нет</small>'}</td>`).join('')}</tr></tbody></table></div>` : '';
       const strip = `<nav class="schedule-day-strip" aria-label="Дни недели">${days.map(d => `<button type="button" class="${d === date ? 'is-selected' : ''}" aria-pressed="${d === date}" data-select-day="${d}">${esc(dayName(d))}<small>${staffing(d)} чел.</small></button>`).join('')}</nav>`;
-      const dayCards = day => `<section><h2>${esc(dayName(day))}</h2>${daily(day).map(e => `<div><span>${esc(e.kind==='open_shift'?'Свободная смена':people.find(p => p.id === e.userId)?.name || e.userName)}</span>${card(e,day)}</div>`).join('') || '<p class="muted">Не запланировано</p>'}${access.manage ? `<button type="button" class="button" data-add="${esc(q('[data-person]').value)}" data-day="${day}">Назначить смену</button>` : ''}</section>`;
+      const dayCards = day => {
+        const records = daily(day), active = records.filter(entry => entry.status !== 'cancelled');
+        const byPerson = items => [...new Set(items.map(entry => entry.userId))].map(id => `<div class="schedule-day-person"><h4>${personIdentity(people.find(person => person.id === id), people.find(person => person.id === id)?.name || items.find(entry => entry.userId === id)?.userName || 'Сотрудник')}</h4>${items.filter(entry => entry.userId === id).map(entry => card(entry,day)).join('')}</div>`).join('');
+        const shifts = active.filter(entry => entry.kind === 'shift');
+        const absences = active.filter(entry => !['shift','open_shift'].includes(entry.kind));
+        const open = active.filter(entry => entry.kind === 'open_shift');
+        const cancelled = records.filter(entry => entry.status === 'cancelled');
+        return `<section class="schedule-day-card"><h2>${esc(dayName(day))}</h2>${shifts.length ? `<section class="schedule-day-group schedule-day-shifts"><h3>На смене</h3>${byPerson(shifts)}</section>` : ''}${absences.length ? `<section class="schedule-day-group schedule-day-absences"><h3>Отсутствия и выходные</h3>${byPerson(absences)}</section>` : ''}${open.length ? `<section class="schedule-day-group schedule-day-open"><h3>Свободные смены</h3>${open.map(entry => card(entry,day)).join('')}</section>` : ''}${cancelled.length ? `<section class="schedule-day-group schedule-day-cancelled"><h3>Отменённые записи</h3>${byPerson(cancelled.filter(entry => entry.kind !== 'open_shift'))}${cancelled.filter(entry => entry.kind === 'open_shift').map(entry => card(entry,day)).join('')}</section>` : ''}${!records.length ? '<p class="muted">Не запланировано</p>' : ''}${access.manage ? `<button type="button" class="button" data-add="${esc(q('[data-person]').value)}" data-day="${day}">Назначить смену</button>` : ''}</section>`;
+      };
       let content = desktop;
       if (mode === 'month') {
         const offset = (new Date(from + 'T12:00Z').getUTCDay() + 6) % 7;
-        content = `<div class="schedule-month schedule-days" aria-label="Календарь месяца">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>`<b class="schedule-weekday">${d}</b>`).join('')}${Array.from({length:offset},()=>'<div class="schedule-calendar-pad" aria-hidden="true"></div>').join('')}${days.map(d=>{const records=daily(d).filter(e=>e.status==='planned');const absent=records.filter(e=>['day_off','vacation','sick','other_absence'].includes(e.kind)).length;const free=records.filter(e=>e.kind==='open_shift').length;const freeLabel=free===1?'свободная смена':free>=2&&free<=4?'свободные смены':'свободных смен';return `<button type="button" class="schedule-month-day ${d===today?'is-today':''}" data-open-day="${d}" aria-label="${esc(dayName(d))}: ${staffing(d)} сотрудников на сменах, ${absent} отсутствий, ${free} ${freeLabel}"><strong>${Number(d.slice(-2))}</strong><span>${staffing(d)} чел.</span><small>${absent} отсутств.</small>${free?`<small class="schedule-month-open">${free} свободн.</small>`:''}</button>`;}).join('')}</div>`;
+        content = `<div class="schedule-month schedule-days" aria-label="Календарь месяца">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>`<b class="schedule-weekday">${d}</b>`).join('')}${Array.from({length:offset},()=>'<div class="schedule-calendar-pad" aria-hidden="true"></div>').join('')}${days.map(d=>{
+          const all = daily(d), records = all.filter(entry => entry.status === 'planned');
+          const absent = records.filter(entry => !['shift','open_shift'].includes(entry.kind));
+          const absenceSummary = [...new Set(absent.map(entry => entry.kind))].map(kind => `${labels[kind] || kind}: ${absent.filter(entry => entry.kind === kind).length}`).join(' · ');
+          const free = records.filter(entry => entry.kind === 'open_shift').length;
+          const cancelled = all.filter(entry => entry.status === 'cancelled').length;
+          return `<button type="button" class="schedule-month-day ${d===today?'is-today':''} ${d===date?'is-selected is-selected-date':''}" data-open-day="${d}"${d===today?' aria-current="date"':''} aria-label="${esc(dayName(d))}: На смене: ${staffing(d)}${absenceSummary?' · '+esc(absenceSummary):''}${free?' · Свободных смен: '+free:''}${cancelled?' · Отменено: '+cancelled:''}"><strong>${Number(d.slice(-2))}</strong><span class="schedule-month-count"><span class="schedule-month-count-label">На смене: </span><b>${staffing(d)}</b></span>${absenceSummary?`<span class="schedule-month-absence" data-count="${absent.length}">${esc(absenceSummary)}</span>`:''}${free?`<span class="schedule-month-open" data-count="${free}">Свободных смен: ${free}</span>`:''}${cancelled?`<span class="schedule-month-cancelled" data-count="${cancelled}">Отменено: ${cancelled}</span>`:''}</button>`;
+        }).join('')}</div>`;
       } else if (mode === 'day') {
         let dayStart, dayEnd;
         try { dayStart=Date.parse(instant(date+'T00:00',access.timezone)); dayEnd=Date.parse(instant(addDays(date,1)+'T00:00',access.timezone)); }
-        catch { q('[data-grid]').innerHTML=`<p>В этот день перевод часов затрагивает полночь. Используйте точное время в карточках.</p><div class="schedule-days">${dayCards(date)}</div>`; q('[data-grid]').querySelectorAll('[data-entry]').forEach(button=>button.onclick=()=>openEntry(button)); return; }
+        catch { q('[data-grid]').innerHTML=`<p>В этот день перевод часов затрагивает полночь. Используйте точное время в карточках.</p><div class="schedule-days">${dayCards(date)}</div>`; hydrateScheduleAvatars(); q('[data-grid]').querySelectorAll('[data-entry]').forEach(button=>button.onclick=()=>openEntry(button)); return; }
         const dayDuration=dayEnd-dayStart;
-        content = `<div class="schedule-timeline" tabindex="0" aria-label="Почасовой график дня"><div class="schedule-timeline-header"><b>Сотрудник · ${hours(dayDuration/60000)}</b><div>${Array.from({length:9},(_,i)=>`<span>${i===8?'24:00':esc(local(new Date(dayStart+dayDuration*i/8),access.timezone).slice(11))}</span>`).join('')}</div></div>${people.map(p=>`<div class="schedule-timeline-row"><strong>${esc(p.name)}</strong><div class="schedule-timeline-tracks">${daily(date).filter(e=>e.userId===p.id).map(e=>{
+        content = `<div class="schedule-timeline" tabindex="0" aria-label="Почасовой график дня"><div class="schedule-timeline-header"><b>Сотрудник · ${hours(dayDuration/60000)}</b><div>${Array.from({length:9},(_,i)=>`<span>${i===8?'24:00':esc(local(new Date(dayStart+dayDuration*i/8),access.timezone).slice(11))}</span>`).join('')}</div></div>${people.map(p=>`<div class="schedule-timeline-row"><strong>${personIdentity(p)}</strong><div class="schedule-timeline-tracks">${daily(date).filter(e=>e.userId===p.id).map(e=>{
           if(e.kind!=='shift' || planMinutes(e)===null) return card(e,date);
           const start=local(e.plannedStart,access.timezone), end=local(e.plannedEnd,access.timezone);
           const a=Math.max(Date.parse(e.plannedStart),dayStart)-dayStart, b=Math.min(Date.parse(e.plannedEnd),dayEnd)-dayStart;
           return `<div class="schedule-timeline-track"><button type="button" class="schedule-time-bar ${e.status==='cancelled'?'is-cancelled':''}" data-entry="${esc(e.id)}" style="left:${100*a/dayDuration}%;width:${100*(b-a)/dayDuration}%" title="${esc(p.name)}: ${esc(start.replace('T',' '))} — ${esc(end.replace('T',' '))}"><span>${esc(start.slice(11))}–${esc(end.slice(11))}${e.workDate!==date?' · продолжение':''}${e.status==='cancelled'?' · отменена':''}</span></button></div>`;
-        }).join('') || '<small>Не запланировано</small>'}</div></div>`).join('')}</div><div class="schedule-days schedule-day-detail">${dayCards(date)}</div>`;
+        }).join('') || '<small>Не запланировано</small>'}</div></div>`).join('')}${daily(date).some(e=>e.kind==='open_shift')?`<div class="schedule-timeline-row"><strong>Свободные смены</strong><div class="schedule-timeline-tracks">${daily(date).filter(e=>e.kind==='open_shift').map(e=>card(e,date)).join('')}</div></div>`:''}</div><div class="schedule-days schedule-day-detail">${dayCards(date)}</div>`;
       } else {
         content += `<div class="${mode==='week'?'schedule-mobile':''}">${mode==='week'?strip:''}<div class="schedule-days ${mode==='week'?'schedule-mobile':''}">${(mode==='week'?[date]:days).map(dayCards).join('')}</div></div>`;
       }
       q('[data-grid]').innerHTML = mode === 'month' ? `<div class="schedule-month-scroll">${content}</div>` : content;
       if(mode==='month') q('[data-grid]').querySelectorAll('[data-open-day]').forEach(button=>{
         const records=daily(button.dataset.openDay), preview=document.createElement('span');preview.className='schedule-month-preview';
-        preview.textContent=records.slice(0,2).map(e=>`${e.kind==='open_shift'?'Свободная смена':people.find(p=>p.id===e.userId)?.name||e.userName}: ${['shift','open_shift'].includes(e.kind)&&e.plannedStart? (e.workDate < button.dataset.openDay?'до '+local(e.plannedEnd,access.timezone).slice(11):local(e.plannedStart,access.timezone).slice(11)+'–'+local(e.plannedEnd,access.timezone).slice(11)):labels[e.kind]}`).join('\n');
-        if(records.length>2)preview.textContent+=`\nЕщё ${records.length-2}`;button.append(preview);
+        const working = records.filter(entry => entry.status !== 'cancelled' && ['shift','open_shift'].includes(entry.kind));
+        const shortName = entry => {
+          if (entry.kind === 'open_shift') return 'Свободная';
+          const full = employees.find(person => person.id === entry.userId)?.name || entry.userName || 'Сотрудник';
+          const shorten = name => { const parts = String(name).trim().split(/\s+/); return [parts[0], ...parts.slice(1).map(part => Array.from(part)[0] + '.')].join(' '); };
+          const normalize = name => name.trim().toLocaleLowerCase('ru-RU');
+          const sameShort = employees.filter(person => normalize(shorten(person.name)) === normalize(shorten(full)));
+          if (sameShort.length < 2) return shorten(full);
+          const sameFull = sameShort.filter(person => normalize(person.name) === normalize(full)).sort((a,b) => String(a.id).localeCompare(String(b.id)));
+          return sameFull.length > 1 ? `${full} (${sameFull.findIndex(person => person.id === entry.userId) + 1})` : full;
+        };
+        for (const entry of working.slice(0,3)) {
+          const line = document.createElement('span'); line.className = `schedule-month-item schedule-kind-${entry.kind}`;
+          const timed = ['shift','open_shift'].includes(entry.kind) && entry.plannedStart && entry.plannedEnd;
+          const time = timed ? (entry.workDate < button.dataset.openDay ? 'до ' + local(entry.plannedEnd,access.timezone).slice(11) : local(entry.plannedStart,access.timezone).slice(11) + '–' + local(entry.plannedEnd,access.timezone).slice(11)) : labels[entry.kind] || 'Уточнить время';
+          const nameLabel = document.createElement('span'); nameLabel.className = 'schedule-month-item-name'; nameLabel.textContent = shortName(entry);
+          if (entry.kind !== 'open_shift') nameLabel.innerHTML = personIdentity(employees.find(person => person.id === entry.userId), shortName(entry));
+          const timeLabel = document.createElement('span'); timeLabel.className = 'schedule-month-item-time'; timeLabel.textContent = time;
+          line.append(nameLabel, document.createTextNode(' '), timeLabel);
+          const nextDay = timed && entry.workDate === button.dataset.openDay && local(entry.plannedEnd,access.timezone).slice(0,10) !== entry.workDate;
+          if (nextDay) { const badge = document.createElement('span'); badge.className = 'schedule-entry-next-day'; badge.textContent = '+1 день'; line.append(document.createTextNode(' '), badge); }
+          line.title = `${entry.kind === 'open_shift' ? 'Свободная смена' : employees.find(person => person.id === entry.userId)?.name || entry.userName || 'Сотрудник'} · ${time}`;
+          if (nextDay) line.title += ' +1 день';
+          preview.append(line);
+        }
+        const remaining = Math.max(0, working.length - 3);
+        if(remaining>0) { const more = document.createElement('span'); more.className='schedule-month-more'; more.textContent=`Ещё ${remaining} смен`; more.title = 'Другие рабочие и свободные смены. Откройте день для полного списка.'; preview.append(more); }
+        button.append(preview);
       });
+      hydrateScheduleAvatars();
       q('[data-grid]').querySelectorAll('[data-entry]').forEach(button => button.onclick = () => openEntry(button));
       q('[data-grid]').querySelectorAll('[data-add]').forEach(button => button.onclick = () => editor(null, button.dataset.add, button.dataset.day));
       q('[data-grid]').querySelectorAll('[data-select-day]').forEach(button => button.onclick = () => { date=button.dataset.selectDay; q('[data-date]').value=date; draw(); });
-      q('[data-grid]').querySelectorAll('[data-open-day]').forEach(button => button.onclick = () => { date=button.dataset.openDay; mode='day'; q('[data-date]').value=date; q('[data-mode]').value=mode; q('[data-mode]')._customSelectRefresh?.(); load(); });
+      q('[data-grid]').querySelectorAll('[data-open-day]').forEach(button => button.onclick = () => { monthReturnDate = mode === 'month' ? button.dataset.openDay : null; date=button.dataset.openDay; mode='day'; q('[data-date]').value=date; q('[data-mode]').value=mode; q('[data-mode]')._customSelectRefresh?.(); load(); });
     }
     function openEntry(button){const entry=entries.find(e=>e.id===button.dataset.entry);if(entry?.kind==='open_shift'){if(access.manage)window.openSchedulePlanning({api,dialog,employees,access,date:entry.workDate,local,instant,refresh:load});else status('Это свободная смена. Назначить её можно через черновик графика при наличии права управления.');return;}editor(entry);}
     async function load() {
       const current = ++generation; status('Загрузка графика…');
       ready = false; entries = []; actual = [];
+      picker.open = false; syncNavigation();
       q('[data-grid]').replaceChildren(); q('[data-context]').textContent = ''; q('[data-summary]').textContent = '';
       q('[data-create]').disabled = true;q('[data-csv]').disabled=true;q('[data-print]').disabled=true; if (q('[data-copy-week]')) q('[data-copy-week]').disabled = true;
       q('[data-grid]').inert = true;
@@ -176,18 +405,21 @@
         if (current !== generation) return;
         if (!Array.isArray(result.items) || !Array.isArray(result.actual) || !result.access?.view) throw new Error('Получен неполный ответ графика.');
         entries = [...result.items, ...(result.continuations || [])]; actual = result.actual; coverage=result.coverage?.advisories||[]; access = result.access; ready = true;
+        helpButton.hidden = !access.view || !['owner','admin','manager'].includes(access.role);
         q('[data-create]').hidden = !access.manage; if (q('[data-copy-week]')) q('[data-copy-week]').hidden = !access.manage;
         draw(); status(entries.length ? '' : 'В выбранном периоде пока нет записей.'); return true;
       } catch (error) { if (current === generation) status(error.message + ' Нажмите «Обновить».'); return false; }
       finally { if (alive() && current === generation) {
         q('[data-grid]').inert = !ready; q('[data-create]').disabled = !ready;q('[data-csv]').disabled=!ready;q('[data-print]').disabled=!ready;
         if (q('[data-copy-week]')) q('[data-copy-week]').disabled = !ready;
+        syncNavigation();
       } }
     }
     function dialog(title, content) {
       const node = document.createElement('dialog'); node.className = 'schedule-dialog ui-components';
       node.innerHTML = `<form><h2>${esc(title)}</h2>${content}<p data-error role="alert"></p><div class="schedule-actions"><button type="button" class="button" data-close>Закрыть</button><button type="submit" class="button primary" data-submit>Сохранить</button></div></form>`;
       target.append(node); const previous = document.activeElement; let busy = false, dirty = false, guarded = false;
+      let disabledBeforePending = new Map();
       node.setAttribute('aria-labelledby', `schedule-dialog-${crypto.randomUUID()}`); node.querySelector('h2').id=node.getAttribute('aria-labelledby');
       const discard = () => !guarded || !dirty || window.confirm('Есть несохранённые изменения. Закрыть без сохранения?');
       const beforeUnload = event => { if (guarded && dirty) { event.preventDefault(); event.returnValue=''; } };
@@ -197,26 +429,69 @@
       node.addEventListener('input', () => { dirty=true; }); node.addEventListener('change', () => { dirty=true; });
       node.addEventListener('close', () => { window.removeEventListener('beforeunload',beforeUnload); node.remove(); previous?.focus(); });
       node.showModal();
-      return { node, guard() { guarded=true; dirty=false; }, pending(value) { busy = value; node.querySelectorAll('button,input,select,textarea').forEach(el => el.disabled = value); }, error(text) { node.querySelector('[data-error]').textContent = text; } };
+      return {
+        node,
+        guard() { guarded=true; dirty=false; },
+        markDirty() { node.querySelector('form').dispatchEvent(new Event('input', { bubbles: true })); },
+        pending(value) {
+          if (value) {
+            if (!busy) disabledBeforePending = new Map([...node.querySelectorAll('button,input,select,textarea')].map(control => [control, control.disabled]));
+            busy = true;
+            disabledBeforePending.forEach((disabled, control) => { if (control.isConnected && node.contains(control)) control.disabled = true; });
+            disabledBeforePending.forEach((disabled, control) => { if (control.isConnected && node.contains(control)) control._customSelectRefresh?.(); });
+          } else {
+            busy = false;
+            const restored = [...disabledBeforePending].filter(([control]) => control.isConnected && node.contains(control));
+            disabledBeforePending.clear();
+            restored.forEach(([control, disabled]) => { control.disabled = disabled; });
+            restored.forEach(([control]) => control._customSelectRefresh?.());
+          }
+        },
+        error(text) { node.querySelector('[data-error]').textContent = text; }
+      };
     }
     function editor(entry, person = '', day = date) {
       if (!ready) return;
       const readonly = !access.manage || entry?.status === 'cancelled';
       const d = dialog(entry ? 'Запись графика' : 'Назначить смену', `<label>Сотрудник<select name="userId" required><option value="">Выберите сотрудника</option>${employees.filter(p => p.active || p.id === entry?.userId).map(p => `<option value="${esc(p.id)}" ${p.id === (entry?.userId || person) ? 'selected' : ''}>${esc(p.name)} · ${esc(roleNames[p.role]||'Сотрудник')}</option>`).join('')}</select></label><label>Тип<select name="kind">${Object.entries(labels).map(([key, value]) => `<option value="${key}" ${key === entry?.kind ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label>Дата<input name="workDate" type="date" required value="${esc(entry?.workDate || day)}"></label><fieldset data-times><legend>Время заведения · ${esc(access.timezone)}</legend><label>Начало<input name="start" type="datetime-local" value="${esc(entry?.plannedStart ? local(entry.plannedStart, access.timezone) : day + 'T10:00')}"></label><label>Окончание<input name="end" type="datetime-local" value="${esc(entry?.plannedEnd ? local(entry.plannedEnd, access.timezone) : day + 'T18:00')}"></label><label>Неоплачиваемый перерыв, минут<input name="breakMinutes" type="number" min="0" step="1" value="${entry?.breakMinutes || 0}"></label></fieldset><label>Заметка<textarea name="note" maxlength="500">${esc(entry?.note)}</textarea></label><label>Причина изменения / отмены<textarea name="reason" maxlength="500"></textarea></label><p class="muted">Изменения прошлого периода требуют причины. Утверждённая зарплата автоматически не изменяется.</p>${entry && !readonly ? '<button type="button" class="button" data-cancel>Отменить смену / отсутствие</button>' : ''}`);
       const form = d.node.querySelector('form'); let requestKey = crypto.randomUUID();
+      const basics = document.createElement('div'); basics.className = 'schedule-editor-basics';
+      form.elements.userId.closest('label').after(basics);
+      basics.append(form.elements.workDate.closest('label'), form.elements.kind.closest('label'));
       form.querySelector('[data-submit]').textContent = entry ? 'Сохранить изменения' : 'Добавить в график';
-      const saveHint=document.createElement('p');saveHint.className='schedule-save-hint muted';saveHint.textContent=entry?'Изменение сразу появится в действующем графике.':'Запись сразу появится в действующем графике.';form.querySelector('.schedule-actions').before(saveHint);
+      const saveHint=document.createElement('p');saveHint.className='schedule-save-hint muted';saveHint.textContent=readonly?(entry?.status==='cancelled'?'Запись отменена. Доступен просмотр и история; редактирование запрещено.':'Режим просмотра. Для изменения нужно право управления графиком.'):entry?'Изменение сразу появится в действующем графике.':'Запись сразу появится в действующем графике.';form.querySelector('.schedule-actions').before(saveHint);
       const breakPanel=document.createElement('fieldset');breakPanel.innerHTML='<legend>Перерывы по времени (необязательно)</legend><div data-break-rows></div><button type="button" class="button" data-add-break>Добавить интервал перерыва</button><small>Укажите точные границы, чтобы учитывать перерыв в покрытии. Если их нет, система не будет угадывать его положение.</small>';form.querySelector('[data-times]').append(breakPanel);
-      const addBreakRow=value=>{const row=document.createElement('div');row.dataset.breakRow='';row.innerHTML=`<label>С<input type="datetime-local" data-break-start value="${esc(value?.start?local(value.start,access.timezone):'')}"></label><label>До<input type="datetime-local" data-break-end value="${esc(value?.end?local(value.end,access.timezone):'')}"></label><button type="button" class="button" data-remove-break>Убрать перерыв</button>`;row.querySelector('[data-remove-break]').onclick=()=>row.remove();breakPanel.querySelector('[data-break-rows]').append(row);};
+      const addBreakRow=value=>{const row=document.createElement('div');row.dataset.breakRow='';row.innerHTML=`<label>С<input type="datetime-local" data-break-start value="${esc(value?.start?local(value.start,access.timezone):'')}"></label><label>До<input type="datetime-local" data-break-end value="${esc(value?.end?local(value.end,access.timezone):'')}"></label><button type="button" class="button" data-remove-break>Убрать перерыв</button>`;row.querySelector('[data-remove-break]').onclick=()=>{row.remove();d.markDirty();};breakPanel.querySelector('[data-break-rows]').append(row);};
       (entry?.breakIntervals||[]).forEach(addBreakRow);breakPanel.querySelector('[data-add-break]').onclick=()=>addBreakRow(null);
+      const extra = document.createElement('details'); extra.className = 'schedule-editor-extra';
+      extra.innerHTML = '<summary>Перерывы, заметка и причина</summary><div class="schedule-editor-extra-fields"></div>';
+      const extraFields = extra.querySelector('div');
+      const breakFields = document.createElement('div'); breakFields.dataset.editorBreaks = '';
+      breakFields.append(form.elements.breakMinutes.closest('label'), breakPanel);
+      const reasonLabel = form.elements.reason.closest('label');
+      const policyHint = reasonLabel.nextElementSibling;
+      reasonLabel.before(extra);
+      extraFields.append(breakFields, form.elements.note.closest('label'), reasonLabel, policyHint);
+      extra.open = !!(entry?.note || entry?.breakMinutes || entry?.breakIntervals?.length);
+      let forceReason = false;
+      const syncReason = () => {
+        const today = local(new Date(), access.timezone).slice(0,10);
+        const required = forceReason || form.elements.workDate.value < today || (entry && entry.workDate < today);
+        form.elements.reason.required = !!required && !readonly;
+        if (required) extra.before(reasonLabel); else extraFields.append(reasonLabel);
+      };
+      const revealReason = () => { forceReason = true; syncReason(); };
+      form.elements.workDate.addEventListener('change', syncReason);
+      form.addEventListener('invalid', event => { if (extra.contains(event.target)) extra.open = true; }, true);
+      syncReason();
       const functionLabel=document.createElement('label');functionLabel.innerHTML=`Рабочая функция<select name="functionId"><option value="">Не задана</option>${entry?.functionId?`<option value="${esc(entry.functionId)}" selected>Текущая функция</option>`:''}</select>`;
       form.querySelector('[data-times]').before(functionLabel);
       const suggestionPanel=document.createElement('section');suggestionPanel.dataset.suggestion='';suggestionPanel.setAttribute('aria-live','polite');
       form.querySelector('[data-times]').after(suggestionPanel);
       if (!entry) {
-        d.node.querySelector('h2').textContent = 'Смена или выходной на любую дату';
+        d.node.querySelector('h2').textContent = 'Добавить в график';
         const hint = document.createElement('p'); hint.className = 'muted';
-        hint.textContent = 'Можно назначить одну запись заранее, даже если график на месяц ещё не составлен. Выберите тип и дату.';
+        hint.textContent = 'Выберите сотрудника, дату и тип записи.';
         form.querySelector('h2').after(hint);
       }
       let previousDay = form.elements.workDate.value;
@@ -236,6 +511,14 @@
       };
       async function loadSuggestion(){
         const userId=form.elements.userId.value,current=++suggestionGeneration;
+        if (!userId) {
+          currentSuggestion = null;
+          form.elements.functionId.innerHTML = '<option value="">Не задана</option>';
+          form.elements.functionId.value = '';
+          form.elements.functionId._customSelectRefresh?.();
+          suggestionPanel.textContent = 'Выберите сотрудника, чтобы подобрать время смены.';
+          return;
+        }
         suggestionPanel.textContent='Загрузка функций и подходящего времени…';
         try{
           const qualifications=await api(`/employees/${userId}/functions`);
@@ -307,11 +590,14 @@
       }
       form.addEventListener('input', () => { requestKey = crypto.randomUUID(); });
       const kind = form.elements.kind;
-      const sync = () => { d.node.querySelector('[data-times]').hidden = kind.value !== 'shift'; };
+      const sync = () => { d.node.querySelector('[data-times]').hidden = kind.value !== 'shift'; breakFields.hidden = kind.value !== 'shift'; };
       kind.onchange = sync; sync();
       if (readonly) { form.querySelectorAll('input,select,textarea,button[type=submit]').forEach(el => el.disabled = true); }
       async function submit(cancel = false) {
         if (readonly) return;
+        if (cancel) revealReason();
+        syncReason();
+        if (form.elements.reason.required && !form.elements.reason.value.trim()) { d.error(cancel ? 'Укажите причину отмены.' : 'Укажите причину изменения.'); form.elements.reason.focus(); return; }
         if (conflictPending) { d.error('Сначала сравните актуальную запись с вашим черновиком.'); return; }
         const data = new FormData(form);
         let payload;
@@ -335,9 +621,10 @@
         } catch (error) {
           if (error.code === 'schedule_version_conflict' && entry) { conflictPending=true; d.error('Конфликт версий. Ваш ввод сохранён.'); await compareLatest(); }
           else if(error.code==='schedule_warnings_confirmation_required'){
+            revealReason();
             if(!form.elements.confirmWarnings){const ack=document.createElement('label');ack.className='schedule-check';ack.innerHTML='<input type="checkbox" name="confirmWarnings" value="true">Подтверждаю показанные предупреждения и хочу сохранить смену';form.elements.reason.parentElement.after(ack);ack.querySelector('input').focus();form.querySelector('[data-submit]').textContent='Подтвердить и сохранить';}
             d.error('Смена не сохранена. Проверьте предупреждения. Для продолжения подтвердите их, укажите причину и нажмите «Сохранить» ещё раз.');
-          }else d.error(error.message);
+          }else { if (error.code === 'schedule_past_reason_required') revealReason(); extra.open = true; d.error(error.message); }
         }
         finally { d.pending(false); }
       }
@@ -422,13 +709,16 @@
       form.onsubmit=async event=>{event.preventDefault();const data=new FormData(form),ruleId=data.get('ruleId'),scope=data.get('scope'),body={functionId:data.get('functionId'),scope,weekday:scope==='weekly'?Number(data.get('weekday')):null,effectiveFrom:scope==='date_range'?data.get('effectiveFrom'):null,effectiveTo:scope==='date_range'?data.get('effectiveTo'):null,startTime:data.get('startTime'),endTime:data.get('endTime'),endDayOffset:Number(data.get('endDayOffset')),requiredCount:Number(data.get('requiredCount')),active:form.elements.active.checked,requestKey:crypto.randomUUID(),version:Number(data.get('version'))};d.pending(true);try{await api(`/demand-rules${ruleId?`/${ruleId}`:''}`,ruleId?'PATCH':'POST',body);rules=(await api('/demand-rules')).items;draw();reset();d.error('Правило сохранено и перечитано. Предпросмотр черновика обновится.');}catch(error){d.error(error.message);}finally{d.pending(false);}};
     }
     q('[data-refresh]').onclick = () => initialize();
-    async function initialize() {
+    async function initialize(initialAccess = null) {
       ready=false;entries=[];actual=[];q('[data-grid]').replaceChildren();q('[data-summary]').textContent='';q('[data-context]').textContent='';status('Загрузка графика…');
+      syncNavigation();
       q('[data-create]').disabled=true;if(q('[data-copy-week]'))q('[data-copy-week]').disabled=true;if(q('[data-planning]'))q('[data-planning]').disabled=true;
       q('[data-refresh]').disabled = true;
       target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person],[data-month-jump]').forEach(el=>{el.disabled=true;el._customSelectRefresh?.();});
       try {
-      access = await api('/access'); if (!access.view) throw new Error('Владелец ещё не выдал доступ к графику.');
+      access = initialAccess || await api('/access');
+      helpButton.hidden = !access.view || !['owner','admin','manager'].includes(access.role);
+      if (!access.view) { await window.mountStaffSchedule(target); return; }
       employees = (await api('/employees')).items;
       date ||= local(new Date(), access.timezone).slice(0, 10); q('[data-date]').value = date;
       const selectedPerson=q('[data-person]').value;
@@ -444,7 +734,7 @@
         const planningButton=document.createElement('button');planningButton.type='button';planningButton.className='button';planningButton.dataset.planning='';planningButton.textContent='Составить график';planningButton.setAttribute('aria-label','Составить график');planningButton.title='Составить график';
         planningButton.onclick=()=>window.openSchedulePlanning({api,dialog,employees,access,date,local,instant,refresh:load});q('[data-create]').after(planningButton);
       }
-      if(access.canManageSettings){const demandButton=document.createElement('button');demandButton.type='button';demandButton.className='button';demandButton.dataset.demand='';demandButton.textContent='Потребность';demandButton.setAttribute('aria-label','Настроить потребность в сотрудниках');demandButton.title='Потребность в сотрудниках';demandButton.onclick=demandSettings;(q('[data-planning]')||q('[data-create]')).after(demandButton);}
+      if(access.canManageSettings){const demandButton=document.createElement('button');demandButton.type='button';demandButton.className='button';demandButton.dataset.demand='';demandButton.textContent='Потребность';demandButton.setAttribute('aria-label','Настроить потребность в сотрудниках');demandButton.title='Потребность в сотрудниках';demandButton.onclick=demandSettings;q('.schedule-more-actions').append(demandButton);}
       q('[data-create]').onclick = () => editor(null, q('[data-person]').value);
       q('[data-csv]').onclick=downloadCsv;
       q('[data-print]').onclick=()=>{const meta=exportMeta();q('[data-export-meta]').textContent=`Период: ${meta.from} — ${meta.to} · Часовой пояс: ${meta.timezone} · Сформирован: ${meta.generatedAt}`;q('[data-export-meta]').hidden=false;window.addEventListener('afterprint',()=>{q('[data-export-meta]').hidden=true;},{once:true});window.print();};
@@ -467,7 +757,7 @@
         q('[data-date]').value = date; q('[data-mode]').value = mode; q('[data-mode]')._customSelectRefresh?.();
         event.target.value = ''; event.target._customSelectRefresh?.(); load();
       };
-      q('[data-mode]').onchange = event => { mode = event.target.value; load(); };
+      q('[data-mode]').onchange = event => { monthReturnDate = null; mode = event.target.value; syncNavigation(); load(); };
       q('[data-date]').onchange = event => { if (event.target.value) { date = event.target.value; load(); } };
       const move = n => { if (mode === 'month') { const next = new Date(date.slice(0,7) + '-01T12:00Z'); next.setUTCMonth(next.getUTCMonth() + n); date = next.toISOString().slice(0,10); } else date = addDays(date, n * (mode==='day'?1:7)); q('[data-date]').value = date; load(); };
       q('[data-prev]').onclick = () => move(-1); q('[data-next]').onclick = () => move(1);
@@ -475,8 +765,8 @@
       target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person],[data-month-jump]').forEach(el=>{el.disabled=false;el._customSelectRefresh?.();});
       await load();
       } catch (error) { status(error.message + ' Нажмите «Обновить».'); }
-      finally { q('[data-refresh]').disabled = false; }
+      finally { if (q('[data-refresh]')) q('[data-refresh]').disabled = false; }
     }
-    await initialize();
+    await initialize(access);
   };
 })();

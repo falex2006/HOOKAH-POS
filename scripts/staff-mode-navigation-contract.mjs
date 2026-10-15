@@ -6,6 +6,8 @@ const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const distApp = fs.readFileSync(new URL('../dist/app.js', import.meta.url), 'utf8');
 const distHtml = fs.readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
+const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+const distPortal = fs.readFileSync(new URL('../dist/portal.js', import.meta.url), 'utf8');
 const syncScript = fs.readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
 const appRevision = syncScript.match(/appRevision = '(\d+)'/)?.[1];
 assert.ok(appRevision, 'app cache revision must be declared in the asset sync script');
@@ -35,6 +37,12 @@ assert.match(app, /data-staff-session-retry/);
 assert.match(app, /if\(!s\?\.user\)return/);
 assert.match(app, /item\.hidden=!hasStaffPermission\(item\.dataset\.permission,permissions\)/,
   'every nav item must be both hidden when forbidden and restored when its permission is granted');
+assert.match(app, /personalScheduleLink\.dataset\.permission='staff_schedule_self'/,
+  'the employee self-schedule entry must be tagged with the distinct server permission');
+assert.match(app, /staffSessionPermissions\.has\('staff_schedule_self'\).*preserveWorkspaceRoute\('\/admin#staff-schedule'\)/,
+  'the self-schedule action must re-check the session permission before navigating');
+assert.match(app, /#staff-primary-navigation \.portal-nav[\s\S]*?staff-personal-schedule-link[\s\S]*?Мой график/,
+  'the actual employee primary navigation must render the self-schedule entry');
 
 // Exercise the exact permission predicate used by the UI against the server's
 // manager permission profile, including the inventory/finance read aliases.
@@ -47,6 +55,10 @@ for (const permission of ['floor', 'orders', 'inventory_read', 'finance_read', '
 }
 assert.equal(hasStaffPermission('inventory', managerPermissions), false, 'read-only manager must not get inventory write access');
 assert.equal(hasStaffPermission('staff_manage', managerPermissions), false, 'manager must not get personnel-management access');
+assert.equal(hasStaffPermission('staff_schedule_self', managerPermissions), false,
+  'a management role/profile without an explicit self-schedule grant must not see the employee link');
+assert.equal(hasStaffPermission('staff_schedule_self', new Set(['staff_schedule_self'])), true,
+  'the explicit self-schedule grant must make the actual nav item visible');
 const adminHelper=app.match(/const canOpenStaffAdmin=[^;]+;/);
 assert.ok(adminHelper);
 const canOpenStaffAdmin=vm.runInNewContext(`${adminHelper[0]};canOpenStaffAdmin`);
@@ -66,6 +78,11 @@ assert.match(app, /manager:\['floor','orders','reservations','inventory_read','f
 // or diverge on a static dist deployment.
 assert.equal(distApp, app);
 assert.equal(distHtml, html);
+assert.equal(distPortal, portal, 'published portal loader must match its source');
+assert.match(portal, /personal\.onload\s*=\s*\(\)\s*=>\s*selfOnly\s*\?\s*resolve\(\)\s*:\s*loadPlanning\(\)/,
+  'self-only schedule access must load its personal view without waiting for management planning UI');
+assert.match(portal, /staff-schedule-ui\.css\?rev=4/,
+  'schedule CSS cache revision must be bumped with the latest visual styles');
 assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`));
 assert.doesNotMatch(html, /Мария|Darkside Blueberry|2 100 ₽|<span>Смена открыта<\/span>/,
   'initial workspace must not impersonate a demo employee or show a fake order/shift');

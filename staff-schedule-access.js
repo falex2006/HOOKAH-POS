@@ -17,7 +17,7 @@ async function resolveAccess(db, principal, lock = false) {
   const row = result.rows[0];
   if (!row) return deny();
   const resolved = capabilities(row.role, row.access);
-  return { ...resolved, canPublish: row.role === 'owner' || (resolved.manage && row.can_publish === true),
+  return { ...resolved, self: true, canPublish: row.role === 'owner' || (resolved.manage && row.can_publish === true),
     canManageSettings: row.role === 'owner' || (resolved.manage && row.can_manage_settings === true), timezone: row.timezone, role: row.role };
 }
 async function setGrant(pool, principal, input) {

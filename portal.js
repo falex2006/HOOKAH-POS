@@ -22,8 +22,8 @@ let venueTimezone = String(portalUser.timezone || '');
 let dashboardGreetingTimer = null;
 function updateDashboardGreeting() { /* Dashboard keeps a stable title; no recurring greeting. */ }
 const adminSectionTitles = { '#staff-schedule': 'График сотрудников', '#staff': 'Персонал', '#permissions': 'Роли и права доступа', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки заведения', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'База знаний' };
-function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); if (title) title.textContent = adminSectionTitles[window.location.hash] || 'Главная'; if (document.body?.dataset.page === 'dashboard') {
-  document.title = `Hookah POS — ${adminSectionTitles[window.location.hash] || 'Главная'}`;
+function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); const sessionPermissions = new Set(window.__portalSessionVerified?.permissions || []); const personalSchedule = window.location.hash === '#staff-schedule' && sessionPermissions.has('staff_schedule_self') && !sessionPermissions.has('staff_schedule_view'); const sectionTitle = personalSchedule ? 'Мой график' : adminSectionTitles[window.location.hash] || 'Главная'; if (title) title.textContent = sectionTitle; if (document.body?.dataset.page === 'dashboard') {
+  document.title = `Hookah POS — ${sectionTitle}`;
   document.querySelectorAll('.portal-sidebar a[href]').forEach((link) => {
     const url = new URL(link.getAttribute('href'), window.location.href);
     const active = url.pathname === '/admin' && url.hash === window.location.hash;
@@ -115,6 +115,7 @@ const normalizeEmployeeSidebar = (sidebar, makeLink) => {
     { href: employeeOrdersRoute, permission: 'orders', label: 'Заказы', iconName: 'receipt' },
     { href: '/clients', permission: 'clients', label: 'Гости', iconName: 'users' },
     { href: '/reservations', permission: 'reservations', label: 'Бронирования', iconName: 'calendar-event' },
+    { href: '/admin#staff-schedule', permission: 'staff_schedule_self', available: hasPortalPermission('staff_schedule_self') && !hasPortalPermission('staff_schedule_view'), label: 'Мой график', iconName: 'calendar-event' },
     { href: '/admin#tasks', permission: 'tasks', label: 'Задачи', iconName: 'list-check' },
     { href: '/delivery', permission: 'delivery', label: 'Доставка', iconName: 'truck-delivery' },
   ]);
@@ -339,6 +340,9 @@ const normalizeManagementSidebar = () => {
     { href: '/clients', permission: 'clients', label: 'Гости', iconName: 'users' },
     { href: '/delivery', permission: 'delivery', label: 'Доставка', iconName: 'truck-delivery' },
   ];
+  if (hasPortalPermission('staff_schedule_self') && !hasPortalPermission('staff_schedule_view')) {
+    operationLinks.push({ href: '/admin#staff-schedule', permission: 'staff_schedule_self', label: 'Мой график', iconName: 'calendar-event' });
+  }
   operationLinks.forEach((item) => {
     let link = operations.querySelector(`a[href="${item.href}"]`);
     if (!link) { link = makeLink(item); operations.append(link); }
@@ -1977,12 +1981,12 @@ function setupInterfacePreferences() {
     apply();
   }).catch(() => { if (current() && samePreferenceSession(readIdentity)) reportPreferenceReadFailure(); });
 }
-function setupThemePreference() {
+function setupThemePreference({ isCurrent: routeGuard } = {}) {
   const settings = document.querySelector('#settings-dashboard-modules');
   const controls = [...(settings?.querySelectorAll('[data-theme-toggle]') || [])];
   let localChanges = 0;
   let confirmed = portalTheme;
-  const current = () => !settings || document.querySelector('#settings-dashboard-modules') === settings;
+  const current = () => (!settings || document.querySelector('#settings-dashboard-modules') === settings) && (!routeGuard || routeGuard());
   const readIdentity = preferenceSessionIdentity();
   controls.forEach((control) => {
     control.checked = portalTheme === 'light';
@@ -2262,16 +2266,35 @@ function disposeStaffDrawer() {
 let scheduleAssetsPromise;
 function renderScheduleRoute(target) {
   target.innerHTML = '<p role="status">Загрузка графика сотрудников…</p>';
-  document.querySelector('[data-admin-section-title]').textContent = 'График сотрудников';
-  document.title = 'Hookah POS — График сотрудников';
+  const scheduleSession = window.__portalSessionVerified;
+  setupThemePreference({ isCurrent: () => window.__portalSessionVerified === scheduleSession && location.pathname === '/admin' && location.hash === '#staff-schedule' && (scheduleSession?.demo || window.__portalSessionGate?.canAccessRoute(scheduleSession, location.pathname, location.hash) === true) });
+  const permissions = new Set(window.__portalSessionVerified?.permissions || []);
+  const scheduleTitle = permissions.has('staff_schedule_self') && !permissions.has('staff_schedule_view') ? 'Мой график' : 'График сотрудников';
+  document.querySelector('[data-admin-section-title]').textContent = scheduleTitle;
+  document.title = `Hookah POS — ${scheduleTitle}`;
   if (!scheduleAssetsPromise) scheduleAssetsPromise = new Promise((resolve, reject) => {
     if (!document.querySelector('[data-schedule-css]')) {
-      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=3'; css.dataset.scheduleCss = ''; document.head.append(css);
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=4'; css.dataset.scheduleCss = ''; document.head.append(css);
     }
     const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=3';
     script.onload = () => {
-      const planning = document.createElement('script'); planning.src='/staff-schedule-planning-ui.js?rev=3';
-      planning.onload=resolve; planning.onerror=()=>{planning.remove();scheduleAssetsPromise=null;reject(new Error('schedule_planning_assets_unavailable'));}; document.head.append(planning);
+      const personal = document.createElement('script'); personal.src = '/staff-schedule-personal-ui.js?rev=1';
+      const permissions = new Set(window.__portalSessionVerified?.permissions || []);
+      const selfOnly = permissions.has('staff_schedule_self') && !permissions.has('staff_schedule_view');
+      const loadPlanning = () => {
+        const planning = document.createElement('script'); planning.src='/staff-schedule-planning-ui.js?rev=3';
+        planning.onload=resolve; planning.onerror=()=>{planning.remove();scheduleAssetsPromise=null;reject(new Error('schedule_planning_assets_unavailable'));}; document.head.append(planning);
+      };
+      personal.onload = () => selfOnly ? resolve() : loadPlanning();
+      personal.onerror = () => {
+        personal.remove();
+        const permissions = new Set(window.__portalSessionVerified?.permissions || []);
+        if (permissions.has('staff_schedule_self') && !permissions.has('staff_schedule_view')) {
+          scheduleAssetsPromise = null; reject(new Error('schedule_personal_assets_unavailable')); return;
+        }
+        loadPlanning();
+      };
+      document.head.append(personal);
     }; script.onerror = () => { script.remove(); scheduleAssetsPromise = null; reject(new Error('schedule_assets_unavailable')); }; document.head.append(script);
   });
   scheduleAssetsPromise.then(() => { if (location.hash === '#staff-schedule') window.mountStaffSchedule(target); }).catch(() => {
