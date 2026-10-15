@@ -29,6 +29,12 @@ function localDate(value, timezone) {
   const part = type => parts.find(p => p.type === type).value;
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
+// Undefined stays omitted for legacy payloads; null explicitly inherits venue policy.
+function preparationMinutes(value) {
+  if (value == null) return value;
+  if (!Number.isSafeInteger(value) || value < 0 || value > 240) fail('schedule_preparation_invalid');
+  return value;
+}
 function normalize(input, timezone) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('schedule_input_invalid');
   const kind = input.kind || 'shift';
@@ -40,11 +46,14 @@ function normalize(input, timezone) {
   const note = input.note == null ? '' : input.note;
   if (typeof note !== 'string' || note.length > 500) fail('schedule_note_invalid');
   const breakMinutes = input.breakMinutes === undefined ? 0 : input.breakMinutes;
+  const prep = preparationMinutes(input.preparationMinutes);
+  const preparation = prep === undefined ? {} : { preparationMinutes: prep };
   if (!Number.isSafeInteger(breakMinutes) || breakMinutes < 0) fail('schedule_break_invalid');
   if (kind === 'day_off' || kind === 'vacation' || kind === 'sick' || kind === 'other_absence') {
     if (input.plannedStart != null || input.plannedEnd != null || breakMinutes !== 0) fail('schedule_absence_time_forbidden');
     if (functionId) fail('schedule_absence_function_forbidden');
-    return { userId: input.userId, workDate, kind, plannedStart: null, plannedEnd: null, breakMinutes: 0, note: note.trim(), functionId: null };
+    if (prep != null) fail('schedule_absence_preparation_forbidden');
+    return { userId: input.userId, workDate, kind, plannedStart: null, plannedEnd: null, breakMinutes: 0, note: note.trim(), functionId: null, ...preparation };
   }
   const plannedStart = timestamp(input.plannedStart);
   const plannedEnd = timestamp(input.plannedEnd);
@@ -64,7 +73,7 @@ function normalize(input, timezone) {
     return { start, end };
   });
   if (normalizedBreaks.length && breakTotal !== breakMinutes) fail('schedule_break_intervals_mismatch');
-  return { userId: isOpenShift ? null : String(input.userId).toLowerCase(), workDate, kind, plannedStart, plannedEnd, breakMinutes, breakIntervals: normalizedBreaks, note: note.trim(), functionId };
+  return { userId: isOpenShift ? null : String(input.userId).toLowerCase(), workDate, kind, plannedStart, plannedEnd, breakMinutes, breakIntervals: normalizedBreaks, note: note.trim(), functionId, ...preparation };
 }
 function range(from, to) {
   date(from); date(to);
@@ -81,4 +90,4 @@ function capabilities(role, grant) {
   if (!['admin', 'manager'].includes(role)) return { view: false, manage: false, grant: false };
   return { view: ['view', 'manage'].includes(grant), manage: grant === 'manage', grant: false };
 }
-module.exports = { ScheduleError, normalize, range, version, capabilities, localDate, UUID };
+module.exports = { ScheduleError, normalize, preparationMinutes, range, version, capabilities, localDate, UUID };

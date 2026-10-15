@@ -218,6 +218,49 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .schedule-personal-page .schedule-month .schedule-personal-calendar-entry{padding:3px 1px;font-size:10px;border-left:0}.schedule-personal-page .schedule-month .schedule-personal-calendar-entry>*{display:none}.schedule-personal-page .schedule-month .schedule-personal-calendar-entry::after{content:'Смена'}.schedule-personal-page .schedule-month .schedule-kind-day_off::after{content:'Вых.'}.schedule-personal-page .schedule-month .schedule-kind-vacation::after{content:'Отп.'}.schedule-personal-page .schedule-month .schedule-kind-sick::after{content:'Больн.'}.schedule-personal-page .schedule-month .schedule-kind-other_absence::after{content:'Отс.'}.schedule-personal-page .schedule-month .schedule-cell-empty{font-size:0}.schedule-personal-page .schedule-month .schedule-cell-empty::after{content:'—';font-size:12px}
 }
 @media(max-width:600px){.schedule-personal-page .schedule-month-day{padding:6px 2px}.schedule-personal-page .schedule-period{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;width:100%;gap:6px}.schedule-personal-page [data-personal-today]{grid-column:1/-1;width:100%}.schedule-personal-page [data-personal-period]{max-width:none;font-size:13px}}
+/* Shared rounded calendar language; screen-only keeps the print table intact. */
+@media screen{
+.schedule-page .schedule-week table{border-spacing:4px}
+.schedule-page .schedule-week :is(th,td){border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--schedule-line,var(--ui-border-subtle))}
+.schedule-page .schedule-week thead th{padding-top:12px;padding-bottom:12px;background:var(--ui-raised)}
+.schedule-page .schedule-week thead th:first-child{padding-top:24px}
+.schedule-page .schedule-week thead .is-selected-date{box-shadow:inset 0 0 0 1px var(--ui-link),inset 0 -2px var(--ui-link)}
+.schedule-page .schedule-week td:hover{box-shadow:inset 0 0 0 1px var(--ui-border-control)}
+.schedule-page :is(.schedule-timeline-header,.schedule-timeline-row){border:0;border-radius:10px;margin-bottom:4px}
+.schedule-page .schedule-timeline-row{padding-block:12px;background:var(--schedule-cell,var(--ui-panel));box-shadow:inset 0 0 0 1px var(--schedule-line,var(--ui-border-subtle))}
+.schedule-page .schedule-timeline-header{padding-block:14px;background:var(--ui-raised)}
+.schedule-page .schedule-timeline-row>strong{align-self:center}
+.schedule-page .schedule-timeline-row:hover{box-shadow:inset 0 0 0 1px var(--ui-border-control)}
+.schedule-page .schedule-days>.schedule-day-card{padding:12px;border-radius:10px;background:var(--schedule-cell,var(--ui-panel));box-shadow:inset 0 0 0 1px var(--schedule-line,var(--ui-border-subtle))}
+.schedule-page .schedule-day-card>h2{margin:0 0 12px;padding:12px;border-radius:8px;background:var(--schedule-raised,var(--ui-raised));font-size:16px}
+.schedule-page :is(.schedule-day-group,.schedule-entry,.schedule-time-bar){border-radius:10px}
+}
+/* Graphite preview: local calendar surfaces, never the shell or light theme. */
+@media screen{
+body.portal.schedule-route:not(.light-theme) .schedule-page{
+  --schedule-panel:color-mix(in srgb,var(--ui-text-primary) 6%,var(--ui-panel));
+  --schedule-cell:color-mix(in srgb,var(--ui-text-primary) 10%,var(--ui-panel));
+  --schedule-raised:color-mix(in srgb,var(--ui-text-primary) 14%,var(--ui-raised));
+  --schedule-line:color-mix(in srgb,var(--ui-text-secondary) 22%,var(--ui-panel));
+  --schedule-shift:color-mix(in srgb,var(--ui-success) 9%,var(--schedule-raised));
+  --schedule-selected:color-mix(in srgb,var(--ui-link) 12%,var(--schedule-cell));
+}
+body.portal.schedule-route:not(.light-theme) .schedule-page>.panel{background:var(--schedule-panel);border-color:var(--schedule-line)}
+body.portal.schedule-route:not(.light-theme) .schedule-page :is(.schedule-month-day,.schedule-personal-day>section,.schedule-day-group){background:var(--schedule-cell);box-shadow:inset 0 0 0 1px var(--schedule-line)}
+body.portal.schedule-route:not(.light-theme) .schedule-page :is(.schedule-weekday,.schedule-week thead th,.schedule-timeline-header){background:var(--schedule-raised);color:var(--ui-text-primary)}
+body.portal.schedule-route:not(.light-theme) .schedule-page .schedule-week tbody th{background:var(--schedule-panel)}
+body.portal.schedule-route:not(.light-theme) .schedule-page .schedule-week td{background:var(--schedule-cell);border-color:var(--schedule-line)}
+body.portal.schedule-route:not(.light-theme) .schedule-page :is(.schedule-month-item,.schedule-entry,.schedule-time-bar,.schedule-personal-calendar-entry,.schedule-personal-entry){background:var(--schedule-raised)}
+body.portal.schedule-route:not(.light-theme) .schedule-page :is(.schedule-month-item:not(.schedule-kind-open_shift):not(.is-cancelled),.schedule-kind-shift:not(.is-cancelled),.schedule-time-bar:not(.is-cancelled)){background:var(--schedule-shift)}
+body.portal.schedule-route:not(.light-theme) .schedule-page :is(.schedule-month-item-time,.schedule-entry-time){color:var(--ui-text-primary)}
+body.portal.schedule-route:not(.light-theme) .schedule-page .schedule-month-count{background:transparent;color:var(--ui-text-secondary)}
+body.portal.schedule-route:not(.light-theme) .schedule-page :is(.schedule-month-day.is-selected,.schedule-month-day.is-selected:hover,.schedule-day-strip .is-selected){background:var(--schedule-selected);box-shadow:inset 0 0 0 1px var(--ui-link)}
+body.portal.schedule-route:not(.light-theme) .schedule-page .schedule-month-day:not(.is-selected):hover{background:var(--schedule-raised);box-shadow:inset 0 0 0 1px var(--ui-border-control)}
+body.portal.schedule-route:not(.light-theme) .schedule-page .schedule-week :is(td.is-today,thead .is-selected-date){background:var(--schedule-selected)}
+body.portal.schedule-route:not(.light-theme) .schedule-page .schedule-entry:hover{background:color-mix(in srgb,var(--ui-text-primary) 8%,var(--schedule-raised))}
+body.portal.schedule-route:not(.light-theme) .schedule-page .schedule-entry.schedule-kind-shift:not(.is-cancelled):hover{background:color-mix(in srgb,var(--ui-text-primary) 8%,var(--schedule-shift))}
+body.portal.schedule-route:not(.light-theme) .schedule-page .is-cancelled .schedule-entry-time{color:var(--ui-text-muted)}
+}
 @media print{
 .schedule-week{display:block!important}.schedule-mobile,.schedule-timeline{display:none!important}.schedule-day-detail{display:block!important}.schedule-month-preview{display:grid!important}.schedule-coverage,.schedule-coverage *{color:black!important;background:white!important}
 .portal-sidebar,.portal-header,.schedule-heading-actions,.schedule-commandbar,.schedule-filters,.schedule-more,.schedule-tools,.schedule-period,.schedule-toolbar,.schedule-explanation,[data-status],.schedule-add,.schedule-day-strip{display:none!important}

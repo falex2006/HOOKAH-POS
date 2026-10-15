@@ -4,7 +4,7 @@
     "version": "1.0",
     "date": "2026-10-09",
     "owner": "system_architect",
-    "scope": "local-working-tree-inventory plus owner-delegated staff-schedule and self-only personal calendar on the same route",
+    "scope": "local-working-tree-inventory plus owner-delegated staff-schedule, self-only calendar, and isolated staff-attendance UI",
     "baselineHead": "802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf",
     "includesUncommittedChanges": true,
     "matrix": "SITE_MAP.md",
@@ -62,8 +62,9 @@
     {"view":"premixes","group":"inventory","title":"Заготовки и премиксы"},
     {"view":"directories","group":"inventory","title":"Цеха и категории"}
   ],
-  "adminSubroutes": ["staff","staff-schedule","permissions","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics","notifications","help"],
+  "adminSubroutes": ["staff","staff-schedule","staff-attendance","permissions","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics","notifications","help"],
   "staffSchedulePresentation": {"views":["week","month","day","list"],"monthColumns":7,"mobile":"day-strip-and-cards","totals":"start-date","overnight":"linked-continuations"},
+  "staffAttendancePresentation": {"selfEntry":"workspace-dialog","selfPermission":"staff_attendance_self","managementRoute":"/admin#staff-attendance","managementPermissions":["staff_attendance_policy_manage","staff_attendance_approval","staff_attendance_close"],"separateCapabilities":["policy","approval","close-sessions","owner-grant"],"defaultManagementView":"daily-overview","settingsTabPermission":"policy-or-owner-grant","restrictedBellCategories":["attendance_request","attendance_decision","attendance_expired","attendance_overdue","attendance_closed","attendance_warning"],"cashShift":false,"autoPayrollWorkLog":false},
   "financeSubroutes": ["payroll"],
   "canonicalization": {
     "htmlAlias": "Each entries.file prefixed with / redirects to entries.path with HTTP 308; query is preserved",

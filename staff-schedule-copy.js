@@ -36,7 +36,7 @@ async function preview(db, principal, input) {
   const items = [];
   for (const row of source.rows) {
     let conflict = !row.is_active || row.deleted_at ? 'schedule_employee_unavailable' : null;
-    let item = { userId: row.user_id, workDate: dayAdd(row.work_date, shiftDays), kind: row.kind, breakMinutes: row.break_minutes, note: row.note || '', plannedStart: null, plannedEnd: null };
+    let item = { userId: row.user_id, workDate: dayAdd(row.work_date, shiftDays), kind: row.kind, breakMinutes: row.break_minutes, preparationMinutes: row.preparation_minutes ?? null, note: row.note || '', plannedStart: null, plannedEnd: null };
     try {
       if (row.kind === 'shift') {
         if (!row.planned_start || !row.planned_end) fail('schedule_plan_incomplete',409);
@@ -77,7 +77,7 @@ async function apply(pool, principal, input) {
     if (typeof reason !== 'string' || reason.length > 500) fail('schedule_reason_invalid');
     if (selected.some(item => item.workDate < current.today) && !reason.trim()) fail('schedule_past_reason_required');
     if(selected.some(item=>item.kind==='shift')&&(input.confirmWarnings!==true||!reason.trim()))fail('schedule_warnings_confirmation_required',409);
-    const result = await saveBatch(pool, principal, { requestKey: randomUUID(), items: selected.map(item => ({ userId:item.userId, workDate:item.workDate, kind:item.kind, plannedStart:item.plannedStart, plannedEnd:item.plannedEnd, breakMinutes:item.breakMinutes, note:item.note, reason, requestKey:randomUUID(), confirmWarnings:input.confirmWarnings===true })) }, db);
+    const result = await saveBatch(pool, principal, { requestKey: randomUUID(), items: selected.map(item => ({ userId:item.userId, workDate:item.workDate, kind:item.kind, plannedStart:item.plannedStart, plannedEnd:item.plannedEnd, breakMinutes:item.breakMinutes, preparationMinutes:item.preparationMinutes, note:item.note, reason, requestKey:randomUUID(), confirmWarnings:input.confirmWarnings===true })) }, db);
     await db.query('INSERT INTO staff_schedule_requests(venue_id,actor_id,request_key,fingerprint,response) VALUES($1,$2,$3,$4,$5::jsonb)', [principal.venueId,principal.userId,input.requestKey,fingerprint,JSON.stringify(result)]);
     await db.query('COMMIT'); return result;
   } catch (error) { await db.query('ROLLBACK'); throw error; }

@@ -37,7 +37,7 @@ async function markManualOccurrence(db,p,before,after,reason){
   const old=(await db.query(`SELECT * FROM staff_schedule_series_exceptions WHERE venue_id=$1 AND series_id=$2 AND occurrence_date=$3 AND occurrence_key=$4 AND active FOR UPDATE`,
     [p.venueId,series.id,occurrenceDate,occurrenceKey])).rows[0];
   const payload={scheduleId:after.id,status:after.status,workDate:after.work_date instanceof Date?after.work_date.toISOString().slice(0,10):String(after.work_date).slice(0,10),plannedStart:after.planned_start,plannedEnd:after.planned_end,
-    kind:after.kind,breakMinutes:after.break_minutes,functionId:after.function_id||null,note:after.note,version:after.version};
+    kind:after.kind,breakMinutes:after.break_minutes,preparationMinutes:after.preparation_minutes??null,functionId:after.function_id||null,note:after.note,version:after.version};
   const row=old
     ? (await db.query(`UPDATE staff_schedule_series_exceptions SET exception_kind='manual',payload=$5::jsonb,reason=$6,version=version+1,actor_id=$7,updated_at=now()
         WHERE venue_id=$1 AND series_id=$2 AND occurrence_date=$3 AND occurrence_key=$4 AND active RETURNING *`,
@@ -71,7 +71,29 @@ async function saveSeries(pool,p,id,input,method){
     if(method==='PATCH'&&!before)fail('schedule_series_not_found',404);
     if(before&&version(input.version)!==before.version)fail('schedule_series_version_conflict',409);
     if(!before&&method!=='POST')fail('schedule_series_not_found',404);
-    const value=domain.normalizeSeries(input,access.timezone,before);
+    // Series slots have stable keys, unlike template slots. Resolve omitted
+    // overrides before normalization; explicit null and zero always win.
+    let nextInput=input;
+    if(before&&Array.isArray(input.recurrence?.slots)){
+      const slots=input.recurrence.slots.map((slot,index)=>{
+        if(!slot||slot.preparationMinutes!==undefined||(slot.kind||'shift')!=='shift')return slot;
+        const incomingKey=input.recurrence.slotKeys?.[index];
+        const oldIndex=before.recurrence.slotKeys.indexOf(typeof incomingKey==='string'?incomingKey.toLowerCase():incomingKey);
+        if(oldIndex<0){
+          if(before.recurrence.slots.some(old=>old.preparationMinutes!=null))fail('schedule_preparation_slot_ambiguous');
+          return slot;
+        }
+        const old=before.recurrence.slots[oldIndex];
+        return old.preparationMinutes===undefined?slot:{...slot,preparationMinutes:old.preparationMinutes};
+      });
+      nextInput={...input,recurrence:{...input.recurrence,slots}};
+    }
+    if(before&&Array.isArray(input.exceptions))nextInput={...nextInput,exceptions:input.exceptions.map(item=>{
+      if(!item||item.kind!=='replace'||!item.slot||item.slot.preparationMinutes!==undefined||(item.slot.kind||'shift')!=='shift')return item;
+      const old=before.exceptions.find(ex=>ex.kind==='replace'&&ex.occurrenceDate===item.occurrenceDate&&ex.occurrenceKey===String(item.occurrenceKey).toLowerCase());
+      return old?.slot?.preparationMinutes===undefined?item:{...item,slot:{...item.slot,preparationMinutes:old.slot.preparationMinutes}};
+    })};
+    const value=domain.normalizeSeries(nextInput,access.timezone,before);
     const person=(await db.query('SELECT id FROM users WHERE venue_id=$1 AND id=$2 AND is_active AND deleted_at IS NULL FOR SHARE',[p.venueId,value.userId])).rows[0];
     if(!person)fail('planning_employee_not_found',404);
     if(value.functionId){

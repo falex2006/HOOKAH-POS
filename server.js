@@ -7,6 +7,9 @@ const { handleOrderPreparation, refreshPgPreparation, refreshMemoryPreparation, 
 const { venueTimezoneSql, refreshTableReservationStatus, reservationDateTimeIsFuture } = require('./reservation-calendar');
 const { createPermissionResolver } = require('./effective-permissions');
 const { handleScheduleAccessRoute } = require('./staff-schedule-routes');
+const { handleAttendanceRoute } = require('./staff-attendance-routes');
+const { resolveAttendanceAccess } = require('./staff-attendance-access');
+const { collectAttendanceNotifications, markAttendanceNotificationsRead } = require('./staff-attendance-notifications');
 const { resolveAccess: resolveScheduleAccess } = require('./staff-schedule-access');
 const { normalizeTableMinimumSchedule, tableMinimumForTime, tableMinimumForClock } = require('./table-minimum-schedule');
 const { orderAttentionReasons } = require('./order-attention');
@@ -1136,17 +1139,18 @@ const notificationVenueScope = (req, venueDbId) => {
   return sessionVenueId === 'venue-territory' ? defaultVenueDbId : sessionVenueId;
 };
 const notificationAccess = (req) => {
-  if (process.env.AUTH_REQUIRED === 'true' && (isOperationalEmployee(req) || !notificationRoles.has(req.user?.role))) return null;
+  const legacyAllowed = !(process.env.AUTH_REQUIRED === 'true' && (isOperationalEmployee(req) || !notificationRoles.has(req.user?.role)));
   const role = req.user?.role || '';
   const unrestricted = process.env.AUTH_REQUIRED !== 'true';
   return {
-    shifts: (unrestricted || ['owner', 'admin', 'manager', 'developer'].includes(role)) && hasPermission(req, 'finance_read'),
-    discounts: (unrestricted || ['owner', 'admin'].includes(role)) && hasPermission(req, 'finance_read') && hasPermission(req, 'orders'),
-    autoOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'inventory_read'),
-    deletedOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'orders'),
+    shifts: legacyAllowed && (unrestricted || ['owner', 'admin', 'manager', 'developer'].includes(role)) && hasPermission(req, 'finance_read'),
+    discounts: legacyAllowed && (unrestricted || ['owner', 'admin'].includes(role)) && hasPermission(req, 'finance_read') && hasPermission(req, 'orders'),
+    autoOrders: legacyAllowed && (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'inventory_read'),
+    deletedOrders: legacyAllowed && (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'orders'),
+    attendance: Boolean(repositories?.pool && /^[0-9a-f-]{36}$/i.test(String(req.user?.id || ''))),
   };
 };
-async function collectNotificationEvents(req, venueId, limit = 100) {
+async function collectNotificationEvents(req, venueId, limit = 100, unreadOnly = false) {
   const access = notificationAccess(req);
   if (!access || !Object.values(access).some(Boolean)) return null;
   const items = [];
@@ -1154,6 +1158,10 @@ async function collectNotificationEvents(req, venueId, limit = 100) {
   const userId = String(req.user?.id || 'anonymous');
   if (repositories?.pool) {
     const queries = [];
+    if (access.attendance) {
+      const attendance = await collectAttendanceNotifications(repositories.pool,{userId,venueId},limit,unreadOnly);
+      items.push(...attendance.items); unreadCount += attendance.unreadCount;
+    }
     if (access.discounts) queries.push(repositories.pool.query(`SELECT 'discount:'||d.id::text AS id,'discount' AS type,'Запрошена скидка' AS title,'Запрос ожидает решения' AS summary,d.created_at AS "createdAt",d.order_id AS "orderId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/orders' AS href,true AS "requiresAction"
       FROM discounts d JOIN orders o ON o.id=d.order_id LEFT JOIN notification_reads r ON r.venue_id=o.venue_id AND r.user_id=$2 AND r.notification_key='discount:'||d.id::text
       WHERE o.venue_id=$1 AND d.status='requested' ORDER BY d.created_at DESC LIMIT $3`, [venueId, userId, limit]));
@@ -1408,6 +1416,7 @@ async function api(req, res) {
   }
   const requestVenueId = req.user?.venueId || currentVenueId;
   if (await handleScheduleAccessRoute({ req, res, url, pool: repositories?.pool, readBody: body, json })) return;
+  if (await handleAttendanceRoute({ req, res, url, pool: repositories?.pool, readBody: body, json })) return;
   if (await handlePayrollSchemeRoute({ req, res, url, service: payrollSchemeService, readBody: body, json })) return;
   if (pathname === '/api/health') {
     if (repositories?.pool) {
@@ -1533,6 +1542,7 @@ async function api(req, res) {
   }
   const notificationReadPath = pathname.match(/^\/api\/notifications\/([^/]+)\/read$/);
   if (pathname === '/api/notifications' && ['GET', 'POST'].includes(req.method) || notificationReadPath && req.method === 'PUT') {
+    if (req.method !== 'GET' && !sameOriginMutation(req)) return json(res,403,{error:'same_origin_required'});
     const access = notificationAccess(req);
     if (!access || !Object.values(access).some(Boolean)) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
     if (repositories?.pool && !/^[0-9a-f-]{36}$/i.test(String(req.user?.id || ''))) return json(res, 401, { error: 'authentication_required' });
@@ -1542,7 +1552,7 @@ async function api(req, res) {
       const unreadOnly = url.searchParams.get('filter') === 'unread';
       try {
     const notificationVenueId = notificationVenueScope(req, venueDbId);
-    const data = await collectNotificationEvents(req, notificationVenueId, 100);
+    const data = await collectNotificationEvents(req, notificationVenueId, 100, unreadOnly);
         if (!data) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
         const items = data.items.filter((item) => !unreadOnly || !item.readAt).slice(0, limit);
         return json(res, 200, { items, unreadCount: data.unreadCount, hasMore: data.items.filter((item) => !unreadOnly || !item.readAt).length > limit });
@@ -1553,6 +1563,7 @@ async function api(req, res) {
         if (repositories?.pool) {
           const userId = req.user.id;
           const inserts = [];
+          if (access.attendance) inserts.push(markAttendanceNotificationsRead(repositories.pool,{userId,venueId:notificationVenueScope(req,venueDbId)}));
           if (access.discounts) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key)
             SELECT o.venue_id,$2,'discount:'||d.id::text FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'
             ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
@@ -1582,6 +1593,15 @@ async function api(req, res) {
     }
     let notificationId;
     try { notificationId = decodeURIComponent(notificationReadPath[1]); } catch (_) { return json(res, 400, { error: 'invalid_notification_id' }); }
+    if (/^attendance_(request|decision|expired|overdue|closed|warning):[0-9a-f-]{36}$/i.test(notificationId)) {
+      if (!access.attendance) return json(res,404,{error:'notification_not_found'});
+      try {
+        const principal = { userId:req.user.id,venueId:notificationVenueScope(req,venueDbId) };
+        if (!await markAttendanceNotificationsRead(repositories.pool,principal,notificationId)) return json(res,404,{error:'notification_not_found'});
+        const refreshed = await collectNotificationEvents(req,principal.venueId,100);
+        return json(res,200,{id:notificationId,readAt:new Date().toISOString(),unreadCount:refreshed?.unreadCount||0});
+      } catch (_) { return json(res,503,{error:'notifications_unavailable'}); }
+    }
     if (!/^(discount|inventory_auto_order|order_deleted|shift_opened|shift_closed):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
     const type = notificationId.slice(0, notificationId.indexOf(':'));
     if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders) || (type.startsWith('shift_') && !access.shifts)) return json(res, 404, { error: 'notification_not_found' });
@@ -3998,6 +4018,18 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
       } catch (error) {
         // Expected schedule denial must not prevent unrelated workspace access.
         if (error.code !== 'schedule_forbidden') return json(res, 503, { error: 'schedule_access_unavailable' });
+      }
+    }
+    if (repositories?.pool) {
+      try {
+        const attendance = await resolveAttendanceAccess(repositories.pool, { userId: user.id, venueId: user.venueId });
+        user.workspacePermissions = [...user.workspacePermissions,
+          ...(attendance.self ? ['staff_attendance_self'] : []),
+          ...(attendance.managePolicy ? ['staff_attendance_policy_manage'] : []),
+          ...(attendance.approve ? ['staff_attendance_approval'] : []),
+          ...(attendance.closeSessions ? ['staff_attendance_close'] : [])];
+      } catch (error) {
+        if (error.code !== 'attendance_forbidden') return json(res, 503, { error: 'attendance_access_unavailable' });
       }
     }
     return json(res, 200, { user, permissions: user.workspacePermissions, permissionPolicy: user.permissionPolicy, permissionScopes: normalizePermissionScopes(user.permissionScopes), trustedDevice: Boolean(persistedSession?.trustedDevice) });
@@ -6759,6 +6791,7 @@ function staticFile(req, res) {
   requestPath = aliases[routePath] || requestPath;
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
+    '/staff-attendance-ui.js', '/staff-attendance-ui.css',
     '/staff-schedule-ui.js', '/staff-schedule-ui.css', '/staff-schedule-planning-ui.js', '/staff-schedule-personal-ui.js',
     '/phone-format.js', '/staff-display-name.js', '/management-theme.js', '/management-theme.css',
     ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/pos-dispatch.js', '/pos-workspace.js', '/pos-workspace.css', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',

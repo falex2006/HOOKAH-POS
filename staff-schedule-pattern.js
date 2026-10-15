@@ -1,5 +1,5 @@
 'use strict';
-const { ScheduleError, normalize, range, UUID } = require('./staff-schedule-domain');
+const { ScheduleError, normalize, preparationMinutes, range, UUID } = require('./staff-schedule-domain');
 const { instant } = require('./staff-schedule-copy');
 const fail = code => { throw new ScheduleError(code, 400); };
 const addDays = (day, n) => new Date(Date.parse(day+'T12:00Z')+n*86400000).toISOString().slice(0,10);
@@ -19,33 +19,50 @@ function recurrence(value) {
 function slot(value) {
   if(!value||typeof value!=='object'||Array.isArray(value))fail('planning_slot_invalid');
   const kind=value.kind||'shift',note=value.note??'',breakMinutes=value.breakMinutes??0;
+  const prep=preparationMinutes(value.preparationMinutes);
+  const preparation=prep===undefined?{}:{preparationMinutes:prep};
   if(typeof note!=='string'||note.length>500)fail('schedule_note_invalid');
   const functionId=value.functionId==null?null:typeof value.functionId==='string'&&UUID.test(value.functionId)?value.functionId.toLowerCase():fail('schedule_function_id_invalid');
   if(kind!=='shift'){
     if(!['day_off','vacation','sick','other_absence'].includes(kind)||value.startTime!=null||value.endTime!=null||value.endDayOffset!=null||breakMinutes!==0||functionId)fail('planning_slot_invalid');
-    return {kind,note,breakMinutes:0};
+    if(prep!=null)fail('schedule_absence_preparation_forbidden');
+    return {kind,note,breakMinutes:0,...preparation};
   }
   if(typeof value.startTime!=='string'||typeof value.endTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(value.startTime)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(value.endTime)||![0,1].includes(value.endDayOffset??0))fail('planning_slot_invalid');
   const minutes=t=>Number(t.slice(0,2))*60+Number(t.slice(3)),duration=minutes(value.endTime)+(value.endDayOffset??0)*1440-minutes(value.startTime);
   if(duration<=0||duration>1440||!Number.isInteger(breakMinutes)||breakMinutes<0||breakMinutes>=duration)fail('planning_slot_invalid');
-  return {kind,startTime:value.startTime,endTime:value.endTime,endDayOffset:value.endDayOffset??0,breakMinutes,note,functionId};
+  return {kind,startTime:value.startTime,endTime:value.endTime,endDayOffset:value.endDayOffset??0,breakMinutes,note,functionId,...preparation};
 }
-function slots(value){
+function slots(value,previous){
   if(!Array.isArray(value)||!value.length||value.length>24)fail('planning_pattern_invalid');
-  return value.map(slot);
+  const next=value.map(slot);
+  if(!Array.isArray(previous)||!previous.some(item=>item.preparationMinutes!=null))return next;
+  const identity=item=>JSON.stringify([item.kind||'shift',item.startTime??null,item.endTime??null,item.endDayOffset??0,item.functionId??null]);
+  return next.map(item=>{
+    if(item.kind!=='shift'||item.preparationMinutes!==undefined)return item;
+    let matches=previous.filter(old=>identity(old)===identity(item));
+    // One-slot templates have an unambiguous identity even when times change.
+    if(!matches.length&&next.length===1&&previous.length===1)matches=previous;
+    if(!matches.length||new Set(matches.map(old=>old.preparationMinutes??null)).size!==1){
+      // Slots have no stable IDs: never guess across structural replacements.
+      // Explicit null is sufficient to choose venue inheritance for a new slot.
+      fail('schedule_preparation_slot_ambiguous');
+    }
+    return {...item,preparationMinutes:matches[0].preparationMinutes??null};
+  });
 }
-function definition(value) {
+function definition(value,previous) {
   if(!value||typeof value!=='object'||Array.isArray(value))fail('planning_pattern_invalid');
   const pattern=recurrence(value.pattern);
   // Legacy {pattern,slots} remains byte-shape compatible in API responses and application.
-  if(value.schemaVersion===undefined)return {pattern,slots:slots(value.slots)};
+  if(value.schemaVersion===undefined)return {pattern,slots:slots(value.slots,previous?.slots)};
   if(value.schemaVersion!==2||!['selected','team'].includes(value.mode))fail('planning_pattern_invalid');
-  if(value.mode==='selected')return {schemaVersion:2,mode:'selected',pattern,slots:slots(value.slots)};
+  if(value.mode==='selected')return {schemaVersion:2,mode:'selected',pattern,slots:slots(value.slots,previous?.slots)};
   if(!Array.isArray(value.members)||!value.members.length||value.members.length>50)fail('planning_pattern_invalid');
   const members=value.members.map(member=>{
     if(!member||typeof member!=='object'||Array.isArray(member)||typeof member.userId!=='string'||!UUID.test(member.userId))fail('planning_pattern_invalid');
     const functionId=member.functionId==null?null:typeof member.functionId==='string'&&UUID.test(member.functionId)?member.functionId.toLowerCase():fail('schedule_function_id_invalid');
-    return {userId:member.userId.toLowerCase(),functionId,slots:slots(member.slots)};
+    return {userId:member.userId.toLowerCase(),functionId,slots:slots(member.slots,previous?.members?.find(old=>old.userId===member.userId.toLowerCase())?.slots)};
   });
   if(new Set(members.map(member=>member.userId)).size!==members.length)fail('planning_pattern_invalid');
   return {schemaVersion:2,mode:'team',pattern,members};
@@ -62,6 +79,7 @@ function expand(input, timezone) {
     if(!(p.type==='weekdays'?p.weekdays.includes(weekday):p.dayOffsets.includes(offset)))continue;
     for(const member of targets)for(const item of member.slots){
       const payload={userId:member.userId,workDate:day,kind:item.kind,note:item.note,breakMinutes:item.breakMinutes};
+      if(item.preparationMinutes!==undefined)payload.preparationMinutes=item.preparationMinutes;
       if(item.kind==='shift'){
         payload.plannedStart=instant(day+'T'+item.startTime,timezone);
         payload.plannedEnd=instant(addDays(day,item.endDayOffset)+'T'+item.endTime,timezone);
