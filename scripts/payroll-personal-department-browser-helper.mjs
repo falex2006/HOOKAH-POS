@@ -129,6 +129,21 @@ export async function runDepartmentBrowserQa({ base, password, users, venue, db,
     await departmentNames(card('cap.department').locator('[data-grid-override-value]'));
     await preview(3000); await page.locator('[data-scheme-preview-result]').scrollIntoViewIfNeeded(); await capture('department-explicit-cap-30');
     await workspace('configuration'); await reveal(card('cap.department').locator('[data-grid-inherit]')); await card('cap.department').locator('[data-grid-inherit]').click();
+    const assertCapInheritanceLabels = async () => {
+      const cap = card('cap.department');
+      assert.equal(await cap.locator('[data-grid-override-mode]').inputValue(), 'inherit');
+      assert.equal(await cap.locator('[data-grid-override-mode]').locator('xpath=..').locator(':scope > .custom-select-trigger').textContent(), 'По роли');
+      assert.equal(await cap.locator('[data-grid-override-value]').inputValue(), '');
+      assert.equal(await cap.locator('[data-grid-override-value]').locator('xpath=..').locator(':scope > .custom-select-trigger').textContent(), 'Выберите цех');
+    };
+    await assertCapInheritanceLabels();
+    await select(card('cap.department').locator('[data-grid-override-mode]'), 'override');
+    await select(card('cap.department').locator('[data-grid-override-value]'), 'bar');
+    assert.equal(await card('cap.department').locator('[data-grid-override-mode]').locator('xpath=..').locator(':scope > .custom-select-trigger').textContent(), 'Персонально');
+    assert.equal(await card('cap.department').locator('[data-grid-override-value]').locator('xpath=..').locator(':scope > .custom-select-trigger').textContent(), 'Бар · bar');
+    await save(); await verify('hookah', 'bar'); await reopen();
+    await reveal(card('cap.department').locator('[data-grid-inherit]')); await card('cap.department').locator('[data-grid-inherit]').click();
+    await assertCapInheritanceLabels();
     await save(); await verify('hookah', null); await reopen(); assert.equal(await card('cap.department').locator('[data-grid-override-value]').inputValue(), '');
     await preview(9000); await page.locator('[data-scheme-preview-result]').scrollIntoViewIfNeeded(); await capture('department-fallback-90');
     await workspace('configuration'); await reveal(card('department').locator('[data-grid-inherit]')); await card('department').locator('[data-grid-inherit]').click();
@@ -146,7 +161,7 @@ export async function runDepartmentBrowserQa({ base, password, users, venue, db,
     assert.equal(await card('cap.department').locator('[data-grid-override-value]').isDisabled(), true);
     assert.equal(await page.locator('[data-scheme-definition]').evaluate(n => n.readOnly), true); await verify(null, 'hookah');
     assert.deepEqual(errors.filter(e => !e.includes('ViewTransition opt-in disabled')), []);
-    return { status: 'PASS', versionId, screenshots, errors, assertions: ['Named employee/department custom selects; three cap.department -> perShiftCents -> cap.department cycles without orphan/nested UI, saved and reloaded from HTTP/PG', 'UI save/HTTP/PG/reload; exact cap priority 30 -> fallback 90 -> role 30 -> restored explicit 90 rubles; independent inherit/date fields', 'Four narrow widths without page horizontal overflow; active configuration readonly; scenario-only; screenshots show viewport and numeric proof is API plus DOM'] };
+    return { status: 'PASS', versionId, screenshots, errors, assertions: ['Named employee/department custom selects; three cap.department -> perShiftCents -> cap.department cycles without orphan/nested UI, saved and reloaded from HTTP/PG', 'Inherit action refreshes both visible custom-select labels; restoring personal department refreshes both labels and saves exact values before inherit/reload', 'UI save/HTTP/PG/reload; exact cap priority 30 -> fallback 90 -> role 30 -> restored explicit 90 rubles; independent inherit/date fields', 'Four narrow widths without page horizontal overflow; active configuration readonly; scenario-only; screenshots show viewport and numeric proof is API plus DOM'] };
   } catch (error) {
     const messages = await page.locator('[data-scheme-message],[data-scheme-grid-message]').allTextContents().catch(() => []);
     const invalid = await page.locator('[data-scheme-editor] :invalid').evaluateAll(nodes => nodes.map(node => ({ field: node.getAttribute('data-grid-path') || node.name || node.tagName, message: node.validationMessage }))).catch(() => []);

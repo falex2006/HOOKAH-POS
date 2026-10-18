@@ -12,7 +12,7 @@
   ],
   "browser": {
     "status": "PASS",
-    "versionId": "5f95ab20-ca59-4759-91f2-cf76bafcf1e8",
+    "versionId": "e2d29375-442c-48d7-ba06-f1311047c613",
     "screenshots": [
       "department-explicit-cap-30.png",
       "department-fallback-90.png",
@@ -21,6 +21,7 @@
     "errors": [],
     "assertions": [
       "Named employee/department custom selects; three cap.department -> perShiftCents -> cap.department cycles without orphan/nested UI, saved and reloaded from HTTP/PG",
+      "Inherit action refreshes both visible custom-select labels; restoring personal department refreshes both labels and saves exact values before inherit/reload",
       "UI save/HTTP/PG/reload; exact cap priority 30 -> fallback 90 -> role 30 -> restored explicit 90 rubles; independent inherit/date fields",
       "Four narrow widths without page horizontal overflow; active configuration readonly; scenario-only; screenshots show viewport and numeric proof is API plus DOM"
     ]

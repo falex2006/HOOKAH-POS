@@ -1217,7 +1217,7 @@
         }
         if (button.matches('[data-grid-inherit]')) {
           if (editorAction?.kind === 'inspect' || gridStale) return;
-          const card = button.closest('[data-grid-override]'); card.querySelector('[data-grid-override-mode]').value = 'inherit'; card.querySelector('[data-grid-override-value]').value = '';
+          const card = button.closest('[data-grid-override]'); const mode = card.querySelector('[data-grid-override-mode]'), value = card.querySelector('[data-grid-override-value]'); mode.value = 'inherit'; mode._customSelectRefresh?.(); value.value = ''; value._customSelectRefresh?.();
           gridDirty = true; payoutRiskAcknowledgementField.checked = false; gridMessage.textContent = 'Для выбранного периода будет использоваться ставка роли. Примените таблицу.'; refreshRoleImpact(); return;
         }
         if (button.matches('[data-grid-add-milestone-threshold]')) {
