@@ -22,14 +22,17 @@ const db = new Client({ connectionString: target.url.href });
 const artifacts = path.join(root, 'tmp/full-local-qa/payroll-snapshot-persistence-qa', `${Date.now()}-${process.pid}`);
 const evidence = { status: 'RUNNING', scope: 'private storage over synthetic supplied evidence; no official source, API, accrual or payout acceptance', assertions: [] };
 const ids = new Map(), id = n => { if (!ids.has(n)) ids.set(n, randomUUID()); return ids.get(n); };
-const modes = ['stable_percent', 'personal_target', 'team_fund', 'margin_target'];
+const modes = ['progressive_daily', 'stable_percent', 'percent_only', 'final_month_threshold', 'personal_target', 'team_fund', 'margin_target'];
+const amounts = { progressive_daily: '30.00', stable_percent: '20.00', percent_only: '20.00', final_month_threshold: '30.00', personal_target: '64.00', team_fund: '64.00', margin_target: '40.00' };
 const tables = ['payroll_calculation_runs', 'payroll_daily_snapshots', 'payroll_team_fund_snapshots', 'payroll_daily_snapshot_lines',
   'payroll_team_fund_snapshot_allocations', 'payroll_milestone_day_snapshots', 'payroll_milestone_decision_snapshots'];
 const versions = new Map(modes.map(mode => [mode, randomUUID()]));
 
 function fixture(mode = 'stable_percent', milestone = false) {
+  const month = mode === 'final_month_threshold', through = month ? '2026-10-31' : milestone ? '2026-10-02' : '2026-10-01';
   const role = { perShiftCents: 0, stableRateBps: 1000, targetCents: 10000, baseRateBps: 1600,
     bonusRateBps: 4800, excessRatePolicy: 'replace_base' };
+  if (['progressive_daily', 'final_month_threshold'].includes(mode)) role.bracketRatesBps = { 0: 500, 10000: 1500 };
   if (mode === 'margin_target') Object.assign(role, { lossPolicy: 'offset_daily_losses', itemRuleBasis: 'net_revenue' });
   if (mode === 'team_fund') Object.assign(role, { teamWeight: 1, teamFund: { poolId: 'bar', targetCents: 10000, baseRateBps: 1600,
     bonusRateBps: 4800, excessRatePolicy: 'replace_base', departments: ['bar'], distributionPolicy: 'configured_weights' } });
@@ -39,10 +42,10 @@ function fixture(mode = 'stable_percent', milestone = false) {
   const costSnapshot = { id: 'cost-synthetic', version: 'v1', currency: 'RUB', costCents: 5000 };
   const scenario = { scheme: { id: id(12), versionId: versions.get(mode), currency: 'RUB', mode, applyMilestones: milestone,
     ...(milestone ? { milestoneEligibility: 'worked_on_threshold_day' } : {}), roleParameters: { bar: role } },
-    periodFrom: '2026-10-01', periodTo: milestone ? '2026-10-02' : '2026-10-01', employees: roster.map(n => ({ id: id(n) })), attendance,
+    periodFrom: '2026-10-01', periodTo: through, monthClosed: month, employees: roster.map(n => ({ id: id(n) })), attendance,
     roleAssignments: roster.map(n => ({ employeeId: id(n), roleId: 'bar', effectiveFrom: '2026-10-01' })),
-    coverage: { kind: 'month_to_date_complete', from: '2026-10-01', through: milestone ? '2026-10-02' : '2026-10-01', complete: true, watermark: 'synthetic' },
-    attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-10-01', through: milestone ? '2026-10-02' : '2026-10-01', complete: true, watermark: 'a'.repeat(64) },
+    coverage: { kind: month ? 'month_closed_complete' : 'month_to_date_complete', from: '2026-10-01', through, complete: true, watermark: 'synthetic' },
+    attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-10-01', through, complete: true, watermark: 'a'.repeat(64) },
     sales: [{ id: id(5), employeeId: id(3), menuItemId: id(6), department: 'bar', date: '2026-10-01', commissionBaseCents: 20000, turnoverCents: 20000,
       ...(mode === 'margin_target' ? { costSnapshot } : {}) }] };
   const input = { venueId: id(1), runId, venueTimezone: 'UTC', attendance,
@@ -160,7 +163,7 @@ try {
   for (const mode of modes) {
     const bundle = fixture(mode), before = structuredClone(bundle), result = await commitBundle(bundle), stored = await readback(bundle, result);
     assert.deepEqual(bundle, before);
-    assert.equal(stored.payroll_daily_snapshots[0].final_amount, { stable_percent: '20.00', personal_target: '64.00', team_fund: '64.00', margin_target: '40.00' }[mode]);
+    assert.equal(stored.payroll_daily_snapshots.find(row => row.local_date === '2026-10-01').final_amount, amounts[mode]);
     assert.equal(stored.payroll_daily_snapshots[0].snapshot_schema_version, 2);
     assert.equal(stored.payroll_calculation_runs[0].milestone_evidence_version, 0);
     committed.push(bundle);
@@ -171,7 +174,61 @@ try {
   const rejection = milestoneRows.payroll_milestone_decision_snapshots.find(r => r.employee_id === id(8));
   assert.equal(rejection.eligible, false); assert.equal(rejection.awarded_amount, '0.00');
   assert.equal(milestoneRows.payroll_daily_snapshots.find(r => r.employee_id === id(3) && r.local_date === '2026-10-01').final_amount, '21.00');
-  evidence.assertions.push('Real committed v2 scalar/personal-target/team-fund/margin rows, independent 20/64/64/40 money oracles, complete DTO readback and UUID links; milestone21, rejected recipient and empty next day preserved');
+  evidence.assertions.push('All seven modes committed as v2; independent progressive30/stable20/percent20/month30/personal64/team64/margin40 money oracles, full closed-month fixture, complete DTO readback and UUID links; milestone21, rejected recipient and empty next day preserved');
+
+  for (const reason of [null, 'abc', 'x'.repeat(1000)]) {
+    const bundle = fixture(); bundle.run.supersedes_run_id = null; bundle.run.recalculation_reason = reason;
+    await readback(bundle, await commitBundle(bundle));
+  }
+  const previousRun = committed.find(bundle => bundle.input.result.mode === 'stable_percent').run.id;
+  for (const reason of ['abc', 'x'.repeat(1000)]) {
+    const bundle = fixture(); bundle.run.supersedes_run_id = previousRun; bundle.run.recalculation_reason = reason;
+    await readback(bundle, await commitBundle(bundle));
+  }
+  for (const supersedes of [undefined, null, previousRun]) for (const reason of [{ explanation: 'abc' }, ['abc'], true, 123, '', 'ab', 'x'.repeat(1001), ' abc', 'abc ']) {
+    const bundle = fixture(); if (supersedes !== undefined) bundle.run.supersedes_run_id = supersedes;
+    bundle.run.recalculation_reason = reason;
+    await failureThenCommit(bundle, db, 'payroll_snapshot_persistence_recalculation_reason_invalid');
+  }
+  for (const reason of [null, undefined]) {
+    const bundle = fixture(); bundle.run.supersedes_run_id = previousRun;
+    if (reason !== undefined) bundle.run.recalculation_reason = reason;
+    await failureThenCommit(bundle, db, 'payroll_snapshot_persistence_recalculation_reason_invalid');
+  }
+  const mutation = fixture(); mutation.run.recalculation_reason = 'Original reason'; mutation.run.supersedes_run_id = null;
+  const prepared = structuredClone(mutation);
+  await db.query('BEGIN');
+  try {
+    const output = await persist({ query: async (sql, values) => {
+      if (sql.startsWith('SAVEPOINT ')) { mutation.run.id = randomUUID(); mutation.run.recalculation_reason = ['mutated']; }
+      return db.query(sql, values);
+    } }, mutation);
+    await db.query('COMMIT'); await readback(prepared, output);
+  } catch (error) { await db.query('ROLLBACK'); throw error; }
+  evidence.assertions.push('Optional recalculation reason strictly null or string3..1000 regardless of supersedes; valid replacements persist; mutation after SAVEPOINT cannot change prepared reason/run identity');
+
+  // An earlier search_path schema contains a same-named deferred constraint on
+  // a DIFFERENT table. Resolving the payroll table is insufficient unless SET
+  // CONSTRAINTS also uses that table constraint namespace. All DDL rolls back.
+  const quote = value => `"${value.replaceAll('"', '""')}"`;
+  const shadow = `payroll_constraint_shadow_${process.pid}`, beforeShadow = await state();
+  const actualNamespace = (await db.query("SELECT n.nspname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=to_regclass('payroll_daily_snapshots')")).rows[0].nspname;
+  await db.query('BEGIN');
+  try {
+    await db.query(`CREATE SCHEMA ${quote(shadow)}`);
+    await db.query(`CREATE TABLE ${quote(shadow)}.unrelated_pending (id integer)`);
+    await db.query(`CREATE FUNCTION ${quote(shadow)}.reject_pending() RETURNS trigger LANGUAGE plpgsql AS $body$ BEGIN RAISE EXCEPTION 'synthetic unrelated pending constraint' USING ERRCODE='P0001'; END $body$`);
+    await db.query(`CREATE CONSTRAINT TRIGGER payroll_daily_snapshots_typed_totals AFTER INSERT ON ${quote(shadow)}.unrelated_pending DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ${quote(shadow)}.reject_pending()`);
+    await db.query(`SET LOCAL search_path TO ${quote(shadow)},${quote(actualNamespace)},pg_catalog`);
+    await db.query(`INSERT INTO ${quote(shadow)}.unrelated_pending VALUES (1)`);
+    const bundle = fixture(); const output = await persist(db, bundle); await readback(bundle, output);
+    await db.query('SAVEPOINT check_shadow_still_pending');
+    await assert.rejects(() => db.query(`SET CONSTRAINTS ${quote(shadow)}."payroll_daily_snapshots_typed_totals" IMMEDIATE`), error => error.code === 'P0001');
+    await db.query('ROLLBACK TO SAVEPOINT check_shadow_still_pending');
+  } finally { await db.query('ROLLBACK'); }
+  assert.deepEqual(await state(), beforeShadow);
+  assert.equal((await db.query('SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname=$1) AS present', [shadow])).rows[0].present, false);
+  evidence.assertions.push('Earlier shadow schema same constraint name on unrelated table remains deferred; helper flushes actual payroll namespace; outer rollback removes fixture schema and bundle');
 
   for (const table of tables) {
     let injected = false;

@@ -5,6 +5,8 @@ const require = createRequire(import.meta.url);
 const { calculatePayrollScheme: calculate } = require('../payroll-schemes.js');
 const { persistPayrollSnapshotBundleInTransaction: persist } = require('../payroll-snapshot-persistence.js');
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const modes = ['progressive_daily', 'stable_percent', 'percent_only', 'final_month_threshold', 'personal_target', 'team_fund', 'margin_target'];
+const amounts = { progressive_daily: '30.00', stable_percent: '20.00', percent_only: '20.00', final_month_threshold: '30.00', personal_target: '64.00', team_fund: '64.00', margin_target: '40.00' };
 const tables = ['payroll_calculation_runs', 'payroll_daily_snapshots', 'payroll_team_fund_snapshots',
   'payroll_daily_snapshot_lines', 'payroll_team_fund_snapshot_allocations',
   'payroll_milestone_day_snapshots', 'payroll_milestone_decision_snapshots'];
@@ -16,8 +18,10 @@ const constraints = [
 // Actual calculator + supplied-evidence mapper inputs. Synthetic values convey
 // no producer attestation; this contract checks persistence mechanics only.
 function fixture(mode = 'stable_percent', milestone = false) {
+  const month = mode === 'final_month_threshold', through = month ? '2026-10-31' : '2026-10-01';
   const role = { perShiftCents: 0, stableRateBps: 1000, targetCents: 10000, baseRateBps: 1600,
     bonusRateBps: 4800, excessRatePolicy: 'replace_base' };
+  if (['progressive_daily', 'final_month_threshold'].includes(mode)) role.bracketRatesBps = { 0: 500, 10000: 1500 };
   if (mode === 'margin_target') Object.assign(role, { lossPolicy: 'offset_daily_losses', itemRuleBasis: 'net_revenue' });
   if (mode === 'team_fund') Object.assign(role, { teamWeight: 1, teamFund: { poolId: 'bar', targetCents: 10000,
     baseRateBps: 1600, bonusRateBps: 4800, excessRatePolicy: 'replace_base', departments: ['bar'], distributionPolicy: 'configured_weights' } });
@@ -27,10 +31,10 @@ function fixture(mode = 'stable_percent', milestone = false) {
   const costSnapshot = { id: 'cost-synthetic', version: 'v1', currency: 'RUB', costCents: 5000 };
   const scenario = { scheme: { id: id(12), versionId: id(13), currency: 'RUB', mode, applyMilestones: milestone,
     ...(milestone ? { milestoneEligibility: 'worked_on_threshold_day' } : {}), roleParameters: { bar: role } },
-    periodFrom: '2026-10-01', periodTo: '2026-10-01', employees: roster.map(n => ({ id: id(n) })), attendance,
+    periodFrom: '2026-10-01', periodTo: through, monthClosed: month, employees: roster.map(n => ({ id: id(n) })), attendance,
     roleAssignments: roster.map(n => ({ employeeId: id(n), roleId: 'bar', effectiveFrom: '2026-10-01' })),
-    coverage: { kind: 'month_to_date_complete', from: '2026-10-01', through: '2026-10-01', complete: true, watermark: 'synthetic' },
-    attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-10-01', through: '2026-10-01', complete: true, watermark: 'attendance-synthetic' },
+    coverage: { kind: month ? 'month_closed_complete' : 'month_to_date_complete', from: '2026-10-01', through, complete: true, watermark: 'synthetic' },
+    attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-10-01', through, complete: true, watermark: 'attendance-synthetic' },
     sales: [{ id: id(5), employeeId: id(3), menuItemId: id(6), department: 'bar', date: '2026-10-01', commissionBaseCents: 20000,
       turnoverCents: 20000, ...(mode === 'margin_target' ? { costSnapshot } : {}) }] };
   const input = { venueId: id(1), runId: id(2), venueTimezone: 'UTC', attendance,
@@ -43,7 +47,7 @@ function fixture(mode = 'stable_percent', milestone = false) {
     sourceAttendanceApproval: { approvalId: id(10), periodFrom: '2026-10-01', periodTo: '2026-10-01', timezone: 'UTC',
       venueId: id(1), sourceWatermark: 'attendance-synthetic' } });
   assert.equal(input.result.status, 'ready', JSON.stringify(input.result.blockers));
-  const run = { id: id(2), venue_id: id(1), scheme_version_id: id(13), period_from: '2026-10-01', period_to: '2026-10-01',
+  const run = { id: id(2), venue_id: id(1), scheme_version_id: id(13), period_from: '2026-10-01', period_to: through,
     status: 'ready', source_coverage: 'complete', commission_basis: 'net_after_discounts_refunds', eligible_line_count: 1,
     unattributed_line_count: 0, missing_net_line_count: 0, input_watermark: 'synthetic-not-official', input_checksum: 'a'.repeat(64),
     engine_version: 'synthetic-qa', idempotency_key: 'synthetic-key', created_by: id(11), created_by_name: 'Owner',
@@ -51,7 +55,7 @@ function fixture(mode = 'stable_percent', milestone = false) {
   return { run, input };
 }
 
-function fakeClient({ failTable, failConstraints = false, transaction = true, missingConstraint = false } = {}) {
+function fakeClient({ failTable, failConstraints = false, transaction = true, missingConstraint = false, namespace = 'public' } = {}) {
   const calls = [], inserted = [], durable = [];
   let savepoint = false;
   return { calls, inserted, durable,
@@ -70,10 +74,10 @@ function fakeClient({ failTable, failConstraints = false, transaction = true, mi
       if (/^\s*RELEASE\b/i.test(sql)) { assert.ok(savepoint); savepoint = false; return { rows: [], rowCount: 0 }; }
       if (/pg_trigger/.test(sql)) {
         const names = missingConstraint ? constraints.slice(1) : constraints;
-        return { rows: names.map(name => ({ name, tgname: name, constraint_name: name, schema_name: 'public', nspname: 'public' })), rowCount: names.length };
+        return { rows: names.map(name => ({ table_name: name.replace(/_(typed|milestone)_totals$/, ''), constraint_name: name, schema_name: namespace })), rowCount: names.length };
       }
       if (/SET\s+CONSTRAINTS/i.test(sql)) {
-        for (const name of constraints) assert.ok(sql.includes(name), `explicit constraint ${name}`);
+        for (const name of constraints) assert.ok(sql.includes(`"${namespace.replaceAll('"', '""')}"."${name}"`), `resolved schema-qualified constraint ${name}`);
         if (/IMMEDIATE/i.test(sql) && failConstraints) throw Object.assign(new Error('injected deferred constraint failure'), { code: '23514' });
         return { rows: [], rowCount: 0 };
       }
@@ -105,7 +109,7 @@ function checkStored(db, fixtureData, mode, milestone) {
   assert.ok(parent); assert.equal(parent.employee_id, lines[0].employee_id); assert.equal(parent.local_date, lines[0].local_date);
   assert.equal(lines[0].commission_base_net, '200.00');
   assert.equal(lines[0].snapshot_schema_version, 2);
-  assert.equal(parent.final_amount, mode === 'stable_percent' ? milestone ? '21.00' : '20.00' : mode === 'personal_target' ? '64.00' : mode === 'margin_target' ? '40.00' : '64.00');
+  assert.equal(parent.final_amount, milestone ? '21.00' : amounts[mode]);
   for (const { row } of db.durable) {
     assert.match(row.id, /^[0-9a-f-]{36}$/i); assert.equal(row.venue_id, fixtureData.run.venue_id);
     if (row.run_id !== undefined) assert.equal(row.run_id, fixtureData.run.id);
@@ -130,11 +134,28 @@ function checkStored(db, fixtureData, mode, milestone) {
   assert.match(db.calls.at(-1).sql, /^\s*RELEASE/i);
 }
 
-for (const [mode, milestone] of [['stable_percent', false], ['personal_target', false], ['team_fund', false], ['margin_target', false], ['stable_percent', true]]) {
+for (const [mode, milestone] of [...modes.map(mode => [mode, false]), ['stable_percent', true]]) {
   const data = fixture(mode, milestone), before = structuredClone(data), db = fakeClient();
   await persist(db, data); checkStored(db, data, mode, milestone);
   assert.deepEqual(data, before, 'writer must not mutate supplied evidence/header');
 }
+for (const reason of [null, 'abc', 'x'.repeat(1000)]) {
+  const data = fixture(), db = fakeClient(); data.run.supersedes_run_id = null; data.run.recalculation_reason = reason;
+  await persist(db, data);
+  assert.equal(db.durable[0].row.recalculation_reason, reason);
+}
+for (const supersedes of [undefined, null, id(98)]) for (const reason of [{ explanation: 'abc' }, ['abc'], true, 123, '', 'ab', 'x'.repeat(1001), ' abc', 'abc ']) {
+  const data = fixture(), db = fakeClient(); if (supersedes !== undefined) data.run.supersedes_run_id = supersedes;
+  data.run.recalculation_reason = reason;
+  await assert.rejects(() => persist(db, data), error => error.code === 'payroll_snapshot_persistence_recalculation_reason_invalid');
+  assert.equal(db.calls.length, 0, 'invalid optional reason rejected before transaction access');
+}
+for (const reason of [null, undefined]) {
+  const data = fixture(), db = fakeClient(); data.run.supersedes_run_id = id(98);
+  if (reason !== undefined) data.run.recalculation_reason = reason;
+  await assert.rejects(() => persist(db, data), error => error.code === 'payroll_snapshot_persistence_recalculation_reason_invalid');
+}
+await persist(fakeClient({ namespace: 'payroll "exact"' }), fixture());
 
 // Every table family can fail after earlier writes. The helper removes its own
 // partial bundle even when the caller catches the error and keeps its transaction.
@@ -163,13 +184,15 @@ for (const mutate of invalid) {
 }
 {
   const data = fixture(), db = fakeClient(), originalId = data.run.id, query = db.query.bind(db);
+  data.run.recalculation_reason = 'Original reason'; data.run.supersedes_run_id = null;
   db.query = async (sql, values) => {
-    if (sql.startsWith('SAVEPOINT ')) { data.run.id = id(99); data.input.sourceLines[0].menuItemName = 'Mutated after preparation'; }
+    if (sql.startsWith('SAVEPOINT ')) { data.run.id = id(99); data.run.recalculation_reason = { injected: 'after savepoint' }; data.input.sourceLines[0].menuItemName = 'Mutated after preparation'; }
     return query(sql, values);
   };
   const receipt = await persist(db, data);
   assert.equal(receipt.runId, originalId, 'receipt identifies the prepared run even when caller later changes input');
   assert.equal(db.durable.find(row => row.table === 'payroll_calculation_runs').row.id, originalId);
+  assert.equal(db.durable.find(row => row.table === 'payroll_calculation_runs').row.recalculation_reason, 'Original reason');
   assert.notEqual(db.durable.find(row => row.table === 'payroll_daily_snapshot_lines').row.menu_item_name_snapshot, 'Mutated after preparation');
 }
 console.log('PAYROLL SNAPSHOT PERSISTENCE CONTRACT: PASS (pure fake-client only; typed mappings, scoped constraints, parameterized writes, atomic savepoint rollback and immutable input; no source authority or PostgreSQL proof)');

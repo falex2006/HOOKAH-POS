@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "scope": "private storage over synthetic supplied evidence; no official source, API, accrual or payout acceptance",
+  "assertions": [
+    "All seven modes committed as v2; independent progressive30/stable20/percent20/month30/personal64/team64/margin40 money oracles, full closed-month fixture, complete DTO readback and UUID links; milestone21, rejected recipient and empty next day preserved",
+    "Optional recalculation reason strictly null or string3..1000 regardless of supersedes; valid replacements persist; mutation after SAVEPOINT cannot change prepared reason/run identity",
+    "Earlier shadow schema same constraint name on unrelated table remains deferred; helper flushes actual payroll namespace; outer rollback removes fixture schema and bundle",
+    "Actual SQL failure after every table family and at constraint flush restores all rows; real deferred commission mismatch23514; caller catches errors then COMMIT leaves no partial run",
+    "Caller ROLLBACK removes successful helper bundle; no explicit transaction rejects25P01; existing run23505 appends nothing",
+    "Missing/disabled deferred trigger fails schema gate before writes; rollback restores catalog; committed histories immutable; payroll entries and expenses unchanged"
+  ]
+}

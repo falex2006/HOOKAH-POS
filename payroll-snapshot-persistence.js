@@ -37,14 +37,15 @@ const CONSTRAINTS = Object.freeze([
   ['payroll_milestone_day_snapshots', 'payroll_milestone_day_snapshots_milestone_totals'],
   ['payroll_milestone_decision_snapshots', 'payroll_milestone_decision_snapshots_milestone_totals']
 ]);
-const constraintNames = CONSTRAINTS.map(([, name]) => name).join(',');
+const quoteIdentifier = value => `"${String(value).replaceAll('"', '""')}"`;
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 
 const prepare = ({ run, input }) => {
   plain(run); plain(input);
   for (const key of Object.keys(run)) if (!COLUMNS.payroll_calculation_runs.includes(key)) fail('run_field_unknown');
   for (const field of ['id', 'venue_id', 'scheme_version_id', 'created_by']) uuid(run[field]);
-  if (run.supersedes_run_id != null) { uuid(run.supersedes_run_id); if (!text(run.recalculation_reason, 1000) || run.recalculation_reason.length < 3) fail('recalculation_reason_invalid'); }
+  if (run.recalculation_reason != null && (!text(run.recalculation_reason, 1000) || run.recalculation_reason.length < 3)) fail('recalculation_reason_invalid');
+  if (run.supersedes_run_id != null) { uuid(run.supersedes_run_id); if (run.recalculation_reason == null) fail('recalculation_reason_invalid'); }
   if (!validDate(run.period_from) || !validDate(run.period_to) || run.period_to < run.period_from || run.period_from.slice(0, 7) !== run.period_to.slice(0, 7)) fail('period_invalid');
   if (run.status !== 'ready' || run.source_coverage !== 'complete' || run.commission_basis !== 'net_after_discounts_refunds'
       || run.unattributed_line_count !== 0 || run.missing_net_line_count !== 0 || run.blocked_reason != null
@@ -134,13 +135,20 @@ const persistPayrollSnapshotBundleInTransaction = async (db, bundle) => {
   // The caller must supply a dedicated connection, never pool.query.
   await db.query(`SAVEPOINT ${savepoint}`);
   try {
-    const available = await db.query(`SELECT t.tgname AS name
+    const available = await db.query(`SELECT expected.table_name, expected.constraint_name, ns.nspname AS schema_name
       FROM (VALUES ${CONSTRAINTS.map(([table, name]) => `('${table}','${name}')`).join(',')}) expected(table_name,constraint_name)
-      JOIN pg_trigger t ON t.tgrelid=to_regclass(expected.table_name) AND t.tgname=expected.constraint_name
-      JOIN pg_constraint c ON c.oid=t.tgconstraint
+      JOIN pg_class rel ON rel.oid=to_regclass(expected.table_name)
+      JOIN pg_namespace ns ON ns.oid=rel.relnamespace
+      JOIN pg_trigger t ON t.tgrelid=rel.oid AND t.tgname=expected.constraint_name
+      JOIN pg_constraint c ON c.oid=t.tgconstraint AND c.conname=expected.constraint_name
       WHERE t.tgdeferrable AND t.tginitdeferred AND t.tgenabled IN ('O','A') AND c.condeferrable AND c.convalidated`);
-    const names = new Set(available.rows.map(row => row.name));
-    if (names.size !== CONSTRAINTS.length || CONSTRAINTS.some(([, name]) => !names.has(name))) fail('schema_required');
+    const qualifiedConstraints = new Map(available.rows.map(row => [`${row.table_name}\0${row.constraint_name}`, row]));
+    if (qualifiedConstraints.size !== CONSTRAINTS.length || CONSTRAINTS.some(([table, name]) => !qualifiedConstraints.has(`${table}\0${name}`))) fail('schema_required');
+    const constraintNames = CONSTRAINTS.map(([table, name]) => {
+      const schema = qualifiedConstraints.get(`${table}\0${name}`).schema_name;
+      if (typeof schema !== 'string' || schema.length === 0) fail('schema_required');
+      return `${quoteIdentifier(schema)}.${quoteIdentifier(name)}`;
+    }).join(',');
     await db.query(`SET CONSTRAINTS ${constraintNames} DEFERRED`);
     const counts = {};
     for (const [table, records] of Object.entries(rows)) {
