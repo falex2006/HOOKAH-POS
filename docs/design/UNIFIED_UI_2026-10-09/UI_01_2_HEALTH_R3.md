@@ -1,0 +1,51 @@
+# UI-01.2 R3 — исходный focused health audit
+
+2026-10-09 · `code_health_engineer`. **Read-only discovery / PLAN_ONLY.** Проверены v6 helper, proxy/state-controller guards, selective finance/payroll/orders handlers/renderers и сохранённый effective permissions shape. Product/source, temp instrumentation и DB не изменялись, API/SQL не исполнялись. Новый продуктовый diff в этой роли не создавался; изменения до task snapshot не приписываются R3.
+
+- `node --check tmp/ui012-baseline/browser-evidence-v6.mjs`: exit0. Password/login guards, before/after scroll comparison и documented current-viewport clip остаются. Native actual policy guard path явно отмечается captureMethod; no PASS по consistent.
+- Пересчитаны SHA256 215 runtime/assets/schema snapshot files: root mismatches0, mirror mismatches0. Это исходный dirty snapshot, не pristine HEAD и не весь dist.
+- Proxy слушает loopback, fixed upstream31953; data transformations применяются после true upstream successful GET, auth protectedPaths исключены. Поэтому no-overwrite401/403 invariant сохраняется. R3 sample mode ещё отсутствует; существующие normal/loading/error/empty нельзя считать реализацией предложенных long samples.
+- Saved effective permissions имеет массив strings. Owner long16, manager9, hookah_master/bartender4. В исходном R2 fixture health отчёте исправлено неверное «8 keys»: это было число PowerShell properties массива. Auth/tenant результаты и GO scope не меняются.
+- Статические N/A candidates и минимальный sample-read plan записаны в `UI_01_2_LONG_REGIONS_R3.md` с source lines. Главный gate: настоящий role/tenant и upstream successful read, никаких auth/page bypass или fake writes. Expenses/payroll/history samples должны сохранять отдельный synthetic provenance и не принимают financial actions/persistence.
+
+Remaining P2 v6: wait failures подавляются, shared shell text не является региональной готовностью; geometry/theme/font могут измениться при прежнем visibleText; raw AX/snapshot visibility и pair overwrite требуют независимого review. Никакого нового PASS или N/A эти helpers не предоставляют. Исходная система позволяет conditionally denied regions; неготовый/error ответ остаётся ошибкой, не N/A.
+
+**Verdict:** изоляция и текущий v6 пригодны для дальнейшего сбора непринятого evidence. Рекомендуемый R3 long пакет возможен без DB/payment/transaction mutations, через отдельный exact GET sample mode после coordinator GO. Финальный instrumentation diff и samples ещё не подготовлены этим reviewer; UI-01.2 не завершён.
+
+## Независимый checkpoint GO_NA
+
+Поздний сохранённый processor/ledger проверен чтением и локальным hash/structure audit: 488 capture pairs, SHA256 mismatches0; 1608 N_A_DENIED_BUSINESS_REGION rows соответствуют 67 role×route decisions по24 case IDs (четыре business states × три viewport × две requested themes). Все1608 IDs уникальны и присутствуют в ledger; baseline/keyboard N/A0. Четыре GO source hashes совпали с текущими файлами; пять attested accounts совпали с effective permissions по role/fixture/userId, permission array и organization/venue. Все90 own-navigation authorization records совпали с manifest role/route/key. Root/mirror 215/215 hashes повторно совпали. `node --check` processor exit0; processor не запускался reviewer.
+
+Authorization содержит явный coordinator GO_NA и snapshot-specific retrospective account attestation. Код требует current JSON/bitmap hashes, reviewed bitmap dimensions/hash, own standalone terminal policy outcome, fixed origin, route match, default DENY и source predicate false. Login/platform/nested payroll/notifications исключены; denied business applicability распространяется только на empty/loading/error/long-content. Сохранённая nested payroll invalidation не принимается за standalone gate. Это ограниченная N/A приёмка business regions, не выполненные theme/viewport/focus сценарии и не весь UI PASS.
+
+Remaining P2 для будущего schema hardening: GO validity использует `.every()` source hashes без обязательного nonempty required-file set; account permissionsCheckedAt не валидируется `Date.parse` на finite отдельно; own metadata role/route не сравнивается явно с authorization record в predicate. Текущий пакет независимо проверен и расхождений нет, поэтому эти будущие guards не блокируют текущий ledger. Минимальная мера владельца processor — требовать полную schema/required sources/date/meta equality при расширении ledger. `unmapped=5992` означает отсутствие capture, включает accepted business N/A; pending capture4384 — другой счётчик.
+
+## Causal candidate fixed policy screenshot timeout
+
+В полном текущем `portal-session.js` нет `window.stop`; поиск canonical portal HTML также не нашёл вызова. Source deny chain: install проверяет predicate, вызывает block и возвращает до загрузки portal.js (64–66); guard style скрывает остальные body regions. `event.stopImmediatePropagation()` в hashchange (123–124) останавливает dispatch handlers, не navigation. AbortController verify отменяет конкретный session fetch через10s (93–94). Поэтому утверждать, что CDP fullPage timeout вызван window.stop/navigation cancellation, по этому snapshot нельзя. Наблюдаемая корреляция fixed guard/fullPage сохраняется как внешний инструментальный симптом; product fix или alternative control обход в scope не вводится.
+
+## Финальный review пяти sample instrumentation candidates
+
+**GO_APPLY_SAMPLES**, в рамках отдельно разрешаемого координатором локального read-only visual sample mode. Прочитаны только запрошенные `proxy.r3-candidate.cjs`, `state-controller.r3-candidate.cjs`, `sample-helper.cjs`, `sample-validator.cjs`, `proxy-sample-log-check.cjs`; `node --check` всех пяти exit0. Candidate/replacement/services/DB reviewer не изменял. Reported 31 validator PASS и mock success/failure PASS принадлежат подготовке владельца; reviewer mock/API не исполнял.
+
+Подтверждены exact GET/query allowlist и строгие date/pagination constraints; upstream HTTP200 обязателен; fresh real session сверяет allowlisted role, effective permission и exact organization/venue; immutable manifest/sample hashes и schema ограничивают только три согласованных read regions. Auth/preferences/identity не synthetic; upstream401/403/5xx и non-target запросы остаются настоящими. Synthetic zero/cancelled samples отделены `_ui012Synthetic` marker и provenance, noDomainActions/action/persistence flags.
+
+Исправление fail-closed provenance подтверждено: append sample-provenance происходит до замены bytes/headers; если guard/session/schema/hash/FS отказал, catch сохраняет исходные bytes/status/headers, включая content-encoding, fallback logging best-effort. Mock source действительно проверяет publish-after-log и preserve-upstream-on-log-failure без поднятия server/API/DB. Scoped ignored temp остаётся вне Git status. GO допускает coordinator integration/activation после его разрешения, не даёт UI PASS и не подтверждает финансовые действия/пersistence.
+
+## Итоговый небольшой diff v7 и checkpoint588
+
+Read-only `git diff --no-index` v6→v7 подтверждает две содержательные правки: measure добавляет nestedScroll для DOM elements с overflow размеров (tag/id/classes/left/top), а consistent дополнительно сравнивает before/after JSON этого списка. `node --check browser-evidence-v7.mjs` exit0. DOM только читается; password/login guards, origin и screenshot paths сохранены. Это правильное расширение детектора изменения вложенного scroll, включая main, которое не видно по одному document scroll. Product UI/scroll поведение не исправлялось.
+
+Reported main scroll981→142 при screenshot означает негодную привязку кадра к прежним metrics; v7 должен помечать такую наблюдаемую before/after разницу inconsistent. Сам v7 browser capture reviewer не исполнял. Совпадение offsets после возврата к прежней позиции всё ещё не доказывает отсутствие временного изменения во время screenshot; независимый visual review остаётся нужен. Existing rejected evidence не становится принятым от появления нового детектора.
+
+Независимо сверены обе current R3-E06 raster rejections: actual JPEG SHA совпадает с review-decisions.json и manifest, manifest/CSV имеют CAPTURE_REJECTED_RASTER. Keys: `owner__finance__1920x1080__dark__long-content` и `owner__finance-payroll__1920x1080__dark__long-content`. Rejection относится к осмотренным текущим bytes; при re-capture с другим hash старое решение не переносится автоматически.
+
+Текущий сохранённый checkpoint: captures/mapped588, 579CAPTURED_PENDING_REVIEW, 6SUPPORTED_THEME_DEFECT, 2CAPTURE_REJECTED_RASTER, 1CAPTURE_REJECTED_FOCUS, 1608N_A_DENIED_BUSINESS_REGION и4284PENDING_CAPTURE; PASS0. Сверка CSV status counts совпала с processor-check. Saved mode normal, ignored temp status пуст. SHA256 всех215 baseline files снова совпали с root/mirror (0/0 mismatches). Сервисы/БД/API reviewer не трогал; sample activation принадлежит ранее разрешённому действию координатора. **Diff v7 принят как detector instrumentation; UI-01.2 не завершён и не принят.**
+
+## Маленький processor diff R3-E07
+
+Read-only проверен новый SHA-bound `themeRejections` matcher в ignored processor; `node --check` exit0. Он принимает только reviewed decision с key, 64-digit SHA и CAPTURE_REJECTED_THEME, совпавший с текущими bytes; CAPTURE_REJECTED_INTEGRITY сохраняет приоритет. Class REQUESTED_THEME_NOT_ESTABLISHED и defect R3-E07 фиксируют негодность requested-theme evidence, а не автоматически supported-theme product defect. Причина fixture/setup versus product не установлена. При ином JPEG hash прежняя theme rejection не применяется.
+
+Для `manager__clients__1920x1080__light__baseline` actual JPEG hash совпал с review-decisions и manifest; manifest/CSV имеют CAPTURE_REJECTED_THEME. Сохранённые meta light, metrics dark, after dark подтверждены чтением. Текущие29 manager1920 light baseline JSON:27 after light,1 dark (clients),1 staff-theme (floor). Это локализует несогласованность capture context, не доказывает причину или принятие остальных27 кадров.
+
+Обновлённый checkpoint588:578CAPTURED_PENDING_REVIEW,6SUPPORTED_THEME_DEFECT,1CAPTURE_REJECTED_THEME,2CAPTURE_REJECTED_RASTER,1CAPTURE_REJECTED_FOCUS,1608N_A_DENIED_BUSINESS_REGION,4284PENDING_CAPTURE; PASS0. CSV counts проверены независимо. Product/source/БД/services reviewer не менял; ignored temp status пуст. **Targeted processor change принят; UI-01.2 не завершён.**

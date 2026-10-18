@@ -1,21 +1,21 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
-const start = source.indexOf('  const showFinanceLoadError = () => {');
+const start = source.indexOf('  let financeReadState =');
 const end = source.indexOf('\n  const syncFinanceDateLabel =', start);
 assert.ok(start >= 0 && end > start);
 const implementation = source.slice(start, end);
 const nodes = new Map();
 const node = (selector) => {
-  if (!nodes.has(selector)) nodes.set(selector, { value: '2026-09-29', dataset: { paymentView: 'donut' }, textContent: '', innerHTML: '', classList: { toggle() {} } });
+  if (!nodes.has(selector)) nodes.set(selector, { value: '2026-09-29', dataset: { paymentView: 'donut' }, textContent: '', innerHTML: '', classList: { toggle() {} }, setAttribute() {}, addEventListener(event, handler) { this.handler = handler; }, insertAdjacentHTML() {} });
   return nodes.get(selector);
 };
 const requests = [];
 const api = (url) => new Promise((resolve, reject) => requests.push({ url, resolve, reject }));
 const notices = [];
 const portalShiftListeners = new Set();
-const load = new Function('api', 'document', 'window', 'money', 'pluralRu', 'formatRuDate', 'esc', 'displayName', 'drawFinanceChart', 'portalNotice', 'portalShiftListeners', 'refreshPortalShiftState', 'canManagePortalShift', 'adminNavigationAllowed', `${implementation}\nreturn load;`)(
-  api, { querySelector: node, querySelectorAll: () => [] }, {}, String, () => 'заказов', String, String, String, () => {}, (...args) => notices.push(args), portalShiftListeners, () => api('/api/shifts'), () => true, true,
+const load = new Function('api', 'document', 'window', 'target', 'money', 'pluralRu', 'formatRuDate', 'esc', 'displayName', 'drawFinanceChart', 'portalNotice', 'portalShiftListeners', 'refreshPortalShiftState', 'canManagePortalShift', 'adminNavigationAllowed', `${implementation}\nreturn load;`)(
+  api, { querySelector: node, querySelectorAll: () => [] }, {}, { querySelector: node, querySelectorAll: () => [] }, String, () => 'заказов', String, String, String, () => {}, (...args) => notices.push(args), portalShiftListeners, () => api('/api/shifts'), () => true, true,
 );
 const initial = load();
 node('#finance-date').value = '2026-09-28';

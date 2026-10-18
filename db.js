@@ -1,7 +1,7 @@
 'use strict';
 const { venueTimezoneSql, refreshTableReservationStatus } = require('./reservation-calendar');
-const { tableMinimumForTime } = require('./table-minimum-schedule');
 const { sanitizeAuditEvent } = require('./audit-privacy');
+const { tableMinimumForTime } = require('./table-minimum-schedule');
 const crypto = require('crypto');
 
 const PURCHASE_UNIT_FACTORS = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
@@ -22,6 +22,7 @@ const decimalToScaledInteger = (value, scale) => {
 
 const divideHalfUp = (numerator, denominator) => (numerator + denominator / 2n) / denominator;
 const scaledIntegerToNumber = (value, scale) => Number(value) / (10 ** scale);
+
 
 // Allocate new stock issues against tracked premix lots. Unallocated legacy
 // stock is consumed first because its production date cannot be reconstructed.
@@ -314,14 +315,14 @@ class PurchaseDocumentRepository {
     const dateClause = dateRange.length
       ? ` AND (${dateRange.join(' AND ')}${dateFilter.includeUndated ? ' OR d.document_date IS NULL' : ''})`
       : '';
-    const { rows } = await this.pool.query(`SELECT d.id,d.venue_id AS "venueId",d.supplier_name AS "supplierName",d.document_number AS "documentNumber",d.document_date AS "documentDate",d.recorded_at AS "recordedAt",d.status,d.note,d.source_auto_order_id AS "sourceAutoOrderId",d.created_by AS "createdBy",d.posted_by AS "postedBy",d.posted_at AS "postedAt",d.reversal_policy_version AS "reversalPolicyVersion",d.reversal_policy_mode AS "reversalPolicyMode",d.reversal_policy_enabled AS "reversalPolicyEnabled",CASE WHEN r.id IS NOT NULL THEN json_build_object('id',r.id,'occurredAt',r.occurred_at,'businessDate',r.business_date,'reason',r.reason,'actorId',r.actor_id,'policyVersion',r.policy_version) END AS reversal,COUNT(l.id)::int AS "lineCount",COALESCE(SUM(l.line_total),0) AS "totalCost",COALESCE(json_agg(json_build_object('id',l.id,'ingredientId',l.ingredient_id,'ingredientName',l.ingredient_name_snapshot,'stockUnit',l.stock_unit,'quantity',l.quantity,'unit',l.unit,'packMultiplier',l.pack_multiplier,'stockQuantity',l.stock_quantity,'unitCost',l.unit_cost,'receiptUnitCost',l.receipt_unit_cost,'lineTotal',l.line_total,'sourceMovementId',l.source_movement_id) ORDER BY l.created_at) FILTER (WHERE l.id IS NOT NULL),'[]'::json) AS lines
+    const { rows } = await this.pool.query(`SELECT d.id,d.venue_id AS "venueId",d.supplier_name AS "supplierName",d.document_number AS "documentNumber",d.document_date AS "documentDate",d.recorded_at AS "recordedAt",d.status,d.note,d.finance_category_id AS "financeCategoryId",d.finance_category_name_snapshot AS "financeCategoryNameSnapshot",d.source_auto_order_id AS "sourceAutoOrderId",d.created_by AS "createdBy",d.posted_by AS "postedBy",d.posted_at AS "postedAt",d.reversal_policy_version AS "reversalPolicyVersion",d.reversal_policy_mode AS "reversalPolicyMode",d.reversal_policy_enabled AS "reversalPolicyEnabled",CASE WHEN r.id IS NOT NULL THEN json_build_object('id',r.id,'occurredAt',r.occurred_at,'businessDate',r.business_date,'reason',r.reason,'actorId',r.actor_id,'policyVersion',r.policy_version) END AS reversal,COUNT(l.id)::int AS "lineCount",COALESCE(SUM(l.line_total),0) AS "totalCost",COALESCE(json_agg(json_build_object('id',l.id,'ingredientId',l.ingredient_id,'ingredientName',l.ingredient_name_snapshot,'stockUnit',l.stock_unit,'quantity',l.quantity,'unit',l.unit,'packMultiplier',l.pack_multiplier,'stockQuantity',l.stock_quantity,'unitCost',l.unit_cost,'receiptUnitCost',l.receipt_unit_cost,'lineTotal',l.line_total,'sourceMovementId',l.source_movement_id) ORDER BY l.created_at) FILTER (WHERE l.id IS NOT NULL),'[]'::json) AS lines
       FROM inventory_purchase_documents d LEFT JOIN inventory_purchase_document_lines l ON l.document_id=d.id AND l.venue_id=d.venue_id
       LEFT JOIN inventory_purchase_reversals r ON r.source_document_id=d.id AND r.venue_id=d.venue_id
       WHERE d.venue_id=$1${statusClause}${dateClause} GROUP BY d.id,r.id ORDER BY d.document_date DESC NULLS LAST,d.recorded_at DESC,d.id DESC`, params);
     return rows.map(PurchaseDocumentRepository.mapDocument);
   }
   async get(venueId, id, client = this.pool) {
-    const { rows } = await client.query(`SELECT d.id,d.venue_id AS "venueId",d.supplier_name AS "supplierName",d.document_number AS "documentNumber",d.document_date AS "documentDate",d.recorded_at AS "recordedAt",d.status,d.note,d.source_auto_order_id AS "sourceAutoOrderId",d.created_by AS "createdBy",d.posted_by AS "postedBy",d.posted_at AS "postedAt",d.reversal_policy_version AS "reversalPolicyVersion",d.reversal_policy_mode AS "reversalPolicyMode",d.reversal_policy_enabled AS "reversalPolicyEnabled",CASE WHEN r.id IS NOT NULL THEN json_build_object('id',r.id,'occurredAt',r.occurred_at,'businessDate',r.business_date,'reason',r.reason,'actorId',r.actor_id,'policyVersion',r.policy_version) END AS reversal,COUNT(l.id)::int AS "lineCount",COALESCE(SUM(l.line_total),0) AS "totalCost",COALESCE(json_agg(json_build_object('id',l.id,'ingredientId',l.ingredient_id,'ingredientName',l.ingredient_name_snapshot,'stockUnit',l.stock_unit,'quantity',l.quantity,'unit',l.unit,'packMultiplier',l.pack_multiplier,'stockQuantity',l.stock_quantity,'unitCost',l.unit_cost,'receiptUnitCost',l.receipt_unit_cost,'lineTotal',l.line_total,'sourceMovementId',l.source_movement_id) ORDER BY l.created_at) FILTER (WHERE l.id IS NOT NULL),'[]'::json) AS lines
+    const { rows } = await client.query(`SELECT d.id,d.venue_id AS "venueId",d.supplier_name AS "supplierName",d.document_number AS "documentNumber",d.document_date AS "documentDate",d.recorded_at AS "recordedAt",d.status,d.note,d.finance_category_id AS "financeCategoryId",d.finance_category_name_snapshot AS "financeCategoryNameSnapshot",d.source_auto_order_id AS "sourceAutoOrderId",d.created_by AS "createdBy",d.posted_by AS "postedBy",d.posted_at AS "postedAt",d.reversal_policy_version AS "reversalPolicyVersion",d.reversal_policy_mode AS "reversalPolicyMode",d.reversal_policy_enabled AS "reversalPolicyEnabled",CASE WHEN r.id IS NOT NULL THEN json_build_object('id',r.id,'occurredAt',r.occurred_at,'businessDate',r.business_date,'reason',r.reason,'actorId',r.actor_id,'policyVersion',r.policy_version) END AS reversal,COUNT(l.id)::int AS "lineCount",COALESCE(SUM(l.line_total),0) AS "totalCost",COALESCE(json_agg(json_build_object('id',l.id,'ingredientId',l.ingredient_id,'ingredientName',l.ingredient_name_snapshot,'stockUnit',l.stock_unit,'quantity',l.quantity,'unit',l.unit,'packMultiplier',l.pack_multiplier,'stockQuantity',l.stock_quantity,'unitCost',l.unit_cost,'receiptUnitCost',l.receipt_unit_cost,'lineTotal',l.line_total,'sourceMovementId',l.source_movement_id) ORDER BY l.created_at) FILTER (WHERE l.id IS NOT NULL),'[]'::json) AS lines
       FROM inventory_purchase_documents d LEFT JOIN inventory_purchase_document_lines l ON l.document_id=d.id LEFT JOIN inventory_purchase_reversals r ON r.source_document_id=d.id AND r.venue_id=d.venue_id WHERE d.id=$1 AND d.venue_id=$2 GROUP BY d.id,r.id`, [id, venueId]);
     return PurchaseDocumentRepository.mapDocument(rows[0]);
   }
@@ -351,7 +352,7 @@ class PurchaseDocumentRepository {
   async listPayments(venueId, documentId) {
     const document = await this.pool.query("SELECT id FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 AND status='posted'", [documentId, venueId]);
     if (!document.rows[0]) return null;
-    const { rows } = await this.pool.query(`SELECT e.id,e.amount,to_char(e.expense_date,'YYYY-MM-DD') AS "paymentDate",e.payment_method AS "paymentMethod",e.document_url AS "documentUrl"
+      const { rows } = await this.pool.query(`SELECT e.id,e.amount,to_char(e.expense_date,'YYYY-MM-DD') AS "paymentDate",e.payment_method AS "paymentMethod",e.document_url AS "documentUrl",e.finance_account_id AS "paymentAccountId",e.finance_account_name_snapshot AS "paymentAccountNameSnapshot",e.shift_id AS "shiftId",CASE WHEN e.finance_account_id IS NULL THEN 'unknown_legacy' ELSE 'assigned' END AS "accountCoverage"
       FROM expenses e
       WHERE e.venue_id=$1 AND e.purchase_document_id=$2 AND e.source='purchase'
       ORDER BY e.expense_date DESC,e.created_at DESC,e.id DESC`, [venueId, documentId]);
@@ -361,13 +362,13 @@ class PurchaseDocumentRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const locked = await client.query(`SELECT id,supplier_name AS "supplierName",document_number AS "documentNumber",status
+      const locked = await client.query(`SELECT id,supplier_name AS "supplierName",document_number AS "documentNumber",status,finance_category_id AS "financeCategoryId",finance_category_name_snapshot AS "financeCategoryNameSnapshot"
         FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 FOR UPDATE`, [input.id, input.venueId]);
       const document = locked.rows[0];
       if (!document) throw new Error('purchase_document_not_found');
       if (document.status !== 'posted') throw new Error('purchase_document_not_posted');
 
-      const priorResult = await client.query(`SELECT id,purchase_document_id AS "purchaseDocumentId",amount,to_char(expense_date,'YYYY-MM-DD') AS "expenseDate",payment_method AS "paymentMethod",document_url AS "documentUrl"
+      const priorResult = await client.query(`SELECT id,purchase_document_id AS "purchaseDocumentId",amount,to_char(expense_date,'YYYY-MM-DD') AS "expenseDate",payment_method AS "paymentMethod",document_url AS "documentUrl",finance_account_id AS "paymentAccountId"
         FROM expenses WHERE venue_id=$1 AND idempotency_key=$2 FOR UPDATE`, [input.venueId, input.idempotencyKey]);
       const prior = priorResult.rows[0];
       if (prior) {
@@ -375,13 +376,29 @@ class PurchaseDocumentRepository {
           && Math.round(Number(prior.amount) * 100) === Math.round(input.amount * 100)
           && String(prior.expenseDate).slice(0, 10) === input.paymentDate
           && String(prior.paymentMethod || '') === input.paymentMethod
-          && String(prior.documentUrl || '') === String(input.documentUrl || '');
+          && String(prior.documentUrl || '') === String(input.documentUrl || '')
+          && String(prior.paymentAccountId || '').toLowerCase() === String(input.paymentAccountId || '').toLowerCase();
         if (!samePayload) throw new Error('purchase_payment_idempotency_conflict');
         const totals = await client.query(`SELECT COALESCE((SELECT SUM(line_total) FROM inventory_purchase_document_lines WHERE document_id=$1 AND venue_id=$2),0)::numeric AS "totalCost",
           COALESCE((SELECT SUM(amount) FROM expenses WHERE purchase_document_id=$1 AND venue_id=$2 AND source='purchase'),0)::numeric AS "totalPaid"`, [input.id, input.venueId]);
         const totalCost = Number(totals.rows[0].totalCost || 0); const totalPaid = Number(totals.rows[0].totalPaid || 0);
         await client.query('COMMIT');
-        return { expenseId: prior.id, amount: Number(prior.amount), paymentDate: input.paymentDate, paymentMethod: prior.paymentMethod, totalCost, totalPaid, balanceDue: Math.max(0, Number((totalCost - totalPaid).toFixed(2))), idempotent: true };
+        return { expenseId: prior.id, amount: Number(prior.amount), paymentDate: input.paymentDate, paymentMethod: prior.paymentMethod, paymentAccountId: prior.paymentAccountId, totalCost, totalPaid, balanceDue: Math.max(0, Number((totalCost - totalPaid).toFixed(2))), idempotent: true };
+      }
+
+      const accountResult = await client.query('SELECT id,name,kind,allowed_payment_methods,active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE', [input.venueId, input.paymentAccountId]);
+      const account = accountResult.rows[0];
+      if (!account) throw new Error('finance_account_not_found');
+      if (!account.active) throw new Error('finance_account_inactive');
+      if (!account.allowed_payment_methods.includes(input.paymentMethod)) throw new Error('finance_payment_method_account_mismatch');
+      let shiftId = null;
+      if (account.kind === 'pos_cashbox') {
+        if (input.paymentMethod !== 'cash') throw new Error('finance_payment_method_account_mismatch');
+        const venueDate = await client.query('SELECT (now() AT TIME ZONE timezone)::date::text AS date FROM venues WHERE id=$1', [input.venueId]);
+        if (String(venueDate.rows[0]?.date || '') !== input.paymentDate) throw new Error('finance_pos_cash_payment_date_must_be_today');
+        const openShift = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL FOR UPDATE', [input.venueId]);
+        if (openShift.rows.length !== 1) throw new Error('finance_payment_open_shift_required');
+        shiftId = openShift.rows[0].id;
       }
 
       const totals = await client.query(`SELECT COALESCE((SELECT SUM(line_total) FROM inventory_purchase_document_lines WHERE document_id=$1 AND venue_id=$2),0)::numeric AS "totalCost",
@@ -390,12 +407,12 @@ class PurchaseDocumentRepository {
       const balanceDue = Math.max(0, Number((totalCost - previousPaid).toFixed(2)));
       if (input.amount > balanceDue + 0.005) throw new Error('purchase_payment_exceeds_balance');
       const description = `Оплата поставки «${document.supplierName}»${document.documentNumber ? ` · № ${document.documentNumber}` : ''}`;
-      const inserted = await client.query(`INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,document_url,created_by,purchase_document_id,idempotency_key,payment_method)
-        VALUES ($1,'Закупка',$2,$3,$4,'purchase',$5,$6,$7,$8,$9)
-        RETURNING id`, [input.venueId, input.amount, input.paymentDate, description, input.documentUrl || null, input.createdBy || null, input.id, input.idempotencyKey, input.paymentMethod]);
+      const inserted = await client.query(`INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,document_url,created_by,purchase_document_id,idempotency_key,payment_method,finance_account_id,finance_account_name_snapshot,shift_id)
+        VALUES ($1,$10,$11,$2,$3,$4,'purchase',$5,$6,$7,$8,$9,$12,$13,$14)
+        RETURNING id`, [input.venueId, input.amount, input.paymentDate, description, input.documentUrl || null, input.createdBy || null, input.id, input.idempotencyKey, input.paymentMethod, document.financeCategoryNameSnapshot || 'Закупка', document.financeCategoryId, input.paymentAccountId, account.name, shiftId]);
       const totalPaid = Number((previousPaid + input.amount).toFixed(2));
       await client.query('COMMIT');
-      return { expenseId: inserted.rows[0].id, amount: input.amount, paymentDate: input.paymentDate, paymentMethod: input.paymentMethod, totalCost, totalPaid, balanceDue: Math.max(0, Number((totalCost - totalPaid).toFixed(2))), idempotent: false };
+      return { expenseId: inserted.rows[0].id, amount: input.amount, paymentDate: input.paymentDate, paymentMethod: input.paymentMethod, paymentAccountId: input.paymentAccountId, paymentAccountNameSnapshot: account.name, shiftId, totalCost, totalPaid, balanceDue: Math.max(0, Number((totalCost - totalPaid).toFixed(2))), idempotent: false };
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
   }
   async saveDraft(input) {
@@ -403,7 +420,7 @@ class PurchaseDocumentRepository {
     try {
       await client.query('BEGIN');
       const sourceOrder = await PurchaseDocumentRepository.assertSourceAutoOrder(client, input.venueId, input.sourceAutoOrderId);
-      const { rows } = await client.query(`INSERT INTO inventory_purchase_documents (venue_id,supplier_name,document_number,document_date,note,source_auto_order_id,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [input.venueId, input.supplierName, input.documentNumber || null, input.documentDate, input.note || null, input.sourceAutoOrderId || null, input.createdBy || null]);
+      const { rows } = await client.query(`INSERT INTO inventory_purchase_documents (venue_id,supplier_name,document_number,document_date,note,source_auto_order_id,created_by,finance_category_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [input.venueId, input.supplierName, input.documentNumber || null, input.documentDate, input.note || null, input.sourceAutoOrderId || null, input.createdBy || null, input.financeCategoryId || null]);
       const documentId = rows[0].id;
       const normalizedLines = [];
       for (const line of input.lines || []) {
@@ -427,7 +444,7 @@ class PurchaseDocumentRepository {
       if (!current.rows[0]) { const error = new Error('purchase_document_not_found'); throw error; }
       if (current.rows[0].status !== 'draft') { const error = new Error('purchase_document_not_draft'); throw error; }
       const sourceOrder = await PurchaseDocumentRepository.assertSourceAutoOrder(client, input.venueId, input.sourceAutoOrderId);
-      await client.query('UPDATE inventory_purchase_documents SET supplier_name=$1,document_number=$2,document_date=$3,note=$4,source_auto_order_id=$5 WHERE id=$6 AND venue_id=$7', [input.supplierName, input.documentNumber || null, input.documentDate, input.note || null, input.sourceAutoOrderId || null, input.id, input.venueId]);
+      await client.query('UPDATE inventory_purchase_documents SET supplier_name=$1,document_number=$2,document_date=$3,note=$4,source_auto_order_id=$5,finance_category_id=CASE WHEN $8::boolean THEN $9::uuid ELSE finance_category_id END WHERE id=$6 AND venue_id=$7', [input.supplierName, input.documentNumber || null, input.documentDate, input.note || null, input.sourceAutoOrderId || null, input.id, input.venueId, input.financeCategoryId !== undefined, input.financeCategoryId || null]);
       await client.query('DELETE FROM inventory_purchase_document_lines WHERE document_id=$1', [input.id]);
       const normalizedLines = [];
       for (const line of input.lines || []) {

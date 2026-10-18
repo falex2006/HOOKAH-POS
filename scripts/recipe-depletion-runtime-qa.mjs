@@ -63,8 +63,15 @@ try {
   assert.equal(mixedUnitBatch.ingredients.length, 1, 'compatible duplicate lines aggregate to one stock debit');
   assert.equal(mixedUnitBatch.ingredients[0].quantity, 1, '500 ml + 0.5 l aggregates as 1 l in the stock item unit');
   assert.equal(mixedUnitBatch.totalCost, 10, 'aggregated mixed-unit ingredients are costed once at stock-unit cost'); checks += 3;
+  assert.equal((await req('/api/inventory')).items.find((item) => item.id === mixedUnitOutput.id).cost, 10, 'first premix batch sets output unit cost from consumed ingredients'); checks++;
   const afterMixedPremix = await req('/api/inventory');
   assert.equal(afterMixedPremix.items.find((item) => item.id === mixedUnitSource.id).onHand, 0, 'mixed-unit premix debit matches the aggregated stock quantity'); checks++;
+  await req('/api/inventory/movements', 'POST', { itemId: mixedUnitSource.id, delta: 1, unit: 'л', reason: 'Weighted average cost fixture' }, 201);
+  await req(`/api/inventory/items/${mixedUnitSource.id}`, 'PATCH', { cost: 20 }, 200);
+  const secondMixedUnitBatch = await req('/api/inventory/premixes/produce', 'POST', { recipeId: mixedUnitRecipe.id, outputItemId: mixedUnitOutput.id, multiplier: 1 }, 201);
+  const afterSecondMixedUnitBatch = await req('/api/inventory');
+  assert.equal(afterSecondMixedUnitBatch.items.find((item) => item.id === mixedUnitOutput.id).cost, 15, 'second premix batch recomputes weighted average cost');
+  assert.equal(secondMixedUnitBatch.previousOutputCost, 10, 'batch records the prior output cost for traceability'); checks += 2;
 
   const premixSource = await req('/api/inventory/items', 'POST', { name: 'QA premix duplicate source', unit: 'л', itemType: 'ingredient', cost: 10 }, 201);
   const premixOutput = await req('/api/inventory/items', 'POST', { name: 'QA premix duplicate output', unit: 'порция', itemType: 'ingredient', cost: 0 }, 201);
@@ -76,11 +83,59 @@ try {
       { ingredientId: premixSource.id, name: premixSource.name, quantity: '0.75 л' },
     ],
   }, 201);
+  const zeroMultiplier = await req('/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: premixOutput.id, multiplier: 0 }, 400);
+  assert.equal(zeroMultiplier.error, 'invalid_premix_production', 'an explicit zero batch count is rejected instead of defaulting to one'); checks++;
+  const zeroActualOutput = await req('/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: premixOutput.id, multiplier: 1, actualOutput: 0 }, 400);
+  assert.equal(zeroActualOutput.error, 'invalid_premix_production', 'an explicit zero actual output is rejected'); checks++;
+  const expiredAt = new Date(Date.now() - 60_000).toISOString();
+  const pastExpiry = await req('/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: premixOutput.id, multiplier: 1, expiresAt: expiredAt }, 400);
+  assert.equal(pastExpiry.error, 'invalid_premix_production', 'a batch cannot be created with an already expired timestamp'); checks++;
+  const afterZeroMultiplier = await req('/api/inventory');
+  assert.equal(afterZeroMultiplier.items.find((item) => item.id === premixSource.id).onHand, 1, 'rejected zero batch count leaves ingredient stock unchanged');
+  assert.equal(afterZeroMultiplier.items.find((item) => item.id === premixOutput.id).onHand, 0, 'rejected zero batch count leaves output stock unchanged'); checks += 2;
+  const wrongPremixOutput = await req('/api/inventory/items', 'POST', { name: 'QA wrong premix output', unit: 'порция', itemType: 'ingredient', cost: 0 }, 201);
+  const mismatchedOutputBatch = await req('/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: wrongPremixOutput.id, multiplier: 1 }, 409);
+  assert.equal(mismatchedOutputBatch.error, 'premix_output_binding_mismatch', 'batch production cannot redirect a recipe to another stock position'); checks++;
   const overdraw = await req('/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: premixOutput.id, multiplier: 1 }, 409);
   assert.equal(overdraw.error, 'insufficient_premix_stock', 'duplicate recipe lines are validated after quantities are aggregated'); checks++;
   const premixInventory = await req('/api/inventory');
   assert.equal(premixInventory.items.find((item) => item.id === premixSource.id).onHand, 1, 'rejected premix production leaves source stock unchanged');
   assert.equal(premixInventory.items.find((item) => item.id === premixOutput.id).onHand, 0, 'rejected premix production leaves output stock unchanged'); checks += 2;
+
+  const expiringBase = await req('/api/inventory/items', 'POST', { name: 'QA expiring premix base', unit: 'мл', itemType: 'ingredient', cost: 10 }, 201);
+  const expiringPremix = await req('/api/inventory/items', 'POST', { name: 'QA expiring premix source', unit: 'мл', itemType: 'ingredient', cost: 5 }, 201);
+  await req('/api/inventory/movements', 'POST', { itemId: expiringBase.id, delta: 500, unit: 'мл', reason: 'Expiring lot fixture' }, 201);
+  const expiringRecipe = await req('/api/recipes', 'POST', {
+    name: 'QA short-lived intermediate premix', recipeType: 'premix', outputIngredientId: expiringPremix.id, yieldQuantity: 500, yieldUnit: 'мл', portionCount: 1,
+    ingredients: [{ ingredientId: expiringBase.id, name: expiringBase.name, quantity: '500 мл' }],
+  }, 201);
+  const expiresAt = new Date(Date.now() + 3000).toISOString();
+  await req('/api/inventory/premixes/produce', 'POST', { recipeId: expiringRecipe.id, outputItemId: expiringPremix.id, multiplier: 1, expiresAt }, 201);
+  await delay(3200);
+  const lateFailureSource = await req('/api/inventory/items', 'POST', { name: 'QA late failure ordinary source', unit: 'мл', itemType: 'ingredient', cost: 2 }, 201);
+  const lateFailureOutput = await req('/api/inventory/items', 'POST', { name: 'QA late failure output', unit: 'мл', itemType: 'ingredient', cost: 10 }, 201);
+  await req('/api/inventory/movements', 'POST', { itemId: lateFailureSource.id, delta: 2, unit: 'мл', reason: 'Late failure fixture' }, 201);
+  await req('/api/inventory/movements', 'POST', { itemId: lateFailureOutput.id, delta: 100, unit: 'мл', reason: 'Pre-existing output stock' }, 201);
+  const lateFailureRecipe = await req('/api/recipes', 'POST', {
+    name: 'QA late allocation failure premix', recipeType: 'premix', outputIngredientId: lateFailureOutput.id, yieldQuantity: 100, yieldUnit: 'мл', portionCount: 1,
+    ingredients: [
+      { ingredientId: lateFailureSource.id, name: lateFailureSource.name, quantity: '1 мл' },
+      { ingredientId: expiringPremix.id, name: expiringPremix.name, quantity: '1 мл' },
+    ],
+  }, 201);
+  const beforeLateFailure = await req('/api/inventory');
+  const batchesBeforeLateFailure = await req('/api/inventory/premixes');
+  const lateFailure = await req('/api/inventory/premixes/produce', 'POST', { recipeId: lateFailureRecipe.id, outputItemId: lateFailureOutput.id, multiplier: 1 }, 409);
+  assert.equal(lateFailure.error, 'expired_premix_stock', 'expired premix lots reject production after ordinary stock checks'); checks++;
+  const afterLateFailure = await req('/api/inventory');
+  const batchesAfterLateFailure = await req('/api/inventory/premixes');
+  const outputBefore = beforeLateFailure.items.find((item) => item.id === lateFailureOutput.id);
+  const outputAfter = afterLateFailure.items.find((item) => item.id === lateFailureOutput.id);
+  assert.equal(outputAfter.onHand, outputBefore.onHand, 'late lot failure leaves output quantity unchanged');
+  assert.equal(outputAfter.cost, outputBefore.cost, 'late lot failure leaves weighted output cost unchanged');
+  assert.equal(afterLateFailure.items.find((item) => item.id === lateFailureSource.id).onHand, beforeLateFailure.items.find((item) => item.id === lateFailureSource.id).onHand, 'late lot failure leaves ordinary ingredient unchanged');
+  assert.equal(afterLateFailure.items.find((item) => item.id === expiringPremix.id).onHand, beforeLateFailure.items.find((item) => item.id === expiringPremix.id).onHand, 'late lot failure leaves expired premix stock unchanged');
+  assert.equal(batchesAfterLateFailure.items.length, batchesBeforeLateFailure.items.length, 'late lot failure creates no batch'); checks += 5;
 
   const stockItem = await req('/api/inventory/items', 'POST', { name: 'QA recipe stock', unit: 'мл', itemType: 'ingredient', cost: 0.01 }, 201);
   await req('/api/inventory/movements', 'POST', { itemId: stockItem.id, delta: 1000, unit: 'мл', reason: 'Recipe runtime QA supply' }, 201);

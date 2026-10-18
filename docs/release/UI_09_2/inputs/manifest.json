@@ -1,0 +1,272 @@
+{
+  "base": "2e6f557934fe29a9a227dda73277f6c3f99af939",
+  "createdAt": "2026-10-11T04:02:25.843Z",
+  "normalization": "LF text for Git/Linux archive, baseline hashes validated before normalization",
+  "files": [
+    {
+      "path": "app.js",
+      "sha256": "b729c66fb9da3ba7cac2b0c178d516d84b6b0f394651aedd60c513ffff75f86a",
+      "bytes": 190994,
+      "provenance": "UI-only delta + explicit accepted catalogue/order-card prerequisites; API mutations/financial handlers preserved"
+    },
+    {
+      "path": "lock.js",
+      "sha256": "342961c74b1a8fc713f5ae6d0d78fc01f9db525eb9bc4d5e2ea339ae4aab61d0",
+      "bytes": 24741,
+      "provenance": "UI012 immutable baseline to current accepted UI delta; three documented resolutions preserve upstream"
+    },
+    {
+      "path": "platform.css",
+      "sha256": "005e34eb492ae6347e58509162d7bf7549b2461883cb7f799161e26b3780616e",
+      "bytes": 9031,
+      "provenance": "UI012 immutable baseline to current accepted UI delta; three documented resolutions preserve upstream"
+    },
+    {
+      "path": "platform.html",
+      "sha256": "6939dbddd73fc62d522c2b55be44a7bcb37bb624205fa6c71544d2b0572e4fcc",
+      "bytes": 16933,
+      "provenance": "UI012 immutable baseline to current accepted UI delta; three documented resolutions preserve upstream"
+    },
+    {
+      "path": "platform.js",
+      "sha256": "6678500f42ed3b90c05db0806f06001772fadb0a4b82609c4475173902cbc64d",
+      "bytes": 37557,
+      "provenance": "UI012 immutable baseline to current accepted UI delta; three documented resolutions preserve upstream"
+    },
+    {
+      "path": "portal.js",
+      "sha256": "f3d48a6f7933bcac62ca857060e039fef957b5dd01da85afaa272b707a037821",
+      "bytes": 1154598,
+      "provenance": "UI012 immutable baseline to current accepted UI delta; three documented resolutions preserve upstream; retain upstream paired time validation during editor conflict resolution"
+    },
+    {
+      "path": "server.js",
+      "sha256": "cc4c78577f5c83ab5e1a4ffe8f1e8e5c73eaee615c8d60843199750181639dd1",
+      "bytes": 921942,
+      "provenance": "UI012 immutable baseline to current accepted UI delta; three documented resolutions preserve upstream"
+    },
+    {
+      "path": "style.css",
+      "sha256": "22689979226163741270634c5bd2339ddcd9408c0852ca2615f111ab0c7f1321",
+      "bytes": 616913,
+      "provenance": "UI-only delta + exact accepted catalogue/footer and order status presentation prerequisites; no unrelated legacy WIP"
+    },
+    {
+      "path": "ui-dialog.js",
+      "sha256": "c83fa19b270247a389627604dbe2c7522c480b915a68f2b7c85156d66352bac5",
+      "bytes": 22903,
+      "provenance": "accepted UI stage source"
+    },
+    {
+      "path": "site-map.json",
+      "sha256": "8025519cb9b516180e7052044452036a8db2df4817b42ad76d3c5a003a2b58da",
+      "bytes": 4464,
+      "provenance": "UI01.1 accepted declarative system map"
+    },
+    {
+      "path": "DESIGN_TOKENS.md",
+      "sha256": "23df894abe35cf0d6001b73e523096699a4efdde520d3211e6c3da19fe977d01",
+      "bytes": 15217,
+      "provenance": "accepted UI stage source"
+    },
+    {
+      "path": "scripts/ui-semantic-token-contract.mjs",
+      "sha256": "59d25051f08c1ccbc83431216c0a5d9cf15146bf520205174448e3d33792cb6b",
+      "bytes": 3665,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui-role-shell-contract.mjs",
+      "sha256": "f8719e987a48119a3a5f05acc9272fa31d5ed355aced4e3e70a0633a61b23d37",
+      "bytes": 2342,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui-component-primitives-contract.mjs",
+      "sha256": "5953439b1dd0e299e2d37644f4f21ed6806994db5ac43d4017539333ad207e60",
+      "bytes": 4052,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui-navigation-context-contract.mjs",
+      "sha256": "9fb00c3240f62cc69421f04b36d68656e5eaf2f678aed7a720aa3a14d1dbd9a7",
+      "bytes": 9066,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui-dialog-lifecycle-contract.mjs",
+      "sha256": "8fd03acb29f10ff3421a02b04b598768aadb3d80dff1ec85dda40f851baba9ea",
+      "bytes": 38638,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui-dialog-mounted-form-contract.mjs",
+      "sha256": "b429d85717c4cfef264a2d75227b968cdbdfbd7dccdd58e33c5bd662dfd6847c",
+      "bytes": 13149,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui042-ordinary-editor-contract.mjs",
+      "sha256": "13c13caf13a196768815e214fe2d43d4410f6a68abf3057f632ba566e7c989e7",
+      "bytes": 4932,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded; trailing EOF blank lines removed for staged diff hygiene only"
+    },
+    {
+      "path": "scripts/ui042-table-schedule-contract.mjs",
+      "sha256": "d6ac902a74f611aefdc2eccf60e140f6452bf181d3ea68acafbb799701214cc3",
+      "bytes": 1839,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded; trailing EOF blank lines removed for staged diff hygiene only"
+    },
+    {
+      "path": "scripts/ui043-lock-lifecycle-contract.mjs",
+      "sha256": "c05376c489a0f2cd7ee24432408398e827cb6b9ea90e55fbf773bdf6bc75a7e4",
+      "bytes": 16014,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui051-presentation-contract.mjs",
+      "sha256": "9658836dd9e743d065274671e3f78a0f561525f580e1db100cdbb9e04b22aa4f",
+      "bytes": 19737,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded; trailing EOF blank lines removed for staged diff hygiene only"
+    },
+    {
+      "path": "scripts/ui052-presentation-contract.mjs",
+      "sha256": "290c74bb0c21061ddc251ef6126ee7a562d24bae5d9b437881fd2a7f5fa1747a",
+      "bytes": 18857,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui061-source-runtime-qa.mjs",
+      "sha256": "7c7222b6d14ec5a08ba69d4492d8ebd8a817c37b5eae7d7b2958915d3b453b03",
+      "bytes": 17953,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui062-source-runtime-qa.mjs",
+      "sha256": "7bcea40e029732ac04dfbf7758bdf2c2c97493905d41a204269d822efce61c46",
+      "bytes": 20568,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui071-source-runtime-qa.mjs",
+      "sha256": "d5ab25d7a5f494e867f3df43c0019f63104ba4caba314fc1ee76f514e6a9fd63",
+      "bytes": 41243,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui083-effects-cascade-contract.mjs",
+      "sha256": "23a5affe282171a05a501dca59e8bd9bb018e50d050cfe195b901c241cd73312",
+      "bytes": 2124,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui091-desktop-readability-contract.mjs",
+      "sha256": "d925d1d07b4b4ba1b95da7cd85d3150c6b6d74574d6a938234c128c912b301c5",
+      "bytes": 5027,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/ui091-platform-retry-qa.mjs",
+      "sha256": "c97460d7cb18f7acf83727dd17886d7dd256f51d981d1277b31db07d1a223590",
+      "bytes": 1759,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "scripts/staff-cursor-zone-qa.mjs",
+      "sha256": "3457097730b143f6f588f8f78df80632be11b26ee864e06e68cf429b10100571",
+      "bytes": 6463,
+      "provenance": "accepted UI regression/source VM check; historical evidence gates excluded"
+    },
+    {
+      "path": "docs/design/UNIFIED_UI_2026-10-09/STANDARD.md",
+      "sha256": "1d8882ba18d40828f81ef450fd801da89afb5e1fcc7a2750a952f29ed2750f75",
+      "bytes": 36258,
+      "provenance": "accepted UI design contract consumed by source checks"
+    },
+    {
+      "path": "docs/design/UNIFIED_UI_2026-10-09/COMPONENT_CATALOG.md",
+      "sha256": "ed8f7029d6d0d126238825262c4d0c3eca898789384731aea8fc0d54a7bd35cd",
+      "bytes": 27445,
+      "provenance": "accepted UI design contract consumed by source checks"
+    },
+    {
+      "path": "docs/design/UNIFIED_UI_2026-10-09/EXCEPTIONS.md",
+      "sha256": "56e9dc5572d645498e719d44c1536744f5f2c4c12553c88ab00d1fb93591a113",
+      "bytes": 14626,
+      "provenance": "accepted UI design contract consumed by source checks"
+    },
+    {
+      "path": "index.html",
+      "sha256": "606d9e6b551cbf9beefc4c313877e4a7d0c8a1b01d02133d0db772a7ad68c0bc",
+      "bytes": 12404,
+      "provenance": "upstream index + exact accepted catalogue and next-step fragments; no other baseline HTML overlays"
+    },
+    {
+      "path": "docs/design/UNIFIED_UI_2026-10-09/components/UI_02_2_REFERENCE.html",
+      "sha256": "237b65c5f9d9958261920db758a23223213ce76440970dccc3f7d69021389c6a",
+      "bytes": 10239,
+      "provenance": "accepted UI022 reference consumed by component contract; not a public runtime route"
+    },
+    {
+      "path": "docs/design/UNIFIED_UI_2026-10-09/components/ui-component-reference.js",
+      "sha256": "4c6371bb6f23b07f5768a34f5c54ad32997bc1b6e2de91ebf30ee813a6598030",
+      "bytes": 1583,
+      "provenance": "accepted UI022 reference dependency; test artifact only, not a public runtime route"
+    },
+    {
+      "path": "docs/design/UNIFIED_UI_2026-10-09/components/ui-component-reference.css",
+      "sha256": "a7033a282fc000e7fdaae98421937f5aa7015a48d8528dac3864b63326e1754b",
+      "bytes": 1286,
+      "provenance": "accepted UI022 reference dependency; test artifact only, not a public runtime route"
+    },
+    {
+      "path": "docs/release/UI_09_2/CANDIDATE_READINESS.md",
+      "sha256": "1114a6eda8706e7540b570f90afe6ab136a74b7e00eb1b5d136ba36bd4b20b29",
+      "bytes": 4997,
+      "provenance": "UI092 release readiness or read-only archive verification tool; no product behavior change"
+    },
+    {
+      "path": "scripts/ui092-verify-archive.cjs",
+      "sha256": "cbf7c2e74e88002ebbaad9f1aa293632b4a608eb883f07307286d4e239082643",
+      "bytes": 4563,
+      "provenance": "UI092 release readiness or read-only archive verification tool; no product behavior change"
+    }
+  ],
+  "acceptedPrerequisites": [
+    {
+      "name": "catalog handlers",
+      "sha256": "a8410162ecac4b83d4187b9b1501379a06b4faafd900f728faa7256f5ed8cc0c",
+      "origin": "accepted UI051 presentation/keyboard and UI091 browser flow"
+    },
+    {
+      "name": "catalogAddPending=true;",
+      "sha256": "532e57bf928034041539dda0b02554c31283ba621a2c2f40eb9e11bd739fbcdf",
+      "origin": "accepted catalog pending close controls"
+    },
+    {
+      "name": "catalogAddPending=false;",
+      "sha256": "fd61bda7466d6110bfc07285918680bb6ae580b36d0bc8b667377bd127f55894",
+      "origin": "accepted catalog pending close controls"
+    },
+    {
+      "name": "catalog result status",
+      "sha256": "cc73e8f24fc68dc1c497253dae5df046e749d25c2993505eb059996fa3295123",
+      "origin": "accepted keep-open multi-item catalogue sequence"
+    },
+    {
+      "name": "order card preparation helper/label/next step",
+      "sha256": "32bec362bd8ff83ba6bd5cc91e16cd81fac3cf4942f14ed9baa0212f71c42606",
+      "origin": "accepted UI051 baseline and UI091 queued/in_progress/ready actual browser"
+    },
+    {
+      "name": "catalog modal and next-step HTML",
+      "sha256": "297d9d502898137e429759a2ead4a2cba6c0dc906388fa0c8db5fa193c4db241",
+      "origin": "UI012 immutable baseline unchanged current; UI051/091 accepted behavior dependency"
+    },
+    {
+      "name": "catalog flow/status CSS",
+      "sha256": "95d9e6b256c8c18e5428e341d973fa31873a3b7dd7e62ae321279f10f3c9c4cc",
+      "origin": "accepted UI051 and immutable pre-UI baseline; catalogue/order-card only"
+    }
+  ]
+}

@@ -72,6 +72,46 @@ assert.match(report, /COALESCE\(o\.final_total_snapshot,GREATEST\(0,GREATEST\(CO
   'PostgreSQL finance report preserves locked order totals and derives the fallback from persisted order items and approved discounts');
 assert.match(analytics, /manualExpenses\.filter\(\(expense\) => expense\.date === date && !\['purchase', 'payroll'\]\.includes\(expense\.source\)\)/,
   'memory-backed server analytics includes ordinary operating expenses while separating purchase/payroll treatment');
+assert.match(analytics, /FROM order_refund_tenders t WHERE t\.venue_id=\$1 AND \(t\.created_at AT TIME ZONE \$4\)::date BETWEEN \$2::date AND \$3::date/,
+  'POS refund payouts are independently scoped by venue and event-local date');
+assert.match(analytics, /sale_period_refund_count[\s\S]*legacy_refunded_payment_count/,
+  'closed-sale refunds and unreconstructable legacy refunded payments enter completeness coverage');
+assert.match(analytics, /FROM payments p JOIN orders o ON o\.id=p\.order_id WHERE o\.venue_id=\$1[\s\S]*p\.status='refunded'/,
+  'legacy refunds are tenant-scoped through their order because payments has no venue_id column');
+assert.doesNotMatch(analytics, /payments p JOIN orders o ON o\.id=p\.order_id AND o\.venue_id=p\.venue_id/,
+  'analytics does not query a nonexistent payments.venue_id column');
+assert.match(analytics, /netProfit: profitIncomplete\?null:knownNetProfit/,
+  'daily profit remains unavailable when POS refund recognition is incomplete');
+assert.match(analytics, /posRefundCoverage:\{ status:incompletePosRefunds\?'incomplete':'complete'[\s\S]*payoutIncludedInProfit:false/,
+  'analytics exposes payout facts as separate from profit recognition');
+assert.match(analytics, /revenueBasis:'gross_paid_pos_sales_before_refund_recognition'/,
+  'legacy totalRevenue explicitly identifies its gross paid-sales basis');
+assert.match(analytics, /totalRecognizedRevenue, knownRecognizedRevenue, recognizedRevenueBasis:'closed_order_final_total_snapshot_or_safe_legacy_fallback'/,
+  'analytics exposes close-recognized revenue separately from paid receipts');
+assert.match(analytics, /recognizedRevenueCoverage:\{status:incompleteRecognizedRevenue\?'incomplete':'complete'/,
+  'unpriceable legacy closed orders withhold the official recognized-revenue total');
+assert.match(analytics, /const knownNetProfit = knownRecognizedRevenue - totalExpenses - totalCostOfGoods/,
+  'profit subtracts recognized expenses and COGS from recognized closed-sale value, not payment totals');
+assert.match(analytics, /const payrollSourceOfficialReady=false/,
+  'official profit stays closed while payroll-source readiness is not established');
+assert.match(analytics, /officialReady:payrollSourceOfficialReady/,
+  'analytics exposes the payroll readiness boundary');
+assert.match(portal, /finance-total-recognized/,
+  'finance result distinguishes paid turnover from recognized sales');
+assert.match(portal, /const financeIncomplete=.*recognizedRevenueCoverage\?\.status==='incomplete'/,
+  'dashboard suppresses profit when closed-sale value coverage is incomplete');
+assert.doesNotMatch(portal, /money\(analytics\.netProfit \|\| 0\)/,
+  'dashboard does not convert unavailable profit into a displayed zero');
+assert.match(portal, /analytics\?\.officialReady === false/,
+  'finance chart gates profit while official payroll sources are unavailable');
+assert.match(portal, /metric === 'profit' \? Number\(day\.netProfit \|\| 0\)/,
+  'profit chart does not derive profit from paid revenue when the official value is unavailable');
+assert.match(portal, /analytics\.posRefundCoverage\?\.status==='incomplete'/,
+  'finance and dashboard interfaces warn when POS refund recognition makes profit incomplete');
+assert.match(portal, /metric === 'profit' && analytics\?\.posRefundCoverage\?\.status === 'incomplete'/,
+  'profit chart displays an explicit unavailable state instead of plotting an unknown as zero');
+assert.match(portal, /Оплаченные продажи до учета возвратов; фактические выплаты отражены отдельно/,
+  'finance turnover tooltip clarifies gross sales and separate refund payout treatment');
 assert.match(portal, /const totalPayroll = null;/,
   'demo analytics does not invent payroll accrual without a payroll ledger');
 assert.match(portal, /payrollCoverage: \{ status: 'unsupported', reason: 'payroll_requires_database' \}/,
@@ -87,4 +127,4 @@ assert.match(expenses, /'Выплата зарплаты за ' \|\| to_char\(pa
 assert.match(expenses, /NOT EXISTS \(SELECT 1 FROM payroll_entries pe WHERE pe\.venue_id=e\.venue_id AND pe\.expense_id=e\.id AND pe\.status='paid'\)/,
   'payroll review status retains its existing all-linked-entries rule');
 
-console.log('FINANCE API CONSISTENCY CONTRACT: PASS (partial receipts, zero-total handling, PostgreSQL fail-closed, organization timestamp)');
+assert.ok(analytics.includes('const expenseTotalsIncomplete=incompletePayables||incompleteExpenseRefunds')&&analytics.includes('totalExpenses:expenseTotalsIncomplete?null:totalExpenses')&&analytics.includes('netProfit: profitIncomplete?null:knownNetProfit'),'manual expense refunds keep total expense and profit analytics explicitly incomplete');assert.ok(analytics.includes('sum + row.knownExpenses'),'known expenses remain available as a separate partial subtotal');console.log('FINANCE API CONSISTENCY CONTRACT: PASS (partial receipts, zero-total handling, PostgreSQL fail-closed, organization timestamp)');

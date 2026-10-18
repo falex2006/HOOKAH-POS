@@ -1,0 +1,841 @@
+{
+  "base": "802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf",
+  "candidateOnly": true,
+  "excluded": [
+    "tmp/",
+    "ignored files"
+  ],
+  "files": [
+    {
+      "path": "API.md",
+      "sha256": "9713a9a5171f30c34b774508240efb674be99e3cd39d6903b484274657a5610c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "22ab6f70b5b95fb468b0e1ecc4ecf39bc0e714e8c442a4dcc3983569313d7363",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "MIGRATIONS.md",
+      "sha256": "c53eb1c0b7e617a297aa2097c2fe8c1d523c086454e3c66df469e7d2acbfadbd",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "SITE_TREE.md",
+      "sha256": "dabaab89e4d4de750586e79ee823cf91c6f741711b1bba59d68facd6902e3f3b",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "VISUAL_PAGE_RULES.md",
+      "sha256": "a372b8e45be4e7618d5b775a6aad137fddb778390668e65e246611385ce7797c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "admin.html",
+      "sha256": "5bc98d0415efb18918e50b9e2e562b7d3dbb098b685a6f600d731e3eae0325c4",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "app.js",
+      "sha256": "f4842df355876455500561c7a854fbaa146f2163bdc594b5926be97f58b54011",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "clients.html",
+      "sha256": "832c8f45c34eb04733f6b6d0cfcdd98bd6328805cde03614bbf0e8566b08b1d2",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "db.js",
+      "sha256": "9be7cc41202edb7aa22446a579622f2a51f00d55da73a59ebc2ef4a713c3ad2c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "delivery.html",
+      "sha256": "23c919b017d45a9ddf3486acd8b28aac2519c6be7d710dc99563c9f2c59b230f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/admin.html",
+      "sha256": "5bc98d0415efb18918e50b9e2e562b7d3dbb098b685a6f600d731e3eae0325c4",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/admin/index.html",
+      "sha256": "5bc98d0415efb18918e50b9e2e562b7d3dbb098b685a6f600d731e3eae0325c4",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/app.js",
+      "sha256": "f4842df355876455500561c7a854fbaa146f2163bdc594b5926be97f58b54011",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/clients.html",
+      "sha256": "832c8f45c34eb04733f6b6d0cfcdd98bd6328805cde03614bbf0e8566b08b1d2",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/clients/index.html",
+      "sha256": "832c8f45c34eb04733f6b6d0cfcdd98bd6328805cde03614bbf0e8566b08b1d2",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/delivery.html",
+      "sha256": "23c919b017d45a9ddf3486acd8b28aac2519c6be7d710dc99563c9f2c59b230f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/delivery/index.html",
+      "sha256": "23c919b017d45a9ddf3486acd8b28aac2519c6be7d710dc99563c9f2c59b230f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/finance-categories.html",
+      "sha256": "72c74040f87e2abd2fe2e336adaa3334ed808f1646d641c646065353314a5522",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/finance-report.html",
+      "sha256": "1443981ef25660e0c85927fafaef866fd2434b24726cb6e4221de2bac302d7cc",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/finance.html",
+      "sha256": "29799ec5ade1d2f2759ca9772c33283726641ee1a804bef53960e18261c2ee8f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/finance/categories/index.html",
+      "sha256": "72c74040f87e2abd2fe2e336adaa3334ed808f1646d641c646065353314a5522",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/finance/index.html",
+      "sha256": "29799ec5ade1d2f2759ca9772c33283726641ee1a804bef53960e18261c2ee8f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/finance/report/index.html",
+      "sha256": "1443981ef25660e0c85927fafaef866fd2434b24726cb6e4221de2bac302d7cc",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/index.html",
+      "sha256": "78df17598296eb67ed792e527dabe215ec45682317d4a3e8d9d446d5100cd66a",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/integrations.html",
+      "sha256": "746099d0c4bbb6c627ab317491541373d2070785678d7538766b9c8a874eb253",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/integrations/index.html",
+      "sha256": "746099d0c4bbb6c627ab317491541373d2070785678d7538766b9c8a874eb253",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/inventory.html",
+      "sha256": "7a20f5706c94393132c2ff1f40fef8003b4571a796e8dd27e72a9e83179fda81",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/inventory/index.html",
+      "sha256": "7a20f5706c94393132c2ff1f40fef8003b4571a796e8dd27e72a9e83179fda81",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/login.html",
+      "sha256": "515bd46a02a0215be3d823a19ec027bcdccdce1aac5cf98789982bad73b34ac3",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/login.js",
+      "sha256": "d4f0234891e2a5b7824aa4dfc20e0a5ee1303499c4fc56288dc9bb0098106356",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/login/index.html",
+      "sha256": "515bd46a02a0215be3d823a19ec027bcdccdce1aac5cf98789982bad73b34ac3",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/network.html",
+      "sha256": "6809bc75ac4a5ea84f738b0e9f69b2c2aca7dc09759cd8b27bcd4d25faee0740",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/network/index.html",
+      "sha256": "6809bc75ac4a5ea84f738b0e9f69b2c2aca7dc09759cd8b27bcd4d25faee0740",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/orders.html",
+      "sha256": "fc2b24f6d0005e52bb4babf2768baf819658d32d53467bb82f77cd2d8e295c82",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/orders/index.html",
+      "sha256": "fc2b24f6d0005e52bb4babf2768baf819658d32d53467bb82f77cd2d8e295c82",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/platform.html",
+      "sha256": "310ec1041a01f8b53417f2f7b049ca0d214cfdb5771902e5f786c1daeba3b080",
+      "package": "separate-saas-cache"
+    },
+    {
+      "path": "dist/platform/index.html",
+      "sha256": "310ec1041a01f8b53417f2f7b049ca0d214cfdb5771902e5f786c1daeba3b080",
+      "package": "separate-saas-cache"
+    },
+    {
+      "path": "dist/portal.js",
+      "sha256": "44333d0533617b6b9b678e3757edcfdfdd4d619fbee2f2a1682387c786302242",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/reservations.html",
+      "sha256": "54da2386b18ea8d0096a4f2798b570fe92cf60ec5723bdf798f66f3a2cc00173",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/reservations/index.html",
+      "sha256": "54da2386b18ea8d0096a4f2798b570fe92cf60ec5723bdf798f66f3a2cc00173",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/staff-admin-card.js",
+      "sha256": "b2ad642ce046310c3d267637f5b784853f7fff1e25992f7874d6a15be0379f27",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "dist/style.css",
+      "sha256": "2303d6a4f967ac35570220b846aa1c56613b9297bcd4101986f9793d2be1e35c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/ai-team/DECISIONS.md",
+      "sha256": "9192fb124f07b1776af777d6ddd9e0f30291b7e073383df26fbccda745625df3",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/ai-team/WORK_LOG.md",
+      "sha256": "ef71185c71900e2541abd053903c35bdf12f39d4f01923944eb14bc74a338a15",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/requirements/FINANCE_MODEL.md",
+      "sha256": "23511e8fae4494beffc0af348aaa85c192e9aea2465bc7562e2962c2060def8f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "finance-categories.html",
+      "sha256": "72c74040f87e2abd2fe2e336adaa3334ed808f1646d641c646065353314a5522",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "finance-report.html",
+      "sha256": "1443981ef25660e0c85927fafaef866fd2434b24726cb6e4221de2bac302d7cc",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "finance.html",
+      "sha256": "29799ec5ade1d2f2759ca9772c33283726641ee1a804bef53960e18261c2ee8f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "index.html",
+      "sha256": "78df17598296eb67ed792e527dabe215ec45682317d4a3e8d9d446d5100cd66a",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "integrations.html",
+      "sha256": "746099d0c4bbb6c627ab317491541373d2070785678d7538766b9c8a874eb253",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "inventory.html",
+      "sha256": "7a20f5706c94393132c2ff1f40fef8003b4571a796e8dd27e72a9e83179fda81",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "login.html",
+      "sha256": "515bd46a02a0215be3d823a19ec027bcdccdce1aac5cf98789982bad73b34ac3",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "login.js",
+      "sha256": "d4f0234891e2a5b7824aa4dfc20e0a5ee1303499c4fc56288dc9bb0098106356",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "network.html",
+      "sha256": "6809bc75ac4a5ea84f738b0e9f69b2c2aca7dc09759cd8b27bcd4d25faee0740",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "orders.html",
+      "sha256": "fc2b24f6d0005e52bb4babf2768baf819658d32d53467bb82f77cd2d8e295c82",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "platform.html",
+      "sha256": "310ec1041a01f8b53417f2f7b049ca0d214cfdb5771902e5f786c1daeba3b080",
+      "package": "separate-saas-cache"
+    },
+    {
+      "path": "portal.js",
+      "sha256": "44333d0533617b6b9b678e3757edcfdfdd4d619fbee2f2a1682387c786302242",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "reservations.html",
+      "sha256": "54da2386b18ea8d0096a4f2798b570fe92cf60ec5723bdf798f66f3a2cc00173",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "schema.sql",
+      "sha256": "f037d45d03cc3c6e7eb4d7b9da0390860f6021ef6a9b55746bf2b5e43c16d203",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/audit-privacy-postgres-qa.mjs",
+      "sha256": "d322b5a2bca9eeaa302f6db5a4fe9c861cc9f1ba08628ba9ca63e354c9bdeffa",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/dashboard-overnight-employee-demo-qa.mjs",
+      "sha256": "0880a75b2b0515082ac1d664fc9a19f94c1cb1fb8f2a60611e97eaef604cf57e",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/demo-premix-unit-runtime-qa.mjs",
+      "sha256": "6b778dc84471c74a58b2e38d5a379e9427439daaa469686a80ab80a9181cf089",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/discount-groups-demo-qa.mjs",
+      "sha256": "169300dd5b66bb8220a1394cad33d74120eb1fcc0a049807543e6c7f2e72d76a",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/inventory-stock-status-qa.mjs",
+      "sha256": "c67b5a7c49a34324f1ca0943456b3f4e60fc6a61cd2c7d9c93e46cec41149ee4",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-acceptance.ps1",
+      "sha256": "84c094ed2270249acda498b523d440f649db4d1f942e3bb9eac1e4b450587e5f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-api-read-failure-qa.mjs",
+      "sha256": "2ee8d5e3d08039c8ff15ee63c36ef2cbd3231afd77faee0e032f2ff17a309612",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-design-contract.mjs",
+      "sha256": "fe0649a6dec6ef8d8a385f02112f4763035e55bd387e46e9d84076a7c30d452f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-employee-report-ui-qa.mjs",
+      "sha256": "56c2079e2c4cf3474d58a0e5a128a2ff2610a769d066f0f0f964786c0e0d70c1",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-full-pg-regression.cjs",
+      "sha256": "f671f2a2c4a99f3de9b8d3f2c52a9a9522d5cb56733f1f5b4fc98683714ab316",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-full-qa.mjs",
+      "sha256": "5f1243ca1203a273e5043ca93d6103c5672b29a1e24ca77e720180a220037dda",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-navigation-state-qa.mjs",
+      "sha256": "7a76095802436a492680d3a07293d4e16b0a5a07729451aca6ec7e9b6723369a",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/local-role-contract.mjs",
+      "sha256": "c0a2f50a40424c9aaa8b9ab0b835fb5b9c9cb331bdf9444d971ff7ca7e9a60e0",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/notifications-api-qa.mjs",
+      "sha256": "0044f068aae9e080cc4f35ec8139a0cd3668bea64cfdda621ae65ae12c2e50a9",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/order-close-transaction-qa.mjs",
+      "sha256": "8c52bbb591a106c105d384ed07c2e78d4932bafc61c25f48e76dc146e7bc2259",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/order-delete-qa.mjs",
+      "sha256": "f7ee48aa8b41eef1f6809c49886124a1f10c0337c0a197678d7cd98b53c376fc",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/paid-order-balance-memory-qa.mjs",
+      "sha256": "90bebbb4641caf8b2696b1ce5528c8683e37592fa85e776dac8d2caeb0e5499b",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/paid-order-balance-postgres-qa.mjs",
+      "sha256": "4f0b1062e63d9a309f6edd671a856d7894155adc368c5ecccd3c6f511baa1745",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/portal-api-auth-qa.mjs",
+      "sha256": "88356b8d92f043181b4257f0b538ccbca38fee341697176b5a1f38dc1078c807",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/portal-context-refresh-qa.mjs",
+      "sha256": "701841ee6ea7b9f7ebce370feb03d500b856072652d3f35149af1982990df0ef",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/pos-order-refunds-ui-contract.mjs",
+      "sha256": "4990776e3ff756135211ad1ed695ed70fa6f67acedc6f7fc01d0ffe6a0159ec5",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/product-form-pending-qa.mjs",
+      "sha256": "a9ea3b814ca4f08e4588e1e23473d9c76ace22c2064868cb7fb51810220754cf",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/recipe-depletion-pg-runtime-qa.mjs",
+      "sha256": "d2fc95167075a8521799558e1969cc734acb6d72df08e7dd7af43b6b7c5b22f8",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/recipe-depletion-runtime-qa.mjs",
+      "sha256": "92e701e59868b151483eac8432d7834d01759e67855d789cd33c7b08087e7991",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/reservation-form-qa.mjs",
+      "sha256": "93ab2482417700b0601125b80cb463bc1d360cbb9631e62310259416dc8a7f16",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/reservation-prepayment-postgres-qa.mjs",
+      "sha256": "dd8c5f7603bc1a9a21f3c0feb3d947d083c13107df402f4aec5a7176a7cd5f3f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/role-api-matrix-runtime-qa.mjs",
+      "sha256": "21f9084ca38b23b98e3192eb807a4491e5a244f582ca7258c77f1a36ac949b0b",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/session-authority-qa.mjs",
+      "sha256": "b6eea74149948da40611a59a671f3632cca45c0cba26bd15cf3e4112e124545c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/shift-state-runtime-qa.mjs",
+      "sha256": "06d6b7832f7f9cea696ce837a288c073019dd5b735affedec5359460ec21ec2e",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-catalog-add-pending-qa.mjs",
+      "sha256": "b5e4b2aa7fac80eb8dd33296ab024822fd436c7886b8e0defbb37b1e4f902f30",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-catalog-load-state-contract.mjs",
+      "sha256": "3d9a072077d4890b9cad84d51ae419e22df8ea6f370bcd886997f562a2e0cfdc",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-guests-page-contract.mjs",
+      "sha256": "ee21894c3aa2cec9d70ca8f723b57dfbb56b46f36c4f1159f45daa8f1eb839a9",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-header-actions-runtime-qa.mjs",
+      "sha256": "140ade14c4507eb266ee9219fc565a0ca6f749c058e7f0b5bcfb9e3b02198195",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-identity-postgres-qa.mjs",
+      "sha256": "f82f37c40eddcd9a08da24c96b0845ae3e205953a22e3712d61f83df7348975f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-mode-navigation-contract.mjs",
+      "sha256": "d63645a17981e0c192930e4a12ba775b613d15bdab5daef95f1f765c61466358",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-partial-payment-pending-qa.mjs",
+      "sha256": "4e7561c97fbcb61ea9b958089b0a98f6bf6fa50bb27fa9dc0647e46b92d3c477",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-session-recovery-runtime-qa.mjs",
+      "sha256": "d22f3ef88ca86c30a4a9758746dc7aa4b1062a6a95034500c750d45545c6962d",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/sync-published-assets.mjs",
+      "sha256": "3072a79eb39a1576deeb2e5305f9d8dd36d743553dd9bf9808dbf74325c5c154",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/tobacco-catalog-demo-qa.mjs",
+      "sha256": "a6a34becc69a7651dfda1ba2efaa79aff9325ee563241f2836ee4575bdda52e5",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/trusted-pin-return-contract.mjs",
+      "sha256": "1a45d4f7e469d2c59afd6c2b954a4d19a6b3fdcf015a9d5eb57752a9f1163a3d",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/visual-page-rules-contract.mjs",
+      "sha256": "d58ca0ce02d7efe82189877f38a1b1508ae6e0a7a06748de236ada83fec97aa4",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "server.js",
+      "sha256": "3c614610a3d87c5aff771f03bbd9e7bdf1d18174f428456c8c101f327d5d2288",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "staff-admin-card.js",
+      "sha256": "b2ad642ce046310c3d267637f5b784853f7fff1e25992f7874d6a15be0379f27",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "style.css",
+      "sha256": "2303d6a4f967ac35570220b846aa1c56613b9297bcd4101986f9793d2be1e35c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "deploy/reload-nginx-after-certificate-renewal.sh",
+      "sha256": "e7f3d2d15108d9a66564a2053e2087736210b35c7615483fd21ad9412b77e692",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "dist/portal-session.js",
+      "sha256": "b4c3455bf1ccceb4e5711fd97fb7b835de2729c71907ec3c9c21febe501b2498",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/architecture/EFFECTIVE_PERMISSIONS_CONTRACT.md",
+      "sha256": "5b0cd57aa84616a74927e8666072e91349618ba43430380393f4baa527fd7b59",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/architecture/FIX_02_UI_PERMISSION_CONTRACT.md",
+      "sha256": "59fbc591a4fd934c88caec9b7e062abf4158fb781c988dd971dcd89f1470aa0e",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/architecture/FIX_03_1_DISPATCH_CONTRACT.md",
+      "sha256": "3512efcfc6fe819ae1494e5bc2539e83a6cf61ab251ce190918b29510fe746da",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/architecture/FIX_03_2_CATALOG_FRESHNESS_CONTRACT.md",
+      "sha256": "f5687e367fb6dae859812e82d6150d54eb7de5b49b54382fa659a748bdc96d38",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/architecture/FIX_04_1_PAYMENT_ERROR_CONTRACT.md",
+      "sha256": "f2f6f84d4359087e02249581979b5721f67a966be5e59bc523eea2f09267fef8",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_BASELINE.md",
+      "sha256": "5913c782c0d7d9d853bc0bdb6d56a03f8e08d0966916498d35635f67f1db807b",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_BROWSER.md",
+      "sha256": "972e5c2af87c5dc28a9bf6c8e8fce724947180d7baab0c8da0472a941edad979",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_BROWSER_FINAL.md",
+      "sha256": "03715bce4731ec4c681327a9fcaa2cc47cee6d2b5b100b7ecf1e837678ef94db",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_COVERAGE_FINAL.md",
+      "sha256": "cf9a14024ffba47035b539df75d65fa920fdd4d6004cc1543efe269364dbffc4",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_DOMAIN.md",
+      "sha256": "0514564dc07d687d1e50f188f49759e19aace7609993a00d7ce80be7bccb441b",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_FINANCE_FINAL.md",
+      "sha256": "31514d03027f0ee3b364ce1901584fa0ceae1a3b7072e71ca26ed213dc15cbaf",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_FIX_TASKS.md",
+      "sha256": "04efe54c370ad08a3dd5e1c7d6af41ad3448792efa2d95cb69c42436dcebb899",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_PROGRESS.md",
+      "sha256": "a96da385f5b38bca5ccb8ba91cfe4cbffc4f1b62ba6f273d18be0e04b462a348",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_REPORT.md",
+      "sha256": "10c347d627009b6f7791f012d31b2614364c5194fcdee54f07c62a518ead6fa7",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_ROLES.md",
+      "sha256": "cb09a7e9414e1d92eed387213d015b2a8a5d41ce67cf81ccddf1662852a474ee",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_ROLES_FINAL.md",
+      "sha256": "65033548b885e959b03192fab617b404aee50a17225533387edfe23ae87bed33",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_STRUCTURE.md",
+      "sha256": "2ad415189daaebbee58c809c0e4539be7f167ef68876348ab34599c4df404dc7",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_01_QA.md",
+      "sha256": "df53482203d9c90dfb3e92ff2680698010b0f17e5949b0bb52c281741420f97c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_01_RESULT.md",
+      "sha256": "5697b6bba81daf1bb9f5c1a9c53cfec8444916214c4c980638ae8fd468c81a77",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_02_QA.md",
+      "sha256": "7524f52611e6191518cea7997e23a21b54a9c4771669f1269d062b6f45d4807e",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_02_RESULT.md",
+      "sha256": "83f235d2acbe95743699b9f525fb8737916d86c1b692a7193c4e1b7bc338f891",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_03_1_BASELINE.md",
+      "sha256": "2fec88a3f8274a4f471f909902a3b62cce519513e87fa958460b5d287db5c280",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_03_1_QA.md",
+      "sha256": "8ca0651d874c870f3d493499acce91073fb3e0ed11f7338e079d749e37b42c0f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_03_1_RESULT.md",
+      "sha256": "f66a4b24df7bdbfa385f60543e4709be54d2552698fa01e5fe8441d77ba150b2",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_03_2_QA.md",
+      "sha256": "fd530538f71f1a2ef950b49c8bb1711cb831f80be05dc473f80f93ffcabea85d",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_03_2_RESULT.md",
+      "sha256": "e48ef7a24c4a2513bd789c7a432bed2396a7699ab6d7ec1f6aca1297f93a4b0e",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_04_1_RESULT.md",
+      "sha256": "3190b4a73ce0768a0f8ac303c389a9afff8f4d7e34b9bc6d5c8712247bc5d29a",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_04_2_RESULT.md",
+      "sha256": "55f374ca18588af85ebe14c46ddb128d1538cabe7441fa1e5eacc880261345af",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_04_3_RESULT.md",
+      "sha256": "0722aa21abe8b2995e9f01f571d5c3208610f9bb587909314d66267f2f36d580",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_04_4_RESULT.md",
+      "sha256": "65bb6504077ca80e37f4c87147cc94dbc13f65f822bc4fd68c0a1a8e7e2a0cd1",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_05_1_RESULT.md",
+      "sha256": "d63dca1a7f041a6aa3c23e8873ab2a2fca275f0d6cdb4f1f010b5929acb9ba3a",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_05_2_RESULT.md",
+      "sha256": "7a82a67e32a09ed5581de8fc10b9886c5fc29aaaa89d3e2e4492bf72c1eb36d1",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_05_3_RESULT.md",
+      "sha256": "b4abcfb37e45d7ef3938e46310b720397ccbe2c0ff0920371be66521bd8d6ba1",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_05_4_RESULT.md",
+      "sha256": "6318930ef99186445975936beed755389c1502d0ca4d57d17b233436e2dcc096",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_05_RESULT.md",
+      "sha256": "407525a2e0fa2d0f98e411516de1739200c700b77f6d6640bd1bba27f9a32ce0",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "docs/qa/FIX_06_RESULT.md",
+      "sha256": "8aa1fb136b25ab5f9ed146f7e7fe4abea000fee24ec15e1a146847c20a2666d2",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "effective-permissions.js",
+      "sha256": "ca926cd191dc8026b7e333cbd9061d8c3166f462eb8d1640140b512c259b6f0c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "migrations/098_alphasat_readonly_adapter.sql",
+      "sha256": "c839ab563a81b45736cbd4bc3467e6eabb5d64ec1518b4a29d1d847b15f3bd70",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "migrations/099_order_item_execution.sql",
+      "sha256": "465f96420676322474dc0b11cfa7f7495ac5a6c58c473b16b57a4358042f39a6",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "order-preparation.js",
+      "sha256": "39e22186ec545ed1cc52dfc81f1a09631a7be41109b176ed380f992498bbf2d6",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "portal-session.js",
+      "sha256": "b4c3455bf1ccceb4e5711fd97fb7b835de2729c71907ec3c9c21febe501b2498",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "reservation-calendar.js",
+      "sha256": "3c1672e3c8da20a32fb00ebaca132f8e0fe4c3e2847e157ef4834f3980b37546",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/alphasat-adapter-acceptance.mjs",
+      "sha256": "737ba8d0e6ac89f0f17f09ecdb0769cba47e46f686ea1432ad9f7f53bbbe86ce",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "scripts/alphasat-adapter-contract.mjs",
+      "sha256": "fec92e75d0b8627ec16684cb3410ba65a64adfdf0b839eb2d45cd221f805d6a5",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "scripts/alphasat-adapter-credential.cjs",
+      "sha256": "608be028d19efeba704539a82d3656020a4dc9aaa81418098c19ffb8a20a360b",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "scripts/alphasat-adapter-nginx-host-contract.mjs",
+      "sha256": "052c539e1eaa39f108025c21b379887a2277ee8092439bdaf85e99e8ee9b67e4",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "scripts/alphasat-adapter-rate-limit-qa.cjs",
+      "sha256": "a4ab88f03fba1537875c8fb564dfc4fab2529a86efba0a3356f774d01aebb939",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "scripts/alphasat-adapter-rate-limit.cjs",
+      "sha256": "7d1cf385084e5a357717807cd4a0f2031860a0552425f942440e989e94219dee",
+      "package": "separate-alphasat"
+    },
+    {
+      "path": "scripts/effective-permissions-postgres-qa.cjs",
+      "sha256": "94b8f18c115e5add5cfefec35e196049cddcd3347f62ed5cc9d4a7e7703b35b8",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/effective-permissions-unit-qa.cjs",
+      "sha256": "5384d46fe5ec3282e0678b01064018285da6fb1f1c0310d27e56b2eec216345c",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/order-preparation-postgres-qa.cjs",
+      "sha256": "3005a0db05190666f596f396c141d2cd6bab31fca97a87a8fec80c07e06190aa",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/order-preparation-ui-qa.mjs",
+      "sha256": "9ffbbff13429e8c3d54925418c434031e4e61f321e47f87b783695eb17b44518",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/order-preparation-unit-qa.cjs",
+      "sha256": "08b9c4e8677f03dc264c5878204e3c68977121de103d432b54e44a67ffbd6952",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/pg-order-pricing-snapshot-qa.mjs",
+      "sha256": "86e3d2401801d76f6e021b4646489d755b94a0efaa66a43c935d9e170e66cc58",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/portal-effective-permissions-qa.mjs",
+      "sha256": "54f04fe4c7c00567281709ee8ec6969fe23239672e7031a7a1645505e8cb1c1e",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/reservation-table-day-clock-preload.cjs",
+      "sha256": "b17c97d11a15b9210b69727aab71962928c66e3ba5c5d0c4b5af37d0bb54121f",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/reservation-table-day-postgres-qa.cjs",
+      "sha256": "651285aa341351d67b49a1aa4f1cad1fdad6b7ac5f7d502557d9f444bc839343",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-catalog-refresh-runtime-qa.mjs",
+      "sha256": "de311f8c2e32c0b17d7688c468562076bb979253bf23148e8f0035e3c1af4e12",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-effective-permissions-qa.mjs",
+      "sha256": "e223c2c7a7b977bb466230b87326a809c3203c71618863d21849f0b16d278f61",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-order-payment-summary-runtime-qa.mjs",
+      "sha256": "9f9aab54a246e662acce52a39ac12971c39b8f9b7d2e8a9428f8b07e3e2ee2f9",
+      "package": "pos-candidate-review-required"
+    },
+    {
+      "path": "scripts/staff-ui-management-policy-qa.mjs",
+      "sha256": "e42d519432da048bffe2ac37e57bfbb680588d9929de933290b95737a40852bc",
+      "package": "pos-candidate-review-required"
+    }
+  ],
+  "note": "Inventory of candidate working files at preparation time; not an approved archive or commit manifest."
+}

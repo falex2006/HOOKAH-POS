@@ -37,6 +37,19 @@ Existing 091 rows retain NULL sequence and NULL transition facts and are returne
 Заголовок refund хранит `item_attribution_status` и отделяет complete event item lines, legacy/unattributed выплату и явный нетоварный случай. При `complete` item return lines сверяются с исходными line snapshot и ранее возвращёнными количествами/суммами. При `unattributed` фактическую выплату разрешено зафиксировать, но нельзя назначать её сотруднику по эвристике; будущий official payroll run, требующий полного employee net source, должен блокироваться.
 
 Возвратная политика payroll — owner-selected правило в versioned payroll scheme; финансовая refund операция фиксирует факты, но не выбирает, в каком периоде уменьшать комиссию, делать ли clawback или как делить эффект по сотрудникам. Для полной item attribution требуется будущий pricing evaluator snapshot с line-level скидками; нельзя выводить её из текущей цены товара, order opener или равномерно распределять payout.
+### Payroll recognition handoff proposal — pending Finance approval
+
+Статус: предложение для Finance/POS, не принятая финансовая политика. Не разрешает миграцию, изменение producer, проводки или повышение `officialReady`.
+
+Canonical090 фиксирует исходную товарную строку, продавца и стоимость после скидок; item-return091/092 фиксирует возвращённые количество и стоимость, а post-092 sequence подтверждает порядок только внутри конкретного источника. Legacy091 остаётся неполным по порядку. `order_refunds.created_at` — время регистрации события; без решения Finance оно не считается датой признания в зарплате. Фактическая выплата гостю не заменяет стоимость возвращённых товарных строк. Текущий payroll sale-credit компонент покрывает только продажи до возвратов и использует текущие наблюдения eligibility/timezone.
+
+Для первого варианта можно отдельно рассмотреть owner-selected `recognized_event_date`; это не принятое правило. Альтернативное уменьшение исходного периода остаётся unsupported до отдельного согласования. Требуемые immutable Finance/POS факты: event ID и версия признания; авторитетный UTC timestamp, venue timezone snapshot и локальная дата; venue/order/pricing snapshot/item lineage, currency и исходный продавец; sequence и previous/delta/cumulative quantity/value с полной историей; tenant/period coverage и watermark; исходный run/credited line и корректирующий run; owner decision, причина, версия и предел корректируемой переменной оплаты. Нужно отдельно решить историческую employee-to-venue eligibility и влияние изменения timezone на прошлые периоды.
+
+Будущий consumer обязан сохранить полный merchandise net, включая некомиссионные позиции; отделять payout от стоимости возвращённых строк; не распределять venue minimum adjustment сотрудникам; не выводить продавца из opener/cashier/current user/catalog; сохранять закрытый run и paid entries неизменными. После утверждения корректировка может относиться к следующему открытому расчёту только со ссылкой на исходную запись и событие; повтор не должен создавать второй эффект. Автоматическое удержание из оклада и отрицательная выплата не предполагаются. Непокрытый остаток требует явного процесса. Unknown seller, cross-venue, legacy/unsequenced, missing recognition/lineage/coverage остаются unsupported/incomplete с неизвестными суммами, не нулём.
+
+Будущие независимые oracle cases: payout отличается от sale value; возврат некомиссионной строки меняет merchandise net без автоматической комиссии/удержания; локальная граница месяца с сохранённой timezone snapshot; paid run неизменен, разрешённая корректировка идемпотентна; unknown/cross-venue/legacy/gap блокируют полноту; tenant isolation и RR concurrent source commit без write при read. Это критерии для будущей реализации, не выполненные тесты.
+
+Открытые решения Finance/Product: признание события/даты и периода; timezone/history rule; employee eligibility history; обработка paid/closed period и approval path; policy versioning; официальная запись credit/clawback и неатрибутированных остатков. До явного принятия этих решений `recognizedLineRefunds` и `fullEmployeeNetRevenue` остаются unsupported, `officialReady=false`.
 
 ## Инварианты транзакции
 
@@ -62,3 +75,9 @@ Existing 091 rows retain NULL sequence and NULL transition facts and are returne
 ## Граница готовности
 
 Локальный Stage 2 acceptance подтверждает POS source и payout separation на синтетическом PostgreSQL/Chromium наборе; он не доказывает production deployment или полный payroll consumer. Нельзя маркировать legacy payout coverage как `complete` и нельзя разрешать official payroll run считать полную net revenue через неатрибутированные возвраты. Этот контракт фиксирует границы источника и сам по себе не выполняет deployment.
+
+### Stage 4 · финансовый drilldown возврата без признания P&L
+
+Unified report adds `posRefundItems` beside (not inside) `refundTenders`. It returns one header per refund with payout total, item-attribution status (tender allocations remain in refundTenders), returned frozen line values, original income-category snapshot, product snapshot, quantity and 092 sequence lineage. Legacy `unattributed` item value is `null`; 091 sequence gaps remain `legacy_unsequenced`. The finance projection omits seller identity and does not loosen the order/refund endpoint's `orders`/`reservations` permissions. Both arrays remain read-only; only `refundTenders` is cash outflow, and returned item value remains informational. Category filter suppresses refundTenders because payout has no reliable category; it filters posRefundItems by the frozen source category and returns only matching item value with payoutAmount=null. 500-row limits apply independently and are reported per section.
+
+The implementation does not set a refund recognition date, P&L reversal, payroll effect, or historical correction. These remain pending Finance/Product policy; no ledger or schema change was made in this stage.

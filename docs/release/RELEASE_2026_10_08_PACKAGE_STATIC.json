@@ -1,0 +1,978 @@
+{
+  "started": "2026-10-08T18:34:09.045Z",
+  "finished": "2026-10-08T18:34:28.832Z",
+  "mode": "--static",
+  "ok": true,
+  "error": null,
+  "total": 138,
+  "pass": 138,
+  "failures": [],
+  "results": [
+    {
+      "group": "guard",
+      "test": "local-full-pg-regression.cjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-guard-local-full-pg-regression.cjs.log"
+    },
+    {
+      "group": "guard",
+      "test": "local-full-qa-setup.cjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-guard-local-full-qa-setup.cjs.log"
+    },
+    {
+      "group": "static",
+      "test": "seed-menu-category-idempotency-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-seed-menu-category-idempotency-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "admin-section-heading-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-admin-section-heading-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "ai-team-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-ai-team-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "auth-smoke-crop-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-auth-smoke-crop-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "auth-smoke-lifecycle-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-auth-smoke-lifecycle-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "auth-smoke-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-auth-smoke-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "auto-order-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-auto-order-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "brand-kit-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-brand-kit-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "client-form-race-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-client-form-race-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "client-form-submit-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-client-form-submit-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "client-history-date-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-client-history-date-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "clients-editor-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-clients-editor-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "custom-select-groups-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-custom-select-groups-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "dashboard-greeting-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-dashboard-greeting-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "dashboard-kpi-design-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-dashboard-kpi-design-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "dashboard-overnight-employee-demo-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-dashboard-overnight-employee-demo-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "dashboard-overnight-employee-memory-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-dashboard-overnight-employee-memory-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "dashboard-shift-attribution-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-dashboard-shift-attribution-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "dashboard-shift-deeplink-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-dashboard-shift-deeplink-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "delivery-ui-state-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-delivery-ui-state-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "demo-premix-unit-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-demo-premix-unit-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "demo-scenario-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-demo-scenario-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "directory-rename-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-directory-rename-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "discount-groups-demo-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-discount-groups-demo-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "loyalty-promotions-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-loyalty-promotions-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "loyalty-pricing-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-loyalty-pricing-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "final-acceptance-matrix-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-final-acceptance-matrix-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-api-consistency-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-api-consistency-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-categories-ui-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-categories-ui-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-chart-empty-state-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-chart-empty-state-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-employee-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-employee-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-expense-payroll-status-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-expense-payroll-status-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-load-race-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-load-race-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-report-date-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-report-date-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-required-marker-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-required-marker-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "finance-timezone-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-finance-timezone-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "header-shell-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-header-shell-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "hookah-additional-acceptance-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-hookah-additional-acceptance-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "integrations-scope-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-integrations-scope-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "integrations-state-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-integrations-state-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-context-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-context-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-critical-state-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-critical-state-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-form-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-form-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-hierarchy-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-hierarchy-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-movement-transaction-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-movement-transaction-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-premix-load-state-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-premix-load-state-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-stock-status-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-stock-status-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "inventory-subdepartment-api-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-inventory-subdepartment-api-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-click-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-click-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-date-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-date-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-design-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-design-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-insights-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-insights-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-lock-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-lock-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-preferences-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-preferences-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-role-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-role-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-schedule-validation-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-schedule-validation-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "login-error-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-login-error-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "login-server-identity-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-login-server-identity-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "loyalty-program-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-loyalty-program-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "loyalty-pos-explanation-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-loyalty-pos-explanation-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "loyalty-reconciliation-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-loyalty-reconciliation-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "metrics-database-failclosed-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-metrics-database-failclosed-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "migrations-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-migrations-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "mode-navigation-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-mode-navigation-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "network-action-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-network-action-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "network-load-state-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-network-load-state-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "order-attention-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-order-attention-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "order-close-transaction-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-order-close-transaction-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "order-item-close-guard-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-order-item-close-guard-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "order-journal-display-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-order-journal-display-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "pos-order-refunds-ui-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-pos-order-refunds-ui-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "orders-history-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-orders-history-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "orders-receipt-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-orders-receipt-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "orders-total-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-orders-total-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "paid-order-balance-demo-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-paid-order-balance-demo-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "pg-order-pricing-snapshot-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-pg-order-pricing-snapshot-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "payroll-calculation-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-payroll-calculation-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "payroll-lifecycle-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-payroll-lifecycle-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "payroll-register-load-state-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-payroll-register-load-state-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "payroll-register-ui-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-payroll-register-ui-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "platform-saas-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-platform-saas-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "portal-action-keyboard-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-portal-action-keyboard-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "portal-api-auth-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-portal-api-auth-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "portal-context-refresh-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-portal-context-refresh-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "pos-modal-a11y-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-pos-modal-a11y-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "premix-batch-lifecycle-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-premix-batch-lifecycle-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "premix-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-premix-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "premix-create-route-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-premix-create-route-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "premix-submit-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-premix-submit-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "product-form-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-product-form-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "purchase-document-date-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-purchase-document-date-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "purchase-document-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-purchase-document-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "purchase-document-validation-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-purchase-document-validation-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "purchase-documents-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-purchase-documents-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "purchase-payment-api-validation-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-purchase-payment-api-validation-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "purchase-payments-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-purchase-payments-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "recipe-chain-contract-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-recipe-chain-contract-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "recipe-depletion-pg-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-recipe-depletion-pg-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "recipe-form-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-recipe-form-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "reservation-form-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-reservation-form-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "reservation-legacy-cancel-warning-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-reservation-legacy-cancel-warning-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "session-venue-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-session-venue-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "shift-close-ui-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-shift-close-ui-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "shift-state-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-shift-state-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "shift-transaction-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-shift-transaction-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "sidebar-brand-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-sidebar-brand-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "sidebar-navigation-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-sidebar-navigation-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "sidebar-scrollbar-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-sidebar-scrollbar-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "sidebar-disclosure-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-sidebar-disclosure-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "sidebar-venue-header-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-sidebar-venue-header-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "site-structure-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-site-structure-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-active-count-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-active-count-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-catalog-add-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-catalog-add-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-catalog-load-state-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-catalog-load-state-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-catalog-refresh-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-catalog-refresh-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-guests-page-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-guests-page-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-header-actions-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-header-actions-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-mode-navigation-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-mode-navigation-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-observer-stability-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-observer-stability-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-partial-payment-pending-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-partial-payment-pending-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-pin-passport-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-pin-passport-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-session-recovery-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-session-recovery-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-worklog-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-worklog-runtime-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "task-deadline-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-task-deadline-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "task-ui-recovery-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-task-ui-recovery-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "tobacco-catalog-demo-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-tobacco-catalog-demo-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "trusted-pin-return-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-trusted-pin-return-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "ui-scenarios-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-ui-scenarios-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "visual-live-defects-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-visual-live-defects-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "visual-page-rules-contract.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-visual-page-rules-contract.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "session-authority-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-session-authority-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-api-read-failure-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-api-read-failure-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-employee-report-ui-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-employee-report-ui-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-navigation-state-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-navigation-state-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "local-dashboard-navigation-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-local-dashboard-navigation-qa.mjs.log"
+    },
+    {
+      "group": "static",
+      "test": "staff-identity-demo-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-static-staff-identity-demo-qa.mjs.log"
+    }
+  ]
+}

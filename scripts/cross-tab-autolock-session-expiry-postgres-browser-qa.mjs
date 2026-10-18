@@ -116,10 +116,19 @@ try {
   const unlock=page.waitForResponse(r=>r.url().endsWith('/api/session/unlock') && r.request().method()==='POST');
   await page.locator('#screen-lock-pin').fill(pin);
   assert.equal((await unlock).status(),401,'Correct PIN cannot restore expired server session');
-  await page.waitForFunction(()=>Boolean(document.querySelector('#screen-lock-message')?.textContent));
-  assert.equal(await page.locator('.screen-lock-overlay').getAttribute('aria-hidden'),'false');
-  assert.equal(await second.locator('.screen-lock-overlay').getAttribute('aria-hidden'),'false');
-  console.log('SESSION EXPIRY41: PASS (exact synthetic persisted expiry; old bearer401; correct PIN401; both remain locked)');
+  // UI-04.3: authentication loss is distinct from invalid_pin401. The attempted
+  // unlock redirects immediately; the sibling independently detects live expiry.
+  await page.waitForURL(u => u.pathname === '/login');
+  await second.waitForURL(u => u.pathname === '/login', { timeout: 45000 });
+  for (const tab of [page, second]) {
+    assert.equal(new URL(tab.url()).pathname, '/login', 'Expired authenticated tab reaches login');
+    assert.equal(await tab.locator('dialog.screen-lock-overlay[open]').count(), 0, 'No PIN modal remains after authentication loss');
+    assert.equal(await tab.evaluate(() => localStorage.getItem('crm_session_token')), null, 'Login clears expired local bearer');
+  }
+  const expiredSessions = await sessionRows();
+  assert.ok(!expiredSessions.some(session => session.token_hash !== tokenHash), 'PIN did not create a replacement server session');
+  assert.ok(expiredSessions.every(session => new Date(session.expires_at).getTime() < Date.now()), 'Any retained exact synthetic session remains expired');
+  console.log('SESSION EXPIRY43: PASS (exact synthetic persisted expiry; old bearer401; correct PIN401; both tabs reach login without session restoration)');
   console.log('AUTOLOCK/EXPIRY41 BROWSER PG QA: PASS');
 } finally {
   try { if (browser) await browser.close(); }

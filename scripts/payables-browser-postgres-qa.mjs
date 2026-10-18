@@ -1,5 +1,9 @@
+import { verifyGuestAdvanceReport } from './finance-guest-advance-browser-scenario.mjs';
+import { verifyFundingBrowser } from './finance-funding-browser-scenario.mjs';
+import { verifyPayableRefund } from './finance-payable-refund-browser-scenario.mjs';
 import assert from 'node:assert/strict';
-import { randomBytes, scryptSync } from 'node:crypto';
+import { verifyRecurringPartialMonth } from './finance-recurring-partial-browser-scenario.mjs';
+import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
@@ -28,6 +32,7 @@ const db = new Client({ connectionString: databaseUrl });
 const pool = new Pool({ connectionString: databaseUrl, max: 3 });
 let organizationId;
 let venueId;
+let foreignVenueId;
 let browser;
 let child;
 const login = `payables-browser-${process.pid}`;
@@ -35,6 +40,18 @@ const password = `payables-${process.pid}-qa-password`;
 const passwordHash = () => {
   const salt = randomBytes(16).toString('hex');
   return `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
+};
+const expectVisiblePayableStatus = async (row, text) => { await row.locator('.badge').filter({hasText:text}).waitFor(); };
+const selectPortalOption = async (select, value) => {
+  if (await select.getAttribute('data-custom-select') === '1') {
+    const wrapper = select.locator('xpath=..');
+    const option = wrapper.locator(`[role="option"][data-value="${value}"]`);
+    await option.waitFor({state:'attached'});
+    await wrapper.locator('.custom-select-trigger').click();
+    await option.click();
+    return;
+  }
+  await select.selectOption(value);
 };
 const isoVenueDate = (value) => {
   if (value === null || value === undefined) return null;
@@ -52,9 +69,14 @@ try {
   organizationId = (await db.query("INSERT INTO organizations (name,slug,timezone) VALUES ('Isolated payables browser QA',$1,'Asia/Yekaterinburg') RETURNING id", [`payables-browser-${process.pid}`])).rows[0].id;
   await db.query("INSERT INTO organization_subscriptions (organization_id,status) VALUES ($1,'trialing')", [organizationId]);
   venueId = (await db.query("INSERT INTO venues (organization_id,name,timezone) VALUES ($1,'Isolated payables browser QA','Asia/Yekaterinburg') RETURNING id", [organizationId])).rows[0].id;
+  foreignVenueId = (await db.query("INSERT INTO venues (organization_id,name,timezone) VALUES ($1,'Foreign category QA venue','Asia/Yekaterinburg') RETURNING id", [organizationId])).rows[0].id;
   const userId = (await db.query("INSERT INTO users (organization_id,venue_id,full_name,login,password_hash,role) VALUES ($1,$2,'Payables browser admin',$3,$4,'admin') RETURNING id", [organizationId, venueId, login, passwordHash()])).rows[0].id;
   await db.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'admin','active')", [organizationId, userId]);
+  const managerLogin=`${login}-readonly`;
+  const managerUserId=(await db.query("INSERT INTO users (organization_id,venue_id,full_name,login,password_hash,role) VALUES ($1,$2,'Payables browser finance reader',$3,$4,'manager') RETURNING id",[organizationId,venueId,managerLogin,passwordHash()])).rows[0].id;
+  await db.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'member','active')",[organizationId,managerUserId]);
   const ingredientId = (await db.query("INSERT INTO ingredients (venue_id,name,unit,cost,is_marked,purchase_unit,pack_multiplier) VALUES ($1,'QA syrup','ml',0,true,'bottle',1000) RETURNING id", [venueId])).rows[0].id;
+  const foreignCategoryId = (await db.query("INSERT INTO finance_categories (venue_id,name,kind) VALUES ($1,$2,'expense') RETURNING id", [foreignVenueId, `QA foreign ${process.pid}`])).rows[0].id;
   const repo = new PurchaseDocumentRepository(pool);
   const today = new Date().toISOString().slice(0, 10);
   const latestDocumentDate = '2026-09-28';
@@ -65,9 +87,14 @@ try {
   await repo.post(venueId, olderDraft.id, null);
   const undatedDraft = await repo.saveDraft({ venueId, supplierName: 'QA undated supplier', documentNumber: `N-${process.pid}`, documentDate: null, lines: [{ ingredientId, quantity: 1, unit: 'bottle', unitCost: 100 }] });
   await repo.post(venueId, undatedDraft.id, null);
+  const legacyProductId = (await db.query("INSERT INTO products(venue_id,name,category,sale_price,inventory_mode) VALUES($1,$2,'QA legacy income',500,'non_stock') RETURNING id", [venueId, `Legacy report fixture ${process.pid}`])).rows[0].id;
+  const legacyOrderId = (await db.query("INSERT INTO orders(venue_id,opened_by,status,closed_at,vip_minimum,final_total_snapshot) VALUES($1,$2,'closed','2020-01-15 12:00:00+00',0,NULL) RETURNING id", [venueId,userId])).rows[0].id;
+  const zeroSnapshotOrderId = (await db.query("INSERT INTO orders(venue_id,opened_by,status,closed_at,vip_minimum,final_total_snapshot) VALUES($1,$2,'closed','2020-01-15 12:00:00+00',0,0) RETURNING id", [venueId,userId])).rows[0].id;
+  await db.query("INSERT INTO order_items(order_id,product_id,quantity,unit_price,station) VALUES($1,$3,2,500,'bar'),($2,$3,2,500,'bar')", [legacyOrderId,zeroSnapshotOrderId,legacyProductId]);
+  await db.query("INSERT INTO discounts(order_id,requested_by,approved_by,type,value,reason,status) VALUES($1,$2,$2,'fixed',100,'legacy report fixture','approved')", [legacyOrderId,userId]);
   child = spawn(process.execPath, ['server.js'], {
     cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true,
-    env: { ...process.env, DATABASE_URL: databaseUrl, VENUE_ID: venueId, AUTH_REQUIRED: 'false', DEMO_MODE: 'false', NODE_ENV: 'test', HOST: '127.0.0.1', PORT: '0' },
+    env: { ...process.env, DATABASE_URL: databaseUrl, VENUE_ID: venueId, AUTH_REQUIRED: 'true', DEMO_MODE: 'false', API_RATE_LIMIT:'10000', NODE_ENV: 'test', HOST: '127.0.0.1', PORT: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -90,23 +117,895 @@ try {
   await page.locator('#login-form button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.includes('/login'));
   await page.goto(`${base}/finance`, { waitUntil: 'networkidle' });
+  const rentApi = async (pathname, method = 'GET', body = undefined) => page.evaluate(async ({ pathname, method, body }) => {
+    const response = await fetch(pathname, { method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) });
+    return { status: response.status, body: await response.json() };
+  }, { pathname, method, body });
+  const legacyRead = await rentApi(`/api/finance/unified-report?from=2020-01-15&to=2020-01-15&source=pos&q=${legacyOrderId}`);
+  assert.equal(legacyRead.status, 200);
+  assert.equal(legacyRead.body.items.legacyPos.find((item) => item.orderId === legacyOrderId).amount, '900.00', 'NULL snapshot falls back to persisted item total less approved discount');
+  const zeroSnapshotRead = await rentApi(`/api/finance/unified-report?from=2020-01-15&to=2020-01-15&source=pos&q=${zeroSnapshotOrderId}`);
+  assert.equal(zeroSnapshotRead.body.items.legacyPos.find((item) => item.orderId === zeroSnapshotOrderId).amount, '0.00', 'a confirmed zero snapshot does not trigger legacy recomputation');
+  const legacyIncomeRead = await rentApi('/api/finance/income-category-report?from=2020-01-15&to=2020-01-15');
+  assert.equal(legacyIncomeRead.status, 200);
+  assert.equal(legacyIncomeRead.body.coverage.legacyUnclassifiedSalesCount, 2, 'both legacy control orders appear in POS income coverage');
+  assert.equal(Number(legacyIncomeRead.body.coverage.legacyUnclassifiedSalesAmount), 900, 'legacy income coverage includes approved discount and honors an explicit zero snapshot');
+  await page.goto(`${base}/finance/report`, { waitUntil: 'networkidle' });
+  const unifiedPanel = page.locator('.finance-unified-report');
+  await unifiedPanel.locator('[data-unified-from]').fill('2020-01-15');
+  await unifiedPanel.locator('[data-unified-to]').fill('2020-01-15');
+  await selectPortalOption(unifiedPanel.locator('[data-unified-source]'), 'pos');
+  await unifiedPanel.locator('[data-unified-q]').fill(legacyOrderId);
+  const unifiedUiResponse = page.waitForResponse((response) => response.request().method()==='POST' && new URL(response.url()).pathname === '/api/finance/unified-report/snapshots' && response.request().postDataJSON()?.q === legacyOrderId);
+  await unifiedPanel.locator('[data-unified-load]').click();
+  assert.equal((await unifiedUiResponse).status(), 201);
+  const legacyUiGroup = unifiedPanel.locator('.report-source-group').filter({ hasText: 'Старые закрытия без ценового снимка' });
+  await legacyUiGroup.locator('summary').click();
+  const legacyUiRow = legacyUiGroup.locator('.report-row').filter({ hasText: legacyOrderId });
+  await legacyUiRow.waitFor();
+  assert.match(await legacyUiRow.textContent(), /900[,.]00/);
+  await page.goto(`${base}/finance/categories`, { waitUntil: 'networkidle' });
+  const incomeReportUi = page.locator('[data-income-report]');
+  await page.locator('[data-income-from]').fill('2020-01-15');
+  await page.locator('[data-income-to]').fill('2020-01-15');
+  const incomeUiResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/finance/income-category-report' && new URL(response.url()).searchParams.get('from') === '2020-01-15');
+  await page.locator('[data-income-report-load]').click();
+  assert.equal((await incomeUiResponse).status(), 200);
+  await incomeReportUi.getByText(/старые чеки без ценового снимка: 2/i).waitFor();
+  assert.match(await incomeReportUi.textContent(), /старые чеки без ценового снимка: 2 \(900(?:[,.]00)?\s*₽/i);
+  await page.locator('[data-income-from]').fill('2020-01-16');
+  await page.locator('[data-income-to]').fill('2020-01-16');
+  const nextDateIncomeResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/finance/income-category-report' && new URL(response.url()).searchParams.get('from') === '2020-01-16' && new URL(response.url()).searchParams.get('to') === '2020-01-16');
+  await page.locator('[data-income-report-load]').click();
+  assert.equal((await nextDateIncomeResponse).status(), 200);
+  await incomeReportUi.getByText(/старые чеки без ценового снимка: 0/i).waitFor();
+  assert.match(await incomeReportUi.textContent(), /старые чеки без ценового снимка: 0 \(0(?:[,.]00)?\s*₽/i);
+  await page.goto(`${base}/finance`, { waitUntil: 'networkidle' });
+  const venueDate = (await db.query('SELECT (now() AT TIME ZONE timezone)::date::text AS today FROM venues WHERE id=$1', [venueId])).rows[0].today;
+  const firstMonth = venueDate.slice(0, 7);
+  const nextMonthDate = new Date(Date.UTC(Number(firstMonth.slice(0, 4)), Number(firstMonth.slice(5, 7)), 1));
+  const nextMonth = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, '0')}`;
+  const monthEnd = (month) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const partialEndMonthDate = new Date(Date.UTC(nextMonthDate.getUTCFullYear(), nextMonthDate.getUTCMonth() + 1, 1));
+  const partialEndMonth = `${partialEndMonthDate.getUTCFullYear()}-${String(partialEndMonthDate.getUTCMonth() + 1).padStart(2, '0')}`;
+  const monthAfterNextDate = new Date(Date.UTC(partialEndMonthDate.getUTCFullYear(), partialEndMonthDate.getUTCMonth() + 1, 1));
+  const monthAfterNext = `${monthAfterNextDate.getUTCFullYear()}-${String(monthAfterNextDate.getUTCMonth() + 1).padStart(2, '0')}`;
+  const rentRuleEndsOn = `${partialEndMonth}-15`;
+  const rentCategoryResponse = await rentApi('/api/finance/categories', 'POST', { name: `QA rent ${process.pid}`, kind: 'expense' });
+  assert.equal(rentCategoryResponse.status, 201, 'authenticated finance admin can create an expense category');
+  const rentCategoryId = rentCategoryResponse.body.id;
+  assert.deepEqual(errors.filter(message=>!message.includes('ViewTransition opt-in disabled')),[],'finance rendering must complete before opening the recurring-rent form');
+  const rentPanel = page.locator('#business-obligations');
+  await rentPanel.locator('[data-rule-new]').click();
+  const rentRuleForm = rentPanel.locator('[data-rule-form]');
+  await selectPortalOption(rentRuleForm.locator('select[name="categoryId"]'), rentCategoryId);
+  await rentRuleForm.locator('input[name="title"]').fill(`QA rent ${process.pid}`);
+  await rentRuleForm.locator('input[name="counterpartyName"]').fill('QA landlord');
+  await rentRuleForm.locator('input[name="basis"]').fill('QA lease contract');
+  await rentRuleForm.locator('input[name="amount"]').fill('60000');
+  await rentRuleForm.locator('input[name="dayOfMonth"]').fill('5');
+  await rentRuleForm.locator('input[name="startsOn"]').fill(`${firstMonth}-01`);
+  await rentRuleForm.locator('input[name="endsOn"]').fill(rentRuleEndsOn);
+  await rentRuleForm.locator('textarea[name="lines"]').fill('Помещение | 45000\nПарковка | 15000');
+  await rentRuleForm.locator('input[name="variableAmount"]').check();
+  const ruleCreateResponse = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/finance/recurring-rules');
+  await rentRuleForm.locator('button[type="submit"]').click();
+  assert.equal((await ruleCreateResponse).status(), 201, 'rent rule is saved from the finance UI');
+  const createdRuleId = (await rentApi('/api/finance/recurring-rules')).body.items.find((rule) => rule.title === `QA rent ${process.pid}`).id;
+  const createdRuleReadback = (await rentApi('/api/finance/recurring-rules')).body.items.find((rule) => rule.id === createdRuleId);
+  assert.equal(createdRuleReadback.endsOn, rentRuleEndsOn, 'rule end date persists and is returned on readback');
+  const skippedPartialEnd = await rentApi(`/api/finance/recurring-rules/${createdRuleId}/generate`, 'POST', { from: partialEndMonth, to: partialEndMonth });
+  assert.equal(skippedPartialEnd.status, 200);
+  assert.deepEqual(skippedPartialEnd.body.items, [], 'a partial final contract month creates no implicit prorated payable');
+  const partialEndPreview=await rentApi(`/api/finance/recurring-rules/${createdRuleId}/generate-preview?from=${partialEndMonth}&to=${partialEndMonth}`);
+  assert.equal(partialEndPreview.status,200);assert.equal(partialEndPreview.body.periods[0].reason,'outside_rule_term','preview explains an excluded partial contract month');
+  const oversizedGenerationPreview=await rentApi(`/api/finance/recurring-rules/${createdRuleId}/generate-preview?from=2020-01&to=2022-01`);
+  assert.equal(oversizedGenerationPreview.status,400,'preview obeys the bounded month range');assert.equal(oversizedGenerationPreview.body.error,'finance_generation_range_too_large');
+  const ruleRow = rentPanel.locator('[data-rule-list] article.category-row').filter({ hasText: `QA rent ${process.pid}` });
+  await rentPanel.locator('.finance-recurring-rules').getByText('Правила регулярных платежей', { exact: true }).click();
+  await ruleRow.waitFor();
+  await ruleRow.locator('[data-rule-end-date]').click();
+  const endDateSelectDialog=page.locator('.action-modal[role="dialog"]').last();
+  await endDateSelectDialog.locator('input[name="endsOn"]').fill(monthEnd(monthAfterNext));
+  await endDateSelectDialog.locator('button[type="submit"]').click();
+  const endDateReviewDialog=page.locator('.action-modal[role="dialog"]').last();
+  const endDateImpactText=await endDateReviewDialog.locator('textarea[name="impact"]').inputValue();
+  assert.match(endDateImpactText,new RegExp(`${monthAfterNext}: станет доступен для генерации`),'term preview shows that extending the contract makes a later full month available');
+  assert.match(endDateImpactText,/Созданные черновики, утверждённые документы, оплаты и признания останутся как есть/,'term preview states that existing financial history is preserved');
+  const endDateUpdateResponse=page.waitForResponse((response)=>response.request().method()==='PATCH'&&new URL(response.url()).pathname===`/api/finance/recurring-rules/${createdRuleId}`);
+  await endDateReviewDialog.locator('button[type="submit"]').click();
+  assert.equal((await endDateUpdateResponse).status(),200,'confirmed term change saves after a current impact preview');
+  assert.equal((await rentApi('/api/finance/recurring-rules')).body.items.find((rule)=>rule.id===createdRuleId).endsOn,monthEnd(monthAfterNext),'changed contract date survives reload');
+  const staleGeneration=await rentApi(`/api/finance/recurring-rules/${createdRuleId}/generate`,'POST',{from:partialEndMonth,to:partialEndMonth,previewToken:partialEndPreview.body.previewToken,idempotencyKey:`stale-generation-${process.pid}`});
+  assert.equal(staleGeneration.status,409,'generation refuses a preview when the contract term changes');assert.equal(staleGeneration.body.error,'finance_generation_preview_stale');
+  const generatedNewlyAvailableMonth=await rentApi(`/api/finance/recurring-rules/${createdRuleId}/generate`,'POST',{from:partialEndMonth,to:partialEndMonth});
+  assert.equal(generatedNewlyAvailableMonth.status,200);assert.equal(generatedNewlyAvailableMonth.body.items.length,1,'newly available full month can generate once');
+  await rentPanel.locator('[data-obligation-from]').fill(`${firstMonth}-01`);
+  await rentPanel.locator('[data-obligation-to]').fill(monthEnd(firstMonth));
+  await rentPanel.locator('[data-obligation-reload]').click();
+  const generateFirst = ruleRow.locator('[data-rule-generate]');
+  const firstGenerationPreviewResponse=page.waitForResponse((response)=>response.request().method()==='GET'&&new URL(response.url()).pathname.endsWith('/generate-preview'));
+  await generateFirst.click();
+  assert.equal((await firstGenerationPreviewResponse).status(),200,'the UI first loads a read-only generation preview');
+  const generationDialog=page.locator('.action-modal[role="dialog"]').last();
+  const generationPreviewText=await generationDialog.locator('textarea[name="generationPreview"]').inputValue();
+  assert.match(generationPreviewText,new RegExp(`${firstMonth}.*60.?000`));assert.match(generationPreviewText,/без оплаты и признания расхода/);assert.match(generationPreviewText,/История пауз правила не хранится/);
+  const firstGenerationCommitRequest=page.waitForRequest((request)=>request.method()==='POST'&&new URL(request.url()).pathname.endsWith('/generate'));
+  let dropGenerationAcknowledgement=true;let firstGenerationPayload=null;let committedGenerationBody=null;let replayedGenerationPayload=null;
+  await page.route(`**/api/finance/recurring-rules/${createdRuleId}/generate`,async(route)=>{
+    if(route.request().method()!=='POST')return route.continue();
+    if(dropGenerationAcknowledgement){firstGenerationPayload=route.request().postDataJSON();const committed=await route.fetch();assert.equal(committed.status(),200,'generation commits before its acknowledgement is lost');committedGenerationBody=await committed.json();dropGenerationAcknowledgement=false;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'simulated_lost_generation_acknowledgement'})});}
+    replayedGenerationPayload=route.request().postDataJSON();return route.continue();
+  });
+  const generateResponse = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith('/generate'));
+  await generationDialog.locator('button[type="submit"]').click();
+  const firstGenerationResponse=await generateResponse;
+  assert.equal(firstGenerationResponse.status(), 503, 'browser can lose the acknowledgement after the first month commits');
+  assert.deepEqual(firstGenerationPayload,(await firstGenerationCommitRequest).postDataJSON(),'the browser submits the confirmed range and preview token');
+  assert.ok(await page.evaluate((prefix)=>[...Array(sessionStorage.length)].some((_,index)=>sessionStorage.key(index)?.startsWith(prefix)),`hookah-pos:pending-finance-event:${venueId}:${userId}:recurring_payable_generation:`),'ambiguous generation stores its original key and payload');
+  assert.equal((await rentApi(`/api/finance/recurring-rules/${createdRuleId}`,'PATCH',{status:'paused'})).status,200,'rule may be paused after a generation commits but before the acknowledgement is recovered');
+  const retryGeneration=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith('/generate'));
+  await generateFirst.click();
+  const retryGenerationDialog=page.locator('.action-modal[role="dialog"]').last();assert.match(await retryGenerationDialog.textContent(),/повторён тот же диапазон/);
+  await retryGenerationDialog.locator('button[type="submit"]').click();
+  assert.equal((await retryGeneration).status(),200,'UI replays the exact generation after the lost acknowledgement');
+  assert.deepEqual(replayedGenerationPayload,firstGenerationPayload,'UI retry preserves the original token, range, and idempotency key');
+  assert.equal((await rentApi(`/api/finance/recurring-rules/${createdRuleId}`,'PATCH',{status:'active'})).status,200,'rule can be resumed after the stored generation response is verified');
+  const firstGenerationReplay=await rentApi(`/api/finance/recurring-rules/${createdRuleId}/generate`,'POST',firstGenerationPayload);
+  assert.equal(firstGenerationReplay.status,200,'an exact generation retry replays the committed response');assert.deepEqual(firstGenerationReplay.body,committedGenerationBody);
+  const rentRow = rentPanel.locator('[data-obligation-list] article.category-row').filter({ hasText: new RegExp(`^QA rent ${process.pid} ·`) });
+  await rentRow.waitFor();
+  assert.match(await rentRow.textContent(), /60\s*000\s*₽/);
+  const rentListPath = `/api/finance/payables?from=${firstMonth}-01&to=${monthEnd(firstMonth)}`;
+  const generatedOnce = await rentApi(rentListPath);
+  assert.equal(generatedOnce.status, 200);
+  assert.equal(generatedOnce.body.items.filter((item) => item.title === `QA rent ${process.pid}`).length, 1, 'one obligation exists for the month');
+  const generatedRent = generatedOnce.body.items.find((item) => item.title === `QA rent ${process.pid}`);
+  const rentPayableId = generatedRent.id;
+  assert.equal(Number(generatedRent.totalAmount), 60000);
+  assert.equal(generatedRent.status,'draft','catch-up only creates a draft and never approves an obligation');assert.deepEqual(generatedRent.payments,[],'catch-up never creates a payment');
+  assert.equal(generatedRent.variableAmount, true, 'generated payable preserves the recurring version variable-amount flag');
+  assert.equal(generatedRent.variableAmountConfirmedAt, null, 'generated variable amount starts unconfirmed');
+  const regenerateResponse = await rentApi(`/api/finance/recurring-rules/${generatedRent.recurringRuleId}/generate`, 'POST', { from: firstMonth, to: firstMonth });
+  assert.equal(regenerateResponse.status, 200, 'retrying generation is safe');
+  assert.deepEqual(regenerateResponse.body.items.find((item) => item.period === firstMonth), { period: firstMonth, id: rentPayableId, created: false }, 'retry returns the existing payable without creating another');
+  assert.equal((await rentApi(rentListPath)).body.items.filter((item) => item.title === `QA rent ${process.pid}`).length, 1, 'generation retry does not duplicate the obligation');
+  const unconfirmedVariableApproval = await rentApi(`/api/finance/payables/${rentPayableId}`, 'PATCH', { status: 'approved' });
+  assert.equal(unconfirmedVariableApproval.status, 409, 'variable amount cannot be approved without explicit per-period confirmation');
+  assert.equal(unconfirmedVariableApproval.body.error, 'finance_payable_variable_amount_confirmation_required');
+  assert.equal((await rentApi(rentListPath)).body.items.find((item) => item.id === rentPayableId).status, 'draft', 'rejected approval leaves the variable payable draft unchanged');
+  assert.match(await rentRow.locator('[data-obligation-approve]').textContent(), /Сверить сумму и утвердить/);
+  const confirmRentResponse = page.waitForResponse((response) => response.request().method() === 'PATCH' && new URL(response.url()).pathname === `/api/finance/payables/${rentPayableId}`);
+  await rentRow.locator('[data-obligation-approve]').click();
+  const confirmedRentResponse = await confirmRentResponse;
+  assert.equal(confirmedRentResponse.status(), 200, `confirmed variable payable is approved through the browser API: ${await confirmedRentResponse.text()}`);
+  await expectVisiblePayableStatus(rentRow, 'К оплате');
+  const confirmedVariableRent = (await rentApi(rentListPath)).body.items.find((item) => item.id === rentPayableId);
+  assert.ok(confirmedVariableRent.variableAmountConfirmedAt, 'explicit approval persists the amount confirmation timestamp');
+  assert.equal(confirmedVariableRent.variableAmountConfirmedBy, userId, 'amount confirmation persists its author');
+  const recognitionPath=`/api/finance/payables/${rentPayableId}/recognitions`;
+  let loseRecognitionResponse=true;
+  await page.route(`**${recognitionPath}`,async(route)=>{const response=await route.fetch();if(loseRecognitionResponse){loseRecognitionResponse=false;await route.fulfill({response,status:503,contentType:'application/json',body:JSON.stringify({error:'simulated_lost_response'})});return;}await route.fulfill({response});});
+  const recognitionForm=rentRow.locator(`form[data-payable-recognition="${rentPayableId}"]`);
+  await recognitionForm.locator('xpath=ancestor::details[1]').locator('summary').click();
+  await recognitionForm.locator('input[name="recognitionDate"]').fill(venueDate);
+  await recognitionForm.locator('input[name="documentReference"]').fill(`QA invoice ${process.pid}`);
+  const recognitionKey=await recognitionForm.getAttribute('data-key');
+  const lostRecognitionResponse=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname===recognitionPath);
+  await recognitionForm.locator('button[type="submit"]').click();
+  assert.equal((await lostRecognitionResponse).status(),503,'recognition may commit before its response is lost');
+  await page.reload({waitUntil:'networkidle'});
+  const recognizedRentRow=rentPanel.locator('[data-obligation-list] article.category-row').filter({hasText:new RegExp(`^QA rent ${process.pid} ·`)});
+  const retryRecognitionForm=recognizedRentRow.locator(`form[data-payable-recognition="${rentPayableId}"]`);
+  await retryRecognitionForm.locator('xpath=ancestor::details[1]').locator('summary').click();
+  assert.equal(await retryRecognitionForm.getAttribute('data-key'),recognitionKey,'reload restores the pending recognition key');
+  assert.equal(await retryRecognitionForm.locator('input[name="recognitionDate"]').inputValue(),venueDate,'reload restores the recognition payload');
+  const replayedRecognitionResponse=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname===recognitionPath);
+  await retryRecognitionForm.locator('button[type="submit"]').click();
+  assert.equal((await replayedRecognitionResponse).status(),200,'same-key recognition retry resolves the committed fact');
+  await retryRecognitionForm.waitFor({state:'detached'});
+  await page.unroute(`**${recognitionPath}`);
+  const recognitionCounts=(await db.query(`SELECT count(*)::int AS count,COALESCE(sum(amount),0)::numeric AS total FROM finance_payable_recognitions WHERE venue_id=$1 AND payable_id=$2`,[venueId,rentPayableId])).rows[0];
+  assert.equal(recognitionCounts.count,1,'recognition retry creates one immutable event');assert.equal(Number(recognitionCounts.total),60000);
+  const recognitionId=(await db.query('SELECT id FROM finance_payable_recognitions WHERE venue_id=$1 AND payable_id=$2',[venueId,rentPayableId])).rows[0].id;
+  const analyticsBeforeCash=await page.evaluate(async()=>{const response=await fetch('/api/analytics?days=all');return response.json();});
+  assert.equal(analyticsBeforeCash.payableRecognitionCoverage?.status,'complete',`legacy analytics response exposes the complete payable-recognition coverage contract: ${JSON.stringify(analyticsBeforeCash)}`);
+  const recognizedExpenseTotal=Number(analyticsBeforeCash.totalExpenses);
+  const rentAccountResponse=await rentApi('/api/finance/accounts','POST',{name:`QA bank ${process.pid}`,kind:'bank'});
+  assert.equal(rentAccountResponse.status,201,'finance user can create a venue-scoped bank account');
+  const rentBankAccountId=rentAccountResponse.body.id;
+  const purchaseCashAccountResponse=await rentApi('/api/finance/accounts','POST',{name:`QA external cash ${process.pid}`,kind:'cash'});
+  assert.equal(purchaseCashAccountResponse.status,201,'finance user can create an external cash account for supplier settlements');
+  const purchaseCashAccountId=purchaseCashAccountResponse.body.id;
+  const priorMonthDate=new Date(Date.UTC(Number(firstMonth.slice(0,4)),Number(firstMonth.slice(5,7))-2,1));
+  const priorMonth=`${priorMonthDate.getUTCFullYear()}-${String(priorMonthDate.getUTCMonth()+1).padStart(2,'0')}`;
+  const priorDueDate=`${priorMonth}-05`;
+  const foreignOverdueId=(await db.query(`INSERT INTO finance_payables(venue_id,category_id,category_name_snapshot,title,period_from,period_to,due_date,total_amount,status)
+    VALUES($1,$2,'Foreign QA category','Foreign overdue payable',$3::date,$4::date,$5::date,4000,'approved') RETURNING id`,[foreignVenueId,foreignCategoryId,`${priorMonth}-01`,monthEnd(priorMonth),priorDueDate])).rows[0].id;
+  const foreignRuleId=(await db.query(`INSERT INTO finance_recurring_rules(venue_id,category_id,title,day_of_month,starts_on)
+    VALUES($1,$2,'Foreign QA recurring rule',5,$3::date) RETURNING id`,[foreignVenueId,foreignCategoryId,`${firstMonth}-01`])).rows[0].id;
+  const foreignRulePreview=await rentApi(`/api/finance/recurring-rules/${foreignRuleId}/generate-preview?from=${firstMonth}&to=${firstMonth}`);
+  assert.equal(foreignRulePreview.status,404,'generation preview does not disclose a rule from another venue');
+  const createPastPayable=async(title,amount,suffix,approve=true)=>{const created=await rentApi('/api/finance/payables','POST',{categoryId:rentCategoryId,title,counterpartyName:'QA arrears landlord',basis:'QA historical debt',periodFrom:`${priorMonth}-01`,periodTo:monthEnd(priorMonth),dueDate:priorDueDate,lines:[{description:title,amount}],idempotencyKey:`arrears-${process.pid}-${suffix}`});assert.equal(created.status,201,`historical payable ${suffix} is created`);if(approve){const approved=await rentApi(`/api/finance/payables/${created.body.id}`,'PATCH',{status:'approved'});assert.equal(approved.status,200,`historical payable ${suffix} is approved`);}return created.body.id;};
+  const payableLedgerSnapshot=async(id)=>(await db.query(`SELECT p.status,
+      COALESCE((SELECT json_agg(json_build_object('link',to_jsonb(l),'expense',to_jsonb(e)) ORDER BY l.id)
+        FROM finance_payable_payment_links l JOIN expenses e ON e.venue_id=l.venue_id AND e.id=l.expense_id
+        WHERE l.venue_id=p.venue_id AND l.payable_id=p.id),'[]'::json) AS payments,
+      COALESCE((SELECT json_agg(to_jsonb(r) ORDER BY r.id) FROM finance_payable_recognitions r
+        WHERE r.venue_id=p.venue_id AND r.payable_id=p.id),'[]'::json) AS recognitions,
+      COALESCE((SELECT json_agg(json_build_object('reversal',to_jsonb(x),'recognition',to_jsonb(r)) ORDER BY x.id)
+        FROM finance_payable_recognition_reversals x JOIN finance_payable_recognitions r ON r.venue_id=x.venue_id AND r.id=x.recognition_id
+        WHERE x.venue_id=p.venue_id AND r.payable_id=p.id),'[]'::json) AS reversals
+    FROM finance_payables p WHERE p.venue_id=$1 AND p.id=$2`,[venueId,id])).rows[0];
+  const overdueUnpaidId=await createPastPayable(`QA arrears unpaid ${process.pid}`,12000,'unpaid');
+  const overduePartialId=await createPastPayable(`QA arrears partial ${process.pid}`,8000,'partial');
+  const overduePartialPayment=await rentApi(`/api/finance/payables/${overduePartialId}/payments`,'POST',{amount:'3000',paymentDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,idempotencyKey:`arrears-payment-${process.pid}-partial`});assert.equal(overduePartialPayment.status,201);
+  const overduePaidId=await createPastPayable(`QA arrears paid ${process.pid}`,5000,'paid');
+  const overdueFullPayment=await rentApi(`/api/finance/payables/${overduePaidId}/payments`,'POST',{amount:'5000',paymentDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,idempotencyKey:`arrears-payment-${process.pid}-paid`});assert.equal(overdueFullPayment.status,201);
+  const overdueDraftId=await createPastPayable(`QA arrears draft ${process.pid}`,900,'draft',false);
+  const overdueCancelledId=await createPastPayable(`QA arrears cancelled ${process.pid}`,700,'cancelled');
+  const cancelOverdueApproved=await rentApi(`/api/finance/payables/${overdueCancelledId}`,'PATCH',{status:'cancelled'});assert.equal(cancelOverdueApproved.status,200);
+  for(const [id,label] of [[overduePartialId,'partially paid'],[overduePaidId,'fully paid']]){
+    const before=await payableLedgerSnapshot(id);
+    const rejected=await rentApi(`/api/finance/payables/${id}`,'PATCH',{status:'cancelled'});
+    assert.equal(rejected.status,409,`${label} obligation cannot be cancelled`);
+    assert.equal(rejected.body.error,'finance_payable_has_payments',`${label} cancellation explains the immutable payment link`);
+    assert.deepEqual(await payableLedgerSnapshot(id),before,`${label} cancellation leaves exact payment-link and full expense rows unchanged`);
+  }
+  const recognizedUnpaidId=await createPastPayable(`QA recognized unpaid ${process.pid}`,2500,'recognized-unpaid');
+  const recognitionPathForCancel=`/api/finance/payables/${recognizedUnpaidId}/recognitions`;
+  const recognitionForCancel=await rentApi(recognitionPathForCancel,'POST',{recognitionDate:priorDueDate,documentReference:`QA-CANCEL-${process.pid}`,idempotencyKey:`cancel-recognition-${process.pid}`});
+  assert.equal(recognitionForCancel.status,201,'unpaid approved obligation can receive its separate recognition event');
+  const recognizedBeforeReversal=await payableLedgerSnapshot(recognizedUnpaidId);
+  assert.equal(recognizedBeforeReversal.status,'approved');assert.equal(recognizedBeforeReversal.recognitions.length,1);assert.equal(Number(recognizedBeforeReversal.recognitions[0].amount),2500);assert.equal(recognizedBeforeReversal.reversals.length,0);
+  const blockedRecognizedCancel=await rentApi(`/api/finance/payables/${recognizedUnpaidId}`,'PATCH',{status:'cancelled'});
+  assert.equal(blockedRecognizedCancel.status,409,'positive net recognition blocks cancellation');
+  assert.equal(blockedRecognizedCancel.body.error,'finance_payable_has_recognition');
+  assert.deepEqual(await payableLedgerSnapshot(recognizedUnpaidId),recognizedBeforeReversal,'rejected cancellation leaves exact recognition event unchanged');
+  const recognitionIdForCancel=recognitionForCancel.body.id;
+  const reversalForCancel=await rentApi(`${recognitionPathForCancel}/${recognitionIdForCancel}/reversals`,'POST',{amount:'2500',reversalDate:priorDueDate,reason:'Закрытие обязательства после полного сторно',documentReference:`QA-CANCEL-REV-${process.pid}`,idempotencyKey:`cancel-reversal-${process.pid}`});
+  assert.equal(reversalForCancel.status,201,'full recognition reversal is recorded append-only before cancellation');
+  const ledgerAfterReversal=await payableLedgerSnapshot(recognizedUnpaidId);
+  assert.equal(ledgerAfterReversal.reversals.length,1);
+  const cancelAfterFullReversal=await rentApi(`/api/finance/payables/${recognizedUnpaidId}`,'PATCH',{status:'cancelled'});
+  assert.equal(cancelAfterFullReversal.status,200,'unpaid obligation becomes cancellable after its recognition is fully reversed');
+  const recognizedAfterCancel=await payableLedgerSnapshot(recognizedUnpaidId);
+  assert.equal(recognizedAfterCancel.status,'cancelled');
+  assert.deepEqual({payments:recognizedAfterCancel.payments,recognitions:recognizedAfterCancel.recognitions,reversals:recognizedAfterCancel.reversals},
+    {payments:ledgerAfterReversal.payments,recognitions:ledgerAfterReversal.recognitions,reversals:ledgerAfterReversal.reversals},
+    'successful cancellation preserves exact immutable recognition/reversal events and adds no cash link or expense');
+  const selectedPayablesPath=`/api/finance/payables?from=${firstMonth}-01&to=${monthEnd(firstMonth)}`;
+  const selectedPayables=await rentApi(selectedPayablesPath);
+  const payablesWithArrears=await rentApi(`${selectedPayablesPath}&includeOverdue=true`);
+  assert.equal(payablesWithArrears.status,200);
+  assert.deepEqual(payablesWithArrears.body.items.map((item)=>item.id).sort(),selectedPayables.body.items.map((item)=>item.id).sort(),'overdue mode leaves the selected due-date window unchanged');
+  assert.equal(payablesWithArrears.body.overdue.asOfDate,venueDate,'arrears use the venue-local server date');
+  assert.equal(payablesWithArrears.body.overdue.dateBasis,'venue_local_due_date');
+  assert.deepEqual(payablesWithArrears.body.overdue.items.map((item)=>item.id).sort(),[overduePartialId,overdueUnpaidId].sort(),'arrears include open approved debt and exclude paid, draft, and cancelled documents');
+  assert.ok(payablesWithArrears.body.overdue.items.every((item)=>item.isOverdue===true));
+  const rentIsOverdue=venueDate>generatedRent.dueDate;
+  assert.equal(Number(payablesWithArrears.body.overdue.totalCount),2+(rentIsOverdue?1:0),'summary includes all overdue rows while respecting the selected month due date');
+  assert.equal(Number(payablesWithArrears.body.overdue.totalBalanceDue),17000+(rentIsOverdue?60000:0),'arrears summary reports remaining balances, not original obligation totals');
+  assert.equal(Number(payablesWithArrears.body.overdue.items.find((item)=>item.id===overduePartialId).balanceDue),5000);
+  assert.equal(payablesWithArrears.body.items.find((item)=>item.id===rentPayableId).isOverdue,rentIsOverdue,'in-period rent uses the venue-local due-date boundary');
+  assert.ok(!payablesWithArrears.body.overdue.items.some((item)=>item.id===foreignOverdueId),'foreign-venue arrears do not enter the list or balance');
+  const priorMonthPayables=await rentApi(`/api/finance/payables?from=${priorMonth}-01&to=${monthEnd(priorMonth)}&includeOverdue=true`);
+  assert.ok([overdueUnpaidId,overduePartialId].every((id)=>priorMonthPayables.body.items.some((item)=>item.id===id&&item.isOverdue===true)),'a completed historical period still marks its in-window debt as overdue');
+  assert.ok(!priorMonthPayables.body.overdue.items.some((item)=>[overdueUnpaidId,overduePartialId].includes(item.id)),'in-period arrears are not duplicated in the outside-period list');
+  const approvedArrears=await rentApi(`${selectedPayablesPath}&status=approved&includeOverdue=true`);
+  assert.deepEqual(approvedArrears.body.overdue.items.map((item)=>item.id).sort(),[overduePartialId,overdueUnpaidId].sort(),'status=approved keeps open overdue documents');
+  const draftArrears=await rentApi(`${selectedPayablesPath}&status=draft&includeOverdue=true`);
+  assert.deepEqual(draftArrears.body.overdue.items,[],'draft status never creates arrears');
+  const invalidArrearsFilter=await rentApi(`${selectedPayablesPath}&includeOverdue=yes`);
+  assert.equal(invalidArrearsFilter.status,400,'invalid overdue flag is rejected');
+  await rentPanel.locator('[data-obligation-reload]').click();
+  const overdueUnpaidRow=rentPanel.locator('[data-obligation-list] article.category-row').filter({hasText:`QA arrears unpaid ${process.pid}`});
+  const overduePartialRow=rentPanel.locator('[data-obligation-list] article.category-row').filter({hasText:`QA arrears partial ${process.pid}`});
+  await overdueUnpaidRow.waitFor();await overduePartialRow.waitFor();
+  assert.match(await overdueUnpaidRow.textContent(),/Просрочено/);assert.match(await overdueUnpaidRow.textContent(),/Остаток\s+12\s*000/);
+  assert.match(await overduePartialRow.textContent(),/Просрочено/);assert.match(await overduePartialRow.textContent(),/Остаток\s+5\s*000/);
+  for(const state of ['paid','draft','cancelled'])assert.equal(await rentPanel.locator('[data-obligation-list] article.category-row').filter({hasText:`QA arrears ${state} ${process.pid}`}).count(),0);
+  assert.match(await rentPanel.locator('[data-obligation-list]').textContent(),/Просрочено на/);
+  const selectedObligationReport=await rentApi(`/api/finance/unified-report?from=${firstMonth}-01&to=${monthEnd(firstMonth)}&source=obligation`);
+  assert.equal(selectedObligationReport.status,200);assert.ok(!selectedObligationReport.body.items.obligations.some((item)=>item.id===overdueUnpaidId||item.id===overduePartialId),'arrears summary does not leak into selected-period report rows');
+  await rentPanel.locator('[data-obligation-reload]').click();
+  await rentPanel.locator(`form[data-obligation-payment="${rentPayableId}"]`).waitFor({state:'attached'});
+  const submitRentPayment = async (amount, expectedStatus = 201) => {
+    const form = rentPanel.locator(`form[data-obligation-payment="${rentPayableId}"]`);
+    await form.locator('xpath=ancestor::details[1]').locator('summary').click();
+    await form.waitFor();
+    await form.locator('input[name="amount"]').fill(String(amount));
+    await form.locator('input[name="paymentDate"]').fill(venueDate);
+    await selectPortalOption(form.locator('select[name="paymentAccountId"]'), rentBankAccountId);
+    await selectPortalOption(form.locator('select[name="paymentMethod"]'), 'bank_transfer');
+    const key = await form.getAttribute('data-key');
+    const response = page.waitForResponse((candidate) => candidate.request().method() === 'POST' && new URL(candidate.url()).pathname === `/api/finance/payables/${rentPayableId}/payments`);
+    await form.locator('button[type="submit"]').click();
+    assert.equal((await response).status(), expectedStatus, `rent payment ${amount} returns expected status ${expectedStatus}`);
+    if (expectedStatus === 201) await expectVisiblePayableStatus(rentRow, amount === 20000 ? 'Частично оплачено' : 'Оплачено');
+    return key;
+  };
+  const rentPaymentPath = `/api/finance/payables/${rentPayableId}/payments`;
+  let loseFirstRentPaymentResponse = true;
+  await page.route(`**${rentPaymentPath}`, async (route) => {
+    const response = await route.fetch();
+    if (loseFirstRentPaymentResponse) {
+      loseFirstRentPaymentResponse = false;
+      await route.fulfill({ response, status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'simulated_lost_response' }) });
+      return;
+    }
+    await route.fulfill({ response });
+  });
+  const firstRentPaymentKey = await submitRentPayment(20000, 503);
+  let rentState = (await rentApi(rentListPath)).body.items.find((item) => item.id === rentPayableId);
+  assert.equal(Number(rentState.paidAmount), 20000);
+  assert.equal(Number(rentState.balanceDue), 40000, '20,000 ₽ partial payment leaves 40,000 ₽ due');
+  await page.reload({ waitUntil: 'networkidle' });
+  const retryRentRow = rentPanel.locator('[data-obligation-list] article.category-row').filter({ hasText: new RegExp(`^QA rent ${process.pid} ·`) });
+  const retryRentPayment = retryRentRow.locator(`form[data-obligation-payment="${rentPayableId}"]`);
+  await rentPanel.locator('[data-obligation-from]').fill(`${firstMonth}-01`);
+  await rentPanel.locator('[data-obligation-to]').fill(monthEnd(firstMonth));
+  await rentPanel.locator('[data-obligation-reload]').click();
+  await page.waitForFunction(() => { const list=document.querySelector('[data-obligation-list]'); return list && !list.textContent.includes('Загрузка обязательств…'); });
+  assert.equal(await retryRentRow.count(),1,`month-filtered payable renders after reload: ${JSON.stringify({from:await rentPanel.locator('[data-obligation-from]').inputValue(),to:await rentPanel.locator('[data-obligation-to]').inputValue(),api:await rentApi(rentListPath),ui:await rentPanel.locator('[data-obligation-list]').textContent()})}`);
+  await retryRentPayment.waitFor({state:'attached'});
+  await retryRentPayment.locator('xpath=ancestor::details[1]').locator('summary').click();
+  await retryRentPayment.waitFor();
+  assert.equal(await retryRentPayment.getAttribute('data-key'), firstRentPaymentKey, 'reload restores the pending payment idempotency key');
+  assert.equal(await retryRentPayment.locator('input[name="amount"]').inputValue(), '20000', 'reload restores and freezes the exact attempted amount');
+  assert.equal(await retryRentPayment.locator('input[type="hidden"][name="paymentAccountId"]').inputValue(),rentBankAccountId,'reload includes the fixed account id despite the disabled account selector');
+  const replayedRentPaymentResponse = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === rentPaymentPath);
+  await retryRentPayment.locator('button[type="submit"]').click();
+  assert.equal((await replayedRentPaymentResponse).status(), 200, 'same-key retry resolves the committed payment');
+  await expectVisiblePayableStatus(retryRentRow, 'Частично оплачено');
+  await page.unroute(`**${rentPaymentPath}`);
+  await page.waitForFunction(({ payableId, priorKey }) => {
+    const form = document.querySelector(`form[data-obligation-payment="${payableId}"]`);
+    const amount = form?.querySelector('input[name="amount"]');
+    return form && form.dataset.key !== priorKey && amount && !amount.readOnly;
+  }, { payableId: rentPayableId, priorKey: firstRentPaymentKey });
+  assert.match(await rentRow.textContent(), /Частично оплачено/);
+  assert.equal(await rentRow.locator(`form[data-obligation-payment="${rentPayableId}"]`).count(), 1, `reloaded rent row keeps its next partial-payment form: ${await rentRow.textContent()}`);
+  const secondRentPaymentKey = await submitRentPayment(40000);
+  assert.notEqual(firstRentPaymentKey, secondRentPaymentKey, 'each partial payment has its own idempotency key');
+  rentState = (await rentApi(rentListPath)).body.items.find((item) => item.id === rentPayableId);
+  assert.equal(Number(rentState.paidAmount), 60000);
+  assert.equal(Number(rentState.balanceDue), 0, '40,000 ₽ second payment settles the obligation');
+  assert.equal(rentState.payments.length,2);assert.ok(rentState.payments.every((payment)=>payment.paymentAccountId===rentBankAccountId&&payment.paymentAccountNameSnapshot===rentAccountResponse.body.name&&payment.shiftId===null),'bank payment account and historical name read back without shift');
+  const rentCashReport=await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=manual&q=${encodeURIComponent(`QA rent ${process.pid}`)}`);
+  assert.equal(rentCashReport.body.items.cashOutflows.length,4,'the report lists each current-period payable cash event once, including historical arrears payments');
+  const currentRentCashOutflows=rentCashReport.body.items.cashOutflows.filter((item)=>item.payableTitle===`QA rent ${process.pid}`);
+  assert.equal(currentRentCashOutflows.length,2,'the canonical rent expenses remain one cash-flow line per installment');
+  assert.ok(currentRentCashOutflows.every((item)=>item.paymentAccountId===rentBankAccountId&&item.shiftId===null));
+  assert.ok(rentCashReport.body.coverage.cashAccounts.unassignedLegacyCount>=0,'report exposes account assignment coverage without backfilling legacy rows');
+  assert.match(await rentRow.textContent(), /Оплачено/);
+  const analyticsAfterCash=await page.evaluate(async()=>{const response=await fetch('/api/analytics?days=all');return response.json();});
+  assert.equal(analyticsAfterCash.payableRecognitionCoverage.status,'incomplete','unrecognized approved arrears keep official expense totals blocked');
+  assert.equal(analyticsAfterCash.totalExpenses,null,'official P&L total remains blocked while arrears recognition is incomplete');
+  const recognitionAfterCash=(await db.query(`SELECT count(*)::int AS count,COALESCE(sum(amount),0)::numeric AS total FROM finance_payable_recognitions WHERE venue_id=$1 AND payable_id=$2`,[venueId,rentPayableId])).rows[0];
+  assert.equal(recognitionAfterCash.count,1,'cash payments leave the single payable recognition fact unchanged');
+  assert.equal(Number(recognitionAfterCash.total),recognizedExpenseTotal,'linked cash payments do not add a second P&L recognition');
+  const reversalForm=rentRow.locator(`form[data-payable-recognition-reversal="${recognitionId}"]`);
+  await reversalForm.locator('xpath=ancestor::details[1]').locator('summary').click();
+  await reversalForm.locator('input[name="amount"]').fill('10000');
+  await reversalForm.locator('input[name="reversalDate"]').fill(venueDate);
+  await reversalForm.locator('input[name="reason"]').fill('QA adjustment');
+  const reversalResponse=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith(`/recognitions/${recognitionId}/reversals`));
+  await reversalForm.locator('button[type="submit"]').click();
+  assert.equal((await reversalResponse).status(),201,'recognition reversal creates a separate adjustment event');
+  await expectVisiblePayableStatus(rentRow,'Оплачено');
+  const reversalState=(await db.query(`SELECT COALESCE(SUM(amount),0)::numeric AS amount FROM finance_payable_recognition_reversals WHERE venue_id=$1 AND recognition_id=$2`,[venueId,recognitionId])).rows[0];
+  assert.equal(Number(reversalState.amount),10000);
+  const analyticsAfterReversal=await page.evaluate(async()=>{const response=await fetch('/api/analytics?days=all');return response.json();});
+  assert.equal(analyticsAfterReversal.payableRecognitionCoverage.status,'incomplete','unrecognized arrears continue to block the official expense total');
+  assert.equal(analyticsAfterReversal.totalExpenses,null);
+  const netRecognizedAfterReversal=(await db.query(`SELECT r.amount-COALESCE(SUM(x.amount),0) AS amount FROM finance_payable_recognitions r LEFT JOIN finance_payable_recognition_reversals x ON x.venue_id=r.venue_id AND x.recognition_id=r.id WHERE r.venue_id=$1 AND r.id=$2 GROUP BY r.amount`,[venueId,recognitionId])).rows[0];
+  assert.equal(Number(netRecognizedAfterReversal.amount),recognizedExpenseTotal-10000,'recognition reversal adjusts net P&L recognition without a second cash event');
+  assert.equal(Number((await db.query('SELECT COALESCE(SUM(applied_amount),0)::numeric AS amount FROM finance_payable_payment_links WHERE venue_id=$1 AND payable_id=$2',[venueId,rentPayableId])).rows[0].amount),60000,'recognition reversal does not change cash or payable balance');
+  const recognitionReport=await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=obligation_recognition`);
+  assert.equal(recognitionReport.status,200);assert.equal(recognitionReport.body.items.obligationRecognitions.length,1);assert.equal(recognitionReport.body.coverage.payableRecognition.status,'incomplete','historical arrears without recognition keep report coverage explicit');
+  const adjustmentReport=await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=obligation_adjustment`);
+  assert.equal(adjustmentReport.body.items.obligationRecognitionAdjustments[0].signedAmount,'-10000.00');
+  const rentPaymentCounts = (await db.query(`SELECT count(*)::int AS count,COALESCE(sum(l.applied_amount),0)::numeric AS total
+    FROM finance_payable_payment_links l WHERE l.venue_id=$1 AND l.payable_id=$2`, [venueId, rentPayableId])).rows[0];
+  assert.equal(rentPaymentCounts.count, 2, 'two partial payments create exactly two append-only links');
+  assert.equal(Number(rentPaymentCounts.total), 60000);
+  const replay = await rentApi(`/api/finance/payables/${rentPayableId}/payments`, 'POST', { amount: '40000', paymentDate: venueDate, paymentMethod: 'bank_transfer', paymentAccountId: rentBankAccountId, idempotencyKey: secondRentPaymentKey });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.idempotent, true, 'same payment key and payload returns the prior fact');
+  const canonicalUuidReplay=await rentApi(`/api/finance/payables/${rentPayableId.toUpperCase()}/payments`,'POST',{amount:'40000',paymentDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,idempotencyKey:secondRentPaymentKey});
+  const alternateBank=(await rentApi('/api/finance/accounts','POST',{name:`QA alternate bank ${process.pid}`,kind:'bank'})).body;
+  const accountConflict=await rentApi(`/api/finance/payables/${rentPayableId}/payments`,'POST',{amount:'40000',paymentDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:alternateBank.id,idempotencyKey:secondRentPaymentKey});
+  assert.equal(accountConflict.status,409,'a replay cannot silently change its funding account');
+  const methodMismatch=await rentApi(`/api/finance/payables/${rentPayableId}/payments`,'POST',{amount:'1.00',paymentDate:venueDate,paymentMethod:'cash',paymentAccountId:rentBankAccountId,idempotencyKey:`rent-method-mismatch-${process.pid}`});
+  assert.equal(methodMismatch.status,400,'a cash tender cannot be posted against a bank account');
+  const foreignCashAccount=(await db.query("SELECT id FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox'",[foreignVenueId])).rows[0].id;
+  const tenantMismatch=await rentApi(`/api/finance/payables/${rentPayableId}/payments`,'POST',{amount:'1.00',paymentDate:venueDate,paymentMethod:'cash',paymentAccountId:foreignCashAccount,idempotencyKey:`rent-foreign-account-${process.pid}`});
+  assert.equal(tenantMismatch.status,404,'cross-venue account ids are indistinguishable from missing accounts');
+  const archivedAccount=await rentApi(`/api/finance/accounts/${alternateBank.id}`,'PATCH',{active:false});assert.equal(archivedAccount.status,200);
+  const archivedAccountPayment=await rentApi(`/api/finance/payables/${rentPayableId}/payments`,'POST',{amount:'1.00',paymentDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:alternateBank.id,idempotencyKey:`rent-archived-account-${process.pid}`});
+  assert.equal(archivedAccountPayment.status,409,'archived account cannot receive a new payable payment');
+  assert.equal(canonicalUuidReplay.status,200,'case-insensitive UUID path resolves to the same idempotent payment');
+  const memoConflict=await rentApi(`/api/finance/payables/${rentPayableId}/payments`,'POST',{amount:'40000',paymentDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,description:'Different memo',idempotencyKey:secondRentPaymentKey});
+  assert.equal(memoConflict.status,409,'same payment key with a changed memo is rejected');
+  const documentConflict=await rentApi(`/api/finance/payables/${rentPayableId}/payments`,'POST',{amount:'40000',paymentDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,documentUrl:'data:image/png;base64,aGVsbG8=',idempotencyKey:secondRentPaymentKey});
+  assert.equal(documentConflict.status,409,'same payment key with a changed document is rejected');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_payable_payment_links WHERE venue_id=$1 AND payable_id=$2', [venueId, rentPayableId])).rows[0].count, 2, 'payment replay creates no duplicate link');
+  await page.reload({ waitUntil: 'networkidle' });
+  await rentRow.waitFor();
+  assert.match(await rentRow.textContent(), /Оплачено/);
+  assert.match(await rentRow.textContent(), /QA landlord/);
+  await rentPanel.locator('.finance-recurring-rules').getByText('Правила регулярных платежей', { exact: true }).click();
+  await ruleRow.waitFor();
+  const dialogs = [];
+  const promptAnswers = [nextMonth, 'Помещение | 50000\nПарковка | 15000'];
+  let injectedGeneration = false;
+  const versionPostStatuses = [];
+  await page.route(`**/api/finance/recurring-rules/${createdRuleId}/versions/preview`, async (route) => {
+    const response = await route.fetch();
+    if (!injectedGeneration) {
+      injectedGeneration = true;
+      const generation = await rentApi(`/api/finance/recurring-rules/${createdRuleId}/generate`, 'POST', { from: nextMonth, to: nextMonth });
+      assert.equal(generation.status, 200, 'test inserts the old-rate payable after preview but before confirmation');
+    }
+    await route.fulfill({ response });
+  });
+  const captureVersionPost = (response) => {
+    const requestUrl = new URL(response.url());
+    if (response.request().method() === 'POST' && requestUrl.pathname === `/api/finance/recurring-rules/${createdRuleId}/versions`) versionPostStatuses.push(response.status());
+  };
+  page.on('response', captureVersionPost);
+  const handleRentDialog = async (dialog) => {
+    const type=dialog.type();
+    dialogs.push({ type, message: dialog.message() });
+    if (type === 'prompt') await dialog.accept(promptAnswers.shift());
+    else if (type === 'confirm') await dialog.accept();
+    else await dialog.dismiss();
+  };
+  page.on('dialog', handleRentDialog);
+  await ruleRow.locator('[data-rule-version]').click();
+  await page.waitForFunction(() => document.querySelector('[data-rule-list]')?.textContent.includes('версия 2'));
+  assert.deepEqual(versionPostStatuses, [409, 201], 'stale preview is rejected and the UI saves only after fresh confirmation');
+  await page.unroute(`**/api/finance/recurring-rules/${createdRuleId}/versions/preview`);
+  page.off('response', captureVersionPost);
+  page.off('dialog', handleRentDialog);
+  assert.equal(promptAnswers.length, 0, 'new rate month and line breakdown prompts were completed');
+  const previewDialogs = dialogs.filter((dialog) => dialog.type === 'confirm');
+  assert.equal(previewDialogs.length, 2, 'stale preview requires a second explicit confirmation');
+  assert.match(previewDialogs[0].message, /65\s*000/);
+  assert.match(previewDialogs[0].message, /новый черновик 65\s*000/);
+  assert.match(previewDialogs[1].message, /60\s*000/);
+  assert.match(previewDialogs[1].message, /сохранить созданный документ/);
+  assert.match(previewDialogs[1].message, /65\s*000/);
+  const historicalPayable = (await db.query(`SELECT p.total_amount AS amount,p.category_name_snapshot AS category,
+    (SELECT sum(l.amount) FROM finance_payable_lines l WHERE l.venue_id=p.venue_id AND l.payable_id=p.id) AS line_total
+    FROM finance_payables p WHERE p.venue_id=$1 AND p.id=$2`, [venueId, rentPayableId])).rows[0];
+  assert.equal(Number(historicalPayable.amount), 60000, 'rate change does not rewrite October obligation');
+  assert.equal(Number(historicalPayable.line_total), 60000, 'rate change does not rewrite October lines');
+  assert.equal(historicalPayable.category, `QA rent ${process.pid}`);
+  await rentPanel.locator('[data-obligation-from]').fill(`${nextMonth}-01`);
+  await rentPanel.locator('[data-obligation-to]').fill(monthEnd(nextMonth));
+  await rentPanel.locator('[data-obligation-reload]').click();
+  const generateNext = ruleRow.locator('[data-rule-generate]');
+  const nextRentListPath = `/api/finance/payables?from=${nextMonth}-01&to=${monthEnd(nextMonth)}`;
+  const nextMonthItems = (await rentApi(nextRentListPath)).body.items.filter((item) => item.title === `QA rent ${process.pid}`);
+  assert.equal(nextMonthItems.length, 1);
+  assert.equal(Number(nextMonthItems[0].totalAmount), 60000, 'a payable created between preview and confirmation preserves the prior rate');
+  assert.equal(nextMonthItems[0].recurringVersionNumber, 1, 'the old-rate obligation remains linked to its original version');
+  await rentPanel.locator('[data-obligation-from]').fill(`${monthAfterNext}-01`);
+  await rentPanel.locator('[data-obligation-to]').fill(monthEnd(monthAfterNext));
+  await rentPanel.locator('[data-obligation-reload]').click();
+  const nextPeriodPreviewResponse=page.waitForResponse((response)=>response.request().method()==='GET'&&new URL(response.url()).pathname.endsWith('/generate-preview'));
+  await generateNext.click();
+  assert.equal((await nextPeriodPreviewResponse).status(),200);
+  const nextGenerationDialog=page.locator('.action-modal[role="dialog"]').last();
+  assert.match(await nextGenerationDialog.locator('textarea[name="generationPreview"]').inputValue(),new RegExp(`${monthAfterNext}.*65.?000`));
+  const nextPeriodGenerateResponse=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith('/generate'));
+  await nextGenerationDialog.locator('button[type="submit"]').click();
+  assert.equal((await nextPeriodGenerateResponse).status(),200);
+  const newRateListPath = `/api/finance/payables?from=${monthAfterNext}-01&to=${monthEnd(monthAfterNext)}`;
+  const newRateItems = (await rentApi(newRateListPath)).body.items.filter((item) => item.title === `QA rent ${process.pid}`);
+  assert.equal(newRateItems.length, 1);
+  const savedRentVersions=(await rentApi(`/api/finance/recurring-rules/${createdRuleId}/versions`)).body.items;
+  assert.equal(Number(newRateItems[0].totalAmount), 65000, `new rate applies from the first not-yet-generated full period: ${JSON.stringify({nextMonth,monthAfterNext,savedRentVersions,newRateItems})}`);
+  assert.equal(newRateItems[0].recurringVersionNumber, 2);
+  assert.deepEqual(newRateItems[0].lines.map((line) => [line.description, Number(line.amount)]), [['Помещение', 50000], ['Парковка', 15000]]);
+  const pauseResponse = page.waitForResponse((response) => response.request().method() === 'PATCH' && new URL(response.url()).pathname === `/api/finance/recurring-rules/${nextMonthItems[0].recurringRuleId}`);
+  await ruleRow.locator('[data-rule-pause]').click();
+  assert.equal((await pauseResponse).status(), 200, 'rule pause is saved');
+  await ruleRow.getByText('Приостановлено', { exact: true }).waitFor();
+  const blockedGeneration = await rentApi(`/api/finance/recurring-rules/${newRateItems[0].recurringRuleId}/generate`, 'POST', { from: monthAfterNext, to: monthAfterNext });
+  assert.equal(blockedGeneration.status, 409, 'paused rule cannot generate future periods');
+  assert.equal(blockedGeneration.body.error, 'finance_recurring_rule_not_active');
+  const olderPayableAfterChange = (await rentApi(rentListPath)).body.items.find((item) => item.id === rentPayableId);
+  assert.equal(Number(olderPayableAfterChange.totalAmount), 60000);
+  assert.equal(Number(olderPayableAfterChange.paidAmount), 60000);
+  assert.equal(Number(olderPayableAfterChange.balanceDue), 0);
+  const firstMonthEvents = (await db.query(`SELECT count(*)::int AS count,COALESCE(sum(e.amount),0)::numeric AS amount
+    FROM finance_payable_payment_links l JOIN expenses e ON e.venue_id=l.venue_id AND e.id=l.expense_id
+    WHERE l.venue_id=$1 AND l.payable_id=$2`, [venueId, rentPayableId])).rows[0];
+  assert.equal(firstMonthEvents.count, 2);
+  assert.equal(Number(firstMonthEvents.amount), 60000, 'cash ledger holds exactly the two actual rent payments');
+  await ruleRow.locator('[data-rule-end]').click();
+  const endDialog = page.locator('.action-modal[role="dialog"]');
+  await endDialog.waitFor();
+  assert.match(await endDialog.textContent(), /Уже созданные обязательства и оплаты сохранятся/);
+  await endDialog.locator('button[type="submit"]').click();
+  await ruleRow.getByText('Завершено', { exact: true }).waitFor();
+  await page.goto(`${base}/finance/categories`, { waitUntil: 'networkidle' });
+  await selectPortalOption(page.locator('#finance-category-status'), 'all');
+  const categoryRow = page.locator('#finance-category-list .category-row').filter({ hasText: `QA rent ${process.pid}` });
+  await categoryRow.waitFor();
+  const archiveResponse = page.waitForResponse((response) => response.request().method() === 'PATCH' && new URL(response.url()).pathname === `/api/finance/categories/${rentCategoryId}`);
+  await categoryRow.locator('[data-category-status]').click();
+  const categoryConfirm = page.locator('.action-modal[role="dialog"]');
+  await categoryConfirm.waitFor();
+  await categoryConfirm.locator('button[type="submit"]').click();
+  assert.equal((await archiveResponse).status(), 200, 'ending a recurring rule releases its category for archive');
+  await categoryRow.getByText('В архиве', { exact: true }).waitFor();
+  const archivedCategoryList = await rentApi('/api/finance/categories?includeArchived=true');
+  assert.equal(archivedCategoryList.body.items.find((item) => item.id === rentCategoryId).active, false, 'category archive is visible after reload');
+
+  // Payroll and purchase source categories are classification metadata. They
+  // must survive source lifecycle transitions and feed source-specific report
+  // filters without turning inventory receipt value into a second expense.
+  const createCategory = async (name, kind = 'expense') => {
+    const response = await rentApi('/api/finance/categories', 'POST', { name, kind });
+    assert.equal(response.status, 201, `${name} category is created`);
+    return response.body.id;
+  };
+  const purchaseCategoryId = await createCategory(`QA purchase ${process.pid}`);
+  const payrollCategoryId = await createCategory(`QA payroll ${process.pid}`);
+  const incomeCategoryId = await createCategory(`QA wrong direction ${process.pid}`, 'income');
+  const otherIncomeCategoryId = await createCategory(`QA other income ${process.pid}`, 'income');
+  const inactiveCategoryId = await createCategory(`QA inactive ${process.pid}`);
+  assert.equal((await rentApi(`/api/finance/categories/${inactiveCategoryId}`, 'PATCH', { active: false })).status, 200);
+  const otherIncomePayload={categoryId:otherIncomeCategoryId,title:`QA equipment rental ${process.pid}`,counterpartyName:'QA partner',basis:'QA signed rental act',documentReference:`ACT-${process.pid}`,recognitionDate:venueDate,totalAmount:'60000.00',idempotencyKey:`other-income-doc-${process.pid}`};
+  const otherIncomeDraft=await rentApi('/api/finance/other-income','POST',otherIncomePayload);
+  assert.equal(otherIncomeDraft.status,201,'finance role can create a tenant-scoped other-income draft');
+  assert.equal(otherIncomeDraft.body.categoryName,`QA other income ${process.pid}`);
+  const otherIncomeDraftSnapshot=(await db.query('SELECT category_id AS "categoryId",title,counterparty_name AS "counterpartyName",basis,document_reference AS "documentReference",recognition_date::text AS "recognitionDate",total_amount::text AS "totalAmount" FROM finance_other_income_documents WHERE venue_id=$1 AND id=$2',[venueId,otherIncomeDraft.body.id])).rows[0];
+  assert.deepEqual(otherIncomeDraftSnapshot,{categoryId:otherIncomeCategoryId,title:otherIncomePayload.title,counterpartyName:otherIncomePayload.counterpartyName,basis:otherIncomePayload.basis,documentReference:otherIncomePayload.documentReference,recognitionDate:venueDate,totalAmount:'60000.00'},'draft stores the normalized business and recognition facts used for idempotency');
+  const otherIncomeReplay=await rentApi('/api/finance/other-income','POST',otherIncomePayload);
+  assert.equal(otherIncomeReplay.status,200,`other-income draft retry returns existing document: ${JSON.stringify(otherIncomeReplay.body)}`);
+  assert.equal(otherIncomeReplay.body.idempotent,true,'document retry returns the existing record');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_other_income_documents WHERE venue_id=$1 AND idempotency_key=$2',[venueId,otherIncomePayload.idempotencyKey])).rows[0].count,1);
+  const wrongDirectionIncome=await rentApi('/api/finance/other-income','POST',{...otherIncomePayload,categoryId:purchaseCategoryId,idempotencyKey:`other-income-wrong-kind-${process.pid}`});
+  assert.equal(wrongDirectionIncome.status,400,'expense categories cannot classify business income');
+  const otherIncomeId=otherIncomeDraft.body.id;
+  const postedOtherIncome=await rentApi(`/api/finance/other-income/${otherIncomeId}/post`,'POST',{});
+  assert.equal(postedOtherIncome.status,200,'business income is recognized only when posted');
+  const firstOtherReceiptPayload={amount:'20000.00',receiptDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,note:'first tranche',idempotencyKey:`other-income-receipt-${process.pid}-1`};
+  const firstOtherReceipt=await rentApi(`/api/finance/other-income/${otherIncomeId}/receipts`,'POST',firstOtherReceiptPayload);
+  assert.equal(firstOtherReceipt.status,201,'partial other-income receipt is accepted');
+  assert.equal(Number(firstOtherReceipt.body.receivedAmount),20000);
+  assert.equal(Number(firstOtherReceipt.body.balanceDue),40000);
+  const firstOtherReceiptReplay=await rentApi(`/api/finance/other-income/${otherIncomeId}/receipts`,'POST',firstOtherReceiptPayload);
+  assert.equal(firstOtherReceiptReplay.status,200);
+  assert.equal(firstOtherReceiptReplay.body.idempotent,true,'receipt retry does not create a duplicate');
+  const secondOtherReceipt=await rentApi(`/api/finance/other-income/${otherIncomeId}/receipts`,'POST',{amount:'40000.00',receiptDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,idempotencyKey:`other-income-receipt-${process.pid}-2`});
+  assert.equal(secondOtherReceipt.status,201);
+  assert.equal(Number(secondOtherReceipt.body.balanceDue),0,'second partial receipt settles the document');
+  const overReceipt=await rentApi(`/api/finance/other-income/${otherIncomeId}/receipts`,'POST',{amount:'0.01',receiptDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,idempotencyKey:`other-income-receipt-${process.pid}-3`});
+  assert.equal(overReceipt.status,409,'receipt aggregate cannot exceed recognized amount');
+  const otherIncomeRead=await rentApi(`/api/finance/other-income/${otherIncomeId}`);
+  assert.equal(otherIncomeRead.status,200);
+  assert.equal(otherIncomeRead.body.receipts.length,2,'reload returns both append-only receipt facts');
+  const correctionPayload={amount:'10000.00',correctionDate:venueDate,reason:'QA partial income correction',documentReference:`COR-${process.pid}`,idempotencyKey:`other-income-correction-${process.pid}`};
+  const otherIncomeCorrection=await rentApi(`/api/finance/other-income/${otherIncomeId}/corrections`,'POST',correctionPayload);
+  assert.equal(otherIncomeCorrection.status,201,'recognized income can be reduced through an append-only correction event');
+  assert.equal(Number(otherIncomeCorrection.body.netRecognizedAmount),50000);
+  const correctionReplay=await rentApi(`/api/finance/other-income/${otherIncomeId}/corrections`,'POST',correctionPayload);
+  assert.equal(correctionReplay.status,200);assert.equal(correctionReplay.body.idempotent,true);
+  const correctionOver=await rentApi(`/api/finance/other-income/${otherIncomeId}/corrections`,'POST',{...correctionPayload,amount:'50000.01',idempotencyKey:`other-income-correction-over-${process.pid}`});
+  assert.equal(correctionOver.status,409,'cumulative corrections cannot exceed original recognition');
+  assert.equal(Number(otherIncomeCorrection.body.cashReceivedBeyondNetRecognition),10000,'cash above net recognition is surfaced without changing receipts');
+  const originalReceiptId=otherIncomeRead.body.receipts.find((receipt)=>Number(receipt.amount)===20000).id;
+  const refundPayload={amount:'5000.00',refundDate:venueDate,payoutMethod:'bank_transfer',paymentAccountId:rentBankAccountId,reason:'QA partial refund',idempotencyKey:`other-income-refund-${process.pid}`};
+  const otherIncomeRefund=await rentApi(`/api/finance/other-income/${otherIncomeId}/receipts/${originalReceiptId}/refunds`,'POST',refundPayload);
+  assert.equal(otherIncomeRefund.status,201,'cash refund is tied to an actual receipt and does not change income recognition');
+  assert.equal(Number(otherIncomeRefund.body.netReceivedAmount),55000);
+  const refundReplay=await rentApi(`/api/finance/other-income/${otherIncomeId}/receipts/${originalReceiptId}/refunds`,'POST',refundPayload);
+  assert.equal(refundReplay.status,200);assert.equal(refundReplay.body.idempotent,true);
+  const refundOver=await rentApi(`/api/finance/other-income/${otherIncomeId}/receipts/${originalReceiptId}/refunds`,'POST',{...refundPayload,amount:'15000.01',idempotencyKey:`other-income-refund-over-${process.pid}`});
+  assert.equal(refundOver.status,409,'refund cannot exceed the unreversed source receipt');
+  const otherIncomeAdjustmentReport=await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=other_income_adjustment&categoryId=${otherIncomeCategoryId}`);
+  assert.equal(otherIncomeAdjustmentReport.status,200);assert.equal(otherIncomeAdjustmentReport.body.items.otherIncomeAdjustments.length,1);assert.equal(Number(otherIncomeAdjustmentReport.body.items.otherIncomeAdjustments[0].signedAmount),-10000);
+  const otherIncomeRefundReport=await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=other_income_refund&categoryId=${otherIncomeCategoryId}`);
+  assert.equal(otherIncomeRefundReport.status,200);assert.equal(otherIncomeRefundReport.body.items.otherIncomeRefunds.length,1);assert.equal(Number(otherIncomeRefundReport.body.items.otherIncomeRefunds[0].signedAmount),-5000);
+  const otherIncomeCount=(await rentApi(`/api/finance/categories?q=${encodeURIComponent(`QA other income ${process.pid}`)}`)).body.items[0];
+  assert.equal(otherIncomeCount.otherIncomeDocumentCount,1,'category usage includes the recognition document');
+  const otherIncomeRecognitionReport=await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=other_income_recognition&categoryId=${otherIncomeCategoryId}`);
+  assert.equal(otherIncomeRecognitionReport.status,200);
+  assert.equal(otherIncomeRecognitionReport.body.items.otherIncomeRecognition.length,1);
+  assert.equal(Number(otherIncomeRecognitionReport.body.items.otherIncomeRecognition[0].recognizedAmount),60000);
+  const otherIncomeReceiptReport=await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=other_income_receipt&categoryId=${otherIncomeCategoryId}`);
+  assert.equal(otherIncomeReceiptReport.status,200);
+  assert.equal(otherIncomeReceiptReport.body.items.otherIncomeReceipts.length,2);
+  assert.equal(otherIncomeReceiptReport.body.items.otherIncomeReceipts.reduce((sum,item)=>sum+Number(item.amount),0),60000);
+  const concurrentIncomeDraft=await rentApi('/api/finance/other-income','POST',{categoryId:otherIncomeCategoryId,title:`QA concurrent receipt/refund ${process.pid}`,basis:'Idempotency race coverage',recognitionDate:venueDate,totalAmount:'10.00',idempotencyKey:`other-income-race-doc-${process.pid}`});
+  assert.equal(concurrentIncomeDraft.status,201);
+  assert.equal((await rentApi(`/api/finance/other-income/${concurrentIncomeDraft.body.id}/post`,'POST',{})).status,200);
+  const concurrentReceiptPayload={amount:'10.00',receiptDate:venueDate,paymentMethod:'bank_transfer',paymentAccountId:rentBankAccountId,note:'Concurrent exact retry',idempotencyKey:`other-income-race-receipt-${process.pid}`};
+  const concurrentReceipts=await Promise.all([rentApi(`/api/finance/other-income/${concurrentIncomeDraft.body.id}/receipts`,'POST',concurrentReceiptPayload),rentApi(`/api/finance/other-income/${concurrentIncomeDraft.body.id}/receipts`,'POST',concurrentReceiptPayload)]);
+  assert.deepEqual(concurrentReceipts.map(result=>result.status).sort(),[200,201],'concurrent same-key receipt retry returns original success instead of a false balance conflict');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_other_income_receipts WHERE venue_id=$1 AND document_id=$2',[venueId,concurrentIncomeDraft.body.id])).rows[0].count,1,'concurrent receipt retry creates one immutable event');
+  const concurrentReceipt=(await db.query('SELECT id FROM finance_other_income_receipts WHERE venue_id=$1 AND document_id=$2',[venueId,concurrentIncomeDraft.body.id])).rows[0];
+  const concurrentRefundPayload={amount:'10.00',refundDate:venueDate,payoutMethod:'bank_transfer',paymentAccountId:rentBankAccountId,reason:'Concurrent exact refund retry',idempotencyKey:`other-income-race-refund-${process.pid}`};
+  const concurrentRefunds=await Promise.all([rentApi(`/api/finance/other-income/${concurrentIncomeDraft.body.id}/receipts/${concurrentReceipt.id}/refunds`,'POST',concurrentRefundPayload),rentApi(`/api/finance/other-income/${concurrentIncomeDraft.body.id}/receipts/${concurrentReceipt.id}/refunds`,'POST',concurrentRefundPayload)]);
+  assert.deepEqual(concurrentRefunds.map(result=>result.status).sort(),[200,201],'concurrent same-key refund retry returns original success instead of a false receipt-balance conflict');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_other_income_refunds WHERE venue_id=$1 AND document_id=$2',[venueId,concurrentIncomeDraft.body.id])).rows[0].count,1,'concurrent refund retry creates one immutable event');
+  const posCashbox=(await db.query("SELECT id,name FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox' AND active=true",[venueId])).rows[0];
+  const shiftIncomeDraft=await rentApi('/api/finance/other-income','POST',{categoryId:otherIncomeCategoryId,title:`QA shift-linked other income ${process.pid}`,basis:'Cash shift integration',recognitionDate:venueDate,totalAmount:'10.00',idempotencyKey:`other-income-shift-doc-${process.pid}`});
+  assert.equal(shiftIncomeDraft.status,201);
+  const shiftIncomeId=shiftIncomeDraft.body.id;
+  assert.equal((await rentApi(`/api/finance/other-income/${shiftIncomeId}/post`,'POST',{})).status,200);
+  const openIncomeShift=await rentApi('/api/shifts','POST',{openingCash:100});
+  assert.equal(openIncomeShift.status,201,'a separate cash shift opens for source integration QA');
+  const shiftReceiptPayload={amount:'8.00',receiptDate:venueDate,paymentMethod:'cash',paymentAccountId:posCashbox.id,note:'POS shift cash receipt',idempotencyKey:`other-income-pos-receipt-${process.pid}`};
+  const shiftReceipt=await rentApi(`/api/finance/other-income/${shiftIncomeId}/receipts`,'POST',shiftReceiptPayload);
+  assert.equal(shiftReceipt.status,201);
+  const shiftReceiptId=shiftReceipt.body.receipts[0].id;
+  const shiftRefundPayload={amount:'2.00',refundDate:venueDate,payoutMethod:'cash',paymentAccountId:posCashbox.id,reason:'POS cash refund',idempotencyKey:`other-income-pos-refund-${process.pid}`};
+  const shiftRefund=await rentApi(`/api/finance/other-income/${shiftIncomeId}/receipts/${shiftReceiptId}/refunds`,'POST',shiftRefundPayload);
+  assert.equal(shiftRefund.status,201);
+  assert.equal(Number(shiftRefund.body.netRecognizedAmount),10,'cash refund does not change recognized income');
+  assert.equal(Number(shiftRefund.body.netReceivedAmount),6,'net cash is receipt less refund, while the gross facts remain separate');
+  const shiftIncomeRead=await rentApi(`/api/finance/other-income/${shiftIncomeId}`);
+  assert.equal(shiftIncomeRead.body.receipts[0].paymentAccountNameSnapshot,posCashbox.name);
+  assert.equal(shiftIncomeRead.body.receipts[0].shiftId,openIncomeShift.body.id);
+  assert.equal(shiftIncomeRead.body.receipts[0].refunds[0].paymentAccountNameSnapshot,posCashbox.name);
+  assert.equal(shiftIncomeRead.body.receipts[0].refunds[0].shiftId,openIncomeShift.body.id);
+  const shiftCashPreview=await rentApi('/api/shifts');
+  assert.equal(Number(shiftCashPreview.body.current.expectedCash),106,'POS cash receipt adds and its refund subtracts from expected shift cash');
+  const incomeClose=await rentApi(`/api/shifts/${openIncomeShift.body.id}/close`,'POST',{closingCash:106,checklist:{version:1,items:{ordersReviewed:true,cashCounted:true,inventoryReviewed:true,externalFiscalReportsHandled:true}}});
+  assert.equal(incomeClose.status,200);
+  assert.equal(Number(incomeClose.body.expectedCash),106);
+  assert.equal(incomeClose.body.closeSnapshot.payload.ledger.receipts.filter(event=>event.source==='other_income_receipt'&&Number(event.amount)===8).length,1);
+  assert.equal(incomeClose.body.closeSnapshot.payload.ledger.payouts.filter(event=>event.source==='other_income_refund'&&Number(event.amount)===2).length,1);
+  assert.equal((await rentApi(`/api/finance/other-income/${shiftIncomeId}/receipts`,'POST',shiftReceiptPayload)).status,200,'exact receipt replay still resolves after its cash shift closes');
+  assert.equal((await rentApi(`/api/finance/other-income/${shiftIncomeId}/receipts/${shiftReceiptId}/refunds`,'POST',shiftRefundPayload)).status,200,'exact refund replay still resolves after its cash shift closes');
+  const alteredAccountReplay=await rentApi(`/api/finance/other-income/${shiftIncomeId}/receipts`,'POST',{...shiftReceiptPayload,paymentAccountId:rentBankAccountId,paymentMethod:'bank_transfer'});
+  assert.equal(alteredAccountReplay.status,409,'same receipt key cannot switch the account or payment method');
+
+  const readerPage=await browser.newPage({viewport:{width:375,height:812},locale:'ru-RU'});
+  await readerPage.goto(`${base}/login`,{waitUntil:'networkidle'});
+  await readerPage.locator('#login-username').fill(managerLogin);await readerPage.locator('#login-password').fill(password);await readerPage.locator('#login-form button[type="submit"]').click();await readerPage.waitForURL((value)=>!value.pathname.includes('/login'));
+  const readerAccess=await readerPage.evaluate(async({documentId,categoryId})=>{const get=await fetch(`/api/finance/other-income/${documentId}`);const create=await fetch('/api/finance/other-income',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({categoryId,title:'Forbidden reader write',basis:'Role test',recognitionDate:'2026-10-17',totalAmount:'10.00',idempotencyKey:'reader-forbidden-document'})});const receipt=await fetch(`/api/finance/other-income/${documentId}/receipts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:'1.00',receiptDate:'2026-10-17',paymentMethod:'cash',idempotencyKey:'reader-forbidden-receipt'})});return{read:get.status,create:create.status,receipt:receipt.status};},{documentId:otherIncomeId,categoryId:otherIncomeCategoryId});
+  assert.deepEqual(readerAccess,{read:200,create:403,receipt:403},'finance_read can inspect other income but cannot create income documents or cash receipts');
+  await readerPage.close();
+  await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
+  const otherIncomePanel=page.locator('#other-income');const otherIncomeForm=otherIncomePanel.locator('[data-other-income-form]');
+  await selectPortalOption(otherIncomeForm.locator('[name="categoryId"]'), otherIncomeCategoryId);
+  await otherIncomeForm.locator('[name="totalAmount"]').fill('1250');
+  await otherIncomeForm.locator('[name="title"]').fill(`QA UI service ${process.pid}`);
+  await otherIncomeForm.locator('[name="basis"]').fill('QA UI agreement');
+  const otherUiDraft=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/other-income');
+  await otherIncomeForm.locator('[type="submit"]').click();
+  assert.equal((await otherUiDraft).status(),201,'finance UI saves the separate income as a draft first');
+  const otherUiRow=otherIncomePanel.locator('.payment-row').filter({hasText:`QA UI service ${process.pid}`});
+  await otherUiRow.locator('small').filter({hasText:'Черновик'}).first().waitFor();
+  const otherUiId=await otherUiRow.locator('[data-other-income-edit]').getAttribute('data-other-income-edit');
+  const otherUiEditLoad=page.waitForResponse((response)=>response.request().method()==='GET'&&new URL(response.url()).pathname===`/api/finance/other-income/${otherUiId}`);
+  await otherUiRow.locator('[data-other-income-edit]').click();
+  assert.equal((await otherUiEditLoad).status(),200,'draft facts finish loading into the editor before they are changed');
+  await otherIncomeForm.locator('[name="totalAmount"]').fill('1500');
+  const otherUiEdit=page.waitForResponse((response)=>response.request().method()==='PATCH'&&new URL(response.url()).pathname.match(/^\/api\/finance\/other-income\/.+/));
+  await otherIncomeForm.locator('[type="submit"]').click();
+  const otherUiEditResponse=await otherUiEdit;
+  assert.equal(otherUiEditResponse.status(),200,'finance UI can edit a draft before posting');
+  assert.equal(Number((await otherUiEditResponse.json()).totalAmount),1500,'edited amount is returned by the API before posting');
+  const editedOtherUiRow=otherIncomePanel.locator('.payment-row').filter({hasText:`QA UI service ${process.pid}`});
+  const otherUiPost=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname.match(/^\/api\/finance\/other-income\/.+\/post$/),{timeout:8000}).catch(()=>null);
+  await editedOtherUiRow.locator('[data-other-income-post]').click();
+  await page.getByRole('dialog').getByRole('button',{name:'Подтвердить'}).click();
+  const otherUiPostResponse=await otherUiPost;
+  assert.ok(otherUiPostResponse,`confirming the income draft posts it: ${JSON.stringify({dialogCount:await page.getByRole('dialog').count(),row:await editedOtherUiRow.textContent(),notices:await page.locator('[role="status"]').allTextContents()})}`);
+  assert.equal(otherUiPostResponse.status(),200,'posting is an explicit, separately confirmed action');
+  await editedOtherUiRow.locator('small').filter({hasText:'Ожидает поступления'}).waitFor();
+  let simulateLostReceiptResponse=true;
+  await page.route('**/api/finance/other-income/*/receipts',async(route)=>{
+    if(simulateLostReceiptResponse){simulateLostReceiptResponse=false;const committed=await route.fetch();assert.equal(committed.status(),201,'the first receipt reaches and commits on the server');await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'simulated_lost_response'})});return;}
+    await route.continue();
+  });
+  const firstReceiptForm=editedOtherUiRow.locator('[data-other-income-receipt]');
+  await selectPortalOption(firstReceiptForm.locator('select[name="paymentAccountId"]'), rentBankAccountId);
+  await selectPortalOption(firstReceiptForm.locator('select[name="paymentMethod"]'), 'bank_transfer');
+  const firstReceiptIntent=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith('/receipts'));
+  await firstReceiptForm.locator('[type="submit"]').click();
+  assert.equal((await firstReceiptIntent).status(),503,'the browser simulates a committed request with a lost response');
+  await firstReceiptForm.locator('button[type="submit"]').filter({hasText:'Повторить поступление'}).waitFor();
+  const firstReceiptKey=await firstReceiptForm.getAttribute('data-key');
+  await page.reload({waitUntil:'networkidle'});
+  const afterReloadIncomeRow=page.locator('#other-income .payment-row').filter({hasText:`QA UI service ${process.pid}`});
+  const retriedReceiptForm=afterReloadIncomeRow.locator('[data-other-income-receipt]');
+  await retriedReceiptForm.waitFor();
+  await retriedReceiptForm.getByText('Повтор ожидающего поступления',{exact:false}).waitFor();
+  assert.equal(await retriedReceiptForm.getAttribute('data-key'),firstReceiptKey,'a full page reload preserves the uncertain operation key');
+  assert.equal(await retriedReceiptForm.locator('[name="amount"]').isEditable(),false,'uncertain receipt fields stay locked until the result is reconciled');
+  assert.equal(await retriedReceiptForm.locator('select[name="paymentMethod"]').isDisabled(),true,'uncertain payment method stays locked during reconciliation');
+  const receiptRetry=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith('/receipts'));
+  await retriedReceiptForm.locator('[type="submit"]').click();
+  assert.equal((await receiptRetry).status(),200,'retry returns the already committed receipt');
+  const uiReceiptCount=(await db.query('SELECT count(*)::int AS count FROM finance_other_income_receipts WHERE venue_id=$1 AND document_id=(SELECT id FROM finance_other_income_documents WHERE venue_id=$1 AND title=$2)',[venueId,`QA UI service ${process.pid}`])).rows[0].count;
+  assert.equal(uiReceiptCount,1,'a lost response followed by retry creates exactly one receipt');
+  await page.unroute('**/api/finance/other-income/*/receipts');
+  const purchaseDocumentPayload = (documentNumber, financeCategoryId) => ({
+    supplierName: 'QA categorized supplier', documentNumber, documentDate: venueDate,
+    note: 'Finance category integration fixture', financeCategoryId,
+    lines: [{ ingredientId, quantity: 2, unit: 'bottle', unitCost: 100 }],
+  });
+  for (const [label, categoryId] of [
+    ['cross-venue', foreignCategoryId], ['wrong-direction', incomeCategoryId], ['archived', inactiveCategoryId],
+  ]) {
+    const rejected = await rentApi('/api/inventory/purchase-documents', 'POST', purchaseDocumentPayload(`BAD-${label}-${process.pid}`, categoryId));
+    assert.equal(rejected.status, 400, `${label} purchase category is rejected`);
+  }
+  const unchangedRejectedCount = (await db.query("SELECT count(*)::int AS count FROM inventory_purchase_documents WHERE venue_id=$1 AND document_number LIKE 'BAD-%'", [venueId])).rows[0].count;
+  assert.equal(unchangedRejectedCount, 0, 'rejected source categories create no purchase documents');
+
+  // Existing pre-integration documents are intentionally left unclassified.
+  const legacyPurchaseCategories = await db.query(`SELECT finance_category_id AS id,finance_category_name_snapshot AS name
+    FROM inventory_purchase_documents WHERE venue_id=$1 AND id=ANY($2::uuid[])`, [venueId, [draft.id, olderDraft.id, undatedDraft.id]]);
+  assert.equal(legacyPurchaseCategories.rowCount, 3);
+  assert.ok(legacyPurchaseCategories.rows.every((item) => item.id === null && item.name === null), 'legacy purchase documents remain NULL without name-based backfill');
+
+  const categorizedDraftResponse = await rentApi('/api/inventory/purchase-documents', 'POST', purchaseDocumentPayload(`CAT-${process.pid}`, purchaseCategoryId));
+  assert.equal(categorizedDraftResponse.status, 201, 'inventory document accepts an explicit valid expense category');
+  const categorizedDraftId = categorizedDraftResponse.body.id;
+  assert.equal(categorizedDraftResponse.body.financeCategoryId, purchaseCategoryId);
+  assert.equal(categorizedDraftResponse.body.financeCategoryNameSnapshot, `QA purchase ${process.pid}`);
+  const editedCategoryId = await createCategory(`QA purchase edited ${process.pid}`);
+  const editPayload = purchaseDocumentPayload(`CAT-${process.pid}`, editedCategoryId);
+  const editResponse = await rentApi(`/api/inventory/purchase-documents/${categorizedDraftId}`, 'PATCH', editPayload);
+  assert.equal(editResponse.status, 200, 'draft can be reclassified before posting');
+  assert.equal(editResponse.body.financeCategoryId, editedCategoryId);
+  assert.equal(editResponse.body.financeCategoryNameSnapshot, `QA purchase edited ${process.pid}`);
+  const postedResponse = await rentApi(`/api/inventory/purchase-documents/${categorizedDraftId}/post`, 'POST', {});
+  assert.equal(postedResponse.status, 200, 'categorized purchase document posts through its existing inventory lifecycle');
+  const postedRead = await rentApi(`/api/inventory/purchase-documents/${categorizedDraftId}`);
+  assert.equal(postedRead.status, 200);
+  assert.equal(postedRead.body.financeCategoryId, editedCategoryId);
+  assert.equal(postedRead.body.financeCategoryNameSnapshot, `QA purchase edited ${process.pid}`, 'posted category snapshot survives reread');
+  const paymentKey = `purchase-cat-${process.pid}-1`;
+  const purchasePaymentPayload = { amount: '100.00', paymentDate: venueDate, paymentMethod: 'bank_transfer', paymentAccountId: rentBankAccountId, idempotencyKey: paymentKey };
+  const categorizedPayment = await rentApi(`/api/finance/purchase-payables/${categorizedDraftId}/payments`, 'POST', purchasePaymentPayload);
+  assert.equal(categorizedPayment.status, 201, 'first categorized supplier payment is persisted');
+  const categorizedPaymentRow = (await db.query(`SELECT e.category_id AS id,e.category AS name,e.source,e.purchase_document_id AS "documentId"
+    FROM expenses e WHERE e.venue_id=$1 AND e.id=$2`, [venueId, categorizedPayment.body.expenseId])).rows[0];
+  assert.deepEqual(categorizedPaymentRow, { id: editedCategoryId, name: `QA purchase edited ${process.pid}`, source: 'purchase', documentId: categorizedDraftId }, 'purchase cash expense inherits the posted source ID and historical name');
+  const paymentReplay = await rentApi(`/api/finance/purchase-payables/${categorizedDraftId}/payments`, 'POST', purchasePaymentPayload);
+  assert.equal(paymentReplay.status, 200);
+  assert.equal(paymentReplay.body.idempotent, true, 'supplier payment retry returns the same canonical expense');
+  assert.equal((await db.query("SELECT count(*)::int AS count FROM expenses WHERE venue_id=$1 AND purchase_document_id=$2 AND source='purchase'", [venueId, categorizedDraftId])).rows[0].count, 1, 'payment replay creates no cash duplicate');
+
+  const purchaseCategoryCount = await rentApi(`/api/finance/categories?includeArchived=true&q=${encodeURIComponent(`QA purchase edited ${process.pid}`)}`);
+  assert.equal(purchaseCategoryCount.status, 200);
+  const countedPurchaseCategory = purchaseCategoryCount.body.items.find((item) => item.id === editedCategoryId);
+  assert.equal(countedPurchaseCategory.purchaseDocumentCount, 1, 'category count includes the purchase source document');
+  await page.goto(`${base}/finance/categories`, { waitUntil: 'networkidle' });
+  await selectPortalOption(page.locator('#finance-category-status'), 'all');
+  const purchaseCategoryRow = page.locator('#finance-category-list .category-row').filter({ hasText: `QA purchase edited ${process.pid}` });
+  await purchaseCategoryRow.waitFor();
+  await purchaseCategoryRow.locator('[data-category-status]').click();
+  const purchaseArchiveDialog = page.locator('.action-modal[role="dialog"]');
+  await purchaseArchiveDialog.waitFor();
+  await purchaseArchiveDialog.locator('button[type="submit"]').click();
+  await purchaseCategoryRow.getByText('В архиве', { exact: true }).waitFor();
+  const archivedPayment = await rentApi(`/api/finance/purchase-payables/${categorizedDraftId}/payments`, 'POST', { ...purchasePaymentPayload, amount: '100.00', idempotencyKey: `purchase-cat-${process.pid}-2` });
+  assert.equal(archivedPayment.status, 201, 'existing posted source can be paid after its category is archived');
+  const archivedPaymentRow = (await db.query('SELECT category_id AS id,category AS name FROM expenses WHERE venue_id=$1 AND id=$2', [venueId, archivedPayment.body.expenseId])).rows[0];
+  assert.deepEqual(archivedPaymentRow, { id: editedCategoryId, name: `QA purchase edited ${process.pid}` }, 'payment after archive retains source category ID/name snapshot');
+  assert.equal((await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=purchase&categoryId=${editedCategoryId}`)).body.items.cashOutflows.length, 2, 'purchase cash report category filter matches both actual payments');
+  const purchaseReceiptReport = await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=purchase_receipt&categoryId=${editedCategoryId}`);
+  assert.equal(purchaseReceiptReport.status, 200);
+  assert.equal(purchaseReceiptReport.body.items.purchaseReceipts.length, 1);
+  assert.equal(purchaseReceiptReport.body.items.purchaseReceipts[0].categoryId, editedCategoryId);
+  assert.equal(purchaseReceiptReport.body.items.purchaseReceipts[0].categoryName, `QA purchase edited ${process.pid}`);
+  assert.equal(Number(purchaseReceiptReport.body.items.purchaseReceipts[0].acquisitionAmount), 200, 'receipt report exposes inventory acquisition value separately');
+  assert.equal(Number(purchaseReceiptReport.body.items.purchaseReceipts[0].cashPaid), 200, 'receipt drilldown shows actual cash paid without adding it to acquisition value');
+
+  // Payroll has a separate accrual lifecycle; its expense row is the canonical
+  // cash fact and must inherit the same category without duplicating accrual.
+  const payrollRule = await rentApi('/api/payroll/rules', 'POST', { name: `QA monthly ${process.pid}`, ruleType: 'monthly', rate: 3100 });
+  assert.equal(payrollRule.status, 201, 'test payroll rule can be created by finance role');
+  const payrollEntryResponse = await rentApi('/api/payroll/entries', 'POST', {
+    userId, ruleId: payrollRule.body.id, periodFrom: venueDate, periodTo: venueDate, financeCategoryId: payrollCategoryId,
+  });
+  assert.equal(payrollEntryResponse.status, 201, 'payroll draft accepts an optional finance category');
+  const payrollEntryId = payrollEntryResponse.body.id;
+  assert.equal(payrollEntryResponse.body.financeCategoryId, payrollCategoryId);
+  assert.equal(payrollEntryResponse.body.financeCategoryNameSnapshot, `QA payroll ${process.pid}`);
+  assert.ok(Number(payrollEntryResponse.body.amount) > 0);
+  assert.equal((await rentApi(`/api/payroll/entries/${payrollEntryId}`, 'PATCH', { action: 'approve' })).status, 200);
+  const payrollPayResponse = await rentApi(`/api/payroll/entries/${payrollEntryId}`, 'PATCH', { action: 'pay', paymentDate: venueDate,paymentAccountId:rentBankAccountId,paymentMethod:'bank_transfer' });
+  assert.equal(payrollPayResponse.status, 200, 'approved payroll entry creates its canonical payout expense');
+  const payrollRead = await rentApi(`/api/payroll/entries/${payrollEntryId}`);
+  assert.equal(payrollRead.status, 200);
+  assert.equal(payrollRead.body.financeCategoryId, payrollCategoryId);
+  assert.equal(payrollRead.body.financeCategoryNameSnapshot, `QA payroll ${process.pid}`);
+  assert.equal(payrollRead.body.paymentAccountId,rentBankAccountId);
+  assert.equal(payrollRead.body.paymentAccountNameSnapshot,rentAccountResponse.body.name);
+  assert.equal(payrollRead.body.paymentMethod,'bank_transfer');
+  assert.equal(payrollRead.body.shiftId,null);
+  const payrollExpense = (await db.query(`SELECT category_id AS id,category AS name,source,amount,payment_method,finance_account_id,finance_account_name_snapshot,shift_id
+    FROM expenses WHERE venue_id=$1 AND id=$2`, [venueId, payrollRead.body.expenseId])).rows[0];
+  assert.deepEqual({ id: payrollExpense.id, name: payrollExpense.name, source: payrollExpense.source }, { id: payrollCategoryId, name: `QA payroll ${process.pid}`, source: 'payroll' });
+  assert.equal(payrollExpense.payment_method,'bank_transfer');
+  assert.equal(payrollExpense.finance_account_id,rentBankAccountId);
+  assert.equal(payrollExpense.finance_account_name_snapshot,rentAccountResponse.body.name);
+  assert.equal(payrollExpense.shift_id,null);
+  assert.equal(Number(payrollExpense.amount), Number(payrollRead.body.amount), 'payroll payout expense equals its approved accrual');
+  const payrollAccrualReport = await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=payroll_accrual&categoryId=${payrollCategoryId}`);
+  assert.equal(payrollAccrualReport.status, 200);
+  assert.equal(payrollAccrualReport.body.items.payrollAccruals.length, 1);
+  assert.equal(payrollAccrualReport.body.items.payrollAccruals[0].categoryId, payrollCategoryId);
+  assert.equal(payrollAccrualReport.body.items.payrollAccruals[0].categoryName, `QA payroll ${process.pid}`);
+  assert.equal(Number(payrollAccrualReport.body.items.payrollAccruals[0].recognizedInRange), Number(payrollRead.body.amount));
+  const payrollCashReport = await rentApi(`/api/finance/unified-report?from=${venueDate}&to=${venueDate}&source=payroll&categoryId=${payrollCategoryId}`);
+  assert.equal(payrollCashReport.status, 200);
+  assert.equal(payrollCashReport.body.items.cashOutflows.length, 1);
+  assert.equal(payrollCashReport.body.items.cashOutflows[0].categoryId, payrollCategoryId);
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM expenses WHERE venue_id=$1 AND source=\'payroll\' AND id=$2', [venueId, payrollRead.body.expenseId])).rows[0].count, 1, 'one payroll payout fact exists; accrual remains a separate report dimension');
+  const payrollCategoryCount = await rentApi(`/api/finance/categories?includeArchived=true&q=${encodeURIComponent(`QA payroll ${process.pid}`)}`);
+  assert.equal(payrollCategoryCount.body.items.find((item) => item.id === payrollCategoryId).payrollAccrualCount, 1, 'category count includes payroll accrual source');
+  const payrollUiDraft=await rentApi('/api/payroll/entries','POST',{userId,ruleId:payrollRule.body.id,periodFrom:'2026-09-01',periodTo:'2026-09-30',financeCategoryId:payrollCategoryId});
+  assert.equal(payrollUiDraft.status,201);
+  assert.equal((await rentApi(`/api/payroll/entries/${payrollUiDraft.body.id}`,'PATCH',{action:'approve'})).status,200);
+
+  // The authenticated UI exposes optional active expense-category selectors
+  // on both source forms; archived categories remain available only as frozen
+  // history on existing source records.
+  await page.goto(`${base}/inventory?view=movements`, { waitUntil: 'networkidle' });
+  const purchaseCategorySelect = page.locator('#purchase-finance-category');
+  await purchaseCategorySelect.waitFor({ state: 'attached' });
+  assert.equal(await purchaseCategorySelect.locator(`option[value="${purchaseCategoryId}"]`).count(), 1, 'purchase source selector includes active expense categories');
+  assert.equal(await purchaseCategorySelect.locator(`option[value="${purchaseCategoryId}"]`).isDisabled(), false);
+  await page.goto(`${base}/finance#payroll`, { waitUntil: 'networkidle' });
+  await page.locator('#payroll-filter-from').fill('2026-09-01');
+  await page.locator('#payroll-filter-to').fill('2026-10-31');
+  await page.locator('#payroll-reload').click();
+  const payrollUiRow=page.locator(`.payroll-entry-row [data-payroll-action="pay"][data-entry="${payrollUiDraft.body.id}"]`).locator('xpath=ancestor::article');
+  await payrollUiRow.waitFor();
+  await selectPortalOption(payrollUiRow.locator(`[data-payroll-payment-account="${payrollUiDraft.body.id}"]`),rentBankAccountId);
+  const payrollUiMethod=payrollUiRow.locator(`[data-payroll-payment-method="${payrollUiDraft.body.id}"]`);
+  await selectPortalOption(payrollUiMethod,'bank_transfer');
+  const payrollUiPaymentResponse=page.waitForResponse((response)=>response.request().method()==='PATCH'&&new URL(response.url()).pathname===`/api/payroll/entries/${payrollUiDraft.body.id}`);
+  await payrollUiRow.locator(`[data-payroll-action="pay"][data-entry="${payrollUiDraft.body.id}"]`).click();
+  assert.equal((await payrollUiPaymentResponse).status(),200,'payroll browser form posts its selected account and allowed method');
+  const paidPayrollUiRow=page.locator('.payroll-entry-row').filter({hasText:rentAccountResponse.body.name}).filter({hasText:'01.09.2026 — 30.09.2026'}).filter({hasText:'Банковский перевод'});
+  await paidPayrollUiRow.waitFor();
+  assert.equal((await rentApi(`/api/payroll/entries/${payrollUiDraft.body.id}`)).body.paymentAccountId,rentBankAccountId,'browser payroll action persists an account that remains after readback');
+  await page.locator('#payroll-create-toggle').click();
+  const payrollCategorySelect = page.locator('#payroll-create-finance-category');
+  await payrollCategorySelect.waitFor({ state: 'attached' });
+  await page.waitForFunction((id) => {
+    const select = document.querySelector('#payroll-create-finance-category');
+    return select?.dataset.ready === 'true' && [...select.options].some((option) => option.value === id);
+  }, payrollCategoryId);
+  assert.equal(await payrollCategorySelect.locator(`option[value="${payrollCategoryId}"]`).isDisabled(), false, 'payroll source selector includes active expense categories');
+
+  await page.goto(`${base}/finance#payables`, { waitUntil: 'networkidle' });
   const row = page.locator('.payable-row').filter({ hasText: 'QA browser supplier' });
+  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   await row.waitFor();
-  const expectedSupplierOrder = ['QA browser supplier', 'QA older dated supplier', 'QA undated supplier'];
+  const expectedSupplierOrder = ['QA categorized supplier', 'QA browser supplier', 'QA older dated supplier', 'QA undated supplier'];
+  const expectedBoundedSupplierOrder = ['QA browser supplier', 'QA older dated supplier'];
+  const expectedBoundedWithUndatedOrder = ['QA browser supplier', 'QA older dated supplier', 'QA undated supplier'];
   const payablesApi = await page.evaluate(async () => {
     const response = await fetch('/api/finance/purchase-payables');
     return { status: response.status, body: await response.json() };
   });
   assert.equal(payablesApi.status, 200, 'finance payables list is readable in the authenticated browser session');
   assert.deepEqual(payablesApi.body.items.map((item) => item.supplierName), expectedSupplierOrder, 'payables API orders document dates descending and NULL last');
-  assert.deepEqual(payablesApi.body.items.map((item) => isoVenueDate(item.documentDate)), [latestDocumentDate, olderDocumentDate, null], 'payables API preserves both invoice dates and NULL in the venue timezone');
+  assert.deepEqual(payablesApi.body.items.map((item) => isoVenueDate(item.documentDate)), [venueDate, latestDocumentDate, olderDocumentDate, null], 'payables API preserves all invoice dates and NULL in the venue timezone');
   const boundedPayables = await page.evaluate(async () => { const response = await fetch('/api/finance/purchase-payables?documentDateFrom=2026-09-05&documentDateTo=2026-09-28&paymentStatus=unpaid'); return { status: response.status, body: await response.json() }; });
   assert.equal(boundedPayables.status, 200, 'payables API accepts independent inclusive invoice-date and payment-status filters');
-  assert.deepEqual(boundedPayables.body.items.map((item) => item.supplierName), expectedSupplierOrder.slice(0, 2), 'payables date range includes both endpoints and excludes undated docs by default');
+  assert.deepEqual(boundedPayables.body.items.map((item) => item.supplierName), expectedBoundedSupplierOrder, 'payables date range includes both endpoints and excludes undated docs by default');
   assert.ok(boundedPayables.body.items.every((item) => item.paymentStatus === 'unpaid'), 'derived payment status filter is applied server-side');
   const boundedIncludingUndated = await page.evaluate(async () => { const response = await fetch('/api/finance/purchase-payables?documentDateFrom=2026-09-05&documentDateTo=2026-09-28&includeUndated=true'); return { status: response.status, body: await response.json() }; });
   assert.equal(boundedIncludingUndated.status, 200);
-  assert.deepEqual(boundedIncludingUndated.body.items.map((item) => item.supplierName), expectedSupplierOrder, 'explicit undated option unions NULL invoice dates with the inclusive payable range');
+  assert.deepEqual(boundedIncludingUndated.body.items.map((item) => item.supplierName), expectedBoundedWithUndatedOrder, 'explicit undated option unions NULL invoice dates with the inclusive payable range');
   for (const query of ['?documentDateFrom=2026-02-30', '?documentDateFrom=2026-09-28&documentDateTo=2026-09-05', '?paymentStatus=unknown', '?includeUndated=1']) {
     const rejected = await page.evaluate(async (value) => { const response = await fetch(`/api/finance/purchase-payables${value}`); return { status: response.status, body: await response.json() }; }, query);
     assert.equal(rejected.status, 400, `invalid payables filter is rejected: ${query}`);
@@ -116,12 +1015,13 @@ try {
     FROM inventory_purchase_documents WHERE venue_id=$1 AND status='posted'
     ORDER BY document_date DESC NULLS LAST,recorded_at DESC`, [venueId]);
   assert.deepEqual(databaseOrder.rows.map((item) => item.supplierName), expectedSupplierOrder, 'independent PostgreSQL ordering matches the payables contract');
-  assert.equal(databaseOrder.rows[2].documentDate, null, 'undated posted payable remains NULL in PostgreSQL');
+  assert.equal(databaseOrder.rows[3].documentDate, null, 'undated posted payable remains NULL in PostgreSQL');
   const visibleSupplierOrder = await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim()));
   assert.deepEqual(visibleSupplierOrder, expectedSupplierOrder, 'finance UI shows dated payables newest-first and the undated row last');
   const undatedRow = page.locator('.payable-row').filter({ hasText: 'QA undated supplier' });
   assert.match(await undatedRow.textContent(), /Дата накладной не указана/, 'finance UI labels the missing invoice date without inventing one');
   await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   await row.waitFor();
   assert.deepEqual(await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim())), expectedSupplierOrder, 'payables order survives browser reload');
   assert.match(await row.textContent(), /Не оплачена/);
@@ -130,19 +1030,22 @@ try {
   await page.locator('#payables-date-to').fill('2026-09-28');
   const boundedUiResponse = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/finance/purchase-payables' && new URL(response.url()).searchParams.has('documentDateFrom'));
   await page.locator('#payables-filter-apply').click(); await boundedUiResponse;
-  assert.deepEqual(await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim())), expectedSupplierOrder.slice(0, 2), 'payables UI applies inclusive invoice date range');
+  await page.waitForFunction(() => document.querySelectorAll('.payable-row').length === 2);
+  assert.deepEqual(await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim())), expectedBoundedSupplierOrder, 'payables UI applies inclusive invoice date range');
   assert.equal(await page.locator('#payables-count').textContent(), '2', 'payables summary count matches filtered results');
   await page.locator('#payables-include-undated').check();
   const includeUndatedUiResponse = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/finance/purchase-payables' && new URL(response.url()).searchParams.get('includeUndated') === 'true');
   await page.locator('#payables-filter-apply').click(); await includeUndatedUiResponse;
+  await page.waitForFunction(() => document.querySelectorAll('.payable-row').length === 3);
   assert.equal(await page.locator('.payable-row').count(), 3, 'payables UI includes undated invoice only after explicit selection');
   await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   assert.equal(await page.locator('#payables-date-from').inputValue(), '2026-09-05', 'payables date range persists through reload');
   assert.equal(await page.locator('#payables-include-undated').isChecked(), true, 'payables undated selection persists through reload');
   assert.equal(await page.locator('.payable-row').count(), 3, 'reloaded payables repeat the filtered result');
   await page.locator('#payables-filter-reset').click();
   await row.waitFor();
-  assert.equal(await page.locator('.payable-row').count(), 3, 'payables reset restores all posted documents');
+  assert.equal(await page.locator('.payable-row').count(), 4, 'payables reset restores all posted documents');
   let releaseFirstPayment;
   const firstPaymentGate = new Promise((resolve) => { releaseFirstPayment = resolve; });
   let firstPaymentSeen;
@@ -152,17 +1055,20 @@ try {
   let failedPaymentSeen;
   const failedPaymentRequest = new Promise((resolve) => { failedPaymentSeen = resolve; });
   let paymentPosts = 0;
+  let ambiguousPaymentPayload = null;
+  let replayedPaymentPayload = null;
   await page.route(`**/api/finance/purchase-payables/${draft.id}/payments`, async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
     paymentPosts++;
     if (paymentPosts === 1) { firstPaymentSeen(); await firstPaymentGate; }
-    if (paymentPosts === 2) { failedPaymentSeen(); await failedPaymentGate; return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'temporary_unavailable' }) }); }
+    if (paymentPosts === 2) { ambiguousPaymentPayload=route.request().postDataJSON(); failedPaymentSeen(); await failedPaymentGate; const committed=await route.fetch(); assert.equal(committed.status(),201,'second browser payment commits before its response is lost'); return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'temporary_unavailable' }) }); }
+    if (paymentPosts === 3) replayedPaymentPayload=route.request().postDataJSON();
     return route.continue();
   });
   await row.locator('.payable-payment-editor summary').click();
   await row.locator('input[name="amount"]').fill('75');
   await row.locator('input[name="paymentDate"]').fill(today);
-  await row.locator('select[name="paymentMethod"]').selectOption('bank_transfer');
+  await selectPortalOption(row.locator('select[name="paymentMethod"]'), 'bank_transfer');
   const documentInput = row.locator('input[name="document"]');
   await documentInput.setInputFiles({ name: 'unsupported.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>') });
   assert.match(await row.locator('.payable-payment-message').textContent(), /Поддерживаются только PNG, JPEG, WebP и PDF/);
@@ -175,11 +1081,11 @@ try {
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64');
   await documentInput.setInputFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: png });
   await page.setViewportSize({ width: 320, height: 700 });
-  const openFormMetrics = await page.evaluate(() => Object.fromEntries(['html', '.portal-main', '.finance-payables-panel', '.payable-payment-editor', '.payable-payment-form', '.payable-payment-form label', '.payable-payment-form input[type="file"]', '.payable-payment-form input[type="number"]', '.form-row'].map((selector) => { const element = selector === 'html' ? document.documentElement : document.querySelector(selector); return [selector, element ? { scroll: element.scrollWidth, client: element.clientWidth, rect: Math.round(element.getBoundingClientRect().width) } : null]; })));
+  const openFormMetrics = await page.evaluate(() => { const panel=[...document.querySelectorAll('#page-content section.finance-payables-panel')].find((item)=>item.textContent.includes('Расчёты с поставщиками')); return Object.fromEntries(['html', '.portal-main', '.finance-payables-panel', '.payable-payment-editor', '.payable-payment-form', '.payable-payment-form label', '.payable-payment-form input[type="file"]', '.payable-payment-form input[type="number"]', '.form-row'].map((selector) => { const element = selector === 'html' ? document.documentElement : selector === '.portal-main' ? document.querySelector(selector) : selector === '.finance-payables-panel' ? panel : panel?.querySelector(selector); return [selector, element ? { scroll: element.scrollWidth, client: element.clientWidth, rect: Math.round(element.getBoundingClientRect().width) } : null]; })); });
   assert.equal(openFormMetrics.html.scroll > 321 || openFormMetrics['.portal-main'].scroll > openFormMetrics['.portal-main'].client + 1 || openFormMetrics['.finance-payables-panel'].scroll > openFormMetrics['.finance-payables-panel'].client + 1 || openFormMetrics['.payable-payment-form'].scroll > openFormMetrics['.payable-payment-form'].client + 1 || openFormMetrics['.payable-payment-form input[type="file"]'].rect > openFormMetrics['.payable-payment-form label'].rect + 1, false, `open payment form fits 320px: ${JSON.stringify(openFormMetrics)}`);
-  const outputDir = path.resolve('docs/ai-team/responsive-emulator');
+  const outputDir = path.resolve('tmp/full-local-qa', `payables-browser-${process.pid}-${Date.now()}`);
   await mkdir(outputDir, { recursive: true });
-  await page.locator('.finance-payables-panel').screenshot({ path: path.join(outputDir, 'payables-file-form-320.png') });
+  await page.locator('#page-content section.finance-payables-panel').filter({hasText:'Расчёты с поставщиками'}).screenshot({ path: path.join(outputDir, 'payables-file-form-320.png') });
   assert.equal(await row.locator('input[name="amount"]').inputValue(), '75', 'draft survives viewport change');
   await page.setViewportSize({ width: 375, height: 812 });
   await row.locator('.payable-payment-form button[type="submit"]').click();
@@ -208,21 +1114,32 @@ try {
   await row.locator('.payable-payment-editor summary').click();
   await row.locator('input[name="amount"]').fill('125');
   await row.locator('input[name="paymentDate"]').fill(today);
-  await row.locator('select[name="paymentMethod"]').selectOption('cash');
+  await selectPortalOption(row.locator('select[name="paymentAccountId"]'), purchaseCashAccountId);
+  await selectPortalOption(row.locator('select[name="paymentMethod"]'), 'cash');
   await row.locator('input[name="document"]').setInputFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: png });
   await row.locator('.payable-payment-form button[type="submit"]').click();
   await failedPaymentRequest;
   assert.equal(await row.locator('input[name="amount"]').isDisabled(), true, 'retry values stay locked while request is pending');
   assert.equal(await row.locator('select[name="paymentMethod"]').isDisabled(), true, 'payment method stays locked while request is pending');
   releaseFailedPayment();
-  await row.locator('.payable-payment-message').getByText('Не удалось сохранить оплату. Проверьте данные и повторите.').waitFor();
-  assert.equal(await row.locator('input[name="amount"]').isDisabled(), false, 'amount is restored after failed request');
+  await row.locator('.payable-payment-form[data-pending-retry="true"]').waitFor();
+  assert.equal(await row.locator('input[name="amount"]').isEditable(), false, 'uncertain payment remains locked for an exact retry');
   assert.equal(await row.locator('input[name="amount"]').inputValue(), '125', 'retry keeps original amount');
   assert.equal(await row.locator('select[name="paymentMethod"]').inputValue(), 'cash', 'retry keeps original method');
-  assert.equal(await row.locator('input[name="document"]').evaluate((input) => input.files?.[0]?.name), 'receipt.png', 'retry keeps selected file');
+  assert.equal(await row.locator('select[name="paymentAccountId"]').inputValue(), purchaseCashAccountId, 'retry keeps original account');
+  assert.equal(await row.locator('input[name="document"]').isDisabled(), true, 'retry uses the stored document payload rather than a new file picker value');
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
+  await row.locator('.payable-payment-form[data-pending-retry="true"]').waitFor();
+  assert.equal(await row.locator('input[name="amount"]').inputValue(), '125', 'reload restores the exact pending amount');
+  assert.equal(await row.locator('select[name="paymentAccountId"]').inputValue(), purchaseCashAccountId, 'reload restores the account selection');
+  assert.equal(await row.locator('select[name="paymentMethod"]').inputValue(), 'cash', 'reload restores the payment method');
+  const replayPaymentResponse=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname===`/api/finance/purchase-payables/${draft.id}/payments`);
   await row.locator('.payable-payment-form button[type="submit"]').click();
-  await page.waitForFunction(() => document.querySelector('.payable-row')?.textContent?.includes('Оплачена'));
-  assert.equal(paymentPosts, 3, 'failed payment is retried only once');
+  assert.equal((await replayPaymentResponse).status(),200,'same-key replay resolves the committed supplier payment');
+  await page.waitForFunction(() => { const target=[...document.querySelectorAll('.payable-row')].find((item)=>item.textContent.includes('QA browser supplier')); return target?.querySelector('.badge')?.textContent.includes('Оплачена')&&!target.querySelector('.payable-payment-editor'); });
+  assert.equal(paymentPosts, 3, 'ambiguous committed payment is retried once with the original key');
+  assert.deepEqual(replayedPaymentPayload, ambiguousPaymentPayload, 'reload repeats the exact request, including account, idempotency key, and document bytes');
   const settled = (await db.query("SELECT count(*)::int AS count,COALESCE(SUM(amount),0)::numeric AS total FROM expenses WHERE venue_id=$1 AND purchase_document_id=$2 AND source='purchase'", [venueId, draft.id])).rows[0];
   assert.equal(settled.count, 2);
   assert.equal(Number(settled.total), 200);
@@ -231,18 +1148,236 @@ try {
   assert.equal(await row.locator('.payable-payment-editor').count(), 0, 'fully paid receipt no longer exposes payment form');
   for (const width of [320, 768, 1440]) {
     await page.setViewportSize({ width, height: 800 });
-    assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); const panel = document.querySelector('.finance-payables-panel'); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1 || panel.scrollWidth > panel.clientWidth + 1; }), false, `payable overflow at ${width}px`);
+    assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); const panel = [...document.querySelectorAll('#page-content section.finance-payables-panel')].find((item)=>item.textContent.includes('Расчёты с поставщиками')); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1 || panel.scrollWidth > panel.clientWidth + 1; }), false, `payable overflow at ${width}px`);
     if ([320, 768].includes(width)) {
-      await page.locator('.finance-payables-panel').screenshot({ path: path.join(outputDir, `payables-paid-${width}.png`) });
+      await page.locator('#page-content section.finance-payables-panel').filter({hasText:'Расчёты с поставщиками'}).screenshot({ path: path.join(outputDir, `payables-paid-${width}.png`) });
     }
   }
   await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   await row.waitFor();
   assert.match(await row.textContent(), /Оплачена/);
-  await page.locator('#payables-status').selectOption('paid');
+  const paidFilterResponse=page.waitForResponse((response)=>response.request().method()==='GET'&&new URL(response.url()).pathname==='/api/finance/purchase-payables'&&new URL(response.url()).searchParams.get('paymentStatus')==='paid');
+  await selectPortalOption(page.locator('#payables-status'), 'paid');
+  await paidFilterResponse;
+  await page.waitForFunction(()=>document.querySelectorAll('.payable-row').length===1);
   assert.equal(await page.locator('.payable-row').count(), 1);
+
+  // Open original source documents from actual cash outflow rows.
+  await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
+  await page.getByText('Расходы · журнал операций',{exact:true}).click();
+  await page.locator('#expenses-filter-reset').click();
+  for (const [kind,id,title] of [['purchase',draft.id,'Исходная закупка'],['payroll',payrollEntryId,'Исходное начисление зарплаты']]) {
+    const action=page.locator(`[data-expense-source="${kind}"][data-expense-source-id="${id}"]`).first();
+    await action.waitFor();await action.click();
+    const dialog=page.getByRole('dialog').filter({hasText:title});await dialog.waitFor();
+    const source=dialog.locator('textarea[name="source"]');assert.equal(await source.getAttribute('readonly'),'');assert.ok((await source.inputValue()).includes(id));
+    for (const width of [320,768]) { await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false); }
+    await dialog.locator('[data-ui-close]').click();
+    await page.setViewportSize({width:1440,height:900});
+  }
+  await verifyRecurringPartialMonth({page,base,api:rentApi,db,venueId,selectPortalOption});
+  await verifyPayableRefund({page,base,api:rentApi,db,venueId,venueDate,bankId:rentBankAccountId,selectPortalOption});
+  await verifyFundingBrowser({page,base,api:rentApi,db,venueId,venueDate,bankId:rentBankAccountId,selectPortalOption});
+  await verifyGuestAdvanceReport({page,base,api:rentApi,db,venueId,userId,venueDate,selectPortalOption});
+
+  // Report source actions retain the selected venue and open existing documents.
+  await page.goto(`${base}/finance/report`,{waitUntil:'networkidle'});
+  const sourcePanel=page.locator('.finance-unified-report');
+  for(const [source,kind,id,from,to] of [['purchase_receipt','purchase',draft.id,venueDate,venueDate],['payroll_accrual','payroll',payrollEntryId,venueDate,venueDate],['pos','pos',legacyOrderId,'2020-01-01','2020-01-31']]){
+    await sourcePanel.locator('[data-unified-from]').fill(from);await sourcePanel.locator('[data-unified-to]').fill(to);
+    await sourcePanel.locator('[data-unified-q]').fill('');await selectPortalOption(sourcePanel.locator('[data-unified-source]'),source);
+    const loaded=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/finance/unified-report/snapshots'&&r.request().postDataJSON()?.source===source);
+    await sourcePanel.locator('[data-unified-load]').click();assert.equal((await loaded).status(),201);
+    const selector=`[data-report-source="${kind}"][data-report-source-id="${id}"]`;
+    const group=sourcePanel.locator(`.report-source-group:has(${selector})`).first();await group.locator('summary').click();
+    const button=group.locator(selector).first();assert.equal(await button.getAttribute('data-report-source-venue'),venueId);
+    const read=page.waitForResponse(r=>new URL(r.url()).pathname===`/api/finance/source-documents/${kind}/${id}`);
+    await button.click();const response=await read;assert.equal(response.status(),200);assert.equal((await response.json()).venue.id,venueId);
+    const dialog=page.getByRole('dialog');await dialog.waitFor();assert.ok((await dialog.locator('textarea[name="source"]').inputValue()).includes(id));
+    await dialog.locator('[data-ui-close]').click();
+  }
+  assert.equal((await rentApi(`/api/finance/source-documents/purchase/${draft.id}?venueId=${randomUUID()}`)).status,403);
+  assert.equal((await rentApi(`/api/finance/source-documents/purchase/${randomUUID()}?venueId=${venueId}`)).status,404);
+
+  // Exercise the materialized report through the real UI/API/database path,
+  // including the lost-ack retry and a cursor page beyond the first 500 rows.
+  const snapshotQuery=`QA report snapshot ${process.pid}`;
+  await db.query(`INSERT INTO expenses(venue_id,category,category_id,amount,expense_date,description,source,created_by,idempotency_key,payment_method,finance_account_id,finance_account_name_snapshot)
+    SELECT $1,$2,$3,1.00,$4,$5||' '||n,'manual',$6,$7||n,'bank_transfer',$8,$9 FROM generate_series(1,501) AS n`,
+    [venueId,`QA rent ${process.pid}`,rentCategoryId,venueDate,snapshotQuery,userId,`snapshot-${process.pid}-`,rentBankAccountId,rentAccountResponse.body.name]);
+  await page.goto(`${base}/finance/report`,{waitUntil:'networkidle'});
+  const unified=page.locator('.finance-unified-report');
+  await unified.locator('[data-unified-message]').waitFor();
+  await unified.locator('[data-unified-from]').fill(venueDate);
+  await unified.locator('[data-unified-to]').fill(venueDate);
+  await selectPortalOption(unified.locator('[data-unified-source]'),'cash_out');
+  await unified.locator('[data-unified-q]').fill(snapshotQuery);
+  // A report request must not commit without a durable reload recovery key.
+  let blockedSnapshotPosts=0;
+  const countBlockedSnapshot=request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/finance/unified-report/snapshots'&&request.postDataJSON()?.q===snapshotQuery)blockedSnapshotPosts++;};
+  page.on('request',countBlockedSnapshot);
+  await page.evaluate(()=>{window.qaOriginalStorageSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(String(key).startsWith('finance-report-snapshot-retry:'))throw new DOMException('QA storage full','QuotaExceededError');return window.qaOriginalStorageSetItem.call(this,key,value);};});
+  await unified.locator('[data-unified-load]').click();
+  await unified.locator('[data-unified-message]').filter({hasText:'Не удалось сохранить ключ повтора'}).waitFor();
+  assert.equal(blockedSnapshotPosts,0,'unavailable retry storage prevents a snapshot POST');
+  await page.evaluate(()=>{Storage.prototype.setItem=window.qaOriginalStorageSetItem;delete window.qaOriginalStorageSetItem;});
+  page.off('request',countBlockedSnapshot);
+  let snapshotPosts=0,firstSnapshotPayload=null,firstSnapshotKey=null,replayedSnapshotPayload=null,replayedSnapshotKey=null,committedSnapshotId=null;
+  await page.route('**/api/finance/unified-report/snapshots',async route=>{
+    const request=route.request();
+    if(request.method()!=='POST'||request.postDataJSON()?.q!==snapshotQuery)return route.continue();
+    snapshotPosts++;
+    if(snapshotPosts===1){firstSnapshotPayload=request.postDataJSON();firstSnapshotKey=request.headers()['idempotency-key'];const committed=await route.fetch();assert.equal(committed.status(),201,'snapshot commits before its acknowledgement is lost');committedSnapshotId=(await committed.json()).snapshot.id;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'simulated_lost_snapshot_ack'})});}
+    replayedSnapshotPayload=request.postDataJSON();replayedSnapshotKey=request.headers()['idempotency-key'];return route.continue();
+  });
+  const lostSnapshotResponse=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/unified-report/snapshots'&&response.request().postDataJSON()?.q===snapshotQuery);
+  await unified.locator('[data-unified-load]').click();
+  assert.equal((await lostSnapshotResponse).status(),503,'the UI retains an unacknowledged report attempt');
+  await page.reload({waitUntil:'networkidle'});
+  const replayUnified=page.locator('.finance-unified-report');
+  await replayUnified.locator('[data-unified-message]').waitFor();
+  await replayUnified.locator('[data-unified-from]').fill(venueDate);
+  await replayUnified.locator('[data-unified-to]').fill(venueDate);
+  await selectPortalOption(replayUnified.locator('[data-unified-source]'),'cash_out');
+  await replayUnified.locator('[data-unified-q]').fill(snapshotQuery);
+  const replaySnapshotResponse=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/unified-report/snapshots'&&response.request().postDataJSON()?.q===snapshotQuery);
+  await replayUnified.locator('[data-unified-load]').click();
+  const replayedSnapshot=await replaySnapshotResponse;
+  assert.equal(replayedSnapshot.status(),201,'the same saved report attempt resolves after reload');
+  assert.deepEqual(replayedSnapshotPayload,firstSnapshotPayload,'snapshot retry reuses identical report filters');
+  assert.equal(replayedSnapshotKey,firstSnapshotKey,'snapshot retry preserves the exact idempotency key');
+  const replayedSnapshotBody=await replayedSnapshot.json();
+  assert.equal(replayedSnapshotBody.snapshot.id,committedSnapshotId,'lost acknowledgement resolves to the committed snapshot');
+  const cashOutGroup=replayUnified.locator('[data-unified-results] details.report-source-group').filter({hasText:'Денежные расходы · дата оплаты · 501'});
+  await cashOutGroup.locator('summary').click();
+  assert.equal(await cashOutGroup.locator('.report-row').count(),500,'first snapshot page contains the fixed first 500 rows');
+  const nextSnapshotPage=page.waitForResponse(response=>response.request().method()==='GET'&&new URL(response.url()).pathname.endsWith(`/sections/cashOutflows`));
+  await cashOutGroup.locator('[data-unified-report-next="cashOutflows"]').click();
+  const nextSnapshotResponse=await nextSnapshotPage;
+  assert.equal(nextSnapshotResponse.status(),200,'cursor paging reads the saved snapshot');
+  assert.equal((await nextSnapshotResponse.json()).items.cashOutflows.length,1,'the second cursor page returns the remaining row');
+  await cashOutGroup.locator('.report-row').nth(500).waitFor({state:'attached'});
+  assert.equal(await cashOutGroup.locator('.report-row').count(),501,'the UI renders all rows from the same fixed snapshot');
+  const storedSnapshot=await db.query('SELECT id::text AS id,expires_at,report->\'sections\'->\'cashOutflows\'->>\'count\' AS row_count FROM finance_unified_report_snapshots WHERE venue_id=$1 AND created_by=$2 AND id=$3',[venueId,userId,committedSnapshotId]);
+  assert.equal(storedSnapshot.rowCount,1,'report snapshot persists in the tenant database');
+  assert.equal(Number(storedSnapshot.rows[0].row_count),501,'persisted snapshot totals match paginated details');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_unified_report_snapshots WHERE venue_id=$1 AND created_by=$2 AND idempotency_key=$3',[venueId,userId,firstSnapshotKey])).rows[0].count,1,'an uncertain retry does not create a second snapshot');
+  await page.unroute('**/api/finance/unified-report/snapshots');
+  // The UI route has already proved exact replay; changed-payload conflict is
+  // also asserted against the authenticated API with the same key below.
+  const changedSnapshotResponse=await page.evaluate(async({venueDate,snapshotQuery,venueId,key})=>{const response=await fetch('/api/finance/unified-report/snapshots',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify({from:venueDate,to:venueDate,source:'cash_out',q:snapshotQuery+' changed',venueId})});return{status:response.status,body:await response.json()};},{venueDate,snapshotQuery,venueId,key:firstSnapshotKey});
+  assert.equal(changedSnapshotResponse.status,409,'the same snapshot key cannot be reused with changed filters');
+
+  // Read-only finance cannot page through a snapshot containing payroll data,
+  // and a foreign venue cannot use the otherwise valid snapshot identifier.
+  const snapshotReader=await browser.newPage({viewport:{width:375,height:812},locale:'ru-RU'});
+  await snapshotReader.goto(`${base}/login`,{waitUntil:'networkidle'});await snapshotReader.locator('#login-username').fill(managerLogin);await snapshotReader.locator('#login-password').fill(password);await snapshotReader.locator('#login-form button[type="submit"]').click();await snapshotReader.waitForURL(value=>!value.pathname.includes('/login'));
+  const readerSnapshotPage=await snapshotReader.evaluate(async({id,venueId,cursor})=>{const response=await fetch(`/api/finance/unified-report/snapshots/${id}/sections/cashOutflows?venueId=${venueId}&cursor=${encodeURIComponent(cursor)}`);return response.status;},{id:committedSnapshotId,venueId,cursor:replayedSnapshotBody.nextCursorBySection.cashOutflows});
+  assert.equal(readerSnapshotPage,403,'finance_read is denied sensitive report pages captured with payroll permission');
+  await snapshotReader.close();
+  const foreignSnapshotPage=await rentApi(`/api/finance/unified-report/snapshots/${committedSnapshotId}/sections/cashOutflows?venueId=${foreignVenueId}&cursor=${encodeURIComponent(replayedSnapshotBody.nextCursorBySection.cashOutflows)}`);
+  assert.equal(foreignSnapshotPage.status,404,'snapshot identifiers remain scoped to the selected venue');
+
+  // Real UI → API → PostgreSQL → reload for transfer, opening position,
+  // append-only adjustment, and a partial reversal.
+  const transferTarget=(await rentApi('/api/finance/accounts','POST',{name:`QA transfer target ${process.pid}`,kind:'bank'})).body;
+  const openingAccount=(await rentApi('/api/finance/accounts','POST',{name:`QA opening account ${process.pid}`,kind:'electronic'})).body;
+  await page.goto(`${base}/finance/report`,{waitUntil:'networkidle'});
+  const balancePanel=page.locator('[data-finance-balance-events]');
+  const transferForm=balancePanel.locator('form[data-balance-kind="transfer"]');
+  await transferForm.locator(`select[name="fromAccountId"] option[value="${rentBankAccountId}"]`).waitFor({state:'attached'});
+  await selectPortalOption(transferForm.locator('select[name="fromAccountId"]'),rentBankAccountId);
+  await selectPortalOption(transferForm.locator('select[name="toAccountId"]'),transferTarget.id);
+  await transferForm.locator('input[name="amount"]').fill('123.45');
+  await transferForm.locator('input[name="transferDate"]').fill(venueDate);
+  await transferForm.locator('input[name="note"]').fill(`QA uncertain transfer ${process.pid}`);
+  let transferAttempts=0,firstTransferPayload=null,replayedTransferPayload=null,firstTransferId=null;
+  await page.route('**/api/finance/account-transfers',async route=>{
+    const request=route.request();if(request.method()!=='POST')return route.continue();transferAttempts++;
+    if(transferAttempts===1){firstTransferPayload=request.postDataJSON();const committed=await route.fetch();assert.equal(committed.status(),201,'transfer commits before its acknowledgement is lost');firstTransferId=(await committed.json()).id;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'simulated_lost_transfer_ack'})});}
+    replayedTransferPayload=request.postDataJSON();return route.continue();
+  });
+  const uncertainTransferResponse=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/account-transfers');
+  await transferForm.locator('button[type="submit"]').click();
+  assert.equal((await uncertainTransferResponse).status(),503,'uncertain transfer remains retryable');
+  await transferForm.locator('.form-message').filter({hasText:'Результат не подтверждён'}).waitFor();
+  await page.reload({waitUntil:'networkidle'});
+  const retryBalancePanel=page.locator('[data-finance-balance-events]');
+  const retryTransferForm=retryBalancePanel.locator('form[data-balance-kind="transfer"]');
+  await retryTransferForm.locator('button[type="submit"]').filter({hasText:'Повторить сохранённую попытку'}).waitFor();
+  assert.equal(await retryTransferForm.locator('input[name="amount"]').inputValue(),'123.45','transfer payload restores after reload');
+  const transferReplayResponse=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/account-transfers');
+  await retryTransferForm.locator('button[type="submit"]').click();
+  const transferReplay=await transferReplayResponse;
+  assert.equal(transferReplay.status(),200,'exact transfer retry resolves the original write');
+  assert.equal((await transferReplay.json()).id,firstTransferId,'transfer retry returns the original transfer ID');
+  assert.deepEqual(replayedTransferPayload,firstTransferPayload,'transfer retry reuses the exact payload and idempotency key');
+  assert.ok(firstTransferPayload.idempotencyKey,'transfer key is carried in the JSON body');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_account_transfers WHERE venue_id=$1 AND idempotency_key=$2',[venueId,firstTransferPayload.idempotencyKey])).rows[0].count,1,'exact transfer key identifies only one persisted transfer');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_account_transfers WHERE venue_id=$1 AND id=$2',[venueId,firstTransferId])).rows[0].count,1,'retry leaves exactly one transfer header');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_account_transfer_legs WHERE venue_id=$1 AND transfer_id=$2',[venueId,firstTransferId])).rows[0].count,2,'transfer is stored as exactly two account legs');
+  const transferRow=retryBalancePanel.locator('article.category-row').filter({hasText:`QA uncertain transfer ${process.pid}`});
+  await transferRow.waitFor();
+  await page.unroute('**/api/finance/account-transfers');
+
+  const openingForm=retryBalancePanel.locator('form[data-balance-kind="opening"]');
+  await selectPortalOption(openingForm.locator('select[name="financeAccountId"]'),openingAccount.id);
+  await openingForm.locator('input[name="amount"]').fill('-25.50');
+  await openingForm.locator('input[name="effectiveDate"]').fill(venueDate);
+  await openingForm.locator('input[name="evidenceReference"]').fill(`QA opening evidence ${process.pid}`);
+  await openingForm.locator('input[name="basis"]').fill('Начальная сверенная позиция QA');
+  const openingPost=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/opening-balances');
+  await openingForm.locator('button[type="submit"]').click();
+  assert.equal((await openingPost).status(),201,'opening position is confirmed from the finance UI');
+  const openingRow=retryBalancePanel.locator('article.category-row').filter({hasText:openingAccount.name});
+  await openingRow.waitFor();
+  assert.match(await openingRow.textContent(),/-25[,.]50?\s*₽/,'signed opening position is displayed without being added to cash totals');
+  await selectPortalOption(openingForm.locator('select[name="financeAccountId"]'),openingAccount.id);
+  await openingForm.locator('input[name="amount"]').fill('99.00');
+  await openingForm.locator('input[name="effectiveDate"]').fill(venueDate);
+  await openingForm.locator('input[name="evidenceReference"]').fill(`QA duplicate evidence ${process.pid}`);
+  await openingForm.locator('input[name="basis"]').fill('Повторный opening должен быть отклонён');
+  const duplicateOpeningPost=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/opening-balances');
+  await openingForm.locator('button[type="submit"]').click();
+  assert.equal((await duplicateOpeningPost).status(),409,'a second initial position for the same account is rejected');
+  await openingForm.locator('input[name="amount"]:enabled').waitFor();
+  assert.equal(await openingForm.locator('input[name="amount"]').isEnabled(),true,'deterministic 409 unlocks the form for correction');
+  await page.unroute('**/api/finance/opening-balances');
+  await openingRow.locator('details').filter({hasText:'Добавить корректировку'}).locator('summary').click();
+  const adjustmentForm=openingRow.locator('form[data-balance-kind="adjustment"]');
+  await adjustmentForm.locator('input[name="amountDelta"]').fill('5.50');
+  await adjustmentForm.locator('input[name="adjustmentDate"]').fill(venueDate);
+  await adjustmentForm.locator('input[name="reason"]').fill('QA документ уточнил начальную сумму');
+  await adjustmentForm.locator('input[name="evidenceReference"]').fill(`QA adjustment evidence ${process.pid}`);
+  const adjustmentEndpoint=await adjustmentForm.getAttribute('data-balance-endpoint');
+  const adjustmentPostResponse=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===adjustmentEndpoint);
+  await adjustmentForm.locator('button[type="submit"]').click();
+  assert.equal((await adjustmentPostResponse).status(),201,'append-only opening adjustment saves from the UI');
+  await openingRow.getByText(/Сумма с корректировками: -20(?:[,.]00)?\s*₽/).waitFor();
+  await page.reload({waitUntil:'networkidle'});
+  const readBackOpening=page.locator('[data-finance-balance-events] article.category-row').filter({hasText:openingAccount.name});
+  await readBackOpening.getByText(/Сумма с корректировками: -20(?:[,.]00)?\s*₽/).waitFor();
+  await readBackOpening.locator('details').filter({hasText:'История корректировок'}).locator('summary').click();
+  assert.match(await readBackOpening.textContent(),/QA документ уточнил начальную сумму/,'opening adjustment history survives browser reload');
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM finance_account_opening_adjustments a JOIN finance_account_opening_balances o ON o.venue_id=a.venue_id AND o.id=a.opening_balance_id WHERE o.venue_id=$1 AND o.finance_account_id=$2',[venueId,openingAccount.id])).rows[0].count,1,'one adjustment fact is stored against the opening position');
+
+  const transferDetails=retryBalancePanel.locator('article.category-row').filter({hasText:`QA uncertain transfer ${process.pid}`});
+  await transferDetails.locator('details').filter({hasText:'Сторнировать полностью или частично'}).locator('summary').click();
+  const balanceReversalForm=transferDetails.locator('form[data-balance-kind="reverse"]');
+  await balanceReversalForm.locator('input[name="amount"]').fill('23.45');
+  await balanceReversalForm.locator('input[name="transferDate"]').fill(venueDate);
+  await balanceReversalForm.locator('input[name="note"]').fill('QA частичное сторно');
+  const reversalPost=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===`/api/finance/account-transfers/${firstTransferId}/reverse`);
+  await balanceReversalForm.locator('button[type="submit"]').click();
+  assert.equal((await reversalPost).status(),201,'partial transfer reversal saves from the UI');
+  await retryBalancePanel.locator('article.category-row').filter({hasText:'QA частичное сторно'}).waitFor();
+  await page.reload({waitUntil:'networkidle'});
+  await page.locator('[data-finance-balance-events] article.category-row').filter({hasText:'QA частичное сторно'}).waitFor();
+  const reversedTotal=await db.query('SELECT COALESCE(SUM(amount),0)::text AS amount FROM finance_account_transfers WHERE venue_id=$1 AND reversal_of_transfer_id=$2',[venueId,firstTransferId]);
+  assert.equal(reversedTotal.rows[0].amount,'23.45','partial reversal readback matches the exact persisted amount');
   assert.deepEqual(errors.filter((message) => !message.includes('ViewTransition opt-in disabled')), []);
-  console.log('PAYABLES BROWSER POSTGRES QA: PASS (inclusive invoice-date/payment-status filters, explicit undated inclusion and reload/reset; file validation/persistence; partial/full UI payments with failed request retry; responsive widths)');
+  console.log('PAYABLES BROWSER POSTGRES QA: PASS (authenticated tenant; recurring rent lifecycle and explicit partial-month calculation; report snapshot create/replay/paging/permission; transfer/opening/adjustment UI→API→PostgreSQL→reload; purchase/payroll finance category snapshots; supplier payable filters/attachments/retry; responsive widths)');
 } finally {
   await browser?.close();
   if (child) { child.kill(); if (child.exitCode === null) await Promise.race([once(child, 'exit'), new Promise((resolve) => setTimeout(resolve, 3000))]); }
@@ -254,8 +1389,17 @@ try {
         try {
           await db.query('SET LOCAL session_replication_role = replica');
           if (venueId) {
-            for (const table of ['expenses', 'stock_movements', 'inventory_purchase_document_lines', 'inventory_purchase_documents', 'ingredients', 'audit_events', 'users']) await db.query(`DELETE FROM ${table} WHERE venue_id=$1`, [venueId]);
+            for (const table of ['guest_account_reversals','guest_deposit_receipts','reservation_pre_payment_receipt_reversals','reservation_pre_payment_receipts','guest_account_entries','reservations','guests','finance_funding_events','finance_funding_documents','finance_payable_offsets','finance_expense_refunds','finance_unified_report_snapshots','finance_account_opening_adjustments','finance_account_opening_balances','finance_account_transfer_legs','finance_account_transfers','finance_payable_payment_links','finance_payable_lines','finance_create_idempotency','finance_payables','finance_recurring_rule_versions','finance_recurring_rules','finance_other_income_refunds','finance_other_income_corrections','finance_other_income_receipts','finance_other_income_documents','payroll_entries','payroll_rules','finance_categories','expenses','finance_accounts','stock_movements','inventory_purchase_document_lines','inventory_purchase_documents','ingredients']) await db.query(`DELETE FROM ${table} WHERE venue_id=$1`, [venueId]);
+            await db.query('DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);
+            await db.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);
+            await db.query('DELETE FROM orders WHERE venue_id=$1', [venueId]);
+            await db.query('DELETE FROM products WHERE venue_id=$1', [venueId]);
+            for (const table of ['audit_events', 'users']) await db.query(`DELETE FROM ${table} WHERE venue_id=$1`, [venueId]);
             await db.query("DELETE FROM venues WHERE id=$1 AND organization_id=$2 AND name='Isolated payables browser QA'", [venueId, organizationId]);
+          }
+          if (foreignVenueId) {
+            await db.query('DELETE FROM finance_categories WHERE venue_id=$1', [foreignVenueId]);
+            await db.query("DELETE FROM venues WHERE id=$1 AND organization_id=$2 AND name='Foreign category QA venue'", [foreignVenueId, organizationId]);
           }
           await db.query("DELETE FROM organization_memberships WHERE organization_id=$1", [organizationId]);
           await db.query("DELETE FROM organization_subscriptions WHERE organization_id=$1", [organizationId]);

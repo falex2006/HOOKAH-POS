@@ -2,7 +2,7 @@
 (() => {
   const tokenKey = 'crm_session_token';
   const userKey = 'crm_session_user';
-  const portalScript = '/portal.js?rev=2026101801';
+  const portalScript = '/portal.js?rev=2026101803';
   let pending = null;
   let cooldownUntil = 0;
   let cooldownTimer = null;
@@ -33,7 +33,7 @@
       if (hash === '#shift-control') return any('orders', 'floor');
       return ['', '#notifications', '#help'].includes(hash);
     }
-    const required = { '/': 'orders', '/orders': 'orders', '/inventory': 'inventory_read', '/finance': 'finance_read', '/finance-categories': 'finance', '/finance-report': 'finance_read', '/finance/categories': 'finance', '/finance/report': 'finance_read', '/reservations': 'reservations', '/integrations': 'integrations', '/delivery': 'delivery', '/network': 'settings' };
+    const required = { '/': 'orders', '/orders': 'orders', '/inventory': 'inventory_read', '/finance': 'finance_read', '/finance-categories': 'finance_read', '/finance-report': 'finance_read', '/finance/categories': 'finance_read', '/finance/report': 'finance_read', '/reservations': 'reservations', '/integrations': 'integrations', '/delivery': 'delivery', '/network': 'settings' };
     return Boolean(required[page] && permissions.has(required[page]));
   };
   const canUseNavigation = (session, href, permission) => {

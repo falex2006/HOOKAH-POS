@@ -2101,7 +2101,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Fold portrait and compact tablet: keep the workspace full width; open navigation as a drawer. */
 @media (min-width:651px) and (max-width:900px){
   .portal.velora-theme .portal-sidebar{position:fixed;z-index:25;left:0;top:0;bottom:0;width:280px;transform:translateX(-100%);transition:transform .18s ease;padding:26px 16px;box-shadow:12px 0 30px #0008;overflow-y:auto;overscroll-behavior:contain}
-  .velora-theme .portal-main,.velora-theme .portal-app>.portal-main{box-sizing:border-box;flex:1 1 100%;width:100%;min-width:0;margin-left:0!important}
+  .velora-theme .portal-main,.velora-theme .portal-app>.portal-main{box-sizing:border-box;flex:1 1 100%;width:100%;max-width:100%;min-width:0;margin-left:0!important}
   .velora-theme .portal-header{padding:0 20px 0 64px}
   .velora-theme .portal-content{padding:24px 20px}
   .velora-theme .sidebar-mobile-toggle{display:grid;position:fixed;z-index:30;left:10px;top:calc(10px + env(safe-area-inset-top));width:44px;height:44px;place-items:center;border:1px solid #363b44;border-radius:12px;background:#1b1e23;color:#ff9168;box-shadow:0 6px 16px #0006}
@@ -2126,7 +2126,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
   .velora-theme .portal-sidebar.is-expanded .brand div,.velora-theme .portal-sidebar.is-expanded .side-label,.velora-theme .portal-sidebar.is-expanded .portal-nav span,.velora-theme .portal-sidebar.is-expanded .sidebar-footer{display:block}
   .velora-theme .portal-sidebar.is-expanded .brand{justify-content:flex-start;padding-bottom:34px}
   .velora-theme .portal-sidebar.is-expanded .portal-nav a{display:flex;align-items:center;gap:12px;justify-content:flex-start;padding:12px 13px;font-size:14px;line-height:17.5px;width:auto;height:auto}
-  .velora-theme .portal-app>.portal-main{box-sizing:border-box;flex:1 1 100%;width:100%;min-width:0;margin-left:0!important}
+  .velora-theme .portal-app>.portal-main{box-sizing:border-box;flex:1 1 100%;width:100%;max-width:100%;min-width:0;margin-left:0!important}
   .velora-theme .sidebar-mobile-toggle{z-index:61}
   .velora-theme .sidebar-mobile-toggle[aria-expanded="true"]{left:calc(min(280px,100vw - 48px) - 58px);top:calc(10px + env(safe-area-inset-top))}
   .sidebar-backdrop:not([hidden]){position:fixed;z-index:55;inset:0;display:block;background:rgba(4,7,11,.56);touch-action:none}
@@ -5022,3 +5022,17 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .velora-theme .portal-sidebar .sidebar-nav-group>summary::after{content:'';display:grid;place-items:center;box-sizing:border-box;width:28px;height:28px;flex:0 0 28px;margin:0 0 0 auto;padding:0;border:1px solid rgba(255,132,94,.48);border-radius:50%;background-color:rgba(255,132,94,.035);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ff9b79' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");background-position:center;background-repeat:no-repeat;color:#ff9b79;transform:none;transition:transform .18s ease}
 .velora-theme .portal-sidebar .sidebar-nav-group[open]>summary::after{border-color:#ff855f;background-color:rgba(255,117,82,.11);transform:rotate(90deg)}
 @media(max-width:900px){.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{display:none}.velora-theme .portal-sidebar.is-expanded .sidebar-nav-group>summary::after{display:grid}}
+.finance-payables-panel .finance-overdue-summary,.finance-payables-panel .finance-overdue-heading{grid-column:1/-1}.finance-payables-panel .finance-overdue-summary{display:block}.finance-payables-panel .finance-overdue-summary b,.finance-payables-panel .finance-overdue-summary small{display:block}
+[data-finance-funding] .category-row{grid-template-columns:minmax(0,1fr) auto;align-items:start;min-width:0}
+[data-finance-funding] .category-row>div:first-child{min-width:0;overflow-wrap:anywhere}
+[data-finance-funding] .category-row>[data-funding-event]{grid-column:1/-1;min-width:0;width:100%}
+[data-finance-funding] .category-row>[data-funding-event] .form-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+[data-finance-balance-events] .category-row>div:first-child{min-width:0;overflow-wrap:anywhere}
+[data-finance-balance-events] details{margin-top:10px}
+[data-finance-balance-events] details .stack-form{margin-top:12px}
+[data-finance-balance-events] .category-row{grid-template-columns:minmax(0,1fr);align-items:start}
+[data-finance-funding] .category-row>[data-funding-event] label{min-width:0}
+@media(max-width:760px){[data-finance-funding] .category-row>[data-funding-event] .form-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){[data-finance-balance-events] .form-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){[data-finance-funding] .category-row{grid-template-columns:minmax(0,1fr)}[data-finance-funding] .category-row>[data-funding-event]{grid-column:auto}[data-finance-funding] .category-row>[data-funding-event] .form-row{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){[data-finance-balance-events] .form-row{grid-template-columns:minmax(0,1fr)}}

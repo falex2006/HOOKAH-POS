@@ -1,0 +1,365 @@
+{
+  "schemaVersion": 1,
+  "stage": "UI-09.2",
+  "status": "PREPARED_WITH_RELEASE_CONDITIONS",
+  "recordedAt": "2026-10-11T04:21:01.352Z",
+  "deploymentReady": false,
+  "published": false,
+  "candidate": {
+    "baseCommit": "2e6f557934fe29a9a227dda73277f6c3f99af939",
+    "baseSource": "cached origin/main; no fetch/remote verification",
+    "branch": "codex/ui092-release",
+    "commit": "11b81f6abea615f5aca35ad3714ae3382be388db",
+    "tree": "c70e4ad4997491f4aec8588f412a492efa4a5756",
+    "worktree": "C:/Users/ADMIN/.codex/worktrees/ui092-release-candidate/HOOKAH CRM 2",
+    "commits": [
+      {
+        "sha": "11b81f6abea615f5aca35ad3714ae3382be388db",
+        "parent": "2e6f557934fe29a9a227dda73277f6c3f99af939",
+        "subject": "Prepare bounded UI release candidate through UI-09.1"
+      }
+    ],
+    "changedFiles": [
+      "DESIGN_TOKENS.md",
+      "Dockerfile",
+      "admin.html",
+      "app.js",
+      "clients.html",
+      "delivery.html",
+      "dist/admin.html",
+      "dist/admin/index.html",
+      "dist/app.js",
+      "dist/clients.html",
+      "dist/clients/index.html",
+      "dist/delivery.html",
+      "dist/delivery/index.html",
+      "dist/finance-categories.html",
+      "dist/finance-report.html",
+      "dist/finance.html",
+      "dist/finance/categories/index.html",
+      "dist/finance/index.html",
+      "dist/finance/report/index.html",
+      "dist/index.html",
+      "dist/integrations.html",
+      "dist/integrations/index.html",
+      "dist/inventory.html",
+      "dist/inventory/index.html",
+      "dist/lock.js",
+      "dist/login.html",
+      "dist/login/index.html",
+      "dist/network.html",
+      "dist/network/index.html",
+      "dist/orders.html",
+      "dist/orders/index.html",
+      "dist/platform.css",
+      "dist/platform.html",
+      "dist/platform.js",
+      "dist/platform/index.html",
+      "dist/portal-session.js",
+      "dist/portal.js",
+      "dist/reservations.html",
+      "dist/reservations/index.html",
+      "dist/style.css",
+      "dist/ui-dialog.js",
+      "docs/design/UNIFIED_UI_2026-10-09/COMPONENT_CATALOG.md",
+      "docs/design/UNIFIED_UI_2026-10-09/EXCEPTIONS.md",
+      "docs/design/UNIFIED_UI_2026-10-09/STANDARD.md",
+      "docs/design/UNIFIED_UI_2026-10-09/components/UI_02_2_REFERENCE.html",
+      "docs/design/UNIFIED_UI_2026-10-09/components/ui-component-reference.css",
+      "docs/design/UNIFIED_UI_2026-10-09/components/ui-component-reference.js",
+      "docs/release/UI_09_2/CANDIDATE_READINESS.md",
+      "finance-categories.html",
+      "finance-report.html",
+      "finance.html",
+      "index.html",
+      "integrations.html",
+      "inventory.html",
+      "lock.js",
+      "login.html",
+      "network.html",
+      "orders.html",
+      "platform.css",
+      "platform.html",
+      "platform.js",
+      "portal-session.js",
+      "portal.js",
+      "reservations.html",
+      "scripts/staff-cursor-zone-qa.mjs",
+      "scripts/sync-published-assets.mjs",
+      "scripts/ui-component-primitives-contract.mjs",
+      "scripts/ui-dialog-lifecycle-contract.mjs",
+      "scripts/ui-dialog-mounted-form-contract.mjs",
+      "scripts/ui-navigation-context-contract.mjs",
+      "scripts/ui-role-shell-contract.mjs",
+      "scripts/ui-semantic-token-contract.mjs",
+      "scripts/ui042-ordinary-editor-contract.mjs",
+      "scripts/ui042-table-schedule-contract.mjs",
+      "scripts/ui043-lock-lifecycle-contract.mjs",
+      "scripts/ui051-presentation-contract.mjs",
+      "scripts/ui052-presentation-contract.mjs",
+      "scripts/ui061-source-runtime-qa.mjs",
+      "scripts/ui062-source-runtime-qa.mjs",
+      "scripts/ui071-source-runtime-qa.mjs",
+      "scripts/ui083-effects-cascade-contract.mjs",
+      "scripts/ui091-desktop-readability-contract.mjs",
+      "scripts/ui091-platform-retry-qa.mjs",
+      "scripts/ui092-verify-archive.cjs",
+      "server.js",
+      "site-map.json",
+      "style.css",
+      "ui-dialog.js"
+    ]
+  },
+  "archive": {
+    "path": "tmp/ui092/artifacts/UI-09.2-11b81f6abea615f5aca35ad3714ae3382be388db.tar.gz",
+    "sha256": "ae1d4e0fe272475ba8a42d56c9a1ab3d05a7859fe557b778787408dfeff8062a",
+    "bytes": 31916725,
+    "files": 1009,
+    "command": "git -c core.autocrlf=false archive --format=tar.gz --output=<archive> 11b81f6abea615f5aca35ad3714ae3382be388db",
+    "gitBlobsExact": true,
+    "executableBitsExact": true,
+    "commitAnnotationExact": true,
+    "extractionExact": true,
+    "repeatedExportExact": true,
+    "secretSignatureFindings": 0,
+    "secretScanBoundary": "high-confidence token/private-key signatures and runtime-file names; not a universal secret detector"
+  },
+  "recipe": {
+    "inputManifest": "docs/release/UI_09_2/inputs/manifest.json",
+    "inputManifestSha256": "82d091aee3c4af4bf8911f76a8e9addf7f1abb1be254d7f6e48e4d8cdd195b71",
+    "frozenInputCount": 38,
+    "builder": "scripts/ui092-release-package.cjs",
+    "builderSha256": "f367947c5a61e53ba94afc434db3d82add1d99e17aa00205e05847f4f79e5e64",
+    "verifier": "scripts/ui092-verify-archive.cjs",
+    "verifierSha256": "cbf7c2e74e88002ebbaad9f1aa293632b4a608eb883f07307286d4e239082643",
+    "normalization": "LF frozen text; only 3 historical test EOF blank lines removed; Git archive core.autocrlf=false",
+    "baselineSourceFilesHashValidated": 215,
+    "acceptedPrerequisites": [
+      {
+        "name": "catalog handlers",
+        "sha256": "a8410162ecac4b83d4187b9b1501379a06b4faafd900f728faa7256f5ed8cc0c",
+        "origin": "accepted UI051 presentation/keyboard and UI091 browser flow"
+      },
+      {
+        "name": "catalogAddPending=true;",
+        "sha256": "532e57bf928034041539dda0b02554c31283ba621a2c2f40eb9e11bd739fbcdf",
+        "origin": "accepted catalog pending close controls"
+      },
+      {
+        "name": "catalogAddPending=false;",
+        "sha256": "fd61bda7466d6110bfc07285918680bb6ae580b36d0bc8b667377bd127f55894",
+        "origin": "accepted catalog pending close controls"
+      },
+      {
+        "name": "catalog result status",
+        "sha256": "cc73e8f24fc68dc1c497253dae5df046e749d25c2993505eb059996fa3295123",
+        "origin": "accepted keep-open multi-item catalogue sequence"
+      },
+      {
+        "name": "order card preparation helper/label/next step",
+        "sha256": "32bec362bd8ff83ba6bd5cc91e16cd81fac3cf4942f14ed9baa0212f71c42606",
+        "origin": "accepted UI051 baseline and UI091 queued/in_progress/ready actual browser"
+      },
+      {
+        "name": "catalog modal and next-step HTML",
+        "sha256": "297d9d502898137e429759a2ead4a2cba6c0dc906388fa0c8db5fa193c4db241",
+        "origin": "UI012 immutable baseline unchanged current; UI051/091 accepted behavior dependency"
+      },
+      {
+        "name": "catalog flow/status CSS",
+        "sha256": "95d9e6b256c8c18e5428e341d973fa31873a3b7dd7e62ae321279f10f3c9c4cc",
+        "origin": "accepted UI051 and immutable pre-UI baseline; catalogue/order-card only"
+      }
+    ]
+  },
+  "checks": {
+    "focusedScripts": [
+      "scripts/ui-semantic-token-contract.mjs",
+      "scripts/ui-role-shell-contract.mjs",
+      "scripts/ui-component-primitives-contract.mjs",
+      "scripts/ui-navigation-context-contract.mjs",
+      "scripts/ui-dialog-lifecycle-contract.mjs",
+      "scripts/ui-dialog-mounted-form-contract.mjs",
+      "scripts/ui042-ordinary-editor-contract.mjs",
+      "scripts/ui042-table-schedule-contract.mjs",
+      "scripts/ui043-lock-lifecycle-contract.mjs",
+      "scripts/ui051-presentation-contract.mjs",
+      "scripts/ui052-presentation-contract.mjs",
+      "scripts/ui061-source-runtime-qa.mjs",
+      "scripts/ui062-source-runtime-qa.mjs",
+      "scripts/ui071-source-runtime-qa.mjs",
+      "scripts/ui083-effects-cascade-contract.mjs",
+      "scripts/ui091-desktop-readability-contract.mjs",
+      "scripts/ui091-platform-retry-qa.mjs",
+      "scripts/staff-cursor-zone-qa.mjs",
+      "scripts/local-deploy-contract.mjs"
+    ],
+    "focused": {
+      "pass": 19,
+      "total": 19
+    },
+    "syntax": {
+      "pass": 36,
+      "total": 36,
+      "runtime": "local Node v24.21.0; Node20 Docker not exercised"
+    },
+    "sourceDistPairs": {
+      "pass": 55,
+      "total": 55
+    },
+    "financialVm": {
+      "pass": 36,
+      "total": 36
+    },
+    "catalogPresentation": {
+      "pass": 17,
+      "total": 17
+    },
+    "pairedTimeValidator": {
+      "pass": 4,
+      "total": 4,
+      "evidence": "reviews/qa.md"
+    },
+    "stagedAndHeadDiffWhitespace": "PASS",
+    "freshReproduction": {
+      "tree": "c70e4ad4997491f4aec8588f412a492efa4a5756",
+      "changedPaths": 88,
+      "focusedPass": 19,
+      "syncIdempotent": true
+    },
+    "archiveGuardFixtures": {
+      "pass": 12,
+      "total": 12
+    },
+    "packagerNegativeGuards": {
+      "pass": 3,
+      "total": 3
+    }
+  },
+  "scope": {
+    "selected": "UI012→UI091 delta + individually reviewed accepted catalogue/order presentation prerequisites + release closure/contracts",
+    "excluded": "unrelated dirty-root backend/schema/AlphaSat work, private runtime data and tmp outputs",
+    "databaseSchemaMigrationsPackagesUnchangedAgainstBase": true,
+    "serverDelta": "static shared dialog allowlist only",
+    "frontendBoundary": "accepted pending/reconciliation UI spans included; order/item API payloads and calculations preserved",
+    "mainTrackedFilesPreservedBeforeDocumentation": 899,
+    "mainIndexUnchanged": true
+  },
+  "reviews": {
+    "system_architect": "scoped GO",
+    "code_health_engineer": "scoped GO",
+    "qa_engineer": "scoped GO",
+    "release_manager": "local package GO; deploymentReady=false"
+  },
+  "releaseConditions": [
+    "Explicit separate UI-09.3 publication instruction; clean integration/PR/CI and exact current remote SHA. Rebuild archive/manifest if merge changes SHA.",
+    "Fresh critical desktop/role/theme/login/logout/keyboard/order/preparation/editor/financial browser acceptance of this rebased candidate in an isolated environment. Previous UI091 WIP pixels do not prove it.",
+    "Build/validate Node20 Docker image/runtime of the exact release SHA; local Node24 checks alone do not prove target runtime.",
+    "Disposition of inherited other-user PIN, lock non-OK PATCH and audit CSV escaping security findings; unresolved applicability/severity remains open.",
+    "Current VPS commit/images/compose/migration ledger/HTTPS/session compatibility preflight; existing start-before-migrate and menu seed handling require explicit compatibility.",
+    "Protected production backup integrity and isolated restore rehearsal before release; verify-backup.sh requires unique verified-absent RESTORE_TEST_DB or accepted cleanup-ownership fix.",
+    "Preserved previous images/config/commit and tested app rollback plan; production DB restore requires separate data-recovery authorization.",
+    "Full Cartesian pixels/Edge/WCAG/OS motion remain unverified; define required uncovered critical cells. UI10.1 Fold stays separate."
+  ],
+  "backupRollbackPlan": "docs/release/UI_09_2/BACKUP_ROLLBACK.md",
+  "nextStage": {
+    "id": "UI-09.3",
+    "title": "GitHub и VPS — отдельный запуск",
+    "recommendedModel": "GPT-6.1 Sol",
+    "recommendedReasoning": "High",
+    "autoStarted": false
+  },
+  "evidence": [
+    {
+      "path": "docs/release/UI_09_2/checks/health.json",
+      "sha256": "3b6ea394edfd5efb15292ecbfa61cd59825166e091c64b17cee0d17df34fcb1b"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/eof-normalization.json",
+      "sha256": "ddfe7850f722cc7d7ad17d98f58ba5a1218644966719c5cb1333c877b2b83e09"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/packager-negative.json",
+      "sha256": "9e9e9ab519273866e6f535793b369c82759c54bcd1d653c009621d32b64d33eb"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/archive-verifier-guards.json",
+      "sha256": "2e1d63c4e9e5c17f59845d6529a3ba09d4382a7b0b5dab644b47079963837bac"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/reproduction.json",
+      "sha256": "39cbc6a0ae1dd336ad88f1557ae3077c0766da94fc18bccf10c39d6ed7fa6db2"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/archive.json",
+      "sha256": "62825b71d03b7fdb03ef41120c99574aae768e27df4bcaf77610d9921b0385b0"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/extraction-and-repeat.json",
+      "sha256": "8a204d84cf4777fa4fe90031d32f1c2cfe90c7b66d1cc0650564dd3a14e8c609"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/main-preservation.json",
+      "sha256": "52aa62e133d85768b525e6123975c279d6d02c0c519d3ded036e8f8fc9b6f121"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/initial-crlf-rejected.txt",
+      "sha256": "0f3aa1a8078b154f3434ea68e61467a36ce87b87bb90d7cca1edd4cae0cb9dc3"
+    },
+    {
+      "path": "docs/release/UI_09_2/checks/final-preservation.json",
+      "sha256": "4551dc4ecf0792f71f5526cf4e69b2a8b0a088b66f8fc56af5cea908f387aa32"
+    }
+  ],
+  "operationalState": {
+    "candidateClean": true,
+    "candidateRetained": true,
+    "scratchCleanup": "Rejected by automatic approval policy before command execution; retained",
+    "scratchRetained": [
+      "tmp/ui092/repro-checkout",
+      "tmp/ui092/archive-extracted"
+    ],
+    "scratchExcludedFromArchive": true,
+    "archiveDirectoryContainsOnlyAcceptedArchive": true
+  },
+  "documentation": [
+    {
+      "path": "docs/release/UI_09_2/README.md",
+      "sha256": "303911ec5fc8b61b96814047aae0647a142013186ca4f4a66a5f9f13aedaa5b9"
+    },
+    {
+      "path": "docs/release/UI_09_2/RESULT.md",
+      "sha256": "db16910bb08f9967f775741dab997666fce16b87eac2d9cb7662e647b2b79548"
+    },
+    {
+      "path": "docs/release/UI_09_2/BACKUP_ROLLBACK.md",
+      "sha256": "4acd24d44d12efe426dfb440404d21907334553bb97861aefca7d1692923103d"
+    },
+    {
+      "path": "docs/release/UI_09_2/CANDIDATE_READINESS.md",
+      "sha256": "1114a6eda8706e7540b570f90afe6ab136a74b7e00eb1b5d136ba36bd4b20b29"
+    }
+  ],
+  "reviewEvidence": [
+    {
+      "path": "docs/release/UI_09_2/reviews/code-health-baseline.md",
+      "sha256": "70ae68158851244b3915babb8a759ca6896980e0f0d13d182bdd15db924234aa"
+    },
+    {
+      "path": "docs/release/UI_09_2/reviews/code-health.md",
+      "sha256": "512ede326ce1a8014cea0cd3cbc60e9d763de410cb211783821dc5b296a1797a"
+    },
+    {
+      "path": "docs/release/UI_09_2/reviews/qa.md",
+      "sha256": "87d9a5aec11559883f03ecccf4d55e5b615d6c353402f546f50b96e5974069f9"
+    },
+    {
+      "path": "docs/release/UI_09_2/reviews/release-manager.md",
+      "sha256": "16303d2d58845b1a58e0d19efda8b0c474818b75658339c3f4d2bc96de6550a6"
+    },
+    {
+      "path": "docs/release/UI_09_2/reviews/system-architect.md",
+      "sha256": "89f031e47db29a2e8e065d9ca873983876670e765385f24a245a65f19de8e47c"
+    }
+  ]
+}

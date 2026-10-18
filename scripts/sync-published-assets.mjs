@@ -5,20 +5,20 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '2026101504';
-const portalRevision = '2026101801';
-const portalSessionRevision = '2026101802';
+const cssRevision = '2026101803';
+const portalRevision = '2026101803';
+const portalSessionRevision = '2026101803';
 // This employee-page iteration invalidates only its own HTML asset URLs.
-const employeePaymentsCssRevision = '2026101301';
-const employeePaymentsSessionRevision = '2026101802';
-const lockRevision = '2026101801';
-const appRevision = '2026101801';
+const employeePaymentsCssRevision = '2026101803';
+const employeePaymentsSessionRevision = '2026101803';
+const lockRevision = '2026101803';
+const appRevision = '2026101803';
 const posWorkspaceRevision = '5';
 const posWorkspaceCssRevision = '10';
 const platformRevision = '2026101102';
 const platformCssRevision = '2026101102';
 const staffProfileRevision = '6';
-const loginRevision = '2026101801';
+const loginRevision = '2026101803';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '12';

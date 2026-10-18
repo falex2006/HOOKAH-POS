@@ -1,0 +1,3824 @@
+{
+  "commit": "1ceb09c9f9d9b210558aa810e5af807884a0af43",
+  "archive": "tmp/FIX-01-06-main-1ceb09c9.tar.gz",
+  "archiveSHA256": "d06e3423e053dc0ffeb937ed94132e77c73f51e24c2df1253d652afe14ea9db8",
+  "fileCount": 954,
+  "files": [
+    {
+      "path": ".codex/team/roles/backend_engineer.md",
+      "sha256": "42966d90025bd48c771501a67d9abf8fa1cb48ed43013e72902162993634b764"
+    },
+    {
+      "path": ".codex/team/roles/code_health_engineer.md",
+      "sha256": "0945a4f75bf0680fe7a0dc73822f795fa4ebec49af14c3a867b518bfc3b67f29"
+    },
+    {
+      "path": ".codex/team/roles/data_engineer.md",
+      "sha256": "196b1ea230cd1a07d95ebcd1f698f34186b4995a133d8c1594b1c28dc5def1f7"
+    },
+    {
+      "path": ".codex/team/roles/debugger.md",
+      "sha256": "d1014dcb77af2051ceafabd207f04960763e43028c34e43f72a696660dd0af32"
+    },
+    {
+      "path": ".codex/team/roles/design_lead.md",
+      "sha256": "8b94e0d71865514f38633e060d75dcdfa25332b9100d950bc41ca6a8657d0e7a"
+    },
+    {
+      "path": ".codex/team/roles/finance_domain.md",
+      "sha256": "36095eaf7f974214a17d2b38cfb19d223217bb902df1dc4b5b3c54200918a759"
+    },
+    {
+      "path": ".codex/team/roles/frontend_engineer.md",
+      "sha256": "e7bf54e43d63637cd1f15d6c457216b232d3cfa9a8f2679d64170ea46335d5ca"
+    },
+    {
+      "path": ".codex/team/roles/performance_engineer.md",
+      "sha256": "968ba318ca01053433773fdde4572e3769c7644b266a634a0fcba31531e7c136"
+    },
+    {
+      "path": ".codex/team/roles/product_analyst.md",
+      "sha256": "63c3556663377b8c7e9312f7eba241ce6632f3b94f8e330dcf9af0b8063d09c6"
+    },
+    {
+      "path": ".codex/team/roles/qa_engineer.md",
+      "sha256": "f501164f656407e8ee086053dcbd7acfbad6ec1597e211e447ad04960df412b3"
+    },
+    {
+      "path": ".codex/team/roles/release_manager.md",
+      "sha256": "a96c660fe154866879641a059e75cf6e3e8ff731d4a8578c41938a0d9655aa1e"
+    },
+    {
+      "path": ".codex/team/roles/responsive_specialist.md",
+      "sha256": "9cc57745fa4cf6db925d3ce927b7c954ff6dca30a7871e2cae192f2ea53e8202"
+    },
+    {
+      "path": ".codex/team/roles/security_reviewer.md",
+      "sha256": "29471dbc0e6d9064344d35f3881e080d3a8271c7c8e623babf2c666b16dba9fc"
+    },
+    {
+      "path": ".codex/team/roles/system_architect.md",
+      "sha256": "7348dc26c001b80fbf31612e0b1b3d4027e09b5f3e01598e727a9d31c5460bfd"
+    },
+    {
+      "path": ".codex/team/roles/visual_auditor.md",
+      "sha256": "e00cf16c85841259b5d5e7f2ce188f9e74bcf38578df84e3003dbe4e2d2b440b"
+    },
+    {
+      "path": ".codex/team/roles/warehouse_domain.md",
+      "sha256": "a5e8f41ed001ffefa20387c6cd5c9e7759091a416390c12961a691294dfd1ea4"
+    },
+    {
+      "path": ".codex/team/team.json",
+      "sha256": "811e88253f1a35763dc42e63dce2843cf6e2e933f9f7883e4e22bb8f7d09e035"
+    },
+    {
+      "path": ".dockerignore",
+      "sha256": "c14688ebc69a905644161f4af876b675767b7bc9f4f0b450fd130b4d5f5e057d"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "d7275877169c2a8f8ffa2a57b36d85764955bc4f97a683243c3b08171ae624a9"
+    },
+    {
+      "path": ".github/workflows/ai-team-contracts.yml",
+      "sha256": "e3c7138b70cffce529c646a18e3afe2a4e0535e2744ca18ec3aac89ca3ce5c09"
+    },
+    {
+      "path": ".github/workflows/crm-contracts.yml",
+      "sha256": "9ae85e5df4d9cb34caed51994a44b86575172fafc6fb474dd0dd879d8ad3de70"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "13d49d5e83bd90a5d3fc5e6b04e8cd33da401d5e3addcfbb9a9695efccadeb2b"
+    },
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "2dddcca795fbc7f61c161f086777146bd7a8daf44281580fdc2f7b7d1b676b4a"
+    },
+    {
+      "path": ".sites-tools/bash.cmd",
+      "sha256": "653d2077fdd8ccb871040aa97781aabd6c1d94295fc793346cc6ec1bddcb056d"
+    },
+    {
+      "path": ".sites-tools/bash.exe",
+      "sha256": "9aa00217a92def5fed1b15c6e2b34a7f89e3781af822ecc00960fe5340df093e"
+    },
+    {
+      "path": "ACCEPTANCE.md",
+      "sha256": "eabca36113b2d73f51de6de19968ee88d3eceb13dce196401907062f78c40dbf"
+    },
+    {
+      "path": "ACCEPTANCE_CHECKLIST.md",
+      "sha256": "ba9b96ea741410dbcf0813794efc8fffcc85b0f3b5e46bdf00450724e2680ffa"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "701d27340683531b486f7a560cbd3f33c3e5d8cb07ea7841ddf29d1d79d2988b"
+    },
+    {
+      "path": "API.md",
+      "sha256": "aaa3848fba1b2f2d54cac5602599429a28a4316cee309f0461f3b671aefa4f8b"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "c694cfe54ff5d2d649f0e297f0aacfca49261073aa8bd33de1b859f16467c082"
+    },
+    {
+      "path": "ARCHITECTURE_AUDIT_REPORT.md",
+      "sha256": "f17d1ba6c973a4c27c89d6512bf071b47b3150cb56537cd56559ecfb3bc00e79"
+    },
+    {
+      "path": "AUDIT_REPORT_2026-10-01.md",
+      "sha256": "32ad2021b0890267bd2cd076ff2f0cb592452cf81d852b2ae99d038fa60a0713"
+    },
+    {
+      "path": "COMPLETION_MATRIX.md",
+      "sha256": "f4679e4ddcb740b9193821e995e9763fad554cda5f7dad93f6fcee62fde1a303"
+    },
+    {
+      "path": "COPY_REVIEW_PROMPT.md",
+      "sha256": "117e1f6f04f3cbad8bf8250de0a542af7bd05f0bee7cd056aa0a5ab0a482832e"
+    },
+    {
+      "path": "CRM_SPEC_ACCEPTANCE.md",
+      "sha256": "7427e840962cbe2fd22faf7c84132623532b3b5685527f3e373e0f0582eb2c37"
+    },
+    {
+      "path": "CRM_TECHNICAL_SPEC_2026-09-24.md",
+      "sha256": "a738af38191d89d13197c26d0ee83ffd0031a453612f727a809d8d7d06367811"
+    },
+    {
+      "path": "DATABASE_BACKUP_ADMIN_PROMPT.md",
+      "sha256": "99a098fc88f871db1db1fdee0a8da66601bca3d99fb45bd2dd7de0d8e313e448"
+    },
+    {
+      "path": "DEPLOYMENT.md",
+      "sha256": "430bfc8a04bf9312b29db6821d1fe57db631a90426f687fe7a984d40a2e43eda"
+    },
+    {
+      "path": "DESIGN_TOKENS.md",
+      "sha256": "4c6d67e8033709dc40c618b3ce7a8372b13edb845747316304edeacfc882bb7a"
+    },
+    {
+      "path": "DEVELOPMENT_WORKFLOW.md",
+      "sha256": "61c7991aa1c37b972ad6f80316a64070c500866db32ff0625b4adb87095adbb5"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "c522c7a498cf0292387d7f09e8324978e55ac46286c541dd73f7f38355ce9a2c"
+    },
+    {
+      "path": "FINAL_ACCEPTANCE_REPORT.md",
+      "sha256": "52cb4a8df3f2ff1cf84b31c54fcd15c0c6d76bde99b0a756fdf057cfe9bde4d9"
+    },
+    {
+      "path": "FINAL_QA_EXECUTION_PROMPT.md",
+      "sha256": "0555327c18fc913ffda6e2126f375d59c291c827763a7ffebc946583637fc1c7"
+    },
+    {
+      "path": "FUNCTIONAL_COMPLETENESS_AUDIT_PROMPT.md",
+      "sha256": "2bf253f3e2e007e763485edb087ed2aa466809eb54edac666c77d98543084ebc"
+    },
+    {
+      "path": "HANDOFF.md",
+      "sha256": "fb0026da4512f1d60b9298ab562f6d1993500e2dce67d5d40429046557d275d3"
+    },
+    {
+      "path": "HOOKAH_POS_ADDITIONAL_ACCEPTANCE.md",
+      "sha256": "485e9483e78ef80a1deef86d2a8497791e426e84c23955fe4fa4c68a28b329f3"
+    },
+    {
+      "path": "INVENTORY_IMPLEMENTATION_PLAN.md",
+      "sha256": "f0f37895569a49f687c6ee4338c5c447f4abd3a5237f00ce81752ada3565315e"
+    },
+    {
+      "path": "MIGRATIONS.md",
+      "sha256": "d74e10b8108e7d18e5b5f3ff3fe8f13d81df67b4b260245c3ad86b4fcdaf7ab2"
+    },
+    {
+      "path": "ORDER_ATTENTION_RULES.md",
+      "sha256": "b0226b155d6be2d1f9990863a894c1af94610bc77d55544a6bc9a1686fc7436e"
+    },
+    {
+      "path": "PORTS.md",
+      "sha256": "ac9516f561900366ad9e23b43b77904db19ba50701315e6a8a800587e7125d13"
+    },
+    {
+      "path": "PRODUCT_REQUIREMENTS.md",
+      "sha256": "e42548816ddff1f0b78f47b4849073528edce645f445c521494cafcc36728d96"
+    },
+    {
+      "path": "QA_AUDIT_REPORT.md",
+      "sha256": "6e256e9c5e97bcef52bb05706f6213248448ba9c06900c9f10e165550e701429"
+    },
+    {
+      "path": "QA_WORKFLOW.md",
+      "sha256": "a446abcf3ec40400d96587299c3185c2b17b0a58bcf19d1633b0f757d544dfca"
+    },
+    {
+      "path": "README.md",
+      "sha256": "1769fdea5a2a96cef888ace5eea9a59bbdcd418eb579f823093d7c6579c5ffc9"
+    },
+    {
+      "path": "ROADMAP.md",
+      "sha256": "2494aface04f348980b6102593bd75238523b15c510f4c14b7adc3fcc4c08992"
+    },
+    {
+      "path": "ROLE_PAGE_PROMPTS.md",
+      "sha256": "6d253637c844ab64f52478c1347c4b5086a76f752ecf8be3053c2bf65642642a"
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "055e80284a48823189f06bb04fa1abce1c148bf5b61ee554e8a8c45fe98d5a37"
+    },
+    {
+      "path": "SECURITY_RULES.md",
+      "sha256": "64b2296e47280e93aa1e10fbea2c9168d1b18e8710d200aa5b9436c38aceef79"
+    },
+    {
+      "path": "SETTINGS_PROMPT.md",
+      "sha256": "24cb738b580837235dfcb9fdf94f1a7ecd9ce38e7edb32063620f4ee5acf751c"
+    },
+    {
+      "path": "SITE_MAP.md",
+      "sha256": "06131e5969137b9abc395874877548cbc0b67ad05078f657af24e0ca54e0282b"
+    },
+    {
+      "path": "SITE_TREE.md",
+      "sha256": "4fb8eeda097ad640afb776339142b126677c11c630bed6407e02bba53e8781a4"
+    },
+    {
+      "path": "STAFF_DATA_POLICY.md",
+      "sha256": "cee4a493d9c8b3771e1749e3e0f5da0769efbfc38ce383aeff64b842c7699cfa"
+    },
+    {
+      "path": "STATUS.md",
+      "sha256": "9a4ac5ed7352b535c8ffc169b8c0c90484e3c5f6f3d4698dd0cc84afc810e507"
+    },
+    {
+      "path": "SYSTEM_QA_PROMPT.md",
+      "sha256": "30a05b2464aa6d438135de44ac5ea1db350dd45b1d2a56d11ff55c490a271f2b"
+    },
+    {
+      "path": "TRACEABILITY.md",
+      "sha256": "eb64822644f44a414424e36d3eedcecc9adbc1ac82d58b48bba1369d0e6bb3b3"
+    },
+    {
+      "path": "TYPOGRAPHY_PROMPT.md",
+      "sha256": "583a591a0510c7a29cc96a92ae31868016bf888fa0d07bfc699a5807e9d47f82"
+    },
+    {
+      "path": "VISUAL_AUDIT_2026-09-24.md",
+      "sha256": "22ba34cdcbc4b134a6246a69042b3e4f38b480b11e6b01127055c3f0ccf3b8ac"
+    },
+    {
+      "path": "VISUAL_AUDIT_PROMPT.md",
+      "sha256": "323914e182bbe725cc9744de8cc3ca855b3f366505edb5bfb918e311db7f8e76"
+    },
+    {
+      "path": "VISUAL_AUDIT_REPORT.md",
+      "sha256": "cbb9ba2bf430164943667bf464ae03b289ab2236f7f2eed7bf2a11a0308da77c"
+    },
+    {
+      "path": "VISUAL_PAGE_RULES.md",
+      "sha256": "b184bf308a6ae262070d4b6a68a72b245fe2fe770ee89a7913d31952204bdbbd"
+    },
+    {
+      "path": "WAREHOUSE_PAGE_PROMPT.md",
+      "sha256": "4245b5b2709374b45ca6835474545ff47bd26674d311a696fbf255b3d1aa37b4"
+    },
+    {
+      "path": "WAREHOUSE_REDESIGN_PROMPT.md",
+      "sha256": "1a1a9d062b5d1f6414fd560f1482d93cfbcb0621918dc8b9f78ab5a8f98e85be"
+    },
+    {
+      "path": "acme-webroot/.gitkeep",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "admin.html",
+      "sha256": "7a6e745472438c6c30bcbb1f11621f92f0a2d2f91da9f3575c67b865f2d4ea6a"
+    },
+    {
+      "path": "admin.js",
+      "sha256": "06a023ef4f721ab5f6a006ba5e659dd1fb915cff4b007ba1cc4ec91d0844f989"
+    },
+    {
+      "path": "app.js",
+      "sha256": "7a26b49386462a6b5936c4a186204edf8ec5648ef0df0c81d9aab4974f65015a"
+    },
+    {
+      "path": "assets/brand/hookah-pos-lockup-animated.svg",
+      "sha256": "43174461b3618a34724ffa6fd1a36cdb6051c847df22874d090f52b2ad308177"
+    },
+    {
+      "path": "assets/brand/hookah-pos-lockup-light-animated.svg",
+      "sha256": "22bd448f77b7b02ce26cc48668685f817c7562f93c861c1003340e7c62b4f29f"
+    },
+    {
+      "path": "assets/brand/hookah-pos-lockup-light.svg",
+      "sha256": "d2559fcd5474f7e568d6bc5331d5ba9da669d675d420eb32e877c07bcaea4056"
+    },
+    {
+      "path": "assets/brand/hookah-pos-lockup.svg",
+      "sha256": "45ecfbd167d67214cb6290fc67da79718432e799e0e15293594dc295516f22f0"
+    },
+    {
+      "path": "assets/brand/hookah-pos-symbol.svg",
+      "sha256": "c3157464c6e9ca691d51da09ae500ea1cc7b857b931359a15473ca7f40bf6dce"
+    },
+    {
+      "path": "assets/brand/icons/apple-touch-icon-180.png",
+      "sha256": "f675c182e778c5388646f0be09379a1ac03af7af186a1207fd4056df1fcf18f0"
+    },
+    {
+      "path": "assets/brand/icons/apple-touch-icon-dark-180.png",
+      "sha256": "993ed7d5ec42ffe448f8d7a44b9e84becdda190964c59238ba582ce63938b38a"
+    },
+    {
+      "path": "assets/brand/icons/favicon-16.png",
+      "sha256": "c1a4ac82889943b38156621246092f91487e335564891d7e34d8db8507cd3c0a"
+    },
+    {
+      "path": "assets/brand/icons/favicon-32.png",
+      "sha256": "c44ce3c7e57e3cba11d2daf89d8f2353a3152b881b000bbeeef716efcf579d20"
+    },
+    {
+      "path": "assets/brand/icons/favicon-48.png",
+      "sha256": "fbd7c178a5a9bfac50087d0f1a971c9bfee5cf2da7439da0f5921d616265253b"
+    },
+    {
+      "path": "assets/brand/icons/favicon.ico",
+      "sha256": "b25bace1398182d51183a8578f19e514967f9d25a9bf88c0b39196c8da52993c"
+    },
+    {
+      "path": "assets/brand/icons/favicon.svg",
+      "sha256": "1c40d11309a3401d8087b23452c177eedd2dff89bc46cd4078c424bc3fc65795"
+    },
+    {
+      "path": "assets/brand/icons/mono-black-512.png",
+      "sha256": "2bea55de896b60724a9afb4b66c9e8ed9caad31d28e6368dd043abafdda01574"
+    },
+    {
+      "path": "assets/brand/icons/mono-white-512.png",
+      "sha256": "73cdbab58ebb2efb27fd9b459d9671fc12a90131b79cb9451f56c80d2ecc2ae7"
+    },
+    {
+      "path": "assets/brand/icons/mstile-150.png",
+      "sha256": "58aba8c48d77dfe4f83d5c5b728af7d7d203934d7df1fbe5361fc5c85348a5c2"
+    },
+    {
+      "path": "assets/brand/icons/og-image-1200x630.png",
+      "sha256": "098616ab40d9543c6fc8fe4668b8e2a9da8f7b921f7df6882aaeb82059d09164"
+    },
+    {
+      "path": "assets/brand/icons/pwa-192.png",
+      "sha256": "e52ab72579f1d08caffaca12b27388844a2c1156bbed1c06a25ed0065c13c971"
+    },
+    {
+      "path": "assets/brand/icons/pwa-512.png",
+      "sha256": "a7b2245e8d4a1a53f6bfa2db37869bc85940b411d0e6973a1b428fd05f53cb08"
+    },
+    {
+      "path": "assets/brand/icons/pwa-maskable-512.png",
+      "sha256": "7da13665930c42399171366671d05f512aad66be0d948bcebe3a5c4d2941fa92"
+    },
+    {
+      "path": "assets/brand/icons/safari-pinned-tab.svg",
+      "sha256": "3ea017bce6370c03a954e85fe0cdeeecad5721a3be47a84daa182892e7907eaf"
+    },
+    {
+      "path": "assets/brand/manifest.webmanifest",
+      "sha256": "3aaee2000476218d8cbc84e7f710a39d975491a5513e198e3ecf2ffdd8d51d4d"
+    },
+    {
+      "path": "assets/fonts/manrope-400.ttf",
+      "sha256": "a13d9b41b0a471ce58f0e46d377fa3cc76615e4632c3b15eb397caadf7a13f0a"
+    },
+    {
+      "path": "assets/fonts/manrope-500.ttf",
+      "sha256": "f433e5d333be1128d8ec8a28b8aadd0314d10e14e4105406076666bc830fc15d"
+    },
+    {
+      "path": "assets/fonts/manrope-600.ttf",
+      "sha256": "6bad1a774228464cc88b8b0271555b266f7a3c64a7bedf15e165fdab4f6ac0ce"
+    },
+    {
+      "path": "assets/fonts/manrope-700.ttf",
+      "sha256": "b9584e099e0e7f1e1e914c3037aabb9010c50346a3ce8df5eeeeecc0563044d8"
+    },
+    {
+      "path": "assets/fonts/manrope-800.ttf",
+      "sha256": "b8f802f05b322a7345805f5b89f8bb976604cc719a91530918d5ce3c47160950"
+    },
+    {
+      "path": "assets/login-background.mp4",
+      "sha256": "11504365180f86adea29ce4e5517938bf62e61e644274fa3e618f7f5d83bc75c"
+    },
+    {
+      "path": "assets/login-hookah-reference.jpg",
+      "sha256": "744b7c33efef287de4f6946bca2a401639c2ffaaac3dab94a425fc436bead20d"
+    },
+    {
+      "path": "assets/login-smoke-ambient.mp4",
+      "sha256": "11504365180f86adea29ce4e5517938bf62e61e644274fa3e618f7f5d83bc75c"
+    },
+    {
+      "path": "assets/login-smoke-ambient.png",
+      "sha256": "facb22e95581b26f43f0ddf6d9cda0a54a7fa7ea9645070e46421c7bf42461e1"
+    },
+    {
+      "path": "assets/tabler-icons.svg",
+      "sha256": "e67c198b5e459b5925b534d0c4c556023a07509904eaac4cd2e105f11d69b464"
+    },
+    {
+      "path": "audit-privacy.js",
+      "sha256": "14c5e5313e47b012ef34771ae8170bcdc56fe249384fa29f532a8fd12a384d2d"
+    },
+    {
+      "path": "auth-smoke.css",
+      "sha256": "261595df61ebb70e25a80385c4e571ea0801a8b9f821dc15b4cc703deced2015"
+    },
+    {
+      "path": "auth-smoke.js",
+      "sha256": "e15fd2d26da6941cd0d8b326332ac15473efc07127c812350a1e9a73ad9310d3"
+    },
+    {
+      "path": "backup-postgres.sh",
+      "sha256": "c317fa55c09f190e2a7c38c43e476f482413a626a90bb5950b3de5ed70bd2799"
+    },
+    {
+      "path": "catalog-seed.js",
+      "sha256": "e80e466ae068ab8c8deff5f60d39e897467a1a93608b4193f1e4d02920e83038"
+    },
+    {
+      "path": "clients.html",
+      "sha256": "c89268eaf731c35a6f21f1b437ba5211e0ffff39f0fab5a682726a5d4526d9f6"
+    },
+    {
+      "path": "db.js",
+      "sha256": "d87c2e6a432b0569eaaf662047bf41dd3c3e4436894c841da20b2792c6254708"
+    },
+    {
+      "path": "delivery.html",
+      "sha256": "a388699f66020b8f5e5da01b9ab77dea57d2dab81d99799619599599f98f93b0"
+    },
+    {
+      "path": "deploy-vps.sh",
+      "sha256": "b6305701dd0beae467b478fbcb1b636fd7fdedfe2191fe1a4d9b77395cd0af2f"
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "2dddcca795fbc7f61c161f086777146bd7a8daf44281580fdc2f7b7d1b676b4a"
+    },
+    {
+      "path": "dist/admin.html",
+      "sha256": "7a6e745472438c6c30bcbb1f11621f92f0a2d2f91da9f3575c67b865f2d4ea6a"
+    },
+    {
+      "path": "dist/admin.js",
+      "sha256": "06a023ef4f721ab5f6a006ba5e659dd1fb915cff4b007ba1cc4ec91d0844f989"
+    },
+    {
+      "path": "dist/admin/index.html",
+      "sha256": "7a6e745472438c6c30bcbb1f11621f92f0a2d2f91da9f3575c67b865f2d4ea6a"
+    },
+    {
+      "path": "dist/app.js",
+      "sha256": "7a26b49386462a6b5936c4a186204edf8ec5648ef0df0c81d9aab4974f65015a"
+    },
+    {
+      "path": "dist/assets/brand/hookah-pos-lockup-animated.svg",
+      "sha256": "43174461b3618a34724ffa6fd1a36cdb6051c847df22874d090f52b2ad308177"
+    },
+    {
+      "path": "dist/assets/brand/hookah-pos-lockup-light-animated.svg",
+      "sha256": "22bd448f77b7b02ce26cc48668685f817c7562f93c861c1003340e7c62b4f29f"
+    },
+    {
+      "path": "dist/assets/brand/hookah-pos-lockup-light.svg",
+      "sha256": "d2559fcd5474f7e568d6bc5331d5ba9da669d675d420eb32e877c07bcaea4056"
+    },
+    {
+      "path": "dist/assets/brand/hookah-pos-lockup.svg",
+      "sha256": "45ecfbd167d67214cb6290fc67da79718432e799e0e15293594dc295516f22f0"
+    },
+    {
+      "path": "dist/assets/brand/hookah-pos-symbol.svg",
+      "sha256": "c3157464c6e9ca691d51da09ae500ea1cc7b857b931359a15473ca7f40bf6dce"
+    },
+    {
+      "path": "dist/assets/brand/icons/apple-touch-icon-180.png",
+      "sha256": "f675c182e778c5388646f0be09379a1ac03af7af186a1207fd4056df1fcf18f0"
+    },
+    {
+      "path": "dist/assets/brand/icons/apple-touch-icon-dark-180.png",
+      "sha256": "993ed7d5ec42ffe448f8d7a44b9e84becdda190964c59238ba582ce63938b38a"
+    },
+    {
+      "path": "dist/assets/brand/icons/favicon-16.png",
+      "sha256": "c1a4ac82889943b38156621246092f91487e335564891d7e34d8db8507cd3c0a"
+    },
+    {
+      "path": "dist/assets/brand/icons/favicon-32.png",
+      "sha256": "c44ce3c7e57e3cba11d2daf89d8f2353a3152b881b000bbeeef716efcf579d20"
+    },
+    {
+      "path": "dist/assets/brand/icons/favicon-48.png",
+      "sha256": "fbd7c178a5a9bfac50087d0f1a971c9bfee5cf2da7439da0f5921d616265253b"
+    },
+    {
+      "path": "dist/assets/brand/icons/favicon.ico",
+      "sha256": "b25bace1398182d51183a8578f19e514967f9d25a9bf88c0b39196c8da52993c"
+    },
+    {
+      "path": "dist/assets/brand/icons/favicon.svg",
+      "sha256": "1c40d11309a3401d8087b23452c177eedd2dff89bc46cd4078c424bc3fc65795"
+    },
+    {
+      "path": "dist/assets/brand/icons/mono-black-512.png",
+      "sha256": "2bea55de896b60724a9afb4b66c9e8ed9caad31d28e6368dd043abafdda01574"
+    },
+    {
+      "path": "dist/assets/brand/icons/mono-white-512.png",
+      "sha256": "73cdbab58ebb2efb27fd9b459d9671fc12a90131b79cb9451f56c80d2ecc2ae7"
+    },
+    {
+      "path": "dist/assets/brand/icons/mstile-150.png",
+      "sha256": "58aba8c48d77dfe4f83d5c5b728af7d7d203934d7df1fbe5361fc5c85348a5c2"
+    },
+    {
+      "path": "dist/assets/brand/icons/og-image-1200x630.png",
+      "sha256": "098616ab40d9543c6fc8fe4668b8e2a9da8f7b921f7df6882aaeb82059d09164"
+    },
+    {
+      "path": "dist/assets/brand/icons/pwa-192.png",
+      "sha256": "e52ab72579f1d08caffaca12b27388844a2c1156bbed1c06a25ed0065c13c971"
+    },
+    {
+      "path": "dist/assets/brand/icons/pwa-512.png",
+      "sha256": "a7b2245e8d4a1a53f6bfa2db37869bc85940b411d0e6973a1b428fd05f53cb08"
+    },
+    {
+      "path": "dist/assets/brand/icons/pwa-maskable-512.png",
+      "sha256": "7da13665930c42399171366671d05f512aad66be0d948bcebe3a5c4d2941fa92"
+    },
+    {
+      "path": "dist/assets/brand/icons/safari-pinned-tab.svg",
+      "sha256": "3ea017bce6370c03a954e85fe0cdeeecad5721a3be47a84daa182892e7907eaf"
+    },
+    {
+      "path": "dist/assets/brand/manifest.webmanifest",
+      "sha256": "3aaee2000476218d8cbc84e7f710a39d975491a5513e198e3ecf2ffdd8d51d4d"
+    },
+    {
+      "path": "dist/assets/fonts/manrope-400.ttf",
+      "sha256": "a13d9b41b0a471ce58f0e46d377fa3cc76615e4632c3b15eb397caadf7a13f0a"
+    },
+    {
+      "path": "dist/assets/fonts/manrope-500.ttf",
+      "sha256": "f433e5d333be1128d8ec8a28b8aadd0314d10e14e4105406076666bc830fc15d"
+    },
+    {
+      "path": "dist/assets/fonts/manrope-600.ttf",
+      "sha256": "6bad1a774228464cc88b8b0271555b266f7a3c64a7bedf15e165fdab4f6ac0ce"
+    },
+    {
+      "path": "dist/assets/fonts/manrope-700.ttf",
+      "sha256": "b9584e099e0e7f1e1e914c3037aabb9010c50346a3ce8df5eeeeecc0563044d8"
+    },
+    {
+      "path": "dist/assets/fonts/manrope-800.ttf",
+      "sha256": "b8f802f05b322a7345805f5b89f8bb976604cc719a91530918d5ce3c47160950"
+    },
+    {
+      "path": "dist/assets/login-background.mp4",
+      "sha256": "11504365180f86adea29ce4e5517938bf62e61e644274fa3e618f7f5d83bc75c"
+    },
+    {
+      "path": "dist/assets/login-hookah-reference.jpg",
+      "sha256": "744b7c33efef287de4f6946bca2a401639c2ffaaac3dab94a425fc436bead20d"
+    },
+    {
+      "path": "dist/assets/login-smoke-ambient.mp4",
+      "sha256": "11504365180f86adea29ce4e5517938bf62e61e644274fa3e618f7f5d83bc75c"
+    },
+    {
+      "path": "dist/assets/login-smoke-ambient.png",
+      "sha256": "facb22e95581b26f43f0ddf6d9cda0a54a7fa7ea9645070e46421c7bf42461e1"
+    },
+    {
+      "path": "dist/assets/tabler-icons.svg",
+      "sha256": "e67c198b5e459b5925b534d0c4c556023a07509904eaac4cd2e105f11d69b464"
+    },
+    {
+      "path": "dist/auth-smoke.css",
+      "sha256": "261595df61ebb70e25a80385c4e571ea0801a8b9f821dc15b4cc703deced2015"
+    },
+    {
+      "path": "dist/auth-smoke.js",
+      "sha256": "e15fd2d26da6941cd0d8b326332ac15473efc07127c812350a1e9a73ad9310d3"
+    },
+    {
+      "path": "dist/catalog-seed.js",
+      "sha256": "e80e466ae068ab8c8deff5f60d39e897467a1a93608b4193f1e4d02920e83038"
+    },
+    {
+      "path": "dist/clients.html",
+      "sha256": "c89268eaf731c35a6f21f1b437ba5211e0ffff39f0fab5a682726a5d4526d9f6"
+    },
+    {
+      "path": "dist/clients/index.html",
+      "sha256": "c89268eaf731c35a6f21f1b437ba5211e0ffff39f0fab5a682726a5d4526d9f6"
+    },
+    {
+      "path": "dist/delivery.html",
+      "sha256": "a388699f66020b8f5e5da01b9ab77dea57d2dab81d99799619599599f98f93b0"
+    },
+    {
+      "path": "dist/delivery/index.html",
+      "sha256": "a388699f66020b8f5e5da01b9ab77dea57d2dab81d99799619599599f98f93b0"
+    },
+    {
+      "path": "dist/finance-categories.html",
+      "sha256": "72dcdddb5ac4de04e8f0e9401ff6fd36f19c75b563765fcb8e6b384de66712fd"
+    },
+    {
+      "path": "dist/finance-report.html",
+      "sha256": "a57d5735d830cb482f15e1321fb9b744ce5e31f6f2d3093cc5fabaa9ca5767cd"
+    },
+    {
+      "path": "dist/finance.html",
+      "sha256": "74a7e0b7545c9ad2a0fb64bad960016270fe730a8005c6ec7c774c5e59619a4d"
+    },
+    {
+      "path": "dist/finance/categories/index.html",
+      "sha256": "72dcdddb5ac4de04e8f0e9401ff6fd36f19c75b563765fcb8e6b384de66712fd"
+    },
+    {
+      "path": "dist/finance/index.html",
+      "sha256": "74a7e0b7545c9ad2a0fb64bad960016270fe730a8005c6ec7c774c5e59619a4d"
+    },
+    {
+      "path": "dist/finance/report/index.html",
+      "sha256": "a57d5735d830cb482f15e1321fb9b744ce5e31f6f2d3093cc5fabaa9ca5767cd"
+    },
+    {
+      "path": "dist/header-shell.js",
+      "sha256": "4981e9e31bf27249725cf2cc9a663312ac90dc9cbac5e88544faf9bdaf94c807"
+    },
+    {
+      "path": "dist/index.html",
+      "sha256": "359113ed205896edcdaac7939236cc0e0101a00ec6d4ac06687559091f264c81"
+    },
+    {
+      "path": "dist/integrations.html",
+      "sha256": "c379506a2412dff41c2ff5b390c6226fe782119509190aaded11f1a9dcd1cf65"
+    },
+    {
+      "path": "dist/integrations/index.html",
+      "sha256": "c379506a2412dff41c2ff5b390c6226fe782119509190aaded11f1a9dcd1cf65"
+    },
+    {
+      "path": "dist/inventory.html",
+      "sha256": "d6a16388ece426556a09310ab56c7396480ac41dd50b7ca90fc56f6f8b80ea8f"
+    },
+    {
+      "path": "dist/inventory/index.html",
+      "sha256": "d6a16388ece426556a09310ab56c7396480ac41dd50b7ca90fc56f6f8b80ea8f"
+    },
+    {
+      "path": "dist/lock.js",
+      "sha256": "5aab2f0bd481fdf8011e8f60c77b9f1da511e9f40614bea81184b9e18c150410"
+    },
+    {
+      "path": "dist/login.html",
+      "sha256": "e85ad5b1fd6d9dfa7c090668337e560f02fbcc965c663454aae50c6b3b494d0f"
+    },
+    {
+      "path": "dist/login.js",
+      "sha256": "1f0a300a52b472888abab347772a45997bfc57a263eabaee8213076b27e76487"
+    },
+    {
+      "path": "dist/login/index.html",
+      "sha256": "e85ad5b1fd6d9dfa7c090668337e560f02fbcc965c663454aae50c6b3b494d0f"
+    },
+    {
+      "path": "dist/network.html",
+      "sha256": "b844f26f072e66409b272e5399ed773273764534c374da10fbe4558ce8380f49"
+    },
+    {
+      "path": "dist/network/index.html",
+      "sha256": "b844f26f072e66409b272e5399ed773273764534c374da10fbe4558ce8380f49"
+    },
+    {
+      "path": "dist/notification-center.js",
+      "sha256": "827f47922abc22581fa372cdb8ecf65897f472fe80ad4c547b1289cfacca0e1c"
+    },
+    {
+      "path": "dist/orders.html",
+      "sha256": "5ee830c7ca6298016f58b51909db9a759731556aa0bf1d1df489c34eae06f8c3"
+    },
+    {
+      "path": "dist/orders/index.html",
+      "sha256": "5ee830c7ca6298016f58b51909db9a759731556aa0bf1d1df489c34eae06f8c3"
+    },
+    {
+      "path": "dist/payroll-scheme-ui.js",
+      "sha256": "eeacb1f1de4579ed3e3153328076dd64101148bcacec78e16803e5f74a623db2"
+    },
+    {
+      "path": "dist/phone-format.js",
+      "sha256": "09296ce96992a82d4b5002ee55c99567b918f6fde9cb1f9f4e776121554b7bc6"
+    },
+    {
+      "path": "dist/platform.css",
+      "sha256": "e47b383d89e97d837d1fde0d868a9527ef2dc9b3dbd54f0fd83c5b3f0d70bef1"
+    },
+    {
+      "path": "dist/platform.html",
+      "sha256": "773d44423ec8f5608040da051884c97e25456ef5d9ebe549b28765ab5b01d229"
+    },
+    {
+      "path": "dist/platform.js",
+      "sha256": "4fea58cb34bd427e9c521598497e32fa4bcd9186ed87e9ed17a4189f415aa331"
+    },
+    {
+      "path": "dist/platform/index.html",
+      "sha256": "773d44423ec8f5608040da051884c97e25456ef5d9ebe549b28765ab5b01d229"
+    },
+    {
+      "path": "dist/portal-session.js",
+      "sha256": "62803bb9f95debfb10b0054d7754521129d402db83886afef86c9604b728d8f2"
+    },
+    {
+      "path": "dist/portal.js",
+      "sha256": "65ee2db8922483f24b4b3e30e1c06431ceeb4ebd7a32c1857b18f43ebe375f7b"
+    },
+    {
+      "path": "dist/purchase-document-validation.js",
+      "sha256": "f1d31b8c44c567866b3699824f0558829f93b8875f96e5c44d8b0b14117a0248"
+    },
+    {
+      "path": "dist/reservations.html",
+      "sha256": "b1fdeb941f6deb622e2e228d5e7e6aedbedfa6df6e8d961a5c56620ddba79a33"
+    },
+    {
+      "path": "dist/reservations/index.html",
+      "sha256": "b1fdeb941f6deb622e2e228d5e7e6aedbedfa6df6e8d961a5c56620ddba79a33"
+    },
+    {
+      "path": "dist/shift-close-contract.js",
+      "sha256": "f182cbeb454dd9d63e953ec3623c725f1a14b2bc15742d9a0d6b2d0404a8aec8"
+    },
+    {
+      "path": "dist/staff-admin-card.js",
+      "sha256": "31e9f4d70ae8deb9bd3dcb984d5abcfaf8a449bbae36ec21f2f1d6956d787235"
+    },
+    {
+      "path": "dist/staff-audit.js",
+      "sha256": "f7588c0bf61ab39d85fd0eaa356d8c054be9d1f2883ed3d55d4d5a0acc60c9f9"
+    },
+    {
+      "path": "dist/staff-phone-fields.js",
+      "sha256": "7ac47b8a92cbe1fd020990bcca8239e214a42a2ab336e9a58df0f286adb181c1"
+    },
+    {
+      "path": "dist/staff-profile.js",
+      "sha256": "3251b83c945d0249d6e3810e94bc37f268777914eeae5ec5a9277f1f3c3e78ff"
+    },
+    {
+      "path": "dist/staff-sensitive-fields.js",
+      "sha256": "11568e82d0a869f89e05bb3bec2b7c115d54acd71df4665938e32327bc41e638"
+    },
+    {
+      "path": "dist/staff-telegram-link.js",
+      "sha256": "c2a112c702736f93b2092878db64371429ea430f6491f249451b833fcff9e7cc"
+    },
+    {
+      "path": "dist/style.css",
+      "sha256": "cb2174b96e71124b298bfddd6313a15d583c347ccfbdd6ec77b49c770aced453"
+    },
+    {
+      "path": "dist/vip-deposit-ui.js",
+      "sha256": "9344726afed60c7795fde3c3f35b7d83a4881d075b8bc1be6d34a3e6e9ab17e1"
+    },
+    {
+      "path": "dist/vip-deposit.js",
+      "sha256": "c2fcc77c9f77fef5fc04da7d99772123a582e3217e186f4693a704afe63358f3"
+    },
+    {
+      "path": "docker-compose.yml",
+      "sha256": "eac88fc1ead7e4be7f69fec490dd7f91c58bf5909b6527b7c30e856c9d8eee78"
+    },
+    {
+      "path": "docs/AI_ORCHESTRATOR.md",
+      "sha256": "ff7676dcd2208dc590137888184aad3cd0f568e2f3b6f38175de402e3c3bd90a"
+    },
+    {
+      "path": "docs/AI_TEAM.md",
+      "sha256": "5f0f33e4c97e9685848ee920b6e98457fcf950b6c7963e913106362a60d285a7"
+    },
+    {
+      "path": "docs/AI_TEAM_AUDIT_REPORT.md",
+      "sha256": "9f474e4b52289927d04fc97f3aed60fb12a92bdace0545fea4d9b5c03c1cb28e"
+    },
+    {
+      "path": "docs/AI_TEAM_WORKFLOW.md",
+      "sha256": "6ba66e0bfe44cb6830b3b8dc6000f7419cd4abcecfbc203ae2b9fa00a20997f7"
+    },
+    {
+      "path": "docs/AI_WORK_RULES.md",
+      "sha256": "3dce39d8c9c0960e9e6ce1251224f1a488ac0d0f26d5feee8902f36e7154790a"
+    },
+    {
+      "path": "docs/CRM_PAGE_LOGIC_PROMPT.md",
+      "sha256": "44691cd0f674e963f2929446fae1b7036fafb3c148007f78e0c4c41acf163ed5"
+    },
+    {
+      "path": "docs/HOOKAH_POS_BACKLOG.md",
+      "sha256": "6a76450944ae4fc75032995ad18d734acc640c6aa23aa1ce1583114346b1814f"
+    },
+    {
+      "path": "docs/HOOKAH_POS_WORK_LOG.md",
+      "sha256": "aa27972a6f2b4f492c24af19df3618922f6ddc9c2090fc3243866c278d581ec1"
+    },
+    {
+      "path": "docs/IMPLEMENTATION-STAGES.md",
+      "sha256": "cc9a30feb1554ffa55c6135123971e7bef262a560fd1b2d918b020a8079e2b26"
+    },
+    {
+      "path": "docs/NEXT-STAGE-PROMPT.md",
+      "sha256": "e36108538903ea323c77ccb17f1e6a8ba01dc9f35ac55d3e897633050066042c"
+    },
+    {
+      "path": "docs/POSTER_DEMO_REFERENCE_AUDIT_2026-09-25.md",
+      "sha256": "e15215fdaaef4f64eb272c6745c0345d1bda99177e4bc299e464367c5c661dfb"
+    },
+    {
+      "path": "docs/SAAS_AUDIT_REPORT_2026-10-01.md",
+      "sha256": "c4aab26f1f7984f1c6a49187416d26bfc7e1fbadc570827c2664aa026985814d"
+    },
+    {
+      "path": "docs/SAAS_FULL_AUDIT_PROMPT.md",
+      "sha256": "5fa155dcfa8096536de5837dbd409b5ca0dd8ec893591230f54cc29c2222af30"
+    },
+    {
+      "path": "docs/SAAS_IMPLEMENTATION_PROMPT.md",
+      "sha256": "276f7b0415ef7207bcafdc51080aeb3fc28d30e5e38313408fdbe0ad298b51de"
+    },
+    {
+      "path": "docs/SAAS_POS_BOUNDARIES.md",
+      "sha256": "9c24caeb323c9bdfe0430b029fbd677166b6c6b7cf203b7342d5cab418e0ce61"
+    },
+    {
+      "path": "docs/WAREHOUSE_PRODUCT_CATALOG_RULES.md",
+      "sha256": "7de32bfb72cbd9ec9a7f5a4c4816d8278f20d3a2eaba7e18f0da4e124a88910f"
+    },
+    {
+      "path": "docs/ai-team/AUDIT_COMPLETION_MATRIX.md",
+      "sha256": "c31dd782d41dbc8c51f7381f1d540f6f021923a54b522f0d9701f1897719d777"
+    },
+    {
+      "path": "docs/ai-team/BRANCH_INTEGRATION_PROMPT.md",
+      "sha256": "b951a4bb67e66181d6ef7894be4d9e5b5b6408f0fe6ddfc858711ac2fcb55d1d"
+    },
+    {
+      "path": "docs/ai-team/DECISIONS.md",
+      "sha256": "2bfb02425c8492f297f0d36b717d6cec770c1148d38fe55eb78ebaea2fd7dc6c"
+    },
+    {
+      "path": "docs/ai-team/DESIGN_AUDIT_PROMPT.md",
+      "sha256": "74e279d75f68788d96bb8a2be7aa4718b3ccc5b21c16fb43c59c72e3530482b7"
+    },
+    {
+      "path": "docs/ai-team/DESIGN_AUDIT_REPORT.md",
+      "sha256": "ae7897a5c2440e9874b72682ff6315205aad30eb1b6ed66d759dac822413b415"
+    },
+    {
+      "path": "docs/ai-team/FINANCE_WORKSPACE_PROMPTS.md",
+      "sha256": "55b62c36727f65ee53b590409238b786942895c0e667b2827db582c3bb8d73de"
+    },
+    {
+      "path": "docs/ai-team/LOCAL_RECONCILIATION_PG_QA.md",
+      "sha256": "eae07c69ea61fddaece4b94b4efaaec3dd1f392cc816dee72c6a61311082e0a3"
+    },
+    {
+      "path": "docs/ai-team/LOCAL_RECONCILIATION_RESULT.md",
+      "sha256": "f896cd3d617b7159dcaa8dc793a2875861e8259c6b98c27efde667644748b8d2"
+    },
+    {
+      "path": "docs/ai-team/NEXT_PHASE_PROMPT.md",
+      "sha256": "7b18871ed19292524af47a88b80f0f635f30f6ca1e120f34f3ffbff38696ff92"
+    },
+    {
+      "path": "docs/ai-team/REMAINING_TASKS_PROMPT.md",
+      "sha256": "4d1d54ed6c07e8f4d2984feba27ec63b254c94fed2bb9dd08571bd8a8a52f4de"
+    },
+    {
+      "path": "docs/ai-team/SHIFT_LIFECYCLE_AUDIT.md",
+      "sha256": "7ed7238c5119d3d136efae1cbfeb853610f44e33cbb1c1196ae59d8f2168533f"
+    },
+    {
+      "path": "docs/ai-team/STAFF_IDENTITY_RECONCILIATION.md",
+      "sha256": "5d941a0a827de726a529347c17ba4421ef7344191f2f9a325fac0d6f78de788b"
+    },
+    {
+      "path": "docs/ai-team/WAREHOUSE_REMAINING_PROMPTS.md",
+      "sha256": "821fbc6fbbdd4843b82732f8193684e55a46dbaf1c717e9b2fc0a9b5a9046223"
+    },
+    {
+      "path": "docs/ai-team/WAREHOUSE_STAFF_FLOW_AUDIT_PROMPT.md",
+      "sha256": "5119f038531d37a0ce4ddf48131b9674141fb539b89f7aeef6fbb29560c9d040"
+    },
+    {
+      "path": "docs/ai-team/WORK_LOG.md",
+      "sha256": "f0fbac044c45ddcbf8471252b9b89759cf87b7478ad900b1e29536b49e10b249"
+    },
+    {
+      "path": "docs/ai-team/client-cancel-reread-qa.png",
+      "sha256": "51ffa382c58353748b021638e5224f0b87cfba3e37a28c3c8b01f3fa9834e6e5"
+    },
+    {
+      "path": "docs/ai-team/client-form-error-retry-enabled-qa.png",
+      "sha256": "a47087966fdd7d91b6c92845689b3cb0e404e3e7605bcbd7db916530038a6d04"
+    },
+    {
+      "path": "docs/ai-team/client-form-immediate-retry-qa.png",
+      "sha256": "d0b8b4d55a3b5f3f29261136d9bba76faa0672b54da77f124de3942f7821c69d"
+    },
+    {
+      "path": "docs/ai-team/client-form-no-duplicate-qa.png",
+      "sha256": "a87d534abade09b348c8fbd1886c754f68884530af7491cb4a8a0c927e2c7551"
+    },
+    {
+      "path": "docs/ai-team/client-history-date-qa.png",
+      "sha256": "c9856a155f7574ce97ddaf0180915f8abcce4c9b0b1976b092f7b6b159dc553a"
+    },
+    {
+      "path": "docs/ai-team/client-history-full-build-qa.png",
+      "sha256": "d480874d79404b728a2089d6a8fefb1162b37ebc2aad9b7f6acf07b354bbb481"
+    },
+    {
+      "path": "docs/ai-team/delivery-mobile-375-qa.png",
+      "sha256": "03a62068f9d22014304e7c818309bef376cdb2d1039ad2955816b6006552463c"
+    },
+    {
+      "path": "docs/ai-team/guest-nickname-persisted-qa.png",
+      "sha256": "375cc6332b9f535ab24dc5b9253c5046f4672b0f597688d6a47fbcc3c5246169"
+    },
+    {
+      "path": "docs/ai-team/guest-sort-by-name-qa.png",
+      "sha256": "ce5d4e90b236e6003838610533f2f594219c2a8bba6107e68af609149c165811"
+    },
+    {
+      "path": "docs/ai-team/integrations-mobile-375-qa.png",
+      "sha256": "777c4a3ddaf3aa71d28d38eb0c4a4885b243e4bbc71289ea2056a7d50db7b674"
+    },
+    {
+      "path": "docs/ai-team/network-archive-reread-qa.png",
+      "sha256": "69e04b34f23cf3769afac5322362b98c342314a0d6cee737b5df12b32c4bae74"
+    },
+    {
+      "path": "docs/ai-team/network-create-reread-qa.png",
+      "sha256": "74bba896592045997b72151a125323d003a1d859b681c74a09d0650ab0a9bde0"
+    },
+    {
+      "path": "docs/ai-team/network-current-session-qa.png",
+      "sha256": "69e04b34f23cf3769afac5322362b98c342314a0d6cee737b5df12b32c4bae74"
+    },
+    {
+      "path": "docs/ai-team/network-edit-cancel-qa.png",
+      "sha256": "dc51d929e1e52f4501559886dee81cd40880243483f1604f7c7ce164db463160"
+    },
+    {
+      "path": "docs/ai-team/network-mobile-375-qa.png",
+      "sha256": "cff875457d34ad5bb2ca1456c86e7a027e0ac88554aacbbb1128885e3edbd727"
+    },
+    {
+      "path": "docs/ai-team/network-selection-reread-qa.png",
+      "sha256": "d33d9f90ea5cc35775343ea8c33f5afdf55449f74c533fe11373898287f4489b"
+    },
+    {
+      "path": "docs/ai-team/reservation-hall-groups-qa.png",
+      "sha256": "fe98b9b74c6961af281ce177474e186f165119b047e1608f9729d087182154c2"
+    },
+    {
+      "path": "docs/ai-team/reservation-vip-deposit-qa.png",
+      "sha256": "df79ea3a4d53da3427d503e5fd350a3d41c055fd6d3d8f43d8ce997c83054f97"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/admin-desktop-1920.png",
+      "sha256": "2a7423c378a139410fbb1d4a84cf106c5dc3ff77cb63c3ce8e1d4f2dcd9274f8"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/admin-fold-main-768.png",
+      "sha256": "d71da5254ea89aed05e4ce6bcda1c884197444c2f4fb5c1edeed21a49c289e2f"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/admin-mobile-320.png",
+      "sha256": "6336c36522b1173d06a4e73bcecb695a0b930107d7ca020fb785c1a4e8e1f9ef"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/admin-qhd-2560.png",
+      "sha256": "6710152feb8d7e214869955744cf22bd30dc8bd6cda3813a202160db7f9a2cec"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/company-filled-320.png",
+      "sha256": "d6c9b8411ec8c5486bcaaa4cb75d01864975582faf8710228e93bafe3b92edab"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/company-load-error-375.png",
+      "sha256": "1cb106ba5d7467f0c24e796931423d503df78fcce664258430a4655cd8845b54"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/delivery-filled-row-320.png",
+      "sha256": "5a6dd677d0eb8823421e97ad895f4f6e8a699cb9c6e46b1072ad9b2cb8ab785d"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-bottom-1440.png",
+      "sha256": "c75c9e20f455794ef964a3d790320581262eebb493bfceaa617fcce66f23e406"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-bottom-320.png",
+      "sha256": "24d6a1afb36340b7e0716a8d9b3f39f92bd92701ffe0b5837cde490c3c263e30"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-bottom-768.png",
+      "sha256": "09ec1690e8c456b14af4c37d066ce49574ed82e321463bec9a93eb867ad84467"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-discounts-1440.png",
+      "sha256": "b0e66f45511d19fd949398838b1718e4651bcf1908cabfd77b9ffafb9f5b5123"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-discounts-320.png",
+      "sha256": "8e3ce0f058ecf9370a2429023986dc738b2d3e34238ca2e755a3439176e3d685"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-discounts-768.png",
+      "sha256": "8a232edde724cc04e719c927af63a45bcf601a668108e9fb4d1ac9794b04dfa9"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-fold-draft-cover.png",
+      "sha256": "c252103a0a2be3cdd82a1d40e01de5abf162119da91acf9a89c8a125c6003483"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-fold-draft-main.png",
+      "sha256": "5625f50692ceefe9a61041f580434e2d56a06603927232261e21c2ce626decc7"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-report-breakdown-320.png",
+      "sha256": "a9452171a1d84b8dc39f7da55737a188d778626086491c316ae24bfba6d2367e"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-report-filled-320.png",
+      "sha256": "bbcba8b5e9dc6b4b22139f0c4c3bc98edbf000b464287e0ed36a8ef41d1df8b8"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-top-1440.png",
+      "sha256": "d566401f1c8fc9130adb7a488487e432875f84773fc4f832bcb1600d3c38417f"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-top-320.png",
+      "sha256": "897132fdcce872f38d41d32ff6b77df54aeeaf05b7f7b3e2810e09ba49f3788b"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-top-768.png",
+      "sha256": "341ffbe5876016aaf2d8536def9fa04cb0b15982251fdfab780d9a6f8b6d3888"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/integrations-disabled-320.png",
+      "sha256": "0b05bd69d7ae463de0e6bd419dc0969b945c427c0e648d8f5fab09b00efb1112"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/integrations-error-320.png",
+      "sha256": "759c7099b7cfb2d4a703bf58855403b921bc3dc205bc37f79db23994aabf3e59"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-320.png",
+      "sha256": "39adf09f698a57be4897f666d040629f827975ca6631e3c6543d51f275f852b0"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-error-320.png",
+      "sha256": "cff5e6aa4407bc4332003b59d107d6ec08d457e46af6a037e72c8c922299ef56"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-page-320.png",
+      "sha256": "e72ad46d7ea5c6daa158f3e9c4549dc6a2c48ba28f0128058d2153dd12f83b83"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-restored-320.png",
+      "sha256": "117a0256bd0ce4c63bc8aa3df1669ecc877fd186be33eb4ab6afaf496c41f820"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-320-scrolled.png",
+      "sha256": "1577e50710add0dc23c2367ff5e8d210887d12b774c242cb9a64c556bd4c7f92"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-320.png",
+      "sha256": "33d02fd4d04f726852dba7ceac7ed470af4da9818f79a018c62dfa0c091a06ab"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-390.png",
+      "sha256": "14559d695954bcad847eff9114c8e0ff054051fe8817677a93b8abb9c436c43c"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-717.png",
+      "sha256": "527e079e31d25ae18b2ebd45716567daff1e3e02a277ad30434d24ef9463e53b"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-768.png",
+      "sha256": "0a5eea13e0c8c30993186cfbcafb8e3226275edf9629e04f7e4e4ab25ec84959"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-invalid-date-error-320.png",
+      "sha256": "5c56cc0a8c7c7664e9851a3b58414026c51932da8a622708703985a6cfe941e3"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-invalid-date-error-390.png",
+      "sha256": "4ef11f1601e7706360ec74a6ebabc2f137004c0201b80e0bf6a124e0b36cb2e3"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-invalid-date-value-320.png",
+      "sha256": "8f464ab19360e51f5e599a2f1a0e640b2fd8db054232aff08c67e35ab65edf91"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/inventory-receiving-invalid-date-value-390.png",
+      "sha256": "18c2f3e4553685b27674aca1daf265f8a146f450afb56aae4f395a3b109a88cf"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/orders-desktop-1920.png",
+      "sha256": "7f2c7f130116124b3cad3d75895b56db38fad38559377ec2d8cc06f985b200a2"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/orders-fold-main-768.png",
+      "sha256": "98b4ded3ff2d383e2a49cb3ed88805cba54c19aca9f48e0e2c6720e5d6026876"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/orders-mobile-320.png",
+      "sha256": "a11e245e7748748da2b4bf277647d4b7560c8287691be4dc94916ddaa1eaba48"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/orders-qhd-2560.png",
+      "sha256": "79a854ed47319afd70a7d9469625621d9a0f915476a3c53dafad08747ecd93c3"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/payables-file-form-320.png",
+      "sha256": "5d1f61918681a5d7be69545e8dcf5ca650f5cf44452178333dfd600103fa5732"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/payables-paid-320.png",
+      "sha256": "4beed81e6102ba931deaf9e79bb42cf90ffd88ba1ae793872ce1976194ca40ce"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/payables-paid-768.png",
+      "sha256": "f6889c150be00d50ab734ab676bcdedab54a80b1ce90467115403271fd4f7bc2"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/payroll-cancelled-320.png",
+      "sha256": "2b4d73988cdbfa5a825fc55d9f630bbfa4ae5ae532f4b97523b5f284569e49eb"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/payroll-paid-1440.png",
+      "sha256": "947c54363b96b0d501cd03169d7837e06bac45ec3998e5ac8236c3173c274374"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/payroll-paid-320.png",
+      "sha256": "b6b29f6ecb8f3a9cfa20e1d5e7f3f26ea3b375511d08d38135adbc223fe12047"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/payroll-paid-768.png",
+      "sha256": "aec67c2621499093499764754f9ff27c5d67da5b5b932c7d2ba2eb81c5dccbee"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/pos-desktop-1920.png",
+      "sha256": "9de4b50a3605adb8f902936a865e488e61d735cac28a347906c8eefe9147db53"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/pos-fold-main-768.png",
+      "sha256": "399f0b4d32d55053d271cec123837d17811b24698f0bc987ff3b8f1618aa8b4e"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/pos-mobile-320.png",
+      "sha256": "353030a36738e435905c5b53272a0e1ba754e7a0cffff763eb42af58e21bd054"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/pos-payment-fold-main-768.png",
+      "sha256": "3403831bb602b1b73cd21dbc85ac12695454b4bc77a614cc92a00cb647483e36"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/pos-payment-mobile-320-scrolled.png",
+      "sha256": "e94dda338aa95bbc2f679de515b6ce2cbe8b725ff6ffa57840ec47630a0f4f0b"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/pos-payment-mobile-320.png",
+      "sha256": "a6de9853e65238a5db8ac66943c3704e0eb57d408bb237a37a8992dc6b666b3f"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/pos-qhd-2560.png",
+      "sha256": "b30d6331bcbc0bc23a1ce5401d22246b43068ef009985763cc8e50753773bd31"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/staff-filled-320.png",
+      "sha256": "1410cde3d46a81ef31fc6d1a441cbc722b9d9b60e399d7e858941e10559362ff"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/staff-form-open-320.png",
+      "sha256": "03e8db43fdbe0fce6da5c8a167f5a79755955496e15c4385395eba9042ef78aa"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/staff-load-error-320.png",
+      "sha256": "6309d82ebfed9271b9969e0c79bc9b764265093b695137ffa11d0cac76dc878c"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/staff-profile-open-320.png",
+      "sha256": "8965a3bc70faf7a611166f67e2d8d847aaebaad1470779e5b29cf30436f30f74"
+    },
+    {
+      "path": "docs/ai-team/session-expiry-login-qa.png",
+      "sha256": "3dd6894cb8e187bc1b21508196911e1a780dc61d72ea8c7cd6004c7102508a33"
+    },
+    {
+      "path": "docs/ai-team/task-calendar-deadline-qa.png",
+      "sha256": "eb503b949b28c7baf461e88901f855797a50f3b61069169f0ee0341d1915834d"
+    },
+    {
+      "path": "docs/ai-team/task-focus-restored-qa.png",
+      "sha256": "c4c87710c3bddbb543058a13ade5fa482ca9b9352ae5f02b9e8ee5fe2d10d93a"
+    },
+    {
+      "path": "docs/ai-team/task-modal-mobile-375-qa.png",
+      "sha256": "c44fc61d59f05dca8746aa26541c668f7d5307ceac14865541ed92aa43fc33e3"
+    },
+    {
+      "path": "docs/ai-team/task-modal-short-height-qa.png",
+      "sha256": "30c03fdbb17cc0216bcdb35a0a732c85135a00f39f90494ee1621c4c643a52da"
+    },
+    {
+      "path": "docs/ai-team/task-status-roundtrip-qa.png",
+      "sha256": "061054738c51174cf2d584349fce0b20f65ee95dbbb462cea81b8cc6beacf086"
+    },
+    {
+      "path": "docs/ai-team/tasks-created-qa.png",
+      "sha256": "e9e6f2f2b22ef1684ec9258182bbde4bb45c7dcaa53f4cc217c39d667b430a1e"
+    },
+    {
+      "path": "docs/architecture/EFFECTIVE_PERMISSIONS_CONTRACT.md",
+      "sha256": "5b0cd57aa84616a74927e8666072e91349618ba43430380393f4baa527fd7b59"
+    },
+    {
+      "path": "docs/architecture/FIX_02_UI_PERMISSION_CONTRACT.md",
+      "sha256": "59fbc591a4fd934c88caec9b7e062abf4158fb781c988dd971dcd89f1470aa0e"
+    },
+    {
+      "path": "docs/architecture/FIX_03_1_DISPATCH_CONTRACT.md",
+      "sha256": "a9253ce37619b1f4077fa75624d085253ef3b19d7dccf215ab719465098ed8b5"
+    },
+    {
+      "path": "docs/architecture/FIX_03_2_CATALOG_FRESHNESS_CONTRACT.md",
+      "sha256": "f5687e367fb6dae859812e82d6150d54eb7de5b49b54382fa659a748bdc96d38"
+    },
+    {
+      "path": "docs/architecture/FIX_04_1_PAYMENT_ERROR_CONTRACT.md",
+      "sha256": "f2f6f84d4359087e02249581979b5721f67a966be5e59bc523eea2f09267fef8"
+    },
+    {
+      "path": "docs/code-health/README.md",
+      "sha256": "0eebb2140ae99fd9fe6c143d07f4654abe5e47eb89db83db2116e498e2ff9b65"
+    },
+    {
+      "path": "docs/design/AUTH_SMOKE_DESKTOP_CROP.md",
+      "sha256": "373f6e254355230b06b3a63903b871e854209d6b5e5a825ffc9a08ed8b74d2c1"
+    },
+    {
+      "path": "docs/design/HOOKAH_POS_BRAND_KIT.md",
+      "sha256": "74dce833c3c7380b0e734f99e52bee04f99945f939d5df4ef653835f7dcfad1d"
+    },
+    {
+      "path": "docs/design/RELEASE_2026_10_01.md",
+      "sha256": "b36148c7343ac382d40c5bb95a19ed99a1da97e8ce793c56a5906476432a1b32"
+    },
+    {
+      "path": "docs/design/RELEASE_FULL_QA_2026_10_01.md",
+      "sha256": "10471b371354f6064407a8173be5454a201bf7eca6284e94485ca6e0035c32f8"
+    },
+    {
+      "path": "docs/design/SIDEBAR_BEHAVIOR_2026_10_01.md",
+      "sha256": "ae8a54b1383b632802a4f5d66e41c8b1f9deea768ebf9f7472c82e914dc3411c"
+    },
+    {
+      "path": "docs/prompts/inventory-directories-pixel-perfect-audit.md",
+      "sha256": "56418124724b573e2fc9a5343444ab78a0c1f2e3aa92cbc21cef838fd48ab3ab"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_BASELINE.md",
+      "sha256": "5913c782c0d7d9d853bc0bdb6d56a03f8e08d0966916498d35635f67f1db807b"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_BROWSER.md",
+      "sha256": "972e5c2af87c5dc28a9bf6c8e8fce724947180d7baab0c8da0472a941edad979"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_BROWSER_FINAL.md",
+      "sha256": "03715bce4731ec4c681327a9fcaa2cc47cee6d2b5b100b7ecf1e837678ef94db"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_COVERAGE_FINAL.md",
+      "sha256": "cf9a14024ffba47035b539df75d65fa920fdd4d6004cc1543efe269364dbffc4"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_DOMAIN.md",
+      "sha256": "0514564dc07d687d1e50f188f49759e19aace7609993a00d7ce80be7bccb441b"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_FINANCE_FINAL.md",
+      "sha256": "31514d03027f0ee3b364ce1901584fa0ceae1a3b7072e71ca26ed213dc15cbaf"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_FIX_TASKS.md",
+      "sha256": "27d3b9efb127280e2c0b808ffe8487de36dc620379427db1038e379b1752fc31"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_PROGRESS.md",
+      "sha256": "33d96996ac57c538e45b6f8af820b8fb2279a42f0f2cb40fcb29db272dbfd3d9"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_REPORT.md",
+      "sha256": "0c0b0426f5e9362f5958f78a0a3847885470150f956921d3816ee253a53453ac"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_ROLES.md",
+      "sha256": "5285fbf0b4d441ced1dd72d1a7d276d37fcbc5314e64b3f3d19599748429a114"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_ROLES_FINAL.md",
+      "sha256": "65033548b885e959b03192fab617b404aee50a17225533387edfe23ae87bed33"
+    },
+    {
+      "path": "docs/qa/AUDIT_2026_10_08_STRUCTURE.md",
+      "sha256": "c874ea377193caa82c68ded87a8ac0b0653404c394f5b55dba51a654852a38ff"
+    },
+    {
+      "path": "docs/qa/FIX_01_QA.md",
+      "sha256": "df53482203d9c90dfb3e92ff2680698010b0f17e5949b0bb52c281741420f97c"
+    },
+    {
+      "path": "docs/qa/FIX_01_RESULT.md",
+      "sha256": "5697b6bba81daf1bb9f5c1a9c53cfec8444916214c4c980638ae8fd468c81a77"
+    },
+    {
+      "path": "docs/qa/FIX_02_QA.md",
+      "sha256": "7524f52611e6191518cea7997e23a21b54a9c4771669f1269d062b6f45d4807e"
+    },
+    {
+      "path": "docs/qa/FIX_02_RESULT.md",
+      "sha256": "83f235d2acbe95743699b9f525fb8737916d86c1b692a7193c4e1b7bc338f891"
+    },
+    {
+      "path": "docs/qa/FIX_03_1_BASELINE.md",
+      "sha256": "2fec88a3f8274a4f471f909902a3b62cce519513e87fa958460b5d287db5c280"
+    },
+    {
+      "path": "docs/qa/FIX_03_1_QA.md",
+      "sha256": "7de8ff4e61c02c1ae78411ee2f858084caf8170826b9fc1935dfe25b3ac1032d"
+    },
+    {
+      "path": "docs/qa/FIX_03_1_RESULT.md",
+      "sha256": "a34069f1dcf57e4da6e7d85434a707d151021aa45c7228173f02a041d39c6dcd"
+    },
+    {
+      "path": "docs/qa/FIX_03_2_QA.md",
+      "sha256": "fd530538f71f1a2ef950b49c8bb1711cb831f80be05dc473f80f93ffcabea85d"
+    },
+    {
+      "path": "docs/qa/FIX_03_2_RESULT.md",
+      "sha256": "d22a0ba29dd7bfded531065513b765549573892d286ac6d9cfc91ff44a14247b"
+    },
+    {
+      "path": "docs/qa/FIX_04_1_RESULT.md",
+      "sha256": "3190b4a73ce0768a0f8ac303c389a9afff8f4d7e34b9bc6d5c8712247bc5d29a"
+    },
+    {
+      "path": "docs/qa/FIX_04_2_RESULT.md",
+      "sha256": "55f374ca18588af85ebe14c46ddb128d1538cabe7441fa1e5eacc880261345af"
+    },
+    {
+      "path": "docs/qa/FIX_04_3_RESULT.md",
+      "sha256": "0722aa21abe8b2995e9f01f571d5c3208610f9bb587909314d66267f2f36d580"
+    },
+    {
+      "path": "docs/qa/FIX_04_4_RESULT.md",
+      "sha256": "65bb6504077ca80e37f4c87147cc94dbc13f65f822bc4fd68c0a1a8e7e2a0cd1"
+    },
+    {
+      "path": "docs/qa/FIX_05_1_RESULT.md",
+      "sha256": "d63dca1a7f041a6aa3c23e8873ab2a2fca275f0d6cdb4f1f010b5929acb9ba3a"
+    },
+    {
+      "path": "docs/qa/FIX_05_2_RESULT.md",
+      "sha256": "7a82a67e32a09ed5581de8fc10b9886c5fc29aaaa89d3e2e4492bf72c1eb36d1"
+    },
+    {
+      "path": "docs/qa/FIX_05_3_RESULT.md",
+      "sha256": "b4abcfb37e45d7ef3938e46310b720397ccbe2c0ff0920371be66521bd8d6ba1"
+    },
+    {
+      "path": "docs/qa/FIX_05_4_RESULT.md",
+      "sha256": "6318930ef99186445975936beed755389c1502d0ca4d57d17b233436e2dcc096"
+    },
+    {
+      "path": "docs/qa/FIX_05_RESULT.md",
+      "sha256": "407525a2e0fa2d0f98e411516de1739200c700b77f6d6640bd1bba27f9a32ce0"
+    },
+    {
+      "path": "docs/qa/FIX_06_RESULT.md",
+      "sha256": "8aa1fb136b25ab5f9ed146f7e7fe4abea000fee24ec15e1a146847c20a2666d2"
+    },
+    {
+      "path": "docs/qa/LOCAL_FULL_BROWSER_2026_10_01.md",
+      "sha256": "1273959ee44b83b90000d853ab5fd1fd00e464947feee969904fdbb073e5cb8b"
+    },
+    {
+      "path": "docs/qa/LOCAL_FULL_CODE_HEALTH_2026_10_01.md",
+      "sha256": "fffbf42fdaa4b1b9bb232e98b3f1806715e4c46e6b1d79eff3a838dddd34f81b"
+    },
+    {
+      "path": "docs/qa/LOCAL_FULL_DATA_PLAN_2026_10_01.md",
+      "sha256": "a43ae5f1ce2606c96aed9a5f6ec55f98bce04902aa11c3c2d15ce8b07cf3d66f"
+    },
+    {
+      "path": "docs/qa/LOCAL_FULL_QA_GUIDE.md",
+      "sha256": "3f2e67289b2b0b818738db63bd386b7654632ae6edce921a1f8b032c4095be66"
+    },
+    {
+      "path": "docs/qa/LOCAL_FULL_SCENARIOS_2026_10_01.md",
+      "sha256": "9998ed24944d1792f2531ae734763ad221286dc531c7494b3f6f30901a2c467a"
+    },
+    {
+      "path": "docs/qa/STAFF_IDENTITY_CONTACT_2026_10_01.md",
+      "sha256": "f64b4a0429ecb66a9492b4aaf5a2a17eaa90354159650f5f8311d590cefb9ee2"
+    },
+    {
+      "path": "docs/requirements/AUTH_SMOKE_BACKGROUND.md",
+      "sha256": "6dee7171a116ba283e14625c2e468d09a56cbfd44decab31d6b0d4f2761a18be"
+    },
+    {
+      "path": "docs/requirements/FINANCE_MASTER_WORK_PROMPT.md",
+      "sha256": "897a791ecb386d3bca8f3be55614966667091900fc443a47a6e327abe95cb485"
+    },
+    {
+      "path": "docs/requirements/FINANCE_MODEL.md",
+      "sha256": "23511e8fae4494beffc0af348aaa85c192e9aea2465bc7562e2962c2060def8f"
+    },
+    {
+      "path": "docs/requirements/FINANCE_POS_REFUNDS_CONTRACT_DRAFT.md",
+      "sha256": "5e72d2b24f28b4acd16b1ba2cfa48628f77252422033069f73302bda76d13982"
+    },
+    {
+      "path": "docs/requirements/LOYALTY_DISCOUNTS_DEPOSITS.md",
+      "sha256": "8974f71473e1e11aec0c6e828f051044d5017fdd6af384519ab18c9c508e4fbb"
+    },
+    {
+      "path": "docs/requirements/LOYALTY_POLICY_CONTRACT.md",
+      "sha256": "c0135f1ffa395ed340a5928557dedb5bb1634c74fa177b25639f545c03d8648a"
+    },
+    {
+      "path": "docs/requirements/LOYALTY_ROADMAP.json",
+      "sha256": "73f5d4df1f5e781b19217eec5aa89c13ac4c408cdca58aac5be5c225fe02cc3c"
+    },
+    {
+      "path": "docs/requirements/NOTIFICATIONS_CONCEPT.md",
+      "sha256": "8d03628379f5a64a0171c82ac4b4402c0628f086d2aa2d1596e7950361c0d25c"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_ARCHITECTURE_CONTRACT.md",
+      "sha256": "1019c95e51c5ebbbb2b14d0dc46a06d497bc03fc4e01e603780e858109e5cd14"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_COMPLETION_EVIDENCE.md",
+      "sha256": "73a47a65ed9940bd5f9929f92d45f9c20be5a8bda04c8b1c6b88ea6636d25c0a"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_INHERITANCE_ACCEPTANCE.md",
+      "sha256": "75020a39fc8d6fa8354057f1fffb22db6320bc5b1c7dae8bb004985ba1cccf85"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_MILESTONE_ELIGIBILITY_DRAFT.md",
+      "sha256": "3272f834fbac6a6d8c876966ad2cc285d72ef3bcef727b835d89bf6ac0b4062f"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_MILESTONE_STORAGE_DRAFT.md",
+      "sha256": "21233dd3e8cb71c2973eaecd9a242c7d31a38aacf80c9c3b39200063a5f59440"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_ORDER_PRICING_EVIDENCE_DRAFT.md",
+      "sha256": "a0a920f47853d19ad751bc3554a69c175a5919c40462e414020b379d147d75fa"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_ORDER_REFUND_EVIDENCE_DRAFT.md",
+      "sha256": "3ffeb2aaa4d642eaa23179f4333b4fd0644d57258960364d3881effffc7d0e2a"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_PERSONAL_CAP_CONFIRMATION_DRAFT.md",
+      "sha256": "6cc717b4b74aba6f0d455902a7991ba408c9ff1f11f4c3d1839a9a15f5112947"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_PRICING_SOURCE_GAP_AUDIT.md",
+      "sha256": "9299dfbeb99edd411e8a88ed9d9924eb264ec72b930bf39c22fbc070498cf07e"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_SOURCE_CONTRACT_DRAFT.md",
+      "sha256": "94adc4c2e6e20e91c929b4997639daa2da22f99aecc16d3679b909c2f0e9d50e"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_SOURCE_READINESS_API.md",
+      "sha256": "8c05e0212582057782edd2aa909f57320cd5c2a2fe4da7650fa0cf9cb117a1f4"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_TYPED_SNAPSHOT_V2_DRAFT.md",
+      "sha256": "82dddf76d8901c46a34bc73aabf1a8f909c019c48d94b8f638b219f384226c24"
+    },
+    {
+      "path": "docs/requirements/POS_SALE_ATTRIBUTION_CONTRACT.md",
+      "sha256": "cc46da20ab4324665c071c366b66bd19f40487c224b850090f5c28e152c05477"
+    },
+    {
+      "path": "docs/requirements/TOBACCO_CATALOG_MODULE.md",
+      "sha256": "9a18ff34d4a10677c78fc2e27446224fb16bf245ea2900d7381abd96fb1470ee"
+    },
+    {
+      "path": "docs/requirements/VENUE_EMPTY_SETUP_POLICY.md",
+      "sha256": "3addb3707818c666fadb51baeb712406b2c3e90d0bdfd505938330c95547aead"
+    },
+    {
+      "path": "docs/security/LOCAL_AUDIT_PRIVACY_2026_10_01.md",
+      "sha256": "34a04ab0476f22c69c246c5c3f4f1b385da91cf8c7b2691a7def122e5a291258"
+    },
+    {
+      "path": "effective-permissions.js",
+      "sha256": "ca926cd191dc8026b7e333cbd9061d8c3166f462eb8d1640140b512c259b6f0c"
+    },
+    {
+      "path": "finance-categories.html",
+      "sha256": "72dcdddb5ac4de04e8f0e9401ff6fd36f19c75b563765fcb8e6b384de66712fd"
+    },
+    {
+      "path": "finance-report.html",
+      "sha256": "a57d5735d830cb482f15e1321fb9b744ce5e31f6f2d3093cc5fabaa9ca5767cd"
+    },
+    {
+      "path": "finance.html",
+      "sha256": "74a7e0b7545c9ad2a0fb64bad960016270fe730a8005c6ec7c774c5e59619a4d"
+    },
+    {
+      "path": "handoff-claude/README-CLAUDE.md",
+      "sha256": "35ec8331a0487169dea7d9fe6ccef2f5f28c1eba92445fb302b9ae10f041804e"
+    },
+    {
+      "path": "handoff-claude/hookah-pos-0837bf43.zip",
+      "sha256": "5b37bb887dbd587bd084a60239652de7201fdf0c1f49edd31331c7a6fdb4b8a1"
+    },
+    {
+      "path": "header-shell.js",
+      "sha256": "4981e9e31bf27249725cf2cc9a663312ac90dc9cbac5e88544faf9bdaf94c807"
+    },
+    {
+      "path": "index.html",
+      "sha256": "359113ed205896edcdaac7939236cc0e0101a00ec6d4ac06687559091f264c81"
+    },
+    {
+      "path": "integrations.html",
+      "sha256": "c379506a2412dff41c2ff5b390c6226fe782119509190aaded11f1a9dcd1cf65"
+    },
+    {
+      "path": "inventory.html",
+      "sha256": "d6a16388ece426556a09310ab56c7396480ac41dd50b7ca90fc56f6f8b80ea8f"
+    },
+    {
+      "path": "lock.js",
+      "sha256": "5aab2f0bd481fdf8011e8f60c77b9f1da511e9f40614bea81184b9e18c150410"
+    },
+    {
+      "path": "login.html",
+      "sha256": "e85ad5b1fd6d9dfa7c090668337e560f02fbcc965c663454aae50c6b3b494d0f"
+    },
+    {
+      "path": "login.js",
+      "sha256": "1f0a300a52b472888abab347772a45997bfc57a263eabaee8213076b27e76487"
+    },
+    {
+      "path": "loyalty-memory-reconciliation.js",
+      "sha256": "fd30bb60d777a92d34a2059bad7905373c0d88278d7eebcdd2db3bcb2729e778"
+    },
+    {
+      "path": "loyalty-pricing.js",
+      "sha256": "4f308b8d891c036a52f8fc33566f853a6788d68dbc312b3bc81c5ed75c212ba7"
+    },
+    {
+      "path": "migrate-vps.sh",
+      "sha256": "cde19ac81956479e6f8dbdd2e3b29c252af328135b11d4548223685576fa0305"
+    },
+    {
+      "path": "migrations/001_auth_sessions.sql",
+      "sha256": "16482c4ac2f958bb18b0d02f8aca8bcdee8980ce4313b1ae8618944570b1732a"
+    },
+    {
+      "path": "migrations/002_orders_notes.sql",
+      "sha256": "480110a5d0bb8ad24eb6d2a52d053c698bb7f95c9eb5576286c7cb5acb564591"
+    },
+    {
+      "path": "migrations/002_staff_profile.sql",
+      "sha256": "8e7b863479710eaaad4ea6d83e9648bde42781135139f79e9bb3c6cfd249115f"
+    },
+    {
+      "path": "migrations/003_staff_employment.sql",
+      "sha256": "3a77364218124c43d1355563ba6f3724e03d2830f4e6e54efe9e63f031a60540"
+    },
+    {
+      "path": "migrations/004_auth_session_devices.sql",
+      "sha256": "73725df684c8f9fd0a1582640f3c120e7582079410d32f6a4901c2c21c41b392"
+    },
+    {
+      "path": "migrations/004_guest_profiles.sql",
+      "sha256": "02343c2697a6a3e101228fa03500e3f267e14cd10087f17fce20f801cc543612"
+    },
+    {
+      "path": "migrations/005_network_product_categories.sql",
+      "sha256": "b78c602a3294b8a46755debc263f8604ec141c12fe467c1469415f29d99b1ecd"
+    },
+    {
+      "path": "migrations/005_staff_birthdays_photos.sql",
+      "sha256": "81eb56d3edde9c17344cdd181fe2369cbc2d17beae67eb95b41d3179c2418517"
+    },
+    {
+      "path": "migrations/006_guest_venue_phone_unique.sql",
+      "sha256": "aa766e6a9b8252b6f079cc11f76594371543b51feae6c8b3d0394fe6a0e08c5d"
+    },
+    {
+      "path": "migrations/007_staff_permission_scopes.sql",
+      "sha256": "ea03952a5460b74a2a1ecf554e325536e8b1494f6f3b3401edfd6b804c3eac53"
+    },
+    {
+      "path": "migrations/008_staff_archiving.sql",
+      "sha256": "d5f0ac56e9f6b919a2feb852fa806c81b750de7138f8b2472363782d1dab6a38"
+    },
+    {
+      "path": "migrations/009_saas_foundation.sql",
+      "sha256": "0da548ada0cb87f720c9a09b3a523e6ce778ac243434bd2ef9f71c2f3d226154"
+    },
+    {
+      "path": "migrations/010_staff_pin_credentials.sql",
+      "sha256": "d44c2716893680caff669252a9545c02ae82ed5536533a2e77fc5fa409059d88"
+    },
+    {
+      "path": "migrations/011_platform_owner.sql",
+      "sha256": "d430303aea821a3bbb031d2cb7a22638270c0a0bb251f80587f11314035127f2"
+    },
+    {
+      "path": "migrations/011_separate_password_and_pin.sql",
+      "sha256": "196c9b85e1647c61c25986b64fbd09a0b90ed740e5683c0f12f8183c45445261"
+    },
+    {
+      "path": "migrations/011_user_preferences.sql",
+      "sha256": "583b06e1324b627f3928acdc598d8c9a009694739f6699a348f6759198849e55"
+    },
+    {
+      "path": "migrations/012_test_billing.sql",
+      "sha256": "68414171ecef9bb6af46f79bc3757bce2fdeb266bf92e1f99dcb9eb6680bbc42"
+    },
+    {
+      "path": "migrations/013_guest_avatars.sql",
+      "sha256": "fb64e8c99a9081d0e83fcb7d37e1acd9ea9a016501bf7824d106529f31fe0c26"
+    },
+    {
+      "path": "migrations/014_guest_status.sql",
+      "sha256": "7486dec87d020265371305f9a737d401963c1f11b1dc8ea9a12a3beaa6c603d6"
+    },
+    {
+      "path": "migrations/015_product_category_departments.sql",
+      "sha256": "e3f57aef361c3b6c55c33d0c0e8d590cb5003a2b05b8dcf7a66c5a51728efbe4"
+    },
+    {
+      "path": "migrations/016_manager_role.sql",
+      "sha256": "6a399da2c7800c307c14d21f862a60f88ef21950d880059bd61b7579f95c6b1e"
+    },
+    {
+      "path": "migrations/017_venue_phone_numbers.sql",
+      "sha256": "7081c1fbd1944c5a1ee463fd064296a35ae6c251404a1e567af6cdaf24b70eda"
+    },
+    {
+      "path": "migrations/018_inventory_departments.sql",
+      "sha256": "f5e1c6cb589157fa0f01c1b7818591df1eea6a0e4d43a51187a41f94a280db20"
+    },
+    {
+      "path": "migrations/019_shift_reconciliation.sql",
+      "sha256": "b8ff6d9d0b9a008a64c87838a0a81bfcaac7418ce247f9afbd6333f6dc6fff9d"
+    },
+    {
+      "path": "migrations/020_tasks.sql",
+      "sha256": "1053f41953cc4a982bdc0ca14f84d19951f4c3c43827d421d32f47f3a1aacf32"
+    },
+    {
+      "path": "migrations/021_staff_time_payroll.sql",
+      "sha256": "d5af3ca0efcf1c9bd59bd2d057fdf1912dcf1b5582dc6e739789fa5af80f6827"
+    },
+    {
+      "path": "migrations/022_expenses.sql",
+      "sha256": "5f4ec71cf8c39c48ec0fdd09b453399b5a8015f8b3f2c641862bbfaba85d43e9"
+    },
+    {
+      "path": "migrations/023_inventory_subdepartments.sql",
+      "sha256": "96bb52d8f4dc682553e88b50a34e6c9764120b9a9cf01210252d4af4d638148a"
+    },
+    {
+      "path": "migrations/024_table_capacity_range.sql",
+      "sha256": "e98c1be7e27fe6609fca7b1d255a8ec7400ca0ad05cabe9aab6d2489383e598c"
+    },
+    {
+      "path": "migrations/025_order_costs.sql",
+      "sha256": "f43cb6bd26155383470c25bae4c571818c9163bf26e1e091524025f57add5ed5"
+    },
+    {
+      "path": "migrations/026_inventory_subdepartments_catalog.sql",
+      "sha256": "6aef635c44a58d4d4e8c64d206887bbe4e985f624c84b0249625499c9a2c9611"
+    },
+    {
+      "path": "migrations/027_inventory_recipe_cards.sql",
+      "sha256": "4f724902bbe98de51bbed1cdc778bdcbb799a4d9bea5c19d471794f0055ae3f7"
+    },
+    {
+      "path": "migrations/028_inventory_auto_orders.sql",
+      "sha256": "2e5e546ef3b684cf89915c2e099d14fbd5bfc86269339598dd5fd4912e9f86b5"
+    },
+    {
+      "path": "migrations/028_venue_current_invariant.sql",
+      "sha256": "34202f05472c8a735bcf2fd43439e829ae9e570a65ab0804fd11f96c8ee49f63"
+    },
+    {
+      "path": "migrations/029_inventory_recipe_outputs.sql",
+      "sha256": "b3f24102870c756d18362cbcbfaad41fc1b28b36c5d9b6b6e9e183b6b95f4a06"
+    },
+    {
+      "path": "migrations/030_auth_session_active_venue.sql",
+      "sha256": "a6725deabbd513a6aa96b34a096acbfdb1b7c7076f6d820c83d591f38c81eb76"
+    },
+    {
+      "path": "migrations/037_inventory_premix.sql",
+      "sha256": "69abdae5fde215d5800f768661034ce02bf0ab978784d9a091085601279cdcc2"
+    },
+    {
+      "path": "migrations/038_inventory_purchase_documents.sql",
+      "sha256": "92c3f14eccd0075fd63217b080ca997c275cd2dfe5dbf2d5ca865bc373f04371"
+    },
+    {
+      "path": "migrations/039_shift_kpi_attribution.sql",
+      "sha256": "a5f906f244a123a5f9f98e917749d0dd16dcb6fb8629d311dba101fc7e17e01d"
+    },
+    {
+      "path": "migrations/040_payroll_lifecycle.sql",
+      "sha256": "ca560a75039f26954bb32a41d58857ec2f7993cd29f458639f537feb634c508f"
+    },
+    {
+      "path": "migrations/041_single_open_shift.sql",
+      "sha256": "28ad66263102d60c22fab08b095f950450a59914274aff6f9a82a71046bbe72e"
+    },
+    {
+      "path": "migrations/042_purchase_payment_link.sql",
+      "sha256": "95fb4e85d5dc951f6ee1168cd930661623d168c4a9bd6165bfde73e87650f39c"
+    },
+    {
+      "path": "migrations/043_guest_discount_groups.sql",
+      "sha256": "c514be8a4cfea7fd9a8a24998b8a35b9a375ce05dfe1c900def44aac596d7484"
+    },
+    {
+      "path": "migrations/044_finance_categories.sql",
+      "sha256": "b29996806e540e37824c772e85e3cbfc93abf017df8d53f5a9e344bed0b94d53"
+    },
+    {
+      "path": "migrations/045_seed_inventory_departments_for_new_venues.sql",
+      "sha256": "af14fcfac830793cdff077381607e546c8fd2ca4612d332b94c748cbfdfb178c"
+    },
+    {
+      "path": "migrations/046_organization_updated_at.sql",
+      "sha256": "855d6973ea6051368acff5ff69cba35a9f7c8ccbeb4c9e45d97c95ea7ff3b18b"
+    },
+    {
+      "path": "migrations/047_purchase_document_date_optional.sql",
+      "sha256": "89f3b4d1db7a4b72c0660500ed766ba1ce333dc5079e680ef10ebe99b3c9f3ca"
+    },
+    {
+      "path": "migrations/048_product_category_subdepartments.sql",
+      "sha256": "36c985eac93d239859ce1498fa089e5caeba3184e24c2c37f6d3cb75ba5c664f"
+    },
+    {
+      "path": "migrations/049_product_inventory_mode.sql",
+      "sha256": "60b6feb1ab626c1c9038910a4cf2665a366e481c28e947fc84637d9678d8eceb"
+    },
+    {
+      "path": "migrations/050_deliveries.sql",
+      "sha256": "c892f9b3063f26db16a8c57ed8a22d6465d63b156256520991af9c8e2d6d1281"
+    },
+    {
+      "path": "migrations/051_task_calendar_deadline.sql",
+      "sha256": "f9ab167d2f6e3ea3475d0060d2846aaec8f55a83492270fc969399815fe4dfc5"
+    },
+    {
+      "path": "migrations/052_tobacco_catalog.sql",
+      "sha256": "599ee2814582e35addf32054e3431ec9a8dc80bc48ef715e67e9b44f1bbdea57"
+    },
+    {
+      "path": "migrations/053_guest_nickname.sql",
+      "sha256": "e655f8507c4e4aa5aebf229e0c71234a1b1ff2a8a7c66df70e89aef22a1bd490"
+    },
+    {
+      "path": "migrations/054_notification_reads.sql",
+      "sha256": "bb7f8c044022e46c621ce353040e1c7a37fe3da1266976585f556bd872ae0a08"
+    },
+    {
+      "path": "migrations/055_stock_movement_precision.sql",
+      "sha256": "46f37581a403db9c5e54940fb975a8717180ad6ccabc084aa01b4b057bf5eb92"
+    },
+    {
+      "path": "migrations/056_premix_batch_lifecycle.sql",
+      "sha256": "c016a7b2b360de5c09755328f03c803c011b5f4a8c120fee081f43bcde042067"
+    },
+    {
+      "path": "migrations/057_organization_owner_access.sql",
+      "sha256": "7c415afba765274cd931e240cae3bcfd55e58bb583db175f1e20b43d5f203a2d"
+    },
+    {
+      "path": "migrations/057_staff_contact_email.sql",
+      "sha256": "f2ee8c80b82e2bf4dc058152043b91b12c3bba48f33a5bbf0850f61832ec0469"
+    },
+    {
+      "path": "migrations/058_custom_staff_roles.sql",
+      "sha256": "e42cbcdb71b9d4287d90449adb74a7ebcf24f74499bc3cdef906e1c9549fd397"
+    },
+    {
+      "path": "migrations/059_guest_account_ledger.sql",
+      "sha256": "a1602110580f5777b6ca803bb0453c40f4c6bf4c7e08adb47eb3f9bc940184e3"
+    },
+    {
+      "path": "migrations/060_order_loyalty_bonus_snapshot.sql",
+      "sha256": "388aa2aa7fab09a31ba5ea47e7ad64583493ef83352d7d1235d97ee8e4b434a4"
+    },
+    {
+      "path": "migrations/061_order_group_discount_pricing.sql",
+      "sha256": "ce21538f7dabdc3c45fb5678a077eea93410cdb9182725184f9530036fa7bd09"
+    },
+    {
+      "path": "migrations/062_bonus_order_tender.sql",
+      "sha256": "5bc2a3b5feae2d8dc3d71b80bc06db7a8584d4df94ed0ba9eaa17719ad344b35"
+    },
+    {
+      "path": "migrations/063_guest_deposit_receipts.sql",
+      "sha256": "ab65921eb12d34b5f55051eac5f0da66c1d5c21b0d8c1fa945e435539cd5b4e0"
+    },
+    {
+      "path": "migrations/064_reservation_pre_payment_receipts.sql",
+      "sha256": "553907336a0e779d36c76a557b56ed5094323fca8b91a12e860e43eefba8bb3e"
+    },
+    {
+      "path": "migrations/065_reservation_pre_payment_allocations.sql",
+      "sha256": "f5793c9eb54666fb0d13c0c8490e99ff8a67cd3bfa31cbb028ecda048f45b449"
+    },
+    {
+      "path": "migrations/066_inventory_deletion_approvals.sql",
+      "sha256": "3e2c977ac08780862445ea6341c887e2b21908e0ca6f2ad100fcd95f8080e14b"
+    },
+    {
+      "path": "migrations/067_recipe_card_categories.sql",
+      "sha256": "83e2acfc7798c67b8d459c018e9f38563194d11cfc2b04f7ff09844348f74f6b"
+    },
+    {
+      "path": "migrations/068_guest_account_reversals.sql",
+      "sha256": "63b9478c109305f4c02b0a41886e4667b5403a0a70c642d8f9bca996d1342c22"
+    },
+    {
+      "path": "migrations/069_reservation_pre_payment_reversals.sql",
+      "sha256": "bfba3a2918657230d4d2f8a219c0cc5e6286706d38725b1bd784a666495dbe80"
+    },
+    {
+      "path": "migrations/070_loyalty_program_settings.sql",
+      "sha256": "17c190f5a912068976a186f0d59115c66385e34a44006d9c8a10c978837fb0f4"
+    },
+    {
+      "path": "migrations/071_order_loyalty_redemption_snapshot.sql",
+      "sha256": "2d3f86b4f28ce94711b2413c95b911ed392479ddb897ddc9571814e3f66c44b2"
+    },
+    {
+      "path": "migrations/071_system_role_permission_overrides.sql",
+      "sha256": "c9eecf43aebd37e60a0b3b052db09b550c60388dc87fa52b85bc2597ee70b655"
+    },
+    {
+      "path": "migrations/072_loyalty_order_policy_snapshot_check.sql",
+      "sha256": "2e2ae976744e23908281b716fb9014ed4bd9d263bce2183f1112d6cdc1c58b3d"
+    },
+    {
+      "path": "migrations/073_loyalty_promotions.sql",
+      "sha256": "65fdd15b183f890f626966e5d7cf8ce5d3eb02a5346c57d069aeabefaa18153b"
+    },
+    {
+      "path": "migrations/074_order_promotion_pricing_snapshot.sql",
+      "sha256": "613804670e5b3cb0cffe2d737ac02a94d2e1c2660abb1a1d0af148fb5a0b794b"
+    },
+    {
+      "path": "migrations/075_order_pricing_lock.sql",
+      "sha256": "7ddf122f252506e6c7df4d9884a4404e40434767e16813ee14b149eb16405685"
+    },
+    {
+      "path": "migrations/076_loyalty_history_immutability.sql",
+      "sha256": "6ba7e90d255a4ff8c198659456d26251cf9a7a7af5ae8ea4695e4e5b52bd9592"
+    },
+    {
+      "path": "migrations/077_payroll_scheme_snapshots.sql",
+      "sha256": "9d097d7e8f31cbe68cb69f983b51f01b9581d16ae59e604396bdb8f42d8b6827"
+    },
+    {
+      "path": "migrations/078_payroll_draft_configuration_edits.sql",
+      "sha256": "2d24f9963fd89336622c115dc532e593cfe5e41a3e3385200dff1aadc7bdb3d7"
+    },
+    {
+      "path": "migrations/079_payroll_scheme_revision_audit.sql",
+      "sha256": "b9054098abd78281c23ff6a3a51abba2b21bae197f27eb9588ad1e9814fd602f"
+    },
+    {
+      "path": "migrations/080_reservation_legacy_deposit_reviews.sql",
+      "sha256": "7e744fef91eddf1d130aa1a35e5a6062eab4245c8195add1cc5699ae3a2d53f8"
+    },
+    {
+      "path": "migrations/081_payroll_run_metadata.sql",
+      "sha256": "bda3bb1af1d720817ad8af9e4e1ac62a1c4e28ad2c6655719a87d1df6ff36a05"
+    },
+    {
+      "path": "migrations/082_payroll_attendance_approvals.sql",
+      "sha256": "3d1442c16944ae4f45add1f0c26ea8c6d1f8f8c94eba256a1b5e0f5f429c1247"
+    },
+    {
+      "path": "migrations/083_payroll_personal_target.sql",
+      "sha256": "fd04b3620e3803017defa862417a2c77f5c92ef07c6e645aec3f86a30ae4504a"
+    },
+    {
+      "path": "migrations/084_order_item_sales_attribution.sql",
+      "sha256": "496a0cae617af2c6e13acb2a1094583601d7b8f27bd39c97b0ddf34efb1dc3c8"
+    },
+    {
+      "path": "migrations/085_payroll_team_fund.sql",
+      "sha256": "094eb6e05d68ae62a0f03749c321efdf03c1f010433b4b7c44de3f57b78e5d11"
+    },
+    {
+      "path": "migrations/086_payroll_margin_target.sql",
+      "sha256": "04a6d0959a27e111518e22ae27a56c040efb5939411a8da4ca51d4d41c3feed7"
+    },
+    {
+      "path": "migrations/087_payroll_typed_incentive_snapshots.sql",
+      "sha256": "cdcac3689e7d19e21d61489095424f43427f5ee15179b028588cf7683713a82a"
+    },
+    {
+      "path": "migrations/088_pos_order_refunds.sql",
+      "sha256": "75c13e8b7d353607049b8a489ead8b083539ea9fc97dbeb8b4ae5286586f35f8"
+    },
+    {
+      "path": "migrations/089_payroll_milestone_snapshots.sql",
+      "sha256": "d1b23f24a6848fa5989ef03616db106d54da65ce9d21a2fd641f4aa4a10ac254"
+    },
+    {
+      "path": "migrations/090_pos_order_pricing_snapshots.sql",
+      "sha256": "76fd93b79d3505d005d835a32083230045765a35cf373cb02c6f987ba747b618"
+    },
+    {
+      "path": "migrations/091_pos_order_refund_items.sql",
+      "sha256": "3a4f796bf5cb6dada10e497f292485b3de53728ec4498bf0901ce4d60dde64bc"
+    },
+    {
+      "path": "migrations/092_pos_order_refund_item_sequence.sql",
+      "sha256": "7913214a9f91f2d38e99a9390ae32310b31f82305a3650357e5756c28f96ac18"
+    },
+    {
+      "path": "migrations/093_shift_close_snapshots.sql",
+      "sha256": "0b208c67d7a83c200cf539cea43bc4cc5bb759e713bad9bd0d8c2b273483dbe8"
+    },
+    {
+      "path": "migrations/094_alcohol_catalog.sql",
+      "sha256": "60a83856dd825099efc82cc30088121a9bef7457de74b08d9d7a11a14156ebf5"
+    },
+    {
+      "path": "migrations/095_inventory_categories_tobacco.sql",
+      "sha256": "1812e550dd2f4344f5c7ad525167ceedcaed25b1e08ace9358af99edcd404e6c"
+    },
+    {
+      "path": "migrations/096_floor_table_archive.sql",
+      "sha256": "c71faf71faf8e4df0497aa0ee9515bffec425aaf80eec5bb1b0fece87e0f4e8a"
+    },
+    {
+      "path": "migrations/097_purchase_document_reversals.sql",
+      "sha256": "7c7f2759825b0ebcb82134ca14afcf795a3ca14cc3e92ac0fb85cf39cedc35b4"
+    },
+    {
+      "path": "migrations/099_order_item_execution.sql",
+      "sha256": "061d1d87a1eaa60dfef583f1a0899defcfeaac42601b34a87aba141b3d3c72da"
+    },
+    {
+      "path": "network.html",
+      "sha256": "b844f26f072e66409b272e5399ed773273764534c374da10fbe4558ce8380f49"
+    },
+    {
+      "path": "nginx/default.conf",
+      "sha256": "4c551a1a8dbef2ac92b03ab81afc180377fe5a3dfe8bcd66659099208fb26dbc"
+    },
+    {
+      "path": "nginx/https.conf.example",
+      "sha256": "8e02bdef065258e4a77465bf16df4aa37a51f0c7b531940c29b8a08f739506ed"
+    },
+    {
+      "path": "notification-center.js",
+      "sha256": "827f47922abc22581fa372cdb8ecf65897f472fe80ad4c547b1289cfacca0e1c"
+    },
+    {
+      "path": "order-attention.js",
+      "sha256": "d7183d2031145af130905b36d2ee749b943f92e38aa991063fe9e1c4822e2509"
+    },
+    {
+      "path": "order-preparation.js",
+      "sha256": "f39f5d1ad9f3571d49b0486adeee4b41aa50ff1899348b369b98861f2944fafe"
+    },
+    {
+      "path": "orders.html",
+      "sha256": "5ee830c7ca6298016f58b51909db9a759731556aa0bf1d1df489c34eae06f8c3"
+    },
+    {
+      "path": "output/bar-menu-import-preview.json",
+      "sha256": "bab01a45dc0a741cb3126012ea4f091705059b7c97cbd8b84ed0b656bd1c5e41"
+    },
+    {
+      "path": "output/cold-teas-ttk-preview.json",
+      "sha256": "578e43bf1d4c1b8a53f3cc141c783b0108059d9d5fa895269d06bf3492f9fabc"
+    },
+    {
+      "path": "output/tea-methods-import-preview.json",
+      "sha256": "ab1f212bd511d4488c56ddfa54d57fa0ee6299837fe9b2d15f1483b8a7cce049"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "e3262a6f25f17644ac47fc06088e3e3f73026f1f53bf7fba590071e7e0c31b15"
+    },
+    {
+      "path": "package.json",
+      "sha256": "c7e4397213adf5253aee38e827792a9304268f2325b144aba4a4c3286903260e"
+    },
+    {
+      "path": "payroll-attendance-manifest.js",
+      "sha256": "dd0f017ae0777a8a139e03ffa8141c7b834224aea026f3bc99e2c9d0af5d689b"
+    },
+    {
+      "path": "payroll-calculation-run-service.js",
+      "sha256": "c3473dc28c93c1d7d6baca9a020b1b075b62364a6e3432cb2777482bd8f35d56"
+    },
+    {
+      "path": "payroll-canonical-pricing-source.js",
+      "sha256": "911ab43d40abcd66e9de5f21c63766006264debd76b7972a601e0d2e17079351"
+    },
+    {
+      "path": "payroll-incentive-math.js",
+      "sha256": "4af4de2278d4ae32ffda64a4b8c3229cdfc114640a648498a7b4539f12ffb93d"
+    },
+    {
+      "path": "payroll-item-return-source.js",
+      "sha256": "7a652da7e13b51801ae4bee9d637b8a4e2f8ded3f93690012369a57745250c6e"
+    },
+    {
+      "path": "payroll-milestone-evidence.js",
+      "sha256": "2bf6b7b4ce2c07ea59d3ffaaa155aca27344b72d436aafe2530605e869c4f74c"
+    },
+    {
+      "path": "payroll-milestone-storage-serializer.js",
+      "sha256": "994ba15f7b917c7f18b75a4ba87524670bf0ddab175e08fed65755fc9d98a8c5"
+    },
+    {
+      "path": "payroll-order-pricing-evidence.js",
+      "sha256": "c72676e33fbe27d4f06a167646434b4f63cea306b5e5a5802e0a87908906520c"
+    },
+    {
+      "path": "payroll-order-refund-evidence.js",
+      "sha256": "b1b1ba6ec870051a6cfc8922cf32caf1cb0a471430143d16d2b2cc10856ddd23"
+    },
+    {
+      "path": "payroll-personal-cap-policy.js",
+      "sha256": "ee3ea058c247c7d3f0cf0a400e968cf2b2fd1fbc762ee6ffb874904cce638948"
+    },
+    {
+      "path": "payroll-scheme-routes.js",
+      "sha256": "8c704df77765f8cb6b082597738315eee63efcc0dc8d4dcca26603bc1acc59b1"
+    },
+    {
+      "path": "payroll-scheme-service.js",
+      "sha256": "536142aa3a3740a1e3562b51e2f3ca57ab50c2c88fa7cb63aadfae54c01d5585"
+    },
+    {
+      "path": "payroll-scheme-ui.js",
+      "sha256": "eeacb1f1de4579ed3e3153328076dd64101148bcacec78e16803e5f74a623db2"
+    },
+    {
+      "path": "payroll-schemes.js",
+      "sha256": "83784f53247ed57fff7df785d24dcbe4045e40f6cf009b994f95f0e61deeb98c"
+    },
+    {
+      "path": "payroll-snapshot-evidence.js",
+      "sha256": "574762d9e9fc10f760d3025522a7f94e0679981de20b7fc354e771062c3c6762"
+    },
+    {
+      "path": "payroll-snapshot-reconciliation.js",
+      "sha256": "cb68e0b9b50c2b0a6796544e59a1cf4fc7a4ee301790b56f00380d9bbdaf72d7"
+    },
+    {
+      "path": "payroll-snapshot-serializer.js",
+      "sha256": "1f1e07660b19e11868be3a6d9dd02625d40d5a939258089364b75f319ea18009"
+    },
+    {
+      "path": "payroll-snapshot-source-context.js",
+      "sha256": "a00a52355d9c054c967bebf4f52417c01b75adfb0b697dfd40f3eac9ab8abbb6"
+    },
+    {
+      "path": "payroll-source-policies.js",
+      "sha256": "0fe9feb33d3b4560d39370729582eb945bbe05862a48eeb3a1df6866da31e23a"
+    },
+    {
+      "path": "payroll-source-readiness.js",
+      "sha256": "ccf8997c78e3f20873f5137959c1ab7f62c7662ab6b106158d35b755545b1f06"
+    },
+    {
+      "path": "payroll-typed-snapshot-serializer.js",
+      "sha256": "b1bde46a5f7f9daca172b7a1424c39e9e0c3c2594c2d4de5c30b625bfd8b9b6d"
+    },
+    {
+      "path": "payroll-venue-turnover-source.js",
+      "sha256": "49fa77a2cc057fa8d34ef8c4c96797ccf3830f5adae578f2f38a8323dab19136"
+    },
+    {
+      "path": "payroll.js",
+      "sha256": "5b7b09a4321cc550ab2dba52194d58202cabf96b4ecad21f20a3be8cb864f972"
+    },
+    {
+      "path": "phone-format.js",
+      "sha256": "09296ce96992a82d4b5002ee55c99567b918f6fde9cb1f9f4e776121554b7bc6"
+    },
+    {
+      "path": "platform.css",
+      "sha256": "e47b383d89e97d837d1fde0d868a9527ef2dc9b3dbd54f0fd83c5b3f0d70bef1"
+    },
+    {
+      "path": "platform.html",
+      "sha256": "773d44423ec8f5608040da051884c97e25456ef5d9ebe549b28765ab5b01d229"
+    },
+    {
+      "path": "platform.js",
+      "sha256": "4fea58cb34bd427e9c521598497e32fa4bcd9186ed87e9ed17a4189f415aa331"
+    },
+    {
+      "path": "portal-session.js",
+      "sha256": "62803bb9f95debfb10b0054d7754521129d402db83886afef86c9604b728d8f2"
+    },
+    {
+      "path": "portal.js",
+      "sha256": "65ee2db8922483f24b4b3e30e1c06431ceeb4ebd7a32c1857b18f43ebe375f7b"
+    },
+    {
+      "path": "pos-demo-preview.cjs",
+      "sha256": "99e81d1242238a154daa7c843d60fd781f7d5c97064584685dd95913363ca936"
+    },
+    {
+      "path": "pos-demo-wow.css",
+      "sha256": "2175e81b3da719b0bcbee487ff14ebaa2bbf879d8270003225c5753cb391d519"
+    },
+    {
+      "path": "pos-demo.css",
+      "sha256": "31fbdf88d8e49acebcbd51eeb93daeaf5f3e2ceb88a3896dc46137762740f067"
+    },
+    {
+      "path": "pos-demo.html",
+      "sha256": "412786e476c2d23b39eb35d856952e2b85ca12dead455445b1ea60e06fd5db2e"
+    },
+    {
+      "path": "pos-demo.js",
+      "sha256": "398215720a90c845b6fdb23865a68435fcfc709f197a7756a0cefd0b0488bce6"
+    },
+    {
+      "path": "post-deploy-acceptance.sh",
+      "sha256": "28ac270ec94ab510f1d535d9afa937dfae71c8dcc4cf127ce484d8b68ee5adf4"
+    },
+    {
+      "path": "purchase-document-validation.js",
+      "sha256": "f1d31b8c44c567866b3699824f0558829f93b8875f96e5c44d8b0b14117a0248"
+    },
+    {
+      "path": "recipe-depletion.js",
+      "sha256": "a7bf28ae7d2465fb97fe1fb0cc493ec2930702e3e26a5172c9f75814ad12a30e"
+    },
+    {
+      "path": "reservation-calendar.js",
+      "sha256": "3c1672e3c8da20a32fb00ebaca132f8e0fe4c3e2847e157ef4834f3980b37546"
+    },
+    {
+      "path": "reservations.html",
+      "sha256": "b1fdeb941f6deb622e2e228d5e7e6aedbedfa6df6e8d961a5c56620ddba79a33"
+    },
+    {
+      "path": "schema.sql",
+      "sha256": "a626799246a6d47d82574260be96e091d2249c31d7433e19163db038cf512dfc"
+    },
+    {
+      "path": "scripts/acceptance-22-purchase-fields-postgres-qa.mjs",
+      "sha256": "a6ea97527e5d6ce851bc472e2678f75863333808fc4f6534736a474071c8486d"
+    },
+    {
+      "path": "scripts/acceptance-27-purchase-reversal-postgres-browser-qa.mjs",
+      "sha256": "66862b7e09ebc679de0c2590326445636aa893e7df3bc97f479cc26234b0445b"
+    },
+    {
+      "path": "scripts/acceptance-27-purchase-reversal-postgres-qa.mjs",
+      "sha256": "595ffe496c0ff2af8d97a31884f62daf51ab00f346df1d6a709fec06c61f7776"
+    },
+    {
+      "path": "scripts/acceptance-33-expense-document-postgres-browser-qa.mjs",
+      "sha256": "e5e5a05b21fb5d8a51d16756f1723c2d56a90d4746502d497716368f5bdf203f"
+    },
+    {
+      "path": "scripts/acceptance-33-purchase-date-order-postgres-browser-qa.mjs",
+      "sha256": "4b28550732b3f9c02cccece69434fe86ce0ee8cb48c1ed97549e5c18d7098c8b"
+    },
+    {
+      "path": "scripts/acceptance-44-inventory-crossflow-postgres-browser-qa.mjs",
+      "sha256": "fb979408cbe39e881422083ea861004f66a2f247241b903d4592f04ce91c4d30"
+    },
+    {
+      "path": "scripts/acceptance-47-pos-journey-postgres-browser-qa.mjs",
+      "sha256": "e7b5c219b8abcc297717e6172c3523ff4ef26e6884286a5d49b456b7d6893276"
+    },
+    {
+      "path": "scripts/acceptance-47-pos-journey-postgres-qa.mjs",
+      "sha256": "5a836f8bac953b7b874cbe3e92215372f9dd4cf4c999f0428d3b7a32c3eaf5ff"
+    },
+    {
+      "path": "scripts/acceptance-48-inventory-department-boundaries-postgres-qa.mjs",
+      "sha256": "b094aebe0d4a256679149dae1ff66055cf3e3f1fdfc0567bb1773a05da072ea4"
+    },
+    {
+      "path": "scripts/acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs",
+      "sha256": "08fa39540ec63a4a257f1dd2b99e208798f6ba6ea00486a2339ff5e6940aec5b"
+    },
+    {
+      "path": "scripts/admin-section-heading-contract.mjs",
+      "sha256": "86a5001c4c8c095b283e954a752d8bacac0b9062e45d5914ebcdc6cecad9f3af"
+    },
+    {
+      "path": "scripts/ai-team-contract.mjs",
+      "sha256": "55038a08ae21f439d07b23c8bb900e9385572363d39e85de4023b3cfd0ff504e"
+    },
+    {
+      "path": "scripts/alcohol-catalog-api-qa.mjs",
+      "sha256": "0970f26b31cee8c37fdb562d14df75256c9927f7ee338d183d60581e88f43f0f"
+    },
+    {
+      "path": "scripts/alcohol-catalog-schema-pg-qa.mjs",
+      "sha256": "341ac3cdb91a0fd1ab60de47e332aae3643954a2196093291a6779313735bad6"
+    },
+    {
+      "path": "scripts/audit-privacy-postgres-qa.mjs",
+      "sha256": "784f429471cc1ca664f494c14b4654737da0829f8cf23864585f0776efb7176c"
+    },
+    {
+      "path": "scripts/auth-smoke-assets-qa.mjs",
+      "sha256": "c355a60e8766a0b79062f4c22c07153e1cc6dea2b040107b56fb4a8a1dbcd569"
+    },
+    {
+      "path": "scripts/auth-smoke-crop-contract.mjs",
+      "sha256": "f5e7c438076a9593c77ee80bb9487e7629db764911cfd0d48aa99ee6fd6a3148"
+    },
+    {
+      "path": "scripts/auth-smoke-lifecycle-runtime-qa.mjs",
+      "sha256": "ce9e9b56406308a8074cc2b41399f1ee334954364237591d6a007745a8420393"
+    },
+    {
+      "path": "scripts/auth-smoke-runtime-qa.mjs",
+      "sha256": "251aa390e338d27106d3c1c0fbe0372f44d7f7bbaf34ad295dd7fd6db4a05e51"
+    },
+    {
+      "path": "scripts/auto-order-pending-qa.mjs",
+      "sha256": "4dbe0d773e6021fe848ce438b191855f47f7287994807bb7b89ff896272072c7"
+    },
+    {
+      "path": "scripts/brand-kit-contract.mjs",
+      "sha256": "4458c2e8ea5660675b5cea41bec6f4731277d4954efdc69642f3b3c88641b4c6"
+    },
+    {
+      "path": "scripts/client-form-race-qa.mjs",
+      "sha256": "b8a79e7ec4953cf052c554f6fcaf3190ebf0817eeadadae8d3dd1ba9ce33c63d"
+    },
+    {
+      "path": "scripts/client-form-submit-qa.mjs",
+      "sha256": "10ea11c99fe1dc778a4d2e63c047bddf2f60ae7e651c2f02ac07cb76d6455ad4"
+    },
+    {
+      "path": "scripts/client-history-date-qa.mjs",
+      "sha256": "d83e061f9017ec2c3cbae9403f9a7367afe5e2ccba36d36bec04d8b6decb953c"
+    },
+    {
+      "path": "scripts/clients-editor-contract.mjs",
+      "sha256": "47bd874f69cdacdc170dc91e9a0c304b648a3f43afbd0b9bca90a13d774b9aa4"
+    },
+    {
+      "path": "scripts/company-settings-browser-qa.mjs",
+      "sha256": "bb5b8ba29aaa520908aed0959b8f1b9a2156b9851fd674010a1911e2c2f9788c"
+    },
+    {
+      "path": "scripts/company-venue-postgres-qa.mjs",
+      "sha256": "ab5e1677a4c6c68d5b34b8ddecd55777707f9dff71d4aa9c0565da7d5e2374cc"
+    },
+    {
+      "path": "scripts/cross-tab-autolock-session-expiry-postgres-browser-qa.mjs",
+      "sha256": "bbbc1dbc7daef183f8c702ff0616753ac54e0ec146bce2d47e236a98fe4017f1"
+    },
+    {
+      "path": "scripts/cross-tab-lock-logout-postgres-browser-qa.mjs",
+      "sha256": "e6afb1f1bbac66ee417aa82c834eada29ce7ad33f03128afb4a814b614d5c72c"
+    },
+    {
+      "path": "scripts/custom-select-groups-qa.mjs",
+      "sha256": "54dff65d5dce20947400cf94b8ecfa8cf4d0c2bd730c460aed3cd7bf68cb5e81"
+    },
+    {
+      "path": "scripts/dashboard-filled-browser-qa.mjs",
+      "sha256": "784da3ed48e9beb26aa2b5745150734cecfc01272bbaabe65c16a5a7580c39f6"
+    },
+    {
+      "path": "scripts/dashboard-greeting-contract.mjs",
+      "sha256": "152edc90e017127558fdf571963f47c2dce9c051be35d201dca729fdcbf75e80"
+    },
+    {
+      "path": "scripts/dashboard-kpi-design-contract.mjs",
+      "sha256": "fe25f718554ef829664f930d965032a6876062b916f25f3ecab4606ae6c56ad2"
+    },
+    {
+      "path": "scripts/dashboard-overnight-employee-demo-qa.mjs",
+      "sha256": "5bbd625218cb6e79162c2bb3cdd02947a4a4035343d419c5d49c3f3f8b4afe23"
+    },
+    {
+      "path": "scripts/dashboard-overnight-employee-memory-qa.mjs",
+      "sha256": "f9fe786177ab37dc9339e71fdf7406146cedc74eba992c1029cd14d8a422d74b"
+    },
+    {
+      "path": "scripts/dashboard-overnight-employee-postgres-qa.mjs",
+      "sha256": "21f88b4c6cefc6e7c49b3f0d12798ea2c5009d6910b704ea86f45ade9ba8ee11"
+    },
+    {
+      "path": "scripts/dashboard-pending-metrics-postgres-qa.mjs",
+      "sha256": "e916c02b5b7a3a21c93444cdbedff08fa120e03e576b2c3f5a468dede50f496b"
+    },
+    {
+      "path": "scripts/dashboard-shift-attribution-contract.mjs",
+      "sha256": "a2d14ec688c53a3c25ab786fe5af92b0c207a654438dff75357b4bd825618410"
+    },
+    {
+      "path": "scripts/dashboard-shift-deeplink-contract.mjs",
+      "sha256": "2d0611437fb27b4a286dda4d5a999e797926b506adaf70342af7a2ec4219a965"
+    },
+    {
+      "path": "scripts/delivery-browser-qa.mjs",
+      "sha256": "232d03f639712f3d682b36065ad6df2593652d236e0d0205cc97aff6e4c110b5"
+    },
+    {
+      "path": "scripts/delivery-persistence-qa.mjs",
+      "sha256": "39e8a99c4d53038d0973aab79fda5373f1eb6bb2a3175a242637c890c518d8e3"
+    },
+    {
+      "path": "scripts/delivery-ui-state-qa.mjs",
+      "sha256": "5e267e53e44548a4a0f867f29142ff9885c880c560ee9704c3ed6f60cc63798e"
+    },
+    {
+      "path": "scripts/demo-premix-unit-runtime-qa.mjs",
+      "sha256": "b767d4e619cd8068727f5ed7f22c021323af74e96fb3ce5b8e8b675cdba6548e"
+    },
+    {
+      "path": "scripts/demo-scenario-contract.mjs",
+      "sha256": "f99f6eb4d66bc86782f47062af4dbf503ad1e4da8cae7a8e322330b00331d7dc"
+    },
+    {
+      "path": "scripts/directory-rename-runtime-qa.mjs",
+      "sha256": "6d010ae4ef60f6910cdcd4807ee5ae20d28bb1465750e2b51b55dbe14f713527"
+    },
+    {
+      "path": "scripts/discount-groups-demo-qa.mjs",
+      "sha256": "169300dd5b66bb8220a1394cad33d74120eb1fcc0a049807543e6c7f2e72d76a"
+    },
+    {
+      "path": "scripts/discount-groups-memory-qa.mjs",
+      "sha256": "4a1fc2249615000d519d68e517831133adb03ce31b9c83f3a33afd70ad0ff0c6"
+    },
+    {
+      "path": "scripts/effective-permissions-postgres-qa.cjs",
+      "sha256": "94b8f18c115e5add5cfefec35e196049cddcd3347f62ed5cc9d4a7e7703b35b8"
+    },
+    {
+      "path": "scripts/effective-permissions-unit-qa.cjs",
+      "sha256": "5384d46fe5ec3282e0678b01064018285da6fb1f1c0310d27e56b2eec216345c"
+    },
+    {
+      "path": "scripts/final-acceptance-matrix-contract.mjs",
+      "sha256": "bc3244680e0af2cf939d68a463b0a9824f35dc880f7128263bbcf5d998df9de3"
+    },
+    {
+      "path": "scripts/finance-api-consistency-contract.mjs",
+      "sha256": "4ed6715aba06871cf49fe7c2beeaf14be9c0a7ba64035c6e0ca0e8afd2837b26"
+    },
+    {
+      "path": "scripts/finance-categories-browser-qa.mjs",
+      "sha256": "9e79256a0d8f22327cdfdcd045b40a24b9639c04c489fde72ea5b5bbd0eca4db"
+    },
+    {
+      "path": "scripts/finance-categories-postgres-api-qa.mjs",
+      "sha256": "8735025e68cff86e98785a7d403b67c29394e8bb66ebc5073495830966dc79a6"
+    },
+    {
+      "path": "scripts/finance-categories-ui-contract.mjs",
+      "sha256": "701d78198542e106ff3f311a2fac204c8da6422c9aa9ea3cb0f3949e3de1616f"
+    },
+    {
+      "path": "scripts/finance-chart-empty-state-contract.mjs",
+      "sha256": "119691e406f7cd6ad313ecfea7b99922ca797db075f92035262f4d7c2e73010f"
+    },
+    {
+      "path": "scripts/finance-discount-runtime-qa.mjs",
+      "sha256": "d1cfe0538c4a9378e0736639fe33c0832170677b4dbf882f1404bf044d18d36a"
+    },
+    {
+      "path": "scripts/finance-employee-contract.mjs",
+      "sha256": "57524e22e3f3efa3f6ccbfdb8252297298f4a59016dd521059d6d28826dd19ca"
+    },
+    {
+      "path": "scripts/finance-employee-postgres-qa.mjs",
+      "sha256": "458df6c9a6463d77fb4aad1c54202448f00100f02c0fb1440d2fd2c689fcce19"
+    },
+    {
+      "path": "scripts/finance-expense-payroll-status-contract.mjs",
+      "sha256": "361dcef770a2cc4706b36cb02882ce6ba9b6c88b14853525e908ac03ffa415a6"
+    },
+    {
+      "path": "scripts/finance-load-race-qa.mjs",
+      "sha256": "dc2123a92f6b84896982b9cf68138c8dd581493a0e094ec02abd430171cd19ea"
+    },
+    {
+      "path": "scripts/finance-rbac-runtime-qa.mjs",
+      "sha256": "24824abfd040d685d7e04127423d797d7660e90e7cdca635bbb8db4bbdf75289"
+    },
+    {
+      "path": "scripts/finance-report-browser-qa.mjs",
+      "sha256": "882d7cb1c8d1714fe48b4de18f1d91a144e0d184317a00432eff62d84d5636ca"
+    },
+    {
+      "path": "scripts/finance-report-date-qa.mjs",
+      "sha256": "4aa7b45e14267ca6b3bb64aec4d3a86f541ce611e0c3b394f564afb748144015"
+    },
+    {
+      "path": "scripts/finance-required-marker-contract.mjs",
+      "sha256": "a34a8801279af799ed135a5246f9df18c51c0acce86860a6f37344d56457b88d"
+    },
+    {
+      "path": "scripts/finance-role-browser-qa.mjs",
+      "sha256": "abb7c369c1f7f1c515119afe1b6cdf9cdb6d85f383351dae9386b0a132cfa500"
+    },
+    {
+      "path": "scripts/finance-shift-analytics-postgres-qa.mjs",
+      "sha256": "55de85d64d15711a07e02c90b7cc193fd3d5c6f778551603e8d532c91ecf4d2a"
+    },
+    {
+      "path": "scripts/finance-timezone-contract.mjs",
+      "sha256": "10ae1a1e6570968ae83d8c694f020e91c1a409b5d01cbe3c77f70065e6d63ed8"
+    },
+    {
+      "path": "scripts/finance-workspace-browser-qa.cjs",
+      "sha256": "9c10c9d46ad8028b36f7c2507b9b6b2e837754286077df3ede7bf8a17b20e075"
+    },
+    {
+      "path": "scripts/floor-management-memory-qa.mjs",
+      "sha256": "4b970223f3bda5857766e1b512c345a7852a71662e6cea9c93de8e90ffb5a61c"
+    },
+    {
+      "path": "scripts/floor-management-postgres-browser-qa.mjs",
+      "sha256": "c7bfd0a881efa5de5caef6add8a2413934a4600d93bd4ccf9038c10870fe4e7e"
+    },
+    {
+      "path": "scripts/floor-table-archive-postgres-browser-qa.mjs",
+      "sha256": "234b8afbd377e226a755b92a045434933e36a9a958e6d21eb5b5ff8cb84aa26d"
+    },
+    {
+      "path": "scripts/fold-responsive-contract.mjs",
+      "sha256": "b8857dff796ea5c673d74271f5bb2b9fcc09144b1ded02009a015977a6f53780"
+    },
+    {
+      "path": "scripts/guest-account-ledger-memory-qa.mjs",
+      "sha256": "2bbc3e52965d6c50f9d3675e339ece4db063b2e93adf2c6582eb9a911cceaa73"
+    },
+    {
+      "path": "scripts/guest-loyalty-postgres-api-qa.mjs",
+      "sha256": "047fe5cecd95a7394177627fb0f0e6c8cd3e6cc9159d081b80590af2b76c7ed5"
+    },
+    {
+      "path": "scripts/header-shell-contract.mjs",
+      "sha256": "254e148adb7685843daf633b9ccc6b7734e2fa7aa3247736c914bb57ffe40b2d"
+    },
+    {
+      "path": "scripts/hookah-additional-acceptance-contract.mjs",
+      "sha256": "9fe634a3644a02ba09c15e2b303d6ce48728886f58d4febb524b6e424bcf038f"
+    },
+    {
+      "path": "scripts/integrations-browser-qa.mjs",
+      "sha256": "ef691caea30c19d0626c102c992647397e11d6cc50070771b42424fb2e4e5a10"
+    },
+    {
+      "path": "scripts/integrations-scope-contract.mjs",
+      "sha256": "e8e57103ee327bc35031dcfceed39cacbc1fe9b2915228295999c9e118959717"
+    },
+    {
+      "path": "scripts/integrations-state-qa.mjs",
+      "sha256": "07f890ad4fb1a26995935463dcf7c14ee18db5d62c2632faaf75d42b2b8bf160"
+    },
+    {
+      "path": "scripts/interface-preference-session-qa.mjs",
+      "sha256": "280edc5438c96e98d4868447385885d3e42c4844e59173a91a0eacbb55b5e0da"
+    },
+    {
+      "path": "scripts/interface-preferences-browser-qa.mjs",
+      "sha256": "224880b3632b9d3ac7e938918448d73c9433ca625ff9cb4863969b9cac7ab350"
+    },
+    {
+      "path": "scripts/interface-sidebar-browser-qa.mjs",
+      "sha256": "4e6dbce8c0b517135f6a57f9cf6e708bdd50b3664a3552e98abde0a46f044c1c"
+    },
+    {
+      "path": "scripts/inventory-category-tobacco-contract.mjs",
+      "sha256": "8560dc076e1122e5b029d8ecf4dffcfe4c3e63cc98a99deb913e0d109f185233"
+    },
+    {
+      "path": "scripts/inventory-category-tobacco-migration-qa.mjs",
+      "sha256": "93be46567f2f0372dfe46e186fee69ddb7cfb6a012e0510d2221158f6ca334a6"
+    },
+    {
+      "path": "scripts/inventory-context-contract.mjs",
+      "sha256": "f828b12dc3aa74c44b827cd09cab0e47164f253462840eaeed379da2b4675f24"
+    },
+    {
+      "path": "scripts/inventory-critical-state-qa.mjs",
+      "sha256": "74816a392fa21b96e0af0f5f2160fd078244cf0874a2498f6f690d85427c35c2"
+    },
+    {
+      "path": "scripts/inventory-crossflow-postgres-e2e-qa.mjs",
+      "sha256": "99374a658904f5fc595661d92fde63853fd1a70aa91361e5c36a0d2b4650aa9c"
+    },
+    {
+      "path": "scripts/inventory-directory-browser-qa.cjs",
+      "sha256": "69890fb801b2bc01649529df85db60f73386746f84efd5051d45278041370c89"
+    },
+    {
+      "path": "scripts/inventory-form-pending-qa.mjs",
+      "sha256": "53956c81f9c718570f184f354c78d964ea312250ac29dd1ed55a7423f94bbdea"
+    },
+    {
+      "path": "scripts/inventory-hierarchy-contract.mjs",
+      "sha256": "7da070e2dcb56279e7888d40f50667df2e5bf67e397fdab4fa85b007d265b4ef"
+    },
+    {
+      "path": "scripts/inventory-movement-transaction-qa.mjs",
+      "sha256": "603789e8bd9fc42eea24925dd67f36f9690b0fae4555273c364cf48f2b6e11b9"
+    },
+    {
+      "path": "scripts/inventory-movements-browser-qa.cjs",
+      "sha256": "bf28dc7a1a95aedea3245f9074ca03eee4a533afa435cfb9d1e6d4fe9f1d83d6"
+    },
+    {
+      "path": "scripts/inventory-premix-load-state-qa.mjs",
+      "sha256": "e13dc02eb4493110e4bde3539e827e3772bb4c7a30bb2469be26e169330edf46"
+    },
+    {
+      "path": "scripts/inventory-receiving-mobile-postgres-browser-qa.mjs",
+      "sha256": "8e486735664f715ba9b742879bb9162e4d48dff8582b28529209593387824dec"
+    },
+    {
+      "path": "scripts/inventory-remaining-browser-qa.cjs",
+      "sha256": "cc038642a65f1c34aab73a563675378c546771475dd813009bd2d87cf174c91e"
+    },
+    {
+      "path": "scripts/inventory-responsive-contract.mjs",
+      "sha256": "1ffdcdda127535c7cc969c5d033d07c41c899d04c8c46f16eb058502a4e98ef9"
+    },
+    {
+      "path": "scripts/inventory-stock-status-qa.mjs",
+      "sha256": "129686ef4e4e4e57aea98cf537accb73bb26cdf933c20a6f5c7ffc6ef3319371"
+    },
+    {
+      "path": "scripts/inventory-stock-status-runtime-qa.mjs",
+      "sha256": "4bbe617c3defee63a45b3756a52fe737ab0f91f72de44a882f092cff8ca1e64f"
+    },
+    {
+      "path": "scripts/inventory-subdepartment-api-qa.mjs",
+      "sha256": "7a1343206bfcb32f9a64a27075222105b249747c8c817640f012f1fd840ba5be"
+    },
+    {
+      "path": "scripts/local-100-orders.ps1",
+      "sha256": "8c4673b9b889e13386ed39abca1f7aeaf375a21bca438f2599a8d0b6adfebfb9"
+    },
+    {
+      "path": "scripts/local-acceptance.ps1",
+      "sha256": "8599207ac656fe513300ef47cd96f1812fb1503dc1fed274303bf5d6431f83b9"
+    },
+    {
+      "path": "scripts/local-api-read-failure-qa.mjs",
+      "sha256": "788748bd49abfb1032d49878a251a8d944280b73c52b076ced5f14aaf3fff25a"
+    },
+    {
+      "path": "scripts/local-asset-smoke.ps1",
+      "sha256": "d3a736f0b93318da72b082c9bda0cb87d4b67834d46ca9fd56a5212f3719c1ec"
+    },
+    {
+      "path": "scripts/local-billing-contract.mjs",
+      "sha256": "d81137311560750917c207ec5f1dd527f093be859e5d926a3ed707eda4a9ab75"
+    },
+    {
+      "path": "scripts/local-click-contract.mjs",
+      "sha256": "5d957aca69de69505d9193c563d1d5e65df2039e25a41b6547d54d0fd2e5c126"
+    },
+    {
+      "path": "scripts/local-crud-contract.mjs",
+      "sha256": "467db5242c58fd2e2317cc332918039e9425678b6bebde9a795990091d3d5203"
+    },
+    {
+      "path": "scripts/local-dashboard-navigation-qa.mjs",
+      "sha256": "686c8408e8b77f013352ac576d73ff802b09121675984c6e62204092a1a8a8d9"
+    },
+    {
+      "path": "scripts/local-date-contract.mjs",
+      "sha256": "eeb19c2c36839c0041ccd59d22b387e626ace4b3083b5dd0eb1fb05dd3557de2"
+    },
+    {
+      "path": "scripts/local-deploy-contract.mjs",
+      "sha256": "14afaeac9c85f77c9ea1cf1b103f9a015e207e6b7287ad2c8b12b74552239681"
+    },
+    {
+      "path": "scripts/local-design-contract.mjs",
+      "sha256": "9464606c0ad1fafb00ce0e0906f739a19e4ef04b4d6503187a43085e0f5f302a"
+    },
+    {
+      "path": "scripts/local-employee-report-ui-qa.mjs",
+      "sha256": "05eafe8b96cba5167aea9c7b39c23810c8a5025f5599ad0b1b7f55cdb4843247"
+    },
+    {
+      "path": "scripts/local-floor-management-contract.mjs",
+      "sha256": "3d6ac3647cce42b88d794f32b109aac9c8454997e0567f72be9e56d0add8dbf6"
+    },
+    {
+      "path": "scripts/local-full-pg-regression.cjs",
+      "sha256": "304465f9f0129c61bf8f05c91a5d25781104473a1534016d9b1fdf379dddb5b1"
+    },
+    {
+      "path": "scripts/local-full-qa-server.cjs",
+      "sha256": "ad736c4205bb51491a7aa18798b2da3de160880a730eaefce783ca1959277324"
+    },
+    {
+      "path": "scripts/local-full-qa-setup.cjs",
+      "sha256": "14ec6d0bab39d2eff1a9ef96b59c41a8d92a92b80d406a8593708b130c5c885d"
+    },
+    {
+      "path": "scripts/local-full-qa.mjs",
+      "sha256": "b99137123e3d10d03a7b265ea508ae6b85943b7b5202ef05c930f59684f83137"
+    },
+    {
+      "path": "scripts/local-guest-order.ps1",
+      "sha256": "de829e6b0156731cd98b1d3606cd2012dbfbb960c112006ed0649d773bc4167e"
+    },
+    {
+      "path": "scripts/local-insights-contract.mjs",
+      "sha256": "d403aa07b21ab1a03a812fa3ecae3bc4d06c29894c290d2555512c4c4e73d1da"
+    },
+    {
+      "path": "scripts/local-lock-contract.mjs",
+      "sha256": "751813f7c7751b19610da3eae6e91ea9bdeb29e6c8d88ba9a89447025a284196"
+    },
+    {
+      "path": "scripts/local-login-contract.mjs",
+      "sha256": "ab09a2d32cc2406bcb3838ca7ce86fa5aaa0d764a57ef999338aa8d17fa67520"
+    },
+    {
+      "path": "scripts/local-navigation-state-qa.mjs",
+      "sha256": "52753f8689f3399be7a4ead02329993262a9ca6e6d0a3c0f02546f4153d0d89b"
+    },
+    {
+      "path": "scripts/local-platform-organization-contract.mjs",
+      "sha256": "eaca20991f6674bd0252da9c6a1c356aba35ebd5159e303278963ed2903021b8"
+    },
+    {
+      "path": "scripts/local-postgres-contract.mjs",
+      "sha256": "7a65d6d5d4e6c216e78d833f7d0b078fc949ad2f5867365971f8899c5c914159"
+    },
+    {
+      "path": "scripts/local-preferences-contract.mjs",
+      "sha256": "e0ea93639e4ed403ddecfd6a40d3e664eac7e313c42f210dc940c9eebe83e69d"
+    },
+    {
+      "path": "scripts/local-role-contract.mjs",
+      "sha256": "b8081e8b1fadd0651d7e039627f2e3761c03777fb10f6392a550844d16022c0a"
+    },
+    {
+      "path": "scripts/local-route-smoke.ps1",
+      "sha256": "16803ae3832d08fdca7112333c3f7e3e23a7e57db6427f98527f5c499866a0ce"
+    },
+    {
+      "path": "scripts/local-saas-contract.mjs",
+      "sha256": "13233f68d9440ec371f3b38de9a335e6707407c25bb31584c42dd6616c6d24ef"
+    },
+    {
+      "path": "scripts/local-saas-onboarding-contract.mjs",
+      "sha256": "f31e483ea80d0d79911d91d6ec3c48d61a5547e7c95618977a9fcdf89eaaca04"
+    },
+    {
+      "path": "scripts/local-schedule-validation-qa.mjs",
+      "sha256": "6504e86ca009fc3528476d26469ff3f8fa68d578be686a20eb9d26df1a3a3ab3"
+    },
+    {
+      "path": "scripts/local-static-boundary.mjs",
+      "sha256": "91c01b78cc712dc4efe60a314274cd57c15d12dae6329182433682bc54effec4"
+    },
+    {
+      "path": "scripts/local-tea-catalog.ps1",
+      "sha256": "b6c2ad68324f1b231e17b6546e7bb50ce3f2972d76fc06a68a048e70140d449b"
+    },
+    {
+      "path": "scripts/login-error-runtime-qa.mjs",
+      "sha256": "345490ef3d0af2b7fda580420ef8482dbfc46a7ca258c7fbe7a831b91facd815"
+    },
+    {
+      "path": "scripts/login-server-identity-runtime-qa.mjs",
+      "sha256": "1e396783d19b0b1bf7f27bf9bddafe896afe6445dd1b0b6d0a1fe57269bf2d5c"
+    },
+    {
+      "path": "scripts/logout-persistence-runtime-qa.mjs",
+      "sha256": "f6f33f49a3b36debe8921c524f06f489d5935815147a5c147e0333b6f1a62704"
+    },
+    {
+      "path": "scripts/loyalty-journey-browser-qa.mjs",
+      "sha256": "e5df420d048ff48c28a39197fff1871b2f27aec74ef3c04e613c35aa0be9c6c7"
+    },
+    {
+      "path": "scripts/loyalty-memory-period-business-qa.mjs",
+      "sha256": "c9280d2fd11f080dbf94f72dff9e3f93ac19dbb4cb644fbbc252367642a755ba"
+    },
+    {
+      "path": "scripts/loyalty-pos-explanation-contract.mjs",
+      "sha256": "bd66e5c0b8ce8e57a2940e33a68a0b2dc0debd12691e073a0756fcaf0e348ff0"
+    },
+    {
+      "path": "scripts/loyalty-pricing-qa.mjs",
+      "sha256": "a2b417fbc9d8bed86c91e2078b55aa1e6da16c44156044378b5ca0e44f395f5e"
+    },
+    {
+      "path": "scripts/loyalty-program-pending-qa.mjs",
+      "sha256": "a570269fc0033a4833fe715de4cac42c9fde2106f7df1a78577b3f755adaf48d"
+    },
+    {
+      "path": "scripts/loyalty-progress-contract.mjs",
+      "sha256": "97c2db4cfcfbed5774797d9c51423b61b67258dcf93aef38e7f8013688b5f1c7"
+    },
+    {
+      "path": "scripts/loyalty-progress-model.mjs",
+      "sha256": "b164014b3d67b94eaea89952a23c3cd4ca983623b6454a2beadfbe660a5e0c95"
+    },
+    {
+      "path": "scripts/loyalty-progress.mjs",
+      "sha256": "d34b5f8fb52f5ac929a3122b2d065feb7647e41311f6ef1f70b324e8f7920b5b"
+    },
+    {
+      "path": "scripts/loyalty-promotions-contract.mjs",
+      "sha256": "3378291dcad83122ba985f743717e3fb3acaf0c97ebf7d5cec8c1448af42ba93"
+    },
+    {
+      "path": "scripts/loyalty-promotions-memory-qa.mjs",
+      "sha256": "db381498a04ae2abf37df1049c5f4f88aebb15379ec714985ed1fd617fb3d247"
+    },
+    {
+      "path": "scripts/loyalty-promotions-postgres-qa.mjs",
+      "sha256": "650041125dbc913c9318f60758746e251a29fbca61f6f84846ab1acc3378d192"
+    },
+    {
+      "path": "scripts/loyalty-reconciliation-contract.mjs",
+      "sha256": "1445bf91db5a297220283ae501f0138b339fe21ddf08ac725932efe879ebfe8a"
+    },
+    {
+      "path": "scripts/loyalty-reconciliation-memory-qa.mjs",
+      "sha256": "2346501f69d671432ce2caa4947ec757e367d24905ecb88bbdc9d191fcadf322"
+    },
+    {
+      "path": "scripts/metrics-database-failclosed-contract.mjs",
+      "sha256": "8ac649fc7dab07791bcbcb66c73b56484e207026d01428c453993f4f238bc92a"
+    },
+    {
+      "path": "scripts/migrate-vps-postgres-qa.sh",
+      "sha256": "57f781dc3a7012523b0e295df864d1766b04347945290b50183989af3b693ee7"
+    },
+    {
+      "path": "scripts/migrate-vps-runner-qa.sh",
+      "sha256": "3ae8c4d1aba8376d11bdadbb66f2ba8f2a73e65be1281b68853470284b1ea5a3"
+    },
+    {
+      "path": "scripts/migrate.js",
+      "sha256": "c5aee571344db340e304013d468dd9b5a666f8381f226a15e15524068a798751"
+    },
+    {
+      "path": "scripts/migrations-contract.mjs",
+      "sha256": "360bfafb98d8ad8c529ce650ff82f5b8cd8dca73517a629d51199843e6a28690"
+    },
+    {
+      "path": "scripts/migrations-pg-041-recovery-concurrency-qa.mjs",
+      "sha256": "819abe56f126999b68ff56aeb2f77b18a12d3e27b9822b2fc5bb6ee9c9f6e0bc"
+    },
+    {
+      "path": "scripts/migrations-pg-runtime-qa.mjs",
+      "sha256": "d42166005d040de3166026d19671d4952b0961c901b045f1657e5d7550649d16"
+    },
+    {
+      "path": "scripts/migrations-pg-upgrade-qa.mjs",
+      "sha256": "8bcedecdd0f6d524e38782b0d5efa2569d7edb1e1126ffde33f22d4c9ccdbcfb"
+    },
+    {
+      "path": "scripts/mode-navigation-contract.mjs",
+      "sha256": "8456d99e1b924b3d5928d14302e9858557c36d1404dac43356e53aafaa618be3"
+    },
+    {
+      "path": "scripts/network-action-pending-qa.mjs",
+      "sha256": "352230b03da4212e46ef26cb0c1886b744eeba0220a0efc25b01419f235634d5"
+    },
+    {
+      "path": "scripts/network-load-state-qa.mjs",
+      "sha256": "6048c71bcee1ec1a75ab07743f8052352782c5b66a8192d29aeac34cdae8544e"
+    },
+    {
+      "path": "scripts/network-mutation-boundary-qa.mjs",
+      "sha256": "551f2283b8bde60b1d3be6141d82700a26eb12fab92e2a27ddb6187e97f03643"
+    },
+    {
+      "path": "scripts/network-patch-validation-qa.mjs",
+      "sha256": "261d61426da55e3e93b34dc71853fb7231275b2541ba7fa615fd5c0ad933c96e"
+    },
+    {
+      "path": "scripts/network-read-failure-qa.mjs",
+      "sha256": "6a8277f15fef9757288cef4eee87f34b715cbe0477df371e62babe0d91aa8f80"
+    },
+    {
+      "path": "scripts/network-selection-qa.mjs",
+      "sha256": "9226a89d1e50478284785266a76c06515386718194922f73b296702acc581376"
+    },
+    {
+      "path": "scripts/network-tenant-contract.mjs",
+      "sha256": "0b54112a9097305b3370352cbdd4d3dd480f1ea31af3f90c5cb41f7c3f9361d7"
+    },
+    {
+      "path": "scripts/notifications-api-qa.mjs",
+      "sha256": "0044f068aae9e080cc4f35ec8139a0cd3668bea64cfdda621ae65ae12c2e50a9"
+    },
+    {
+      "path": "scripts/notifications-browser-qa.mjs",
+      "sha256": "0001d71dd99c6e9a5ba15101f3690d0f8a8eb4956982ec3cb5baa7d2bf5a9802"
+    },
+    {
+      "path": "scripts/notifications-postgres-qa.mjs",
+      "sha256": "2fb345f854a7f2f5db7faf59fbf84a60d9d0bf89b3595327472df96cfb557b34"
+    },
+    {
+      "path": "scripts/order-attention-qa.mjs",
+      "sha256": "d96f73baf83212d1d526ee61015993a56ace14315b9bc02c767dcad81d5adec6"
+    },
+    {
+      "path": "scripts/order-close-transaction-qa.mjs",
+      "sha256": "529a3f9f5b1dbf2cfae647df8b68c490eabbf03016b5ff298f37e906fc6b8c16"
+    },
+    {
+      "path": "scripts/order-delete-qa.mjs",
+      "sha256": "c44a701476591085e1ad8340c9693d12222d621f0a28667e0dd5950127f721a9"
+    },
+    {
+      "path": "scripts/order-item-close-guard-qa.mjs",
+      "sha256": "3bcd8817e525ea0b254660d2b0d29bf6365fbda573148febaaa2d821d3bc73a7"
+    },
+    {
+      "path": "scripts/order-item-sales-attribution-contract.mjs",
+      "sha256": "7c8c258c25d6ddd43c079572475bb50763a6d16ce52926d51c1fb2f10089c82f"
+    },
+    {
+      "path": "scripts/order-item-sales-attribution-memory-qa.mjs",
+      "sha256": "b0193c7def6be43b6a90dc172790ff5389e20f7245d449563d0c94f826aa5cbd"
+    },
+    {
+      "path": "scripts/order-item-sales-attribution-pg-qa.mjs",
+      "sha256": "3248cbb2d9a72a890ac0ef0929444e8980748ffe3782fc0cc001d5feb989b670"
+    },
+    {
+      "path": "scripts/order-journal-display-contract.mjs",
+      "sha256": "0d57ef1ffe370b0346b615314c065ff76480bc660a40ba6e85bd2cc0a26fa7e5"
+    },
+    {
+      "path": "scripts/order-journal-table-memory-qa.mjs",
+      "sha256": "c9267b19eac0d99b00ac2ea9c954ba3dc84a79b5e9a6f30f9346e3521ac4e7f8"
+    },
+    {
+      "path": "scripts/order-preparation-postgres-qa.cjs",
+      "sha256": "3005a0db05190666f596f396c141d2cd6bab31fca97a87a8fec80c07e06190aa"
+    },
+    {
+      "path": "scripts/order-preparation-ui-qa.mjs",
+      "sha256": "9ffbbff13429e8c3d54925418c434031e4e61f321e47f87b783695eb17b44518"
+    },
+    {
+      "path": "scripts/order-preparation-unit-qa.cjs",
+      "sha256": "08b9c4e8677f03dc264c5878204e3c68977121de103d432b54e44a67ffbd6952"
+    },
+    {
+      "path": "scripts/orders-attention-postgres-browser-qa.mjs",
+      "sha256": "5e20ace4e42c435b3fff58a4e275c10589072e71ba9d97cc616e34ee28e46985"
+    },
+    {
+      "path": "scripts/orders-history-qa.mjs",
+      "sha256": "b3e0a5ea5be2c340f5e3f547ba6d595403fc26eb85a25472eae60a4db256535a"
+    },
+    {
+      "path": "scripts/orders-receipt-qa.mjs",
+      "sha256": "9b2e419de0125c4920034ee74d355a05282f818679a4b2cf0c56c6c54aa8f75e"
+    },
+    {
+      "path": "scripts/orders-total-qa.mjs",
+      "sha256": "3f1e6db8c0e3de0a81b356ac6cfa0b72aaaf01781a9a0b1aa7243e056628f73b"
+    },
+    {
+      "path": "scripts/owner-pin-lock-postgres-browser-qa.mjs",
+      "sha256": "c8eb7970dfcba7c9c3baf0a2869ed169ec0a385f8e61f346418c1473a3a749fb"
+    },
+    {
+      "path": "scripts/paid-order-balance-demo-qa.mjs",
+      "sha256": "b4841f093cd10e161323942e21e3c384984186ce98796b68bad0cc59d5a80654"
+    },
+    {
+      "path": "scripts/paid-order-balance-memory-qa.mjs",
+      "sha256": "03045ba94384dccc907a94cc30916965660436b76f6581664a2a910bdaf0bb4c"
+    },
+    {
+      "path": "scripts/paid-order-balance-postgres-qa.mjs",
+      "sha256": "b33498b62cfd42a69fd52b3301e3207a48adcc12ecd13e40921912ca07918e04"
+    },
+    {
+      "path": "scripts/payables-browser-postgres-qa.mjs",
+      "sha256": "fb69cea2ba4b3fe964e1e99bbed36f27093a751360fb1f5279870244985a1867"
+    },
+    {
+      "path": "scripts/payroll-analytics-unavailable-qa.mjs",
+      "sha256": "2d007cb9656b9b193c8edcf73a072c1b20fed90a41b78a1ca9f5f1981eab97d6"
+    },
+    {
+      "path": "scripts/payroll-approved-attendance-source-contract.mjs",
+      "sha256": "6bed27892e08a871650249dae62bcd42187c83d71fea2509382841a8ac37c00d"
+    },
+    {
+      "path": "scripts/payroll-browser-postgres-qa.mjs",
+      "sha256": "d6975d72de5c4c9c36e54825f1671112e10cf454d5f18e5b128d0bf933d82114"
+    },
+    {
+      "path": "scripts/payroll-calculation-qa.mjs",
+      "sha256": "905802075f0a53b1f1540d6e3cbbc32534b24f135437729b39d832beab954364"
+    },
+    {
+      "path": "scripts/payroll-canonical-pricing-source-contract.mjs",
+      "sha256": "92c92a0c149d3f92bbe63d9dc5bc41ff3210c542292e319eae95c762fe6581ea"
+    },
+    {
+      "path": "scripts/payroll-canonical-pricing-source-postgres-contract.mjs",
+      "sha256": "456dd6a4caf5d239673e15e02e4f9d6edf35dd151fccd575b40674f72e112a7f"
+    },
+    {
+      "path": "scripts/payroll-canonical-timestamp-contract.mjs",
+      "sha256": "ba77966a10fa899cf90b2fc54329a381864f133a7fd4e4da056c0cbacf156f37"
+    },
+    {
+      "path": "scripts/payroll-canonical-timestamp-postgres-contract.mjs",
+      "sha256": "4eef1f442d08a4f4f36afe87bf6882bcd9138cd85dd6a9f1118a8c92b983caea"
+    },
+    {
+      "path": "scripts/payroll-dated-override-role-contract.mjs",
+      "sha256": "45f1bd4b301236cd80f5ff111cb083a9a6eb24961ac20b7454f88f8f05e9c915"
+    },
+    {
+      "path": "scripts/payroll-incentive-math-contract.mjs",
+      "sha256": "059a416eb91f763f11a1caac4dde02510efcb56d416c84620613c51cf93772db"
+    },
+    {
+      "path": "scripts/payroll-inherited-caption-contract.mjs",
+      "sha256": "e89c8b3944cdfeebff80785c0e9c25aa80d5185bbea4f13edca3af88bbe66d7f"
+    },
+    {
+      "path": "scripts/payroll-item-return-sequence-contract.mjs",
+      "sha256": "3c6952e45dce7571721fb0284fca5e89fbb1575024322ccee93ba17001b116a9"
+    },
+    {
+      "path": "scripts/payroll-item-return-sequence-postgres-contract.mjs",
+      "sha256": "ff32aee653163c8d37526d42bf5ab57d3b71f91f20b8015d3bf088f68d44e27a"
+    },
+    {
+      "path": "scripts/payroll-item-return-source-contract.mjs",
+      "sha256": "bc342b9166d0c55d3b296818dc420b79ccc673b4e3310ad98a5c238c425a023d"
+    },
+    {
+      "path": "scripts/payroll-lifecycle-migration-preflight.mjs",
+      "sha256": "289ffd413a26a56341d10e6d240eb22cd89086d23a1c4a4b66faeb1f8a5c18ae"
+    },
+    {
+      "path": "scripts/payroll-lifecycle-postgres-api-qa.mjs",
+      "sha256": "29a664296f3966d66c5c25fc647034b2d587f3c36f18eff51e1e9386535bb4df"
+    },
+    {
+      "path": "scripts/payroll-lifecycle-runtime-qa.mjs",
+      "sha256": "7fb1e09522e74a9ca7abd2780d9e36a1c7256e4e58810559b860bbd045047aed"
+    },
+    {
+      "path": "scripts/payroll-margin-target-contract.mjs",
+      "sha256": "2d4079108bf39a0a51a2f321f96551e1fd8e8d4a5fa54b572758d7529570a548"
+    },
+    {
+      "path": "scripts/payroll-milestone-configuration-browser-postgres-qa.mjs",
+      "sha256": "8958432d2e2ec26f17d11c40ebe9ad7a334060ca96839f32639aee7a2c778ba9"
+    },
+    {
+      "path": "scripts/payroll-milestone-configuration-postgres-contract.mjs",
+      "sha256": "220503fdb66231a4aa176b10a9a3e990fa80e20ff2561bef2f62edba4ad02dea"
+    },
+    {
+      "path": "scripts/payroll-milestone-configuration-qa.mjs",
+      "sha256": "fefe240ea1b5be815213888370ad3cb420b8dda6b310972e8c33c08bb3e106b1"
+    },
+    {
+      "path": "scripts/payroll-milestone-digest-contract.mjs",
+      "sha256": "5885faceb73a92699d974e0ebc310e84e5306bed829da2585f9efc1b01f55a46"
+    },
+    {
+      "path": "scripts/payroll-milestone-editor-contract.mjs",
+      "sha256": "d4fb40c00c3f1cd36ed871ce2bd5d0f64e72c78e9f29c56ca1e61d9ded9447fa"
+    },
+    {
+      "path": "scripts/payroll-milestone-eligibility-contract.mjs",
+      "sha256": "402e65402f756f450cd7409ae0c032f67e6ec12a8ac7ce7cf55b11cee1df49c5"
+    },
+    {
+      "path": "scripts/payroll-milestone-evidence-contract.mjs",
+      "sha256": "420d5bf0206127d36ce7c48b3b1448ba7a0bf6f01d37f843a9c1e88a15fc691d"
+    },
+    {
+      "path": "scripts/payroll-milestone-migration-contract.mjs",
+      "sha256": "3a051050e172e2004c7047b7b2a0f4bc5b1edb605be4e76d602ae55ed74129ac"
+    },
+    {
+      "path": "scripts/payroll-milestone-postgres-contract.mjs",
+      "sha256": "39abecf3afea240cee4a81765a76d8535b67f81a2b424dfc6154d49e6208703b"
+    },
+    {
+      "path": "scripts/payroll-milestone-render-contract.mjs",
+      "sha256": "ab0a8ac7781d8988091b1d967ec7de9b43744909aced09eb47be534e42d82f52"
+    },
+    {
+      "path": "scripts/payroll-milestone-snapshot-contract.mjs",
+      "sha256": "4f9f7e9953b99b781b9b5839d4ba1f141f911390f23a2df35a752f3bed15a663"
+    },
+    {
+      "path": "scripts/payroll-milestone-storage-serializer-contract.mjs",
+      "sha256": "838bcc51af3404b7bf86c775f6688460af314190936b0f34b1188ce40780b9bf"
+    },
+    {
+      "path": "scripts/payroll-order-pricing-evidence-contract.mjs",
+      "sha256": "6f8d1631c478dd67c25ab9180750f24c08a0969a26c426f015d82e10807ffedc"
+    },
+    {
+      "path": "scripts/payroll-order-refund-evidence-contract.mjs",
+      "sha256": "5868acf8c298374f77698480d32cf4858c83ff2caa1c74d7305d25290105a939"
+    },
+    {
+      "path": "scripts/payroll-parameter-browser-postgres-qa.mjs",
+      "sha256": "df9584764b6dd29724f7cb68f86c23adb1c1cac17bd6cabcfa7cc1e8966ab311"
+    },
+    {
+      "path": "scripts/payroll-parameter-inheritance-contract.mjs",
+      "sha256": "2c7213914bde1431cba84b75e6188760eb7da20e3c58027a50c4e5e6dc8a009a"
+    },
+    {
+      "path": "scripts/payroll-personal-cap-policy-contract.mjs",
+      "sha256": "18edbade74e6f2b77c886d490e8a549c2b0bbb21424e4c6d991d88393b0d6b22"
+    },
+    {
+      "path": "scripts/payroll-personal-cap-postgres-contract.mjs",
+      "sha256": "737df808118c4aac410c1a9273d49f4c33b1f915d2b879ad159739ac953ef6be"
+    },
+    {
+      "path": "scripts/payroll-personal-cap-ui-contract.mjs",
+      "sha256": "aee6341fceb31f1604e6d5e87f8bf5f46c116b6de724eb57e09b661abc209b3a"
+    },
+    {
+      "path": "scripts/payroll-personal-scalar-browser-postgres-qa.mjs",
+      "sha256": "775738ad0043148653c18eb86831e64aed74fda976854296fe9338de41a739d6"
+    },
+    {
+      "path": "scripts/payroll-personal-scalar-contract.mjs",
+      "sha256": "5f1dd98013ef6dc13abb4abf573d2c7820b415888cd3bbeb8c94282c39239906"
+    },
+    {
+      "path": "scripts/payroll-personal-scalar-postgres-contract.mjs",
+      "sha256": "b775636ac3aac2646e9d391211bb750f41458899d39f8135f53ffb03fcbbc239"
+    },
+    {
+      "path": "scripts/payroll-personal-target-contract.mjs",
+      "sha256": "b46da956e8fa710e18715a5b71529f7b025dff5d08d0de19f83e03417a71773b"
+    },
+    {
+      "path": "scripts/payroll-personal-target-render-contract.mjs",
+      "sha256": "4771dbd185a8485405eb631f260386b47f689629452cda962a9af1edccf722b6"
+    },
+    {
+      "path": "scripts/payroll-personal-threshold-contract.mjs",
+      "sha256": "109a5f48d23b4a9993ac46b05bcc4399a72aef6feb3757dd112c3dd6d914736a"
+    },
+    {
+      "path": "scripts/payroll-personal-threshold-postgres-contract.mjs",
+      "sha256": "be9cc0d3242b00666a9d64d04ef2fa9078aa119f1448d0c19b06ae3592efb60e"
+    },
+    {
+      "path": "scripts/payroll-personal-threshold-sweep-contract.mjs",
+      "sha256": "e689ad45eb7d75212c975f73ae7bd9bc7a24585e70f7a3028273b4b247ebc60c"
+    },
+    {
+      "path": "scripts/payroll-pricing-finance-alignment-contract.mjs",
+      "sha256": "9b0603b5476a5b0a71701333dd68867fba7e9fc902792c4c3a1d08cf27ab2089"
+    },
+    {
+      "path": "scripts/payroll-qa.mjs",
+      "sha256": "ac67b804d0da6d7556045a3a26ec5044e5d2033218e3dff5cc9b283dade96387"
+    },
+    {
+      "path": "scripts/payroll-register-load-state-qa.mjs",
+      "sha256": "1321d3f2e48abcec2ae77f88ac6bf58cc1bfbadc9e124306933a86e4a8716ac0"
+    },
+    {
+      "path": "scripts/payroll-register-ui-contract.mjs",
+      "sha256": "31a36a9851d722d4db1a8b2dfa263e469a74f7f966c6460ccf4d1648897f0dbd"
+    },
+    {
+      "path": "scripts/payroll-role-override-impact-contract.mjs",
+      "sha256": "d12f0e9785ec371499fe20eb99c7676529f5115c8161e6e010279363e217381f"
+    },
+    {
+      "path": "scripts/payroll-scheme-browser-postgres-qa.mjs",
+      "sha256": "1e3973ba74cca801874dbe379b70f17df0092a12e39f0e4c2f291c52b9a9b31c"
+    },
+    {
+      "path": "scripts/payroll-scheme-editor-contract.mjs",
+      "sha256": "4c75c97ade242f5eaf2fe3582bd4cdc14667975268d7219d8be09e2f0dc5b682"
+    },
+    {
+      "path": "scripts/payroll-scheme-migration-contract.mjs",
+      "sha256": "f73ec79b275aac3f4d13f5c38bc031f7c050a1b273e3a96e75936798068518d4"
+    },
+    {
+      "path": "scripts/payroll-scheme-routes-contract.mjs",
+      "sha256": "217402d59c2667a792875a2a2e168d7300650eee3014674112a3557b5a17876b"
+    },
+    {
+      "path": "scripts/payroll-scheme-ui-contract.mjs",
+      "sha256": "a8fd8bd8c24b255efef5df8d29c668391222cef2651df29be0027925f8d6f32c"
+    },
+    {
+      "path": "scripts/payroll-schemes-contract.mjs",
+      "sha256": "3e553ffecc87023d21a6358a68d4cce68f78eb5119178f4bfa77c755b04d8e93"
+    },
+    {
+      "path": "scripts/payroll-snapshot-evidence-contract.mjs",
+      "sha256": "0b4dcc13db880b22673c5d7c2ba92f1a83336c8f8fd1462256f92e52a928cf62"
+    },
+    {
+      "path": "scripts/payroll-snapshot-reconciliation-contract.mjs",
+      "sha256": "16267aea0bb4fb6ba0281ca2bd86e53e4181ab175c06d878aa8e4f3def879321"
+    },
+    {
+      "path": "scripts/payroll-snapshot-serializer-contract.mjs",
+      "sha256": "b08334100a0fa5473886c7f743cfcfbe2e703d2622c497d2731aa3e69defecad"
+    },
+    {
+      "path": "scripts/payroll-snapshot-source-context-contract.mjs",
+      "sha256": "f9ba430cee9a3d343337020bd9831cd4b9bc935528a7182cef15782838a16640"
+    },
+    {
+      "path": "scripts/payroll-source-policies-contract.mjs",
+      "sha256": "23ea3ffc72b39449121e08ad84a67db01964743364d45953c0b15db2d6e30e69"
+    },
+    {
+      "path": "scripts/payroll-source-policy-postgres-contract.mjs",
+      "sha256": "5d5fe6d352677f8c40177ca5380a5f8ca627f29f2b90a141d1e6a2e783d2d7ed"
+    },
+    {
+      "path": "scripts/payroll-source-policy-ui-contract.mjs",
+      "sha256": "96e6293ddc1f53909babca975919aebc43f40a359567ac21c387484e8e1e5b78"
+    },
+    {
+      "path": "scripts/payroll-source-readiness-postgres-contract.mjs",
+      "sha256": "c0ea91761e7dfc497fc4932cb3172b40129e4c0c044372775467186de4157686"
+    },
+    {
+      "path": "scripts/payroll-source-readiness-ui-contract.mjs",
+      "sha256": "58589ed8058b06fc38fe10db55872a058fa9fcb43a4b5359b89fce27c2f94f2a"
+    },
+    {
+      "path": "scripts/payroll-standalone-personal-cap-browser-postgres-qa.mjs",
+      "sha256": "4fb448c7c3b368731ca9c2ce0ead3dab345637b9e970e594d1d0ccdcd21d9051"
+    },
+    {
+      "path": "scripts/payroll-standalone-personal-cap-contract.mjs",
+      "sha256": "236ff28f29d621322ed3a9bce133118e00f7079598318f417fdb39f3fbe32f0c"
+    },
+    {
+      "path": "scripts/payroll-standalone-personal-cap-postgres-contract.mjs",
+      "sha256": "aa9856b1667a9e654ae297e7b9b3209f16999392e690847b44fbd0294dde1c25"
+    },
+    {
+      "path": "scripts/payroll-team-fund-contract.mjs",
+      "sha256": "6c58bc6020a0a1dbb2117aaa637d9dd7495608d7958b6fa906821b1378f81bd3"
+    },
+    {
+      "path": "scripts/payroll-typed-snapshot-migration-contract.mjs",
+      "sha256": "bfdfb3cfdf1cac002a58cb1e7da2c95ead0d350a66ededb94c27d1a001cb7b4a"
+    },
+    {
+      "path": "scripts/payroll-typed-snapshot-serializer-contract.mjs",
+      "sha256": "420351dd68264ceec83636373e7518de7c0953f3a5de7a6235613ab0e1e53333"
+    },
+    {
+      "path": "scripts/payroll-venue-turnover-source-contract.mjs",
+      "sha256": "90437b5ca42f9f8596976d391254a650615b90b510b68dd333e314a53ac07763"
+    },
+    {
+      "path": "scripts/pg-order-pricing-snapshot-qa.mjs",
+      "sha256": "86e3d2401801d76f6e021b4646489d755b94a0efaa66a43c935d9e170e66cc58"
+    },
+    {
+      "path": "scripts/pin-lock-acceptance-contract.mjs",
+      "sha256": "59096a029e5a70549b84428fed5eb6ffed4d6e3aa05769ece97dd88b3a2560e1"
+    },
+    {
+      "path": "scripts/platform-empty-delete-qa.cjs",
+      "sha256": "0695444bb0ca15485de9c06e46821ce804975a9215069f3d44f390efa13b6884"
+    },
+    {
+      "path": "scripts/platform-saas-contract.mjs",
+      "sha256": "9047dcd08f04206c63bf9df690940eedc1dd9b8f17409cbf4aa169d55481a4e2"
+    },
+    {
+      "path": "scripts/portal-action-keyboard-qa.mjs",
+      "sha256": "28cb379011c9424b4a53d425ce3256e7e2afa184160be50f2c8d9a68387bfbc3"
+    },
+    {
+      "path": "scripts/portal-api-auth-qa.mjs",
+      "sha256": "fe8bb8b3267a2350d612bad028f6b02a694a87c028cf412c84cc9a198a9970ed"
+    },
+    {
+      "path": "scripts/portal-context-refresh-qa.mjs",
+      "sha256": "f243efb7249f5a4a711f9b22e0a42ea4d66e0e758041075354f2d65ff2cb4635"
+    },
+    {
+      "path": "scripts/portal-effective-permissions-qa.mjs",
+      "sha256": "54f04fe4c7c00567281709ee8ec6969fe23239672e7031a7a1645505e8cb1c1e"
+    },
+    {
+      "path": "scripts/pos-modal-a11y-contract.mjs",
+      "sha256": "2b28ebba8ce1fb93bd063bcc5a67e8f8701a2fd7aba04bafce7643f603b424f5"
+    },
+    {
+      "path": "scripts/pos-order-pricing-snapshot-contract.mjs",
+      "sha256": "8ad29768bea2cdda28b21596b4b5b2dcfc7eb5a07d3c12efb5aafc129ad9a298"
+    },
+    {
+      "path": "scripts/pos-order-refunds-postgres-qa.mjs",
+      "sha256": "782fe713eb360bea8a6c15272948c6f20c75ed2213f66fd51eba7b8e3046a264"
+    },
+    {
+      "path": "scripts/pos-order-refunds-ui-contract.mjs",
+      "sha256": "4990776e3ff756135211ad1ed695ed70fa6f67acedc6f7fc01d0ffe6a0159ec5"
+    },
+    {
+      "path": "scripts/pos-role-payment-postgres-browser-qa.mjs",
+      "sha256": "dc4bc8357b1ed73534aeec22fb843eb4e82e4a05dd8ed3cd76d69876fd9dc676"
+    },
+    {
+      "path": "scripts/pos-transfer-postgres-browser-qa.mjs",
+      "sha256": "e4224f0bbacf7b0030c8eab3a02a0aec9e946ff49c19ade89f19838f6d16e84d"
+    },
+    {
+      "path": "scripts/postgres-qa-safety-contract.mjs",
+      "sha256": "be3fd83e36dd757ecb8f6cf72a1feab094e86821cdd86d874d7e227c860bf66f"
+    },
+    {
+      "path": "scripts/postgres-qa-safety.mjs",
+      "sha256": "8cce857ab00d0aa20505958adcade65f6e34f12315e358ac6f393759344b6e7f"
+    },
+    {
+      "path": "scripts/postgres-qa.mjs",
+      "sha256": "c623657347764d5cdfe937ba2c129085ab765d6380a7d63c85fd0ad65fae3a3c"
+    },
+    {
+      "path": "scripts/premix-batch-lifecycle-qa.mjs",
+      "sha256": "dfbc76337577e203be57a98a60fa4feb9a13f34162b67c26a766b11d0d69de9c"
+    },
+    {
+      "path": "scripts/premix-contract.mjs",
+      "sha256": "651ca42404cdf36cebfe319f0031d20e422216759fc4e432bbea73b55821fff0"
+    },
+    {
+      "path": "scripts/premix-create-route-qa.mjs",
+      "sha256": "4f49a06ffbad3e98007e93708d330eff607256a779b06678709a5e1a2652f688"
+    },
+    {
+      "path": "scripts/premix-submit-pending-qa.mjs",
+      "sha256": "ff24b4bae7857663163f7b270a774f5b5a6b45fc31bc53109b21c9e8349d86c8"
+    },
+    {
+      "path": "scripts/product-form-pending-qa.mjs",
+      "sha256": "a9ea3b814ca4f08e4588e1e23473d9c76ace22c2064868cb7fb51810220754cf"
+    },
+    {
+      "path": "scripts/published-html-manifest.mjs",
+      "sha256": "199d53d17339653eda3ca205aed36d82bcb389df191e5b4ca409c91d2359380f"
+    },
+    {
+      "path": "scripts/purchase-auto-order-postgres-e2e-qa.mjs",
+      "sha256": "baeb958a3a740f277ae6e5663424a982c663c6c407abe9d9be9ea6ad3da786cb"
+    },
+    {
+      "path": "scripts/purchase-document-date-contract.mjs",
+      "sha256": "70b122a113669ebb14aec0d70d204e3fcb9ab8b876fe66c447fefb0033f4d958"
+    },
+    {
+      "path": "scripts/purchase-document-pending-qa.mjs",
+      "sha256": "a189f36557752282787c0105507485ce8a92ff801046fd538f6f43a1ec44a470"
+    },
+    {
+      "path": "scripts/purchase-document-validation-qa.mjs",
+      "sha256": "43d9c08067ef5c8d9deb088bcb63e00bbcfc765406167e6dfae535e2a918a6e4"
+    },
+    {
+      "path": "scripts/purchase-documents-contract.mjs",
+      "sha256": "bc30d95e6857634b6ae699b0a36f4c6087da8eb427c4d55d0763d044e177ec77"
+    },
+    {
+      "path": "scripts/purchase-payment-api-validation-qa.mjs",
+      "sha256": "5a04414ef11561a84024793cc495d0562784f0ae892f33b2c04fd9b743a6686b"
+    },
+    {
+      "path": "scripts/purchase-payment-postgres-api-qa.mjs",
+      "sha256": "c571a8eeaf08c3f6a58e7897a6c62e4c26bd4a81ba1b453c2510cf1ecd1cd35e"
+    },
+    {
+      "path": "scripts/purchase-payments-contract.mjs",
+      "sha256": "39a42ece8bb5edd9fe9b8d6b59bc92bf9d2ea4c2b468f0c8790bc6693131e2c3"
+    },
+    {
+      "path": "scripts/purchase-payments-runtime-qa.mjs",
+      "sha256": "4853c6f317e18b2f1d388b206352a0f0b81607da1a86a6931e5c3095d89a455c"
+    },
+    {
+      "path": "scripts/purchase-reversal-contract.mjs",
+      "sha256": "a574e7404521246edadf4f4944c786b5c492044fc6b211c7a6c0b8460a394022"
+    },
+    {
+      "path": "scripts/recipe-chain-contract-qa.mjs",
+      "sha256": "8c5e95163a2532a3bb7d75706f7e4efe777dedb552c97d01b66353387b755d32"
+    },
+    {
+      "path": "scripts/recipe-cost-breakdown-postgres-browser-qa.mjs",
+      "sha256": "ea55d3f9a9621eca0c7bd78a94c4e171da51e9bb853956eb46f3704aa5ac2b6f"
+    },
+    {
+      "path": "scripts/recipe-depletion-contract-qa.mjs",
+      "sha256": "81708c14652fd95c95623afa34eed434a7f4a09e40ded2ca308528e3981a0731"
+    },
+    {
+      "path": "scripts/recipe-depletion-pg-contract.mjs",
+      "sha256": "91330927eae352f9517e5507940ad03cfe59640b971323061a99e251055ca47b"
+    },
+    {
+      "path": "scripts/recipe-depletion-pg-runtime-qa.mjs",
+      "sha256": "adb066cdb9ad4aa3d0b1d3acfbe0c212ccef487d82f036a286e6520b7c4506e2"
+    },
+    {
+      "path": "scripts/recipe-depletion-runtime-qa.mjs",
+      "sha256": "3b0762addfbe2a96a16894e622d5a6fe38d21cda7b4ec17deb7647a6b041fe80"
+    },
+    {
+      "path": "scripts/recipe-directory-contract.mjs",
+      "sha256": "e8d3c5c3f567a548f34a5d22174a2f1ab34fe1179ea0b428848d8eb28fe09762"
+    },
+    {
+      "path": "scripts/recipe-em-dash-parser-qa.mjs",
+      "sha256": "dcec1b95335dc3beb085df080444b42965b092b74c8ab5783bc7a9979fb19771"
+    },
+    {
+      "path": "scripts/recipe-form-pending-qa.mjs",
+      "sha256": "77ec20c468d11cf82109235e7ae2aa7e009c3598462c8a6c76207e078fe9ae70"
+    },
+    {
+      "path": "scripts/recipe-sale-manual-movement-race-postgres-qa.mjs",
+      "sha256": "8f222e227337d049ee8047ab7afb4178f82a151e46352611f6cfb5a9b7fa4a1b"
+    },
+    {
+      "path": "scripts/reservation-form-qa.mjs",
+      "sha256": "304a59d1ac2d84cdb143b5ece77645f891b3ce57e633f56bf352e08f154f97bb"
+    },
+    {
+      "path": "scripts/reservation-legacy-cancel-warning-contract.mjs",
+      "sha256": "cbcbf1b2a0388917c1adb00431480c210480beefbdfdb238b1e3516af140a93e"
+    },
+    {
+      "path": "scripts/reservation-local-date-postgres-qa.mjs",
+      "sha256": "5db68c51f8070f810e731a62200db2d80bff6bfa5f575b77ed0fe6a34aaa41e2"
+    },
+    {
+      "path": "scripts/reservation-prepayment-memory-qa.mjs",
+      "sha256": "04f85ce4bbd349d97be7e45a5ba0e7cd917e80a9ea326ea9edc44320e3e2d016"
+    },
+    {
+      "path": "scripts/reservation-prepayment-postgres-qa.mjs",
+      "sha256": "038e2f446d05839042f778389e90977b8333af96a1feeecc9aeb48937d1556aa"
+    },
+    {
+      "path": "scripts/reservation-table-day-clock-preload.cjs",
+      "sha256": "b17c97d11a15b9210b69727aab71962928c66e3ba5c5d0c4b5af37d0bb54121f"
+    },
+    {
+      "path": "scripts/reservation-table-day-postgres-qa.cjs",
+      "sha256": "651285aa341351d67b49a1aa4f1cad1fdad6b7ac5f7d502557d9f444bc839343"
+    },
+    {
+      "path": "scripts/responsive-emulator-runtime-qa.mjs",
+      "sha256": "1db80384e38118481d78e9e98c88bc9cfe0aeb25d2ac8c4893a24b7983b6d601"
+    },
+    {
+      "path": "scripts/role-api-matrix-runtime-qa.mjs",
+      "sha256": "bd005d653048919ddae355e3f71e265c8bcb6e705fba4df2a035a5c68cfd9e8f"
+    },
+    {
+      "path": "scripts/saas-pos-boundary-contract.mjs",
+      "sha256": "cd8410e20ccf484c3085973936fa5c07913f57e43952c169d3b0b033aa68d710"
+    },
+    {
+      "path": "scripts/saas-quota-suspension-postgres-qa.mjs",
+      "sha256": "d49f4c9b5ab6f8b5969154c822fda3121bae6b42a17d2989ed4885d39baa29fc"
+    },
+    {
+      "path": "scripts/scoped-role-dependencies-postgres-qa.mjs",
+      "sha256": "3d47b726dea25ef74e000ae8d468b6e946627dc7459ca6318a858adf3f951392"
+    },
+    {
+      "path": "scripts/security-default-credential-qa.mjs",
+      "sha256": "50423433061eb50d98103931ddc211562cbce65cfb5cd4b5159e6a78c2ce069b"
+    },
+    {
+      "path": "scripts/security-qa.mjs",
+      "sha256": "55d8781fd8279e83a0c2b5c77efef2b25b887a108c1d8b76a649928e0eed8644"
+    },
+    {
+      "path": "scripts/seed-local-full-qa.mjs",
+      "sha256": "775dea62551ad19f34897d2719ff38d42734d81ce1523207a7b079da08915f83"
+    },
+    {
+      "path": "scripts/seed-menu-catalog.js",
+      "sha256": "bcf146fb93699557352ae5818f061952c484474df5dfab9f75a4576e64af6cc9"
+    },
+    {
+      "path": "scripts/seed-menu-category-idempotency-contract.mjs",
+      "sha256": "5be794804843e964ac783fb961613f950fe03ce04b7928d19928ff43796a58f6"
+    },
+    {
+      "path": "scripts/session-authority-qa.mjs",
+      "sha256": "b6eea74149948da40611a59a671f3632cca45c0cba26bd15cf3e4112e124545c"
+    },
+    {
+      "path": "scripts/session-preferences-concurrency-qa.mjs",
+      "sha256": "4b4b35efc4f2a710453c99638b55432e16a9c9436c6e7db13155e2c55d320ae6"
+    },
+    {
+      "path": "scripts/session-preferences-postgres-qa.mjs",
+      "sha256": "7c2c97982ff4f93842af6381afbffe9cc1c0b1099dcbd051425460ac4dfaebe1"
+    },
+    {
+      "path": "scripts/session-venue-contract.mjs",
+      "sha256": "bf17102b613a58f9378330e18bc34fb2e1c7a60413beba5adb0c1b166cb8b311"
+    },
+    {
+      "path": "scripts/shift-cash-postgres-e2e-qa.mjs",
+      "sha256": "32254226fe3281f6f95c216f21f9911ef737766f7610d33ba2ed9ac7149c3fdc"
+    },
+    {
+      "path": "scripts/shift-close-ui-qa.mjs",
+      "sha256": "f0abd5e82555c2b04c623a6388710a772bb90642c835e898ee6523d61b91ce84"
+    },
+    {
+      "path": "scripts/shift-notifications-e2e-qa.mjs",
+      "sha256": "e31723af376adc0a156c692d0e3ce282ca732b10a610a9436e579763cf37b421"
+    },
+    {
+      "path": "scripts/shift-state-runtime-qa.mjs",
+      "sha256": "e2c788d0e4e021f7f1264707bd0bb71172dd7ebe46fe926503c4b56b446b9d4f"
+    },
+    {
+      "path": "scripts/shift-transaction-qa.mjs",
+      "sha256": "493a76bac9f008d77f947f5b8482c74fc30745762a1effb3e8cad74b81299f8b"
+    },
+    {
+      "path": "scripts/sidebar-brand-contract.mjs",
+      "sha256": "23fd3da44802af5272a01d52333f20c371dbdb8685f0e3b91a71141b3cdbd7a4"
+    },
+    {
+      "path": "scripts/sidebar-disclosure-runtime-qa.mjs",
+      "sha256": "a52740988c11384f0d4533e59314d0953c46cc86ef1295e51886e45b8355847e"
+    },
+    {
+      "path": "scripts/sidebar-menu-audit-contract.mjs",
+      "sha256": "25c7d4a13c3edbcb8ed68737030fd94636ba06cf110fe7ec29fbb0ca333557b9"
+    },
+    {
+      "path": "scripts/sidebar-navigation-contract.mjs",
+      "sha256": "b90cada4bbd8d87d1c687fa858a8160937b8ccfef226817eba9f74e600ba8237"
+    },
+    {
+      "path": "scripts/sidebar-scrollbar-contract.mjs",
+      "sha256": "01a4db5c8993690639de9c51e48a830beb1957a0a67f0f7c6e1e893179bf2d2b"
+    },
+    {
+      "path": "scripts/sidebar-venue-header-contract.mjs",
+      "sha256": "a4792bb2142cd436ccac440d7ad1cfe7ffaae9c8dfb8e31c0c06b83938a31465"
+    },
+    {
+      "path": "scripts/site-structure-contract.mjs",
+      "sha256": "021100d830364d7d7440f25371be99fc52aee35fa584024f895a8e5c4abfcbbb"
+    },
+    {
+      "path": "scripts/staff-active-count-contract.mjs",
+      "sha256": "b43cfe1aee06f33fa0a1ebb80bb2d24dcc74f1b2294fd0e821cf3496c9f6a79a"
+    },
+    {
+      "path": "scripts/staff-avatar-image-qa.mjs",
+      "sha256": "a8c98302f35c132317bde703d8c80e549e12ef8605453b058f83b5bc2cbb9808"
+    },
+    {
+      "path": "scripts/staff-catalog-add-pending-qa.mjs",
+      "sha256": "b5e4b2aa7fac80eb8dd33296ab024822fd436c7886b8e0defbb37b1e4f902f30"
+    },
+    {
+      "path": "scripts/staff-catalog-load-state-contract.mjs",
+      "sha256": "ef1753cc3df8d2edc2ceb141d32dec3c4adda2dfff9c2ff6722883800603beac"
+    },
+    {
+      "path": "scripts/staff-catalog-refresh-runtime-qa.mjs",
+      "sha256": "de311f8c2e32c0b17d7688c468562076bb979253bf23148e8f0035e3c1af4e12"
+    },
+    {
+      "path": "scripts/staff-catalog-visual-browser-qa.cjs",
+      "sha256": "dc84d3b55cb6f24d04607c51c9dbf6278b8e4876141282ecce5d922bd7af70f8"
+    },
+    {
+      "path": "scripts/staff-directory-load-browser-qa.mjs",
+      "sha256": "c1372e5967579a8eb87548acdc520c9441b32875791b15051584e24c6fba0584"
+    },
+    {
+      "path": "scripts/staff-directory-view-browser-qa.cjs",
+      "sha256": "664f5d86e65abf6d3644534da2575c75ffeee5f33effa5e76497c33a79aa844c"
+    },
+    {
+      "path": "scripts/staff-effective-permissions-qa.mjs",
+      "sha256": "e223c2c7a7b977bb466230b87326a809c3203c71618863d21849f0b16d278f61"
+    },
+    {
+      "path": "scripts/staff-guests-page-contract.mjs",
+      "sha256": "d49d1e70c7b12888da875785a9d9b4585373ab457b8992dde216e3d743d00b84"
+    },
+    {
+      "path": "scripts/staff-header-actions-runtime-qa.mjs",
+      "sha256": "839366133ea4484b47971041e9056471ead464074ffbf05e45eef762b870357c"
+    },
+    {
+      "path": "scripts/staff-identity-demo-qa.mjs",
+      "sha256": "d060a88921c8a67993bb331ecdf409c6ce1d7bd81f6711f96c9de10516a7f7c9"
+    },
+    {
+      "path": "scripts/staff-identity-postgres-qa.mjs",
+      "sha256": "1ab3670c08b606304d3a1789097d1610c77a4f039663592660096d84a3b48758"
+    },
+    {
+      "path": "scripts/staff-login-race-postgres-qa.mjs",
+      "sha256": "f19b28afc34b9b108c5703a881943b1f04fb9db59b0aa929d2a964e38daa40b0"
+    },
+    {
+      "path": "scripts/staff-mode-navigation-contract.mjs",
+      "sha256": "93eb4d4a4659ff99cf4d48ddcb0f2ff565f606afa882a4c2ed3f5435abdf246d"
+    },
+    {
+      "path": "scripts/staff-observer-stability-runtime-qa.mjs",
+      "sha256": "df0c55d414afa969b3a9f2b2c32b8b7af5e61bd698cd1ac03bda5b0c160f191b"
+    },
+    {
+      "path": "scripts/staff-order-payment-summary-runtime-qa.mjs",
+      "sha256": "9f9aab54a246e662acce52a39ac12971c39b8f9b7d2e8a9428f8b07e3e2ee2f9"
+    },
+    {
+      "path": "scripts/staff-partial-payment-pending-qa.mjs",
+      "sha256": "880371469d5d7ebb8afb84a522419c7b2b505413c4a3a8988af5d9c568c56bc6"
+    },
+    {
+      "path": "scripts/staff-pin-card-postgres-browser-qa.mjs",
+      "sha256": "dcaff59597bc31dad3a2fe5cffcd4260d49f8d21d48c364d8f499e57a290ae0c"
+    },
+    {
+      "path": "scripts/staff-pin-passport-contract.mjs",
+      "sha256": "98ba72a5fc595e7f2038263c1a35e15844f38f02685ce95ae6576bf072a6b23e"
+    },
+    {
+      "path": "scripts/staff-pin-passport-runtime-qa.mjs",
+      "sha256": "ec5e793492b1833541ab9999fb144b99f6536cecdc3359bbc5ebe0953619cd53"
+    },
+    {
+      "path": "scripts/staff-profile-browser-qa.mjs",
+      "sha256": "13f53a45debac861f000dcea2675c0a1574e7d616e83dcd7eac1002046fcc195"
+    },
+    {
+      "path": "scripts/staff-session-recovery-runtime-qa.mjs",
+      "sha256": "04c252278b8a84872dfce89682b1f6f094b9047a799e6f9d4318b5d60e6444e4"
+    },
+    {
+      "path": "scripts/staff-ui-management-policy-qa.mjs",
+      "sha256": "e42d519432da048bffe2ac37e57bfbb680588d9929de933290b95737a40852bc"
+    },
+    {
+      "path": "scripts/staff-worklog-runtime-qa.mjs",
+      "sha256": "6be340e252b12e2b63f7579f9231787f84088e75fe12b78af8f889ece5822ac3"
+    },
+    {
+      "path": "scripts/sync-published-assets.mjs",
+      "sha256": "782416044c76bd3acd9bc7a95d4ded3f7a2ed35e5494fa742bdc3579d7f40c3e"
+    },
+    {
+      "path": "scripts/task-deadline-qa.mjs",
+      "sha256": "6d8cad8dcdd958449b1b57c52f890e6314c5ae5bbda791124360a3f9b596ff98"
+    },
+    {
+      "path": "scripts/task-ui-recovery-qa.mjs",
+      "sha256": "b969b78fe42f93caea87c22e1864118c520f25f4986943045827bff211f711a8"
+    },
+    {
+      "path": "scripts/tasks-postgres-e2e-qa.mjs",
+      "sha256": "1793dff3973434364551741a41bcbcb8ae9d39049cdb330974ae537108b6f6a9"
+    },
+    {
+      "path": "scripts/tasks-qa.mjs",
+      "sha256": "525820df9e06474f0c7cda7a89eaef305f81f9f506d3befc153ce1e14a9de7e3"
+    },
+    {
+      "path": "scripts/tobacco-catalog-api-qa.mjs",
+      "sha256": "9eb61c5e51243159c33b4bb40e06ed50bd17bdb13134b728728791da4ac75149"
+    },
+    {
+      "path": "scripts/tobacco-catalog-auth-boundaries-postgres-qa.mjs",
+      "sha256": "47e6d77f023e3f0d428e68834e9f26d4ca649656234b64fa921e167984bf0fdc"
+    },
+    {
+      "path": "scripts/tobacco-catalog-demo-qa.mjs",
+      "sha256": "a6a34becc69a7651dfda1ba2efaa79aff9325ee563241f2836ee4575bdda52e5"
+    },
+    {
+      "path": "scripts/trusted-pin-return-contract.mjs",
+      "sha256": "1a45d4f7e469d2c59afd6c2b954a4d19a6b3fdcf015a9d5eb57752a9f1163a3d"
+    },
+    {
+      "path": "scripts/trusted-pin-return-runtime-qa.mjs",
+      "sha256": "1a9fe041b0e3ae96aadb9ffefe32da4e5da13b42f6e699565b11b22dab0a5447"
+    },
+    {
+      "path": "scripts/ui-scenarios-contract.mjs",
+      "sha256": "7e6b104a51e77d06f64c356f4ea6b1099ea11289be390dcb91e1eed26543f79a"
+    },
+    {
+      "path": "scripts/venue-inventory-departments-postgres-qa.mjs",
+      "sha256": "adac9814dc2d55938a2e1243d2b929ddc5caabee368b820e5939ade4cd04a84c"
+    },
+    {
+      "path": "scripts/venue-layout-browser-qa.mjs",
+      "sha256": "faa1ccc8f1e612cda8c409b2b7d92e22eea96116e7d4501b820e6ea434f91ea8"
+    },
+    {
+      "path": "scripts/venue-timezone-validation-runtime-qa.mjs",
+      "sha256": "9597c61dbc18cdc289f7b32e910f76ae4ccb19c59b6eaaea1e2ee3389a61260b"
+    },
+    {
+      "path": "scripts/visual-live-defects-contract.mjs",
+      "sha256": "85a0b771c5b1e1648285c536aab4b99b90ac3c894c7d159e4ba50d8b28ee7177"
+    },
+    {
+      "path": "scripts/visual-page-rules-contract.mjs",
+      "sha256": "ac09d4e99be4d416acb8552df55d3273239203ece760b3134c4cd78883d14aba"
+    },
+    {
+      "path": "scripts/warehouse-qa.mjs",
+      "sha256": "ef6c5c12dca2fe8b8a21f3fdec64495125be4ebd8644404b18fdfbd32273cdee"
+    },
+    {
+      "path": "scripts/work-context-test.cjs",
+      "sha256": "ed77b3a99c2b2e2d5ab95e0214ebc65518299c3d2eb33d88501d9643c818262d"
+    },
+    {
+      "path": "seed.sql",
+      "sha256": "781ed7ce5a877249017a0591ced2ee7119436adb8c5bdaa51d3abdc489a3a7f9"
+    },
+    {
+      "path": "server.js",
+      "sha256": "3ee9c7171a118c7907e877330c4a82f97ce3ab4038fcf3e98b0be6bdb68e41a4"
+    },
+    {
+      "path": "shift-close-contract.js",
+      "sha256": "f182cbeb454dd9d63e953ec3623c725f1a14b2bc15742d9a0d6b2d0404a8aec8"
+    },
+    {
+      "path": "sidebar-menu-preview.svg",
+      "sha256": "d79cc379abb3a05bc85800bd95eec0e07d1e058f50b51a546d36933441d956d2"
+    },
+    {
+      "path": "site-map.json",
+      "sha256": "4a2f102896d53b0ec4fba0a51e44a7fd3190be4e7e924bbb4f658505494b07ed"
+    },
+    {
+      "path": "smoke-auth-required.ps1",
+      "sha256": "7657e4939f803ddc5a2365706d670e6492742983589e82cc765f2f4157eb9ccd"
+    },
+    {
+      "path": "smoke-test.ps1",
+      "sha256": "9240ddae3c7203e29913b19e8d35c13da61baf79f4839e97d4104dc0e8d44c00"
+    },
+    {
+      "path": "staff-admin-card.js",
+      "sha256": "31e9f4d70ae8deb9bd3dcb984d5abcfaf8a449bbae36ec21f2f1d6956d787235"
+    },
+    {
+      "path": "staff-audit.js",
+      "sha256": "f7588c0bf61ab39d85fd0eaa356d8c054be9d1f2883ed3d55d4d5a0acc60c9f9"
+    },
+    {
+      "path": "staff-avatar-image.js",
+      "sha256": "34595389d048b50729e0ac2dca5dc20c60768d8173a7e1836f291343c2ccdf50"
+    },
+    {
+      "path": "staff-identity.js",
+      "sha256": "0646006edd1f5223008af6533061e28d982893d6b7b722aa4e022fbdf20db69f"
+    },
+    {
+      "path": "staff-phone-fields.js",
+      "sha256": "7ac47b8a92cbe1fd020990bcca8239e214a42a2ab336e9a58df0f286adb181c1"
+    },
+    {
+      "path": "staff-profile.js",
+      "sha256": "3251b83c945d0249d6e3810e94bc37f268777914eeae5ec5a9277f1f3c3e78ff"
+    },
+    {
+      "path": "staff-sensitive-fields.js",
+      "sha256": "11568e82d0a869f89e05bb3bec2b7c115d54acd71df4665938e32327bc41e638"
+    },
+    {
+      "path": "staff-telegram-link.js",
+      "sha256": "c2a112c702736f93b2092878db64371429ea430f6491f249451b833fcff9e7cc"
+    },
+    {
+      "path": "style.css",
+      "sha256": "cb2174b96e71124b298bfddd6313a15d583c347ccfbdd6ec77b49c770aced453"
+    },
+    {
+      "path": "verify-backup.sh",
+      "sha256": "890c4971d8fb81f31777f0644d7f233afbf23abd267f9db6b07761bb9874af11"
+    },
+    {
+      "path": "vip-deposit-ui.js",
+      "sha256": "9344726afed60c7795fde3c3f35b7d83a4881d075b8bc1be6d34a3e6e9ab17e1"
+    },
+    {
+      "path": "vip-deposit.js",
+      "sha256": "c2fcc77c9f77fef5fc04da7d99772123a582e3217e186f4693a704afe63358f3"
+    },
+    {
+      "path": "work-context.js",
+      "sha256": "185480e30ce6e01d943967a7b6b99c798a874007c8bdde0a225413de50f4c787"
+    }
+  ]
+}

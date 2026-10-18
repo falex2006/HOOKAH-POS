@@ -502,6 +502,19 @@ try {
     ],
     yieldQuantity: 1200, yieldUnit: 'мл', portionCount: 1,
   }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    name: 'QA duplicate output must fail', recipeType: 'premix', outputIngredientId: premixOutput.id,
+    ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' }],
+    yieldQuantity: 1000, yieldUnit: 'мл', portionCount: 1,
+  }, 409);
+  const wrongPremixOutput = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA wrong premix output', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
+  }, 201);
+  const beforeWrongOutput = { source: await getBalance(stockItem.id), expected: await getBalance(premixOutput.id), wrong: await getBalance(wrongPremixOutput.id) };
+  const wrongOutputResult = await req(base, '/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: wrongPremixOutput.id, multiplier: 1 }, 409);
+  assert.equal(wrongOutputResult.error, 'premix_output_binding_mismatch', 'API rejects a caller-substituted output item');
+  assert.deepEqual({ source: await getBalance(stockItem.id), expected: await getBalance(premixOutput.id), wrong: await getBalance(wrongPremixOutput.id) }, beforeWrongOutput,
+    'a rejected output substitution creates no stock movement'); checks += 3;
   const premixBatch = await req(base, '/api/inventory/premixes/produce', 'POST', {
     recipeId: premixRecipe.id, outputItemId: premixOutput.id, multiplier: 1,
     actualOutput: 1100, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -511,9 +524,28 @@ try {
   assert.equal(Number(premixBatch.outputQuantity), 1100, 'actual yield is posted to stock separately from the planned recipe yield');
   assert.equal(Number((await client.query('SELECT cost FROM ingredients WHERE id=$1', [premixOutput.id])).rows[0].cost), 0.0479,
     'premix output persists sub-kopeck unit cost so later recipes do not round each ml to a kopeck');
+  await req(base, `/api/recipes/${premixRecipe.id}`, 'PATCH', { outputIngredientId: wrongPremixOutput.id }, 409);
   assert.equal(await getBalance(premixOutput.id), 1100, 'actual premix output quantity is added to the stock ledger');
   assert.equal(await getBalance(stockItem.id), 1000, 'premix production consumes its first component exactly once');
   assert.equal(await getBalance(secondStockItem.id), 1400, 'premix production consumes its second component exactly once'); checks += 7;
+  const raceOldSource = await req(base, '/api/inventory/items', 'POST', { name: 'QA race old source', unit: 'мл', itemType: 'ingredient', cost: 1, department: 'bar' }, 201);
+  const raceNewSource = await req(base, '/api/inventory/items', 'POST', { name: 'QA race new source', unit: 'мл', itemType: 'ingredient', cost: 2, department: 'bar' }, 201);
+  const raceOutput = await req(base, '/api/inventory/items', 'POST', { name: 'QA race output', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar' }, 201);
+  for (const item of [raceOldSource, raceNewSource]) await req(base, '/api/inventory/movements', 'POST', { itemId: item.id, delta: 100, unit: 'мл', reason: 'Recipe edit race fixture' }, 201);
+  const raceRecipe = await req(base, '/api/recipes', 'POST', { name: 'QA recipe edit race', recipeType: 'premix', outputIngredientId: raceOutput.id, yieldQuantity: 10, yieldUnit: 'мл', portionCount: 1, ingredients: [{ ingredientId: raceOldSource.id, name: raceOldSource.name, quantity: '10 мл' }] }, 201);
+  await client.query('BEGIN');
+  const lockedRaceRecipe = await client.query('SELECT id FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 FOR UPDATE', [raceRecipe.id, venueId]);
+  assert.equal(lockedRaceRecipe.rowCount, 1, 'concurrency fixture holds the intended recipe row'); checks++;
+  let raceSettled = false;
+  const racingProduction = req(base, '/api/inventory/premixes/produce', 'POST', { recipeId: raceRecipe.id, outputItemId: raceOutput.id, multiplier: 1 }, 201).then((value) => { raceSettled = true; return { value }; }, (error) => { raceSettled = true; return { error }; });
+  await delay(250);
+  assert.equal(raceSettled, false, 'premix production waits for the locked recipe row instead of racing past an edit'); checks++;
+  await client.query('UPDATE inventory_recipe_cards SET ingredients=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify([{ ingredientId: raceNewSource.id, name: raceNewSource.name, quantity: '10 мл', unit: 'мл' }]), raceRecipe.id, venueId]);
+  await client.query('COMMIT');
+  const raceOutcome = await racingProduction; if (raceOutcome.error) throw raceOutcome.error; const raceBatch = raceOutcome.value;
+  assert.equal(raceBatch.ingredients[0].ingredientId, raceNewSource.id, 'production batch records the formula committed by the concurrent edit');
+  assert.equal(await getBalance(raceOldSource.id), 100, 'concurrent edit race does not consume the superseded ingredient');
+  assert.equal(await getBalance(raceNewSource.id), 90, 'concurrent edit race consumes the ingredient saved in the batch snapshot'); checks += 3;
   const premixHistory = await req(base, '/api/inventory/premixes');
   const listedPremixBatch = premixHistory.items.find((entry) => entry.id === premixBatch.id);
   assert.equal(Number(listedPremixBatch.remainingQuantity), 1100);

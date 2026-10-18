@@ -1,0 +1,285 @@
+{
+  "at": "2026-10-11T04:14:21.149Z",
+  "candidate": "C:/Users/ADMIN/.codex/worktrees/ui092-release-candidate/HOOKAH CRM 2",
+  "base": "2e6f557934fe29a9a227dda73277f6c3f99af939",
+  "inputCount": 38,
+  "inputFailures": [],
+  "results": [
+    {
+      "file": "scripts/ui-semantic-token-contract.mjs",
+      "status": 0,
+      "stdout": "UI-02.1 source contract PASS: 20 roles x 2 exact maps, aliases, inherited color compatibility, staff prelude, scoped references and CSS mirror. Browser gate is separate.\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui-role-shell-contract.mjs",
+      "status": 0,
+      "stdout": "UI-03.1 source contract PASS: verified cosmetic role marker, desktop role widths/padding/header, native hit targets and scoped mirrors. Runtime geometry is separate.\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui-component-primitives-contract.mjs",
+      "status": 0,
+      "stdout": "UI-02.2 source contract PASS: scoped primitives, exact geometry/type/motion, state hooks, reference safety and CSS mirror. Browser sizes/contrast/interaction gate is separate.\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui-navigation-context-contract.mjs",
+      "status": 0,
+      "stdout": "UI-03.2 actual-source navigation context PASS (56 checks; isolated VM, browser acceptance separate).\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui-dialog-lifecycle-contract.mjs",
+      "status": 0,
+      "stdout": "UI-04.1 actual-source dialog lifecycle contract PASS (74 checks; isolated VM DOM, not actual browser/API/top-layer proof).\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui-dialog-mounted-form-contract.mjs",
+      "status": 0,
+      "stdout": "UI-04.2 mounted actual-source lifecycle PASS (16 checks; VM DOM, browser/API proof separate).\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui042-ordinary-editor-contract.mjs",
+      "status": 0,
+      "stdout": "ORDINARY EDITOR HELPER: PASS (entity-local preserve, Boolean false, pending policy, success/context cleanup, awaited submit, concurrent/detached/selector guards)\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui042-table-schedule-contract.mjs",
+      "status": 0,
+      "stdout": "TABLE OPTIONAL SCHEDULE: PASS (optional blank controls, unchanged null/null payload and invalid partial/equal schedule server normalizer)\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui043-lock-lifecycle-contract.mjs",
+      "status": 0,
+      "stdout": "UI043 actual-source lock lifecycle: 25 PASS, 0 FAIL (VM mechanics only)\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui051-presentation-contract.mjs",
+      "status": 0,
+      "stdout": "UI051 actual-source presentation: 17 PASS, 0 FAIL (VM mechanics; no browser/API persistence claim)\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui052-presentation-contract.mjs",
+      "status": 0,
+      "stdout": "UI052 actual-source presentation: 18 PASS, 0 FAIL (VM/source only; no browser/API persistence claim)\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui061-source-runtime-qa.mjs",
+      "status": 0,
+      "stdout": "PASS writer: true empty distinguishes product and recipe filter empty\nPASS writer: loading/error search retention, retry filters, product-triggered recipe refresh\nPASS writer: photo DOM gate and no false missing-techcard inference\nPASS readonly: true empty distinguishes product and recipe filter empty\nPASS readonly: loading/error search retention, retry filters, product-triggered recipe refresh\nPASS readonly: photo DOM gate and no false missing-techcard inference\nPASS products: newer success ignores older error and older success\nPASS products: disconnected response ignored\nPASS products: replaced response ignored\nPASS products: context response ignored\nPASS recipes: newer success ignores older error and older success\nPASS recipes: disconnected response ignored\nPASS recipes: replaced response ignored\nPASS recipes: context response ignored\nPASS departments: newer success ignores older error and older success\nPASS departments: disconnected response ignored\nPASS departments: replaced response ignored\nPASS departments: context response ignored\nPASS subdepartments: newer success ignores older error and older success\nPASS subdepartments: disconnected response ignored\nPASS subdepartments: replaced response ignored\nPASS subdepartments: context response ignored\nPASS categories: newer success ignores older error and older success\nPASS categories: disconnected response ignored\nPASS categories: replaced response ignored\nPASS categories: context response ignored\nPASS directory parent reload invalidates pending child reads\nPASS directory parent initial failure stops unchanged child pending state\nPASS directory parent failure preserves ready child rows\nPASS directory parent failure leaves newer independent child retries current\nPASS departments: read failure alert, retry and retained directory context\nPASS subdepartments: read failure alert, retry and retained directory context\nPASS categories: read failure alert, retry and retained directory context\nPASS photo keyboard Enter/Space, disabled/pending protection, idempotent mount and excluded panel\nPASS source/dist mirrors and scoped token CSS\n35 passed, 0 failed\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui062-source-runtime-qa.mjs",
+      "status": 0,
+      "stdout": "PASS stock renderer preserves source ordering and exposes critical state; search filters without changing source order\nPASS stock search cannot replace initial loading or read-error states; search survives successful retry\nPASS auto-order starts with a loading state, not an empty healthy state\nPASS stock loader ignores stale failure and displays retry for the current failure\nPASS auto-order search hides non-matches and rerender preserves checkbox, quantity and search\nPASS auto-order response generation ignores older success and error\nPASS premix retry/read-only prerequisites and stale generation/node identity guards\nPASS premix controls remain gated until prerequisites load; CSS theme and dist mirrors stay scoped\n8 passed, 0 failed\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui071-source-runtime-qa.mjs",
+      "status": 0,
+      "stdout": "PASS payment deferred shared module two rapid opens creates one shell adapter and cleans up\nPASS payment authoritative loading and overpayment rejection\nPASS payment mixed partial failure reconciles and retry retains failed intent only\nPASS payment slow POST blocks duplicate close Escape and backdrop\nPASS payment stale successful first mixed entry never posts second into new order\nPASS payment venue change defers reconciliation then original venue reopen reads before POST\nPASS payment same venue changed order failure reconciles captured origin only\nPASS payment permission loss before submission sends no POST\nPASS payment permission loss pending first mixed success starts no stale reads or second POST\nPASS payment reconcile failure disables submit until authoritative reopen\nPASS refund native cancel cleanup prevents stale load and clears active order\nPASS refund close reopen ignores stale earlier read\nPASS refund pending POST blocks duplicate submit cancel and close\nPASS refund ambiguous retry reuses exact persisted intent and rereads after success\nPASS refund context changed pending success clears intent but cannot reopen old entity\nPASS refund permission loss before submission sends no financial POST\nPASS critical primitive native cancel restores lease focus and cleanup once\nPASS critical primitive pending blocks all close routes and restores original disabled\nPASS critical primitive unexpected native close while pending reopens without cleanup\nPASS critical primitive keyboard Tab trap and select Escape consume first\nPASS critical primitive context change waits for pending then closes\nPASS shared confirmation observer context lost pending conceals draft and retains result\nPASS critical primitive repeated bind destroy does not retain per-element listeners\nPASS purchase posting cancel sends nothing and releases domain pending\nPASS purchase posting pending blocks double submit Escape and readbacks after success\nPASS purchase posting permission loss confirmation sends no POST\nPASS purchase reversal bounds and ambiguous retry reuse original key\nPASS purchase reversal changed venue pending does not read or paint new context\nPASS guest reversal two confirmations retry key and one pending operation\nPASS guest reversal selection changed before final submit cannot write old guest\nPASS guest reversal loss of external payout right cannot send financial POST\nPASS guest reversal late success selected guest changed cannot fill new guest\nPASS movement pending blocks duplicate close and preserves error draft\nPASS movement late success changed venue cannot reset draft or refresh new context\nPASS movement success resets once reads stock and autoorders then closes\nPASS movement revoked permission before submit sends no operation\nUI071 source QA: 36 PASS / 0 FAIL\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui083-effects-cascade-contract.mjs",
+      "status": 0,
+      "stdout": "UI-08.3 effects/cascade contract: PASS\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui091-desktop-readability-contract.mjs",
+      "status": 0,
+      "stdout": "UI-09.1 desktop readability source contract PASS: theme pairs, scoped fixes, shell boundary and CSS mirror; actual browser evidence separate.\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/ui091-platform-retry-qa.mjs",
+      "status": 0,
+      "stdout": "UI091 platform retry PASS: actual load source clears stale settings error; mirror exact.\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/staff-cursor-zone-qa.mjs",
+      "status": 0,
+      "stdout": "Staff cursor/zone QA passed: transitions, role scope, SVG contract, hidden layout rule and source/dist sync.\n",
+      "stderr": ""
+    },
+    {
+      "file": "scripts/local-deploy-contract.mjs",
+      "status": 0,
+      "stdout": "LOCAL DEPLOY CONTRACT: PASS (preflight, secrets, healthcheck and HTTPS template)\n",
+      "stderr": ""
+    }
+  ],
+  "syntax": [
+    {
+      "file": "app.js",
+      "status": 0
+    },
+    {
+      "file": "dist/app.js",
+      "status": 0
+    },
+    {
+      "file": "dist/lock.js",
+      "status": 0
+    },
+    {
+      "file": "dist/platform.js",
+      "status": 0
+    },
+    {
+      "file": "dist/portal-session.js",
+      "status": 0
+    },
+    {
+      "file": "dist/portal.js",
+      "status": 0
+    },
+    {
+      "file": "dist/ui-dialog.js",
+      "status": 0
+    },
+    {
+      "file": "docs/design/UNIFIED_UI_2026-10-09/components/ui-component-reference.js",
+      "status": 0
+    },
+    {
+      "file": "lock.js",
+      "status": 0
+    },
+    {
+      "file": "platform.js",
+      "status": 0
+    },
+    {
+      "file": "portal-session.js",
+      "status": 0
+    },
+    {
+      "file": "portal.js",
+      "status": 0
+    },
+    {
+      "file": "scripts/staff-cursor-zone-qa.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/sync-published-assets.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui-component-primitives-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui-dialog-lifecycle-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui-dialog-mounted-form-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui-navigation-context-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui-role-shell-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui-semantic-token-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui042-ordinary-editor-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui042-table-schedule-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui043-lock-lifecycle-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui051-presentation-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui052-presentation-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui061-source-runtime-qa.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui062-source-runtime-qa.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui071-source-runtime-qa.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui083-effects-cascade-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui091-desktop-readability-contract.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui091-platform-retry-qa.mjs",
+      "status": 0
+    },
+    {
+      "file": "scripts/ui092-verify-archive.cjs",
+      "status": 0
+    },
+    {
+      "file": "server.js",
+      "status": 0
+    },
+    {
+      "file": "ui-dialog.js",
+      "status": 0
+    },
+    {
+      "file": "MAIN scripts/ui092-release-package.cjs",
+      "status": 0
+    },
+    {
+      "file": "MAIN scripts/ui092-verify-archive.cjs",
+      "status": 0
+    }
+  ],
+  "pairCount": 55,
+  "mirrorFailures": [],
+  "stagedDiffCheck": 0,
+  "totalDiffCheck": 0,
+  "unstagedDiff": "",
+  "unchangedDBAndDependencies": true,
+  "archiveVerifier": {
+    "sha256": "cbf7c2e74e88002ebbaad9f1aa293632b4a608eb883f07307286d4e239082643",
+    "frozenHashMatches": true,
+    "candidateBytesExact": true,
+    "syntax": 0,
+    "guardSelftests": 12,
+    "guardSelftestFailures": 0,
+    "guardEvidence": "health-archive-verifier-selftests.json"
+  },
+  "finalVerifierReviewAt": "2026-10-11T04:15:35.473Z"
+}
