@@ -47,9 +47,13 @@ assert.match(hashHandlerMatch[0], /if \(page === 'dashboard'\)[\s\S]*?renderDash
   'dashboard hash changes must render content and scroll the final title or focused section');
 assert.match(portal, /window\.addEventListener\('hashchange', updateAdminSectionTitle\)[\s\S]*?updateAdminSectionTitle\(\);/,
   'dashboard title and active navigation must track the same hash lifecycle');
+const navigationHelper = portal.match(/const hasNavigationPermission = \(node\) =>[\s\S]*?;(?=\r?\nconst operationsNav)/)?.[0];
+assert.ok(navigationHelper, 'actual navigation permission helper is available');
 const scrollCalls = [];
 const titleTarget = { scrollIntoView: (options) => scrollCalls.push(options) };
-const mockLinks = [{ dataset: { permission: 'dashboard' }, hidden: false }];
+const mockLinks = [{ dataset: { permission: 'dashboard' }, hidden: false },
+  { dataset: { permission: 'staff_schedule_view', anyPermissions: 'staff_schedule_view staff_schedule_self' }, hidden: false },
+  { dataset: { permission: 'finance', anyPermissions: 'finance settings' }, hidden: false }];
 const mockDocument = {
   querySelector: () => null,
   querySelectorAll: (selector) => selector === '.portal-sidebar [data-permission]' ? mockLinks : []
@@ -62,12 +66,15 @@ const mockWindow = { location: { get hash() { return hash; } } };
 const lifecycleContext = vm.createContext({
   disposeStaffDrawer: () => {}, target, document: mockDocument, window: mockWindow,
   syncCompanyPageClass: () => {},
+  portalPermissions: new Set(['dashboard', 'staff_schedule_self']),
   page: 'dashboard', hasPortalPermission: (permission) => permission === 'dashboard',
   renderTasks: () => {}, renderLoyalty: () => {}, renderDashboard: () => { rendered += 1; }
 });
+vm.runInContext(navigationHelper, lifecycleContext);
 const lifecycleHandler = vm.runInContext(`(${hashHandlerMatch[0].replace(/^const dashboardHashChangeHandler = /, '').replace(/;$/, '')})`, lifecycleContext);
 hash = '#staff'; lifecycleHandler();
 hash = '#settings'; lifecycleHandler();
+assert.deepEqual(mockLinks.map(link => link.hidden), [false, false, true], 'actual navigation helper grants self schedule and denies ungranted finance/settings');
 assert.equal(rendered, 2, 'repeated hash transitions must render the current dashboard content');
 assert.equal(scrollCalls.length, 2, 'each successful transition must scroll the final page title');
 assert.equal(scrollCalls[0].behavior, 'smooth');
@@ -77,9 +84,11 @@ const failingDocument = { ...mockDocument, querySelector: () => null };
 const errorContext = vm.createContext({
   disposeStaffDrawer: () => {}, target, document: failingDocument, window: mockWindow,
   syncCompanyPageClass: () => {},
+  portalPermissions: new Set(),
   page: 'inventory', hasPortalPermission: () => true,
   renderTasks: () => {}, renderLoyalty: () => {}, renderDashboard: () => {}
 });
+vm.runInContext(navigationHelper, errorContext);
 assert.doesNotThrow(() => vm.runInContext(`(${hashHandlerMatch[0].replace(/^const dashboardHashChangeHandler = /, '').replace(/;$/, '')})`, errorContext)(),
   'missing hash targets must leave navigation usable without a scroll exception');
 assert.doesNotMatch(portal, /classList\.add\('crm-route-enter'\)/,

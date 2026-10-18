@@ -44,7 +44,7 @@ assert.match(server, /finance_expense_corrections fc WHERE fc\.venue_id=c\.venue
   'category list exposes references retained in correction snapshots');
 assert.match(server, /FROM finance_recurring_rules rr WHERE rr\.venue_id=c\.venue_id AND rr\.category_id=c\.id\) AS "recurringRuleCount"/,
   'production category usage counts recurring rules within the owning venue');
-assert.match(portal, /title="Операции за текущий месяц" data-category-report="\$\{esc\(item\.id\)\}" data-category-report-archived="\$\{item\.active === false\}">Операции<\/button>/,
+assert.match(portal, /title="Операции за текущий месяц" data-category-report="\$\{esc\(item\.id\)\}" data-category-report-archived="\$\{item\.active === false\}">Посмотреть операции<\/button>/,
   'each category report button retains its default-month description in the accessible title');
 assert.match(ui, /categoryTabs\.setAttribute\('role', 'tablist'\)/,
   'category, mapping and revenue views expose an accessible tab list');
