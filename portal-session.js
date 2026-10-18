@@ -4,6 +4,8 @@
   const userKey = 'crm_session_user';
   const portalScript = '/portal.js?rev=2026101801';
   let pending = null;
+  let cooldownUntil = 0;
+  let cooldownTimer = null;
   let accepted = null;
   let loaded = false;
   let loading = false;
@@ -39,6 +41,26 @@
     if (url.pathname === '/clients' || url.pathname === '/admin') return canAccessRoute(session, url.pathname, url.hash);
     return permission === 'dashboard' || session.permissions.includes(permission);
   };
+  function updateRetryButton() {
+    const button = document.getElementById('portal-session-guard')?.querySelector('[data-session-retry]');
+    if (!button) return;
+    const seconds = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+    button.disabled = Boolean(pending || seconds);
+    button.textContent = seconds ? `Повтор через ${seconds} с` : pending ? 'Повторяем…' : 'Повторить';
+  }
+  function startCooldown(response) {
+    const seconds = Number(response.headers?.get('Retry-After'));
+    cooldownUntil = Date.now() + (Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 30) * 1000;
+    clearTimeout(cooldownTimer);
+    const tick = () => {
+      if (reloading) return;
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      if (!remaining) { cooldownUntil = 0; cooldownTimer = null; refresh(); return; }
+      block(`Слишком много запросов. Повтор через ${remaining} с.`);
+      cooldownTimer = setTimeout(tick, Math.min(1000, cooldownUntil - Date.now()));
+    };
+    tick();
+  }
   function block(message = 'Загрузка…', denied = false) {
     blocked = true;
     document.documentElement.dataset.portalAccess = 'checking';
@@ -57,10 +79,12 @@
     guard.querySelector('[data-session-message]').textContent = initialLoading ? '' : message;
     guard.querySelector('[data-session-retry]').hidden = denied || message === 'Загрузка…' || reloading;
     guard.querySelector('[data-session-login]').hidden = message === 'Загрузка…' || reloading;
+    updateRetryButton();
   }
   function reload(message = 'Доступ изменился. Обновляем рабочее место…') {
     if (reloading) return;
     reloading = true;
+    clearTimeout(cooldownTimer);
     block(message);
     window.location.reload();
   }
@@ -124,6 +148,7 @@
       const response = await fetch('/api/session', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal });
       const session = response.ok ? await response.json() : null;
       if (localStorage.getItem(tokenKey) !== token || reloading) return;
+      if (response.status === 429) { startCooldown(response); return; }
       if (response.status === 401) {
         accepted = null; block('Сессия завершена. Войдите снова.');
         localStorage.removeItem(tokenKey); localStorage.removeItem(userKey); window.location.replace('/login'); return;
@@ -137,7 +162,12 @@
   }
   function refresh() {
     if (reloading) return Promise.resolve();
-    if (!pending) pending = verify().finally(() => { pending = null; });
+    if (cooldownUntil > Date.now()) { updateRetryButton(); return Promise.resolve(); }
+    if (cooldownUntil) { cooldownUntil = 0; clearTimeout(cooldownTimer); cooldownTimer = null; }
+    if (!pending) {
+      pending = verify().finally(() => { pending = null; updateRetryButton(); });
+      updateRetryButton();
+    }
     return pending;
   }
   window.__portalSessionGate = { refresh, block, signature, canAccessRoute, canUseNavigation, get blocked() { return blocked; } };

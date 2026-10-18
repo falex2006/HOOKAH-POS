@@ -7,10 +7,10 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '2026101504';
 const portalRevision = '2026101801';
-const portalSessionRevision = '2026101801';
+const portalSessionRevision = '2026101802';
 // This employee-page iteration invalidates only its own HTML asset URLs.
 const employeePaymentsCssRevision = '2026101301';
-const employeePaymentsSessionRevision = '2026101801';
+const employeePaymentsSessionRevision = '2026101802';
 const lockRevision = '2026101801';
 const appRevision = '2026101801';
 const posWorkspaceRevision = '5';

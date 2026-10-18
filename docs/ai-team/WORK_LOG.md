@@ -5726,3 +5726,7 @@ Removed branded/fullscreen access-check presentation across11 portal pages. Init
 ### Release authorization and final evidence
 
 User authorized GitHub and VPS publication. Cache revisions updated to2026101801 and published aliases synchronized. Chromium fixture with actual inventory CSS passed1366/390px: no initial POS/check text, compact retry, no horizontal overflow, zero page errors; session recovery scenarios retained. Evidence tmp/session-stability-browser-1792338613193. Final code-health/HTTP auth regressions passed. Temporary evidence and helper scripts excluded from commit.
+
+### 2026-10-18 — Confirmed production429 recovery hotfix
+
+User screenshot correlated with nginx429 responses for session/preferences across multiple devices sharing an IP. Previous generic error masked rate limiting. Default API budget180 was exhausted by normal parallel page reads including recipe-cost cards. New default600 preserves explicit override and login/PIN throttles; exact GET session/preferences receive a separate bounded120/IP/min budget. Accurate Retry-After, visible retry pending/countdown, cooldown deduplication and automatic recovery. Authority and genuine401 unchanged. HTTP budget tests pass for configured30/default600, separate recovery cap, token rotation, mutation limits and window expiry; code-health approved. Scope is incident follow-up under existing GitHub/VPS release authorization.
