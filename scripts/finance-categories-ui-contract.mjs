@@ -44,8 +44,25 @@ assert.match(server, /finance_expense_corrections fc WHERE fc\.venue_id=c\.venue
   'category list exposes references retained in correction snapshots');
 assert.match(server, /FROM finance_recurring_rules rr WHERE rr\.venue_id=c\.venue_id AND rr\.category_id=c\.id\) AS "recurringRuleCount"/,
   'production category usage counts recurring rules within the owning venue');
-assert.match(portal, /data-category-report="\$\{esc\(item\.id\)\}" data-category-report-archived="\$\{item\.active === false\}">Операции за текущий месяц/,
-  'each category opens a report whose default month is clear on the button');
+assert.match(portal, /title="Операции за текущий месяц" data-category-report="\$\{esc\(item\.id\)\}" data-category-report-archived="\$\{item\.active === false\}">Операции<\/button>/,
+  'each category report button retains its default-month description in the accessible title');
+assert.match(ui, /categoryTabs\.setAttribute\('role', 'tablist'\)/,
+  'category, mapping and revenue views expose an accessible tab list');
+assert.match(ui, /button\.setAttribute\('role', 'tab'\); button\.setAttribute\('aria-controls', panel\.id\)/,
+  'each tab identifies its controlled panel');
+assert.match(ui, /button\.setAttribute\('aria-selected', String\(selected\)\);[\s\S]*?button\.tabIndex = selected \? 0 : -1;[\s\S]*?tabPanels\[position\]\.hidden = !selected/,
+  'selected tab, keyboard focus and panel visibility stay synchronized');
+for (const key of ['ArrowRight','ArrowLeft','Home','End']) assert.ok(ui.includes(`event.key === '${key}'`), `tabs support ${key} keyboard navigation`);
+assert.match(ui, /expenseChoiceDialog = document\.createElement\('dialog'\)/,
+  'expense choices open in a native modal dialog');
+assert.match(ui, /expenseChoiceDialog\.setAttribute\('aria-labelledby', 'finance-category-start-title'\)/,
+  'expense choice dialog has an accessible heading');
+assert.match(ui, /expenseChoiceDialog\.showModal\(\)/,
+  'expense entry action uses modal focus containment');
+assert.match(ui, /expenseChoiceDialog\.close\(\)/,
+  'expense choice dialog exposes a close action');
+assert.match(ui, /finance-category-overflow[\s\S]*?<summary[^>]*aria-label=/,
+  'secondary category actions retain a labelled expandable menu');
 assert.match(portal, /categoryId: reportButton\.dataset\.categoryReport, from: to\.slice\(0, 7\) \+ '-01', to/,
   'category drilldown opens on the current calendar month and exposes editable period filters');
 assert.match(portal, /linkedCategoryId=incomingParams\.get\("categoryId"\)[\s\S]*?includeArchivedCategory=incomingParams\.get\("includeArchived"\)==="true"[\s\S]*?loadUnifiedCategories\(current\.id,Boolean\(linkedCategoryId&&includeArchivedCategory\)\)[\s\S]*?categorySelect\.value=linkedCategoryId/,
