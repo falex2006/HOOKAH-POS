@@ -31,4 +31,3 @@ const settle=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
  h.session.permissions=[];await h.window.__portalSessionGate.refresh();assert.equal(h.reloads,1,'changed access still requires fresh authorized workspace');assert.equal(h.window.__portalSessionGate.blocked,true);
 }
 console.log('PORTAL SESSION LOAD QA: PASS (load deadline/error retry, no duplicate script, late-load guard, transient recovery preserves document, changed permissions reload)');
-
