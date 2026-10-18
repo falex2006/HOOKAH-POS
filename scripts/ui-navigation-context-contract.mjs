@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 const portal=fs.readFileSync('portal.js','utf8');
 const start=portal.indexOf('// UI-03.2:'),end=portal.indexOf('// Keep the sidebar structure',start);
 assert.ok(start>=0&&end>start);
-const source=portal.slice(start,end)+'\nglobalThis.subject={sidebarDisclosureKey,readSidebarDisclosure,sidebarRouteGroup,createSidebarNavigation};';
+const navigationHelper=portal.match(/const hasNavigationPermission = \(node\) =>[\s\S]*?;(?=\r?\nconst operationsNav)/)?.[0];
+assert.ok(navigationHelper,'Actual permission helper is available');
+const source=navigationHelper+'\n'+portal.slice(start,end)+'\nglobalThis.subject={hasNavigationPermission,sidebarDisclosureKey,readSidebarDisclosure,sidebarRouteGroup,createSidebarNavigation};';
 let checks=0;const equal=(a,b,message)=>{assert.deepEqual(a,b,message);checks++;};
 function fixture({user='u',venue='a',role='owner',route='/clients',type='navigate',store=new Map(),fail=false,denied=[]}={}) {
  const location=new URL(route,'http://example.invalid');
@@ -12,11 +14,14 @@ function fixture({user='u',venue='a',role='owner',route='/clients',type='navigat
  const link=(label,href,permission='orders')=>({textContent:label,dataset:{permission},hidden:false,getAttribute:()=>href});
  const groups=[['operations','Операции',[link('Гости','/clients'),link('Заказы','/orders')]],['menu','Меню',[link('Каталог товаров','/inventory?view=products','inventory_read')]],['inventory','Склад',[link('Остатки','/inventory','inventory_read')]],['finance','Финансы',[link('Обзор финансов','/finance','finance_read')]],['team','Команда',[link('Задачи','/admin#tasks')]],['system','Система',[link('Моя сеть','/network','settings'),link('Настройки','/admin#company','settings')]]].map(([key,label,links])=>{const attrs={};const summary={textContent:label,setAttribute:(k,v)=>{attrs[k]=v;}};return{dataset:{navGroup:key},links,summary,attrs,open:false,hidden:false,querySelector:()=>summary,querySelectorAll:()=>links};});
  const sidebar={querySelector:()=>input,querySelectorAll:()=>groups};
- const context=vm.createContext({URL,location,portalUser:{role},window:{__portalSessionVerified:{user:{id:user,venueId:venue}}},hasPortalPermission:p=>!denied.includes(p),performance:{getEntriesByType:()=>[{type}]},localStorage:{getItem:k=>{if(fail)throw Error('disabled');return store.get(k)??null;},setItem:(k,v)=>{if(fail)throw Error('disabled');store.set(k,v);}}});
+ const context=vm.createContext({URL,location,portalUser:{role},window:{__portalSessionVerified:{user:{id:user,venueId:venue}}},portalPermissions:new Set(['orders','inventory_read','finance_read','settings','staff_schedule_view','staff_schedule_self'].filter(p=>!denied.includes(p))),hasPortalPermission:p=>!denied.includes(p),performance:{getEntriesByType:()=>[{type}]},localStorage:{getItem:k=>{if(fail)throw Error('disabled');return store.get(k)??null;},setItem:(k,v)=>{if(fail)throw Error('disabled');store.set(k,v);}}});
  vm.runInContext(source,context);let syncs=0;const api=context.subject.createSidebarNavigation(sidebar,()=>syncs++);
  const key=context.subject.sidebarDisclosureKey(context.window.__portalSessionVerified);
  return{api,groups,input,store,key,subject:context.subject,open:()=>groups.filter(g=>g.open&&!g.hidden).map(g=>g.dataset.navGroup),saved:()=>JSON.parse(store.get(key)||'null'),toggle:k=>api.toggle({preventDefault(){}},groups.find(g=>g.dataset.navGroup===k),k),navigate:r=>{location.href=new URL(r,location).href;api.syncRoute();},syncs:()=>syncs};
 }
+const scheduleNode={dataset:{permission:'staff_schedule_view',anyPermissions:'staff_schedule_view staff_schedule_self'}};
+equal(fixture({denied:['staff_schedule_view']}).subject.hasNavigationPermission(scheduleNode),true,'Actual helper permits explicit self-only schedule grant');
+equal(fixture({denied:['staff_schedule_view','staff_schedule_self']}).subject.hasNavigationPermission(scheduleNode),false,'Actual helper denies schedule when every alternative is absent');
 const store=new Map([['crm_sidebar_group_u_finance','open'],['crm_sidebar_group_u_team','open']]);
 let f=fixture({store});equal(f.open(),['operations'],'Ignore venue-less legacy flags');
 f.toggle('finance');f.toggle('team');equal(f.open(),['team'],'Latest group replaces sibling');equal(f.saved().openGroup,'team','One object stores latest selection');
