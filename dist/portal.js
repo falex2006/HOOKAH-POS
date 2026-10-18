@@ -5179,7 +5179,7 @@ function renderFinance() {
   target.innerHTML = `<div class="page-title"><div><p class="eyebrow">КОНТРОЛЬ ДЕНЕГ</p><h1>Финансы</h1><p class="muted">Оплаты и выручка за выбранную дату; график и итоговые показатели имеют свои периоды.</p></div><label class="finance-summary-date">Дата сводки<input class="date-input" type="date" value="${localDateKey()}" id="finance-date" aria-label="Дата сводки оплат"></label></div><nav class="finance-section-nav" aria-label="Разделы финансов"><a href="#finance-chart-panel">График</a><a href="#finance-result-panel">Результат</a><a href="#finance-staff-panel">Команда</a><a href="#cash-register-panel">Смена и касса</a><a href="#payables">Поставщики</a><a href="#expenses">Расходы</a><a href="#finance-payments-panel">Оплаты</a><a href="#discounts">Скидки</a><a href="#payroll">Зарплата</a></nav><div class="kpi-grid compact finance-kpi-grid"><article class="kpi dashboard-revenue-card finance-revenue-card" data-kpi-target="#payment-list" data-revenue-style="hero" aria-label="Показать оплаты"><div class="dashboard-revenue-main"><span id="finance-revenue-label">Выручка сегодня</span><strong id="finance-revenue">—</strong><small class="positive">Данные обновляются из оплат ↗</small></div><div class="dashboard-revenue-pending"><span>Ожидается</span><strong id="finance-pending-revenue">—</strong><small id="finance-pending-detail">за открытые заказы</small></div></article><article class="kpi" ${hasPortalPermission('orders') ? 'data-kpi-route="/" aria-label="Открыть зал и заказы"' : ''}><span>Заказы</span><strong id="finance-orders">—</strong><small id="finance-orders-detail">Закрытые и открытые</small></article><article class="kpi" data-kpi-target="#payment-list" aria-label="Показать платежи"><span>Платежи</span><strong id="finance-payments">—</strong><small id="finance-average-check">Проведено операций · Средний чек смены: —</small></article></div><section class="panel finance-chart-panel" id="finance-chart-panel"><div class="panel-head"><div><h2>Динамика показателей</h2><span class="muted">Настраиваемая инфографика за выбранный период</span></div><div class="toolbar-row finance-chart-controls"><label>Показатель<select id="finance-chart-metric"><option value="revenue">Оплаченные продажи</option><option value="recognized">Признанная выручка</option><option value="profit">Чистая прибыль</option><option value="expenses">Расходы</option><option value="orders">Заказы</option><option value="average_median">Средний и медианный чек</option><option value="average">Средний чек</option></select></label><label>Период<select id="finance-chart-period"><option value="7">7 дней</option><option value="14">14 дней</option><option value="30">30 дней</option><option value="90">90 дней</option><option value="365">Год</option><option value="all">За всё время</option></select></label><div class="finance-chart-view" role="group" aria-label="Вид диаграммы"><button type="button" class="is-active" aria-pressed="true" data-finance-chart-view="line">Линия</button><button type="button" aria-pressed="false" data-finance-chart-view="bars">Столбцы</button><button type="button" aria-pressed="false" data-finance-chart-view="table">Таблица</button></div></div></div><div id="finance-chart" class="finance-chart"><div class="empty">Загрузка графика…</div></div></section><section class="panel finance-business-panel" id="finance-result-panel"><div class="panel-head"><div><h2>Финансовый результат заведения</h2><span class="muted">Оборот, расходы и чистая прибыль за всё время</span></div></div><div class="finance-result-grid"><article><span>Общий оборот</span><strong id="finance-total-turnover">—</strong><small>Оплаченные продажи до учёта возвратов</small></article><article><span>Признанная выручка</span><strong id="finance-total-recognized">—</strong><small>Финальная сумма закрытых чеков</small></article><article><span>Расходная часть</span><strong id="finance-total-expenses">—</strong><small>Зарегистрированные расходы</small></article><article><span>Себестоимость продаж</span><strong id="finance-total-cogs">—</strong><small>Списано по технологическим картам</small></article><article><span>Чистая прибыль</span><strong id="finance-net-profit">—</strong><small>Признанная выручка минус расходы и себестоимость</small></article></div><p class="muted finance-expense-note">Расходы формируются из проведённых операций и признанных обязательств.</p><div class="finance-segment-grid"><article><span>Среднее количество столов в день</span><strong id="finance-avg-tables">—</strong><small>Занятые столы по закрытым заказам</small></article><article><span>Средний чек · Бар</span><strong id="finance-avg-bar">—</strong><small>Заказы с позициями бара</small></article><article><span>Средний чек · Кальяны</span><strong id="finance-avg-hookah">—</strong><small>Заказы с позициями кальянов</small></article></div></section><section class="panel finance-staff-panel" id="finance-staff-panel"><div class="panel-head"><div><h2>Динамика команды</h2><span class="muted">Вклад сотрудников и управляющих в оборот за всё время</span></div></div><div id="finance-staff-dynamics" class="finance-staff-dynamics"><div class="empty">Загрузка динамики команды…</div></div></section><section class="panel cash-register-panel is-closed" id="cash-register-panel"><div class="panel-head"><div><h2>Смена и касса</h2><span class="muted" id="cash-register-status">Проверяем состояние смены…</span><small class="cash-register-hint" id="cash-register-hint">Смена связывает оплаты с текущим рабочим периодом.</small></div><a class="button small" id="cash-register-action" href="/admin#shift-control">Открыть смену</a></div><div class="cash-register-grid"><div><span>Стартовый остаток</span><strong id="cash-register-opening">—</strong></div><div><span>Открыта</span><strong id="cash-register-opened">—</strong></div><div><span>Номер смены</span><strong id="cash-register-id">—</strong></div></div></section><div class="content-grid finance-payments-grid" id="finance-payments-panel"><section class="panel wide"><div class="panel-head payment-panel-head"><div><h2>Оплаты по способу</h2><span class="muted">Сравнение способов оплаты за выбранную дату</span></div><div class="finance-chart-view" role="group" aria-label="Вид оплат"><button type="button" class="is-active" aria-pressed="true" data-payment-view="donut">Круговая</button><button type="button" aria-pressed="false" data-payment-view="bars">Колонки</button><button type="button" aria-pressed="false" data-payment-view="line">График</button><button type="button" aria-pressed="false" data-payment-view="table">Таблица</button></div></div><div class="payment-list" id="payment-list"></div></section></div>`;
   target.querySelector('.finance-section-nav')?.insertAdjacentHTML('beforeend', '<a href="#other-income">Доходы вне POS</a>');
   const payablesSection = document.createElement('section');
-  payablesSection.className = 'panel finance-payables-panel';
+  payablesSection.className = 'panel finance-payables-panel'; payablesSection.id = 'payables';
   payablesSection.innerHTML = `<div class="panel-head"><div><h2>Расчёты с поставщиками</h2><span class="muted">Проведённые поставки и остаток оплаты по каждой накладной</span></div><div class="finance-payables-totals"><span><b id="payables-count">—</b><small>накладных</small></span><span><b id="payables-balance">—</b><small>к оплате</small></span></div></div><div class="finance-payables-toolbar"><label class="finance-payables-search">Поиск поставщика или накладной<input id="payables-search" type="search" placeholder="Название или номер"></label><label>Статус оплаты<select id="payables-status"><option value="">Все</option><option value="unpaid">Не оплачена</option><option value="partially_paid">Частично оплачена</option><option value="paid">Оплачена</option></select></label></div><div class="finance-payables-date-filters" role="group" aria-label="Фильтры расчётов с поставщиками"><label>Дата накладной с<input id="payables-date-from" type="date"></label><label>Дата накладной по<input id="payables-date-to" type="date"></label><label class="payables-filter-undated"><input id="payables-include-undated" type="checkbox"> Включить накладные без даты</label><div class="toolbar-row"><button type="button" class="button small primary" id="payables-filter-apply">Показать</button><button type="button" class="button small" id="payables-filter-reset">За всё время</button></div></div><p id="payables-filter-message" class="form-message" role="status" aria-live="polite"></p><div id="payables-list" class="finance-payables-list" aria-live="polite"><div class="empty">Загрузка поставок…</div></div><p class="muted finance-payables-note">Оплата уменьшает денежный остаток. Себестоимость товара учитывается в прибыли при продаже.</p>`;
   if (!employeeFinanceView) target.insertBefore(payablesSection, target.querySelector('.finance-payments-grid'));
   const obligationSection = document.createElement('section');
@@ -5228,6 +5228,7 @@ function renderFinance() {
   const confirmFinanceCreateReadback=async(path,id,dueDate)=>{const query=dueDate?`?from=${encodeURIComponent(dueDate)}&to=${encodeURIComponent(dueDate)}`:'';const result=await api(`${path}${query}`);return(result.items||[]).some((item)=>item.id===id);};
   const openFinanceForm=async(form)=>{
     newObligationForm.hidden=true;newRuleForm.hidden=true;form.hidden=false;
+    obligationSection.querySelector('.panel-head').after(form);
     const message=form.querySelector('[data-form-message]');
     const submit=form.querySelector('[type="submit"]');
     const loadCategories=async()=>{
@@ -6473,15 +6474,53 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
     };
     openEntry().catch(()=>entryNotice('Не удалось открыть форму. Повторите переход из справочника категорий.'));
   }
+  // Switch visibility only: forms, request closures and unsaved values stay mounted.
+  const financeNav = target.querySelector('.finance-section-nav');
+  const financeViews = [
+    ['overview', 'Обзор', '#', '.finance-kpi-grid,#finance-chart-panel'],
+    ['expenses', 'Расходы', '#expenses', '#expenses'],
+    ['income', 'Прочие доходы', '#other-income', '#other-income'],
+    ['obligations', 'Обязательства', '#business-obligations', '#business-obligations'],
+    ['suppliers', 'Поставщики', '#payables', '#payables'],
+    ['payments', 'Оплаты POS', '#finance-payments-panel', '.finance-payments-grid'],
+    ['cash', 'Смена и касса', '#cash-register-panel', '#cash-register-panel'],
+    ['result', 'Финансовый результат', '#finance-result-panel', '#finance-result-panel'],
+    ['staff', 'Команда', '#finance-staff-panel', '#finance-staff-panel'],
+    ['discounts', 'Скидки', '#discounts', '#discounts'],
+    ['payroll', 'Зарплата', '#payroll', '#payroll']
+  ];
+  const directPanel = node => { while(node && node.parentElement !== target) node=node.parentElement; return node; };
+  const financePanels = new Map();
+  financeViews.forEach(([key,, ,selector]) => target.querySelectorAll(selector).forEach(node => {
+    const panel=directPanel(node); if(panel){panel.classList.add('finance-view-panel');financePanels.set(panel,key);}
+  }));
+  financeNav.classList.add('finance-view-navigation');
+  financeNav.innerHTML=financeViews.map(([key,label,hash])=>`<a href="${hash}" data-finance-view="${key}">${label}</a>`).join('');
+  const financeViewPicker=document.createElement('label');financeViewPicker.className='finance-view-picker';
+  financeViewPicker.innerHTML='<span>Раздел финансов</span><select aria-label="Раздел финансов">'+financeViews.map(([key,label])=>`<option value="${key}">${label}</option>`).join('')+'</select>';
+  financeNav.before(financeViewPicker);
+  const financeViewSelect=financeViewPicker.querySelector('select');
+  financeViewSelect.addEventListener('change',()=>{location.hash=financeViews.find(([key])=>key===financeViewSelect.value)[2];});
   const syncFinanceWorkspace = () => {
     if (!target.isConnected) return;
-    const payroll = location.hash === '#payroll'; target.classList.toggle('finance-payroll-workspace', payroll);
-    document.title = `Hookah POS — ${payroll ? 'Зарплата' : 'Финансы'}`;
     const anchor = document.getElementById(location.hash.slice(1));
+    const selected=financePanels.get(directPanel(anchor)) || 'overview';
+    target.dataset.financeView=selected;
+    target.classList.remove('finance-payroll-workspace');
+    financePanels.forEach((key,panel)=>{panel.hidden=key!==selected;if(key===selected && panel.tagName==='DETAILS')panel.open=true;});
+    financeNav.querySelectorAll('a').forEach(link=>{if(link.dataset.financeView===selected)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
+    financeViewSelect.value=selected;
+    financeViewSelect._customSelectRefresh?.();
+    target.querySelector('.finance-summary-date').hidden=!['overview','payments'].includes(selected);
+    const selectedLabel=financeViews.find(([key])=>key===selected)[1];
+    const heading=target.querySelector('.page-title:not(.finance-payroll-title)');
+    heading.querySelector('h1').textContent=selected==='overview'?'Обзор финансов':selectedLabel;
+    heading.querySelector('.muted').textContent=selected==='overview'?'Оплаты за выбранную дату и динамика за период. Другие операции доступны в разделах ниже.':'Выберите другой раздел, чтобы перейти к его операциям и показателям.';
+    document.title = `Hookah POS — ${selectedLabel}`;
     for (let parent = anchor?.parentElement; parent && parent !== target; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
     document.querySelectorAll('.portal-sidebar [data-permission]').forEach((link) => { link.hidden = !hasNavigationPermission(link); });
     document.querySelector('.portal-sidebar')?._navigationController?.refresh();
-    requestAnimationFrame(() => (payroll ? payrollTitle : anchor || target.querySelector('.page-title'))?.scrollIntoView({ block: 'start' }));
+    requestAnimationFrame(() => (financeViews.some(([, ,hash])=>hash===location.hash) ? heading : anchor || heading)?.scrollIntoView({ block: 'start' }));
   };
   if (target._financeHashChangeHandler) window.removeEventListener('hashchange', target._financeHashChangeHandler);
   target._financeHashChangeHandler = syncFinanceWorkspace; window.addEventListener('hashchange', syncFinanceWorkspace);
@@ -6489,6 +6528,9 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
     if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
     const kpi = event.target.closest('[data-kpi-target]');
     if (!kpi) return;
+    event.preventDefault();
+    location.hash=kpi.dataset.kpiTarget;
+    syncFinanceWorkspace();
     const node = target.querySelector(kpi.dataset.kpiTarget);
     for (let parent = node?.parentElement; parent && parent !== target; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
     node?.scrollIntoView({ block: 'start', behavior: 'smooth' });

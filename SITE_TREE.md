@@ -118,3 +118,16 @@ API находится только под `/api/*` и не смешиваетс
 Финальные категории: локальные вкладки «Категории», «Распределение POS», «Отчёт выручки POS» в существующем /finance/categories. Выбор сценария расхода открывается dialog, архивирование — меню дополнительных действий. Отчёт доступен после выбора валидного заведения.
 
 Финансовые переходы (локальная QA 2026-10-18): вкладки `/finance/categories?tab=categories|pos-mapping|pos-report` восстанавливаются после reload и Back/Forward. «Операции» ведут в `/finance/report?categoryId=…&from=…&to=…#financial-sources`; архивная статья добавляет `includeArchived=true`. Активная доходная категория с правом `finance` открывает `/finance?action=other-income&categoryId=…#other-income`: только выбор статьи в пустой форме, без создания документа. Заполненная или отправляемая форма не заменяется. Параметры входа потребляются однократно.
+
+Рабочий зал `/`: столы и действия с заказами доступны только после подтверждения открытой смены. При закрытой смене вместо схемы показывается «Откройте смену» с кнопкой существующего сценария открытия; без права управления сменой — пояснение обратиться к уполномоченному сотруднику. Ожидание и ошибка проверки смены не раскрывают схему. После открытия смены зал восстанавливается; подтверждённое закрытие убирает столы и открытые редакторы.
+Тихая фоновая проверка сохраняет последнее подтверждённое открытое состояние до ответа, чтобы не прерывать работу каждые 20 секунд. Закрытие на другом устройстве отражается после очередной проверки или возврата фокуса; ошибка проверки блокирует зал.
+
+
+### Finance section navigation (2026-10-18)
+`/finance` shows the overview only. Existing hashes select mounted sections: expenses,
+other-income, business-obligations, payables, finance-payments-panel, cash-register-panel,
+finance-result-panel, finance-staff-panel, discounts and payroll. Nested links (expense-form,
+payment-list) select their parent section. Back/Forward and mobile section picker use the
+same hash contract; switching sections preserves unsaved input. Category entry routes and
+permissions remain unchanged. Closed POS shift has one primary opening action; its header
+shows status while the floor gate is visible.

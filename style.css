@@ -5133,13 +5133,13 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .finance-category-workspace [role=tabpanel][hidden]{display:none!important}
 .finance-category-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 20px;padding:5px;background:var(--ui-input,#191e24);border-radius:12px;width:fit-content;max-width:100%}
 .finance-category-tabs [role=tab]{min-height:44px;padding:10px 16px;border:0;border-radius:8px;background:transparent;color:inherit;cursor:pointer}
-.finance-category-tabs [role=tab][aria-selected=true]{background:var(--ui-accent,#a52b45);color:#fff}
+.finance-category-tabs [role=tab][aria-selected=true]{background:var(--ui-action-fill);color:#fff}
 .finance-category-tabs [role=tab]:focus-visible{outline:2px solid var(--ui-focus,#ff913e);outline-offset:2px}
 .finance-category-workspace #finance-category-list .category-row{border:0;border-bottom:1px solid var(--line,#303641);border-radius:0;background:transparent;padding:14px 0;min-height:76px}
 .finance-category-workspace #finance-category-list .category-row:last-child{border-bottom:0}
 .finance-category-overflow{position:relative}.finance-category-overflow>summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:grid;place-items:center}.finance-category-overflow>summary::-webkit-details-marker{display:none}
-.finance-category-overflow-menu{position:absolute;right:0;top:100%;z-index:10;padding:8px;background:var(--ui-surface,#20252c);border:1px solid var(--line,#3a424c);border-radius:10px;box-shadow:0 8px 24px #0005;min-width:160px}
-.finance-category-start-dialog{width:min(740px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;border:1px solid var(--line,#3a424c);border-radius:20px;background:var(--ui-surface,#1b2026);color:var(--text-primary,#f3f6fb);padding:24px}
+.finance-category-overflow-menu{position:absolute;right:0;top:100%;z-index:10;padding:8px;background:var(--ui-panel,#20252c);border:1px solid var(--line,#3a424c);border-radius:10px;box-shadow:0 8px 24px #0005;min-width:160px}
+.finance-category-start-dialog{width:min(740px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;border:1px solid var(--line,#3a424c);border-radius:20px;background:var(--ui-panel,#1b2026);color:var(--text-primary,#f3f6fb);padding:24px}
 .finance-category-start-dialog::backdrop{background:#0009}.finance-category-start-dialog .panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
 .finance-category-start-dialog .finance-entry-options .button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;white-space:normal;gap:8px;padding:16px;min-height:110px}
 .finance-category-workspace .finance-categories-panel{margin-bottom:20px}
@@ -5149,7 +5149,7 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .finance-category-workspace input[type=date],.finance-category-workspace input[type=month]{border-radius:10px;padding:10px 12px;font:inherit;border:1px solid var(--line,#64717d);background:var(--ui-input,#1d2229);color:inherit;min-height:44px;box-sizing:border-box}
 .finance-category-dialog #archive-finance-category{margin-left:auto}
 @media(max-width:700px){.finance-category-tabs{width:100%;box-sizing:border-box}.finance-category-tabs [role=tab]{flex:1 1 auto;padding:10px}.finance-category-workspace [data-income-mapping-form]{grid-template-columns:1fr}.finance-category-start-dialog{padding:18px}.finance-category-start-dialog .finance-entry-options .button{min-height:0}}
-.velora-theme .finance-category-workspace .finance-category-tabs .button[aria-selected=true]{background:var(--ui-accent,#a52b45);border-color:transparent;color:#fff}.velora-theme .finance-category-workspace .finance-category-tabs .button[aria-selected=false]{background:transparent;border-color:transparent}
+.velora-theme .finance-category-workspace .finance-category-tabs .button[aria-selected=true]{background:var(--ui-action-fill);border-color:transparent;color:#fff}.velora-theme .finance-category-workspace .finance-category-tabs .button[aria-selected=false]{background:transparent;border-color:transparent}
 
 /* Keep finance deep-link targets below the responsive sticky header. */
 #page-content.ui-financial-pages :is(#financial-sources,#expense-form,#business-obligations,#other-income,[data-obligation-form],[data-rule-form],[data-other-income-form]){scroll-margin-top:calc(var(--crm-header-height,68px) + 16px)}
@@ -5171,3 +5171,65 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .finance-category-filter-options[open]>summary::before{content:'▾'}
 .finance-category-filter-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:8px}
 @media(max-width:700px){.finance-category-workspace>.page-title .toolbar-row{display:flex;flex-wrap:wrap;gap:8px}.finance-category-workspace>.page-title .toolbar-row>.button{width:auto;flex:1 1 auto}.finance-category-filter-fields{grid-template-columns:minmax(0,1fr)}}
+
+/* The working floor is available only after an authoritative open-shift read. */
+.staff-theme:not([data-floor-shift="open"]) :is(.floor-workspace,.workspace>.order,#catalog,#payment-modal){display:none!important}
+.staff-theme:not([data-floor-shift="open"]):not(.staff-orders-view) :is(.queue,#pos-workspace-toolbar){display:none!important}
+.staff-floor-shift-gate{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:300px;padding:32px 20px;margin:20px 0;border:1px solid var(--ui-border-control,#343c47);border-radius:18px;background:var(--ui-panel,#1b2026);text-align:center}
+.staff-floor-shift-gate h2,.staff-floor-shift-gate p{margin:0;max-width:520px}
+.staff-floor-shift-gate p{color:var(--ui-text-secondary,#aeb8c5);line-height:1.5}
+.staff-floor-shift-gate button{min-height:44px;padding:12px 24px}
+.staff-floor-shift-gate[hidden],.staff-orders-view .staff-floor-shift-gate{display:none!important}
+@media(max-width:650px){.staff-floor-shift-gate{min-height:240px;padding:24px 16px}.staff-floor-shift-gate button{width:100%}}
+/* Financial documents keep their summary, actions and expanded forms in separate rows. */
+.finance-workspace #business-obligations :is([data-obligation-list],[data-rule-list])>.category-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-width:0;padding:18px}
+.finance-workspace #business-obligations :is([data-obligation-list],[data-rule-list])>.category-row>div:first-child{flex:1 0 100%;min-width:0;max-width:100%;padding-bottom:10px;border-bottom:1px solid var(--ui-border-subtle);overflow-wrap:anywhere}
+.finance-workspace #business-obligations :is([data-obligation-list],[data-rule-list])>.category-row>.badge{max-width:100%;white-space:normal}
+.finance-workspace #business-obligations :is([data-obligation-list],[data-rule-list])>.category-row>.button{flex:0 1 auto;max-width:100%;white-space:normal;text-align:center}
+.finance-workspace #business-obligations :is([data-obligation-list],[data-rule-list])>.category-row>details{flex:1 0 100%;min-width:0;max-width:100%;padding-top:10px;border-top:1px solid var(--ui-border-subtle)}
+.finance-workspace #business-obligations .category-row :is(.toolbar-row,summary){margin-top:10px}
+.finance-workspace #business-obligations .category-row summary{min-height:44px;box-sizing:border-box;padding:10px 0;cursor:pointer;overflow-wrap:anywhere}
+.finance-workspace #business-obligations .category-row .toolbar-row{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.finance-workspace #business-obligations .category-row .toolbar-row>.button{max-width:100%;white-space:normal}
+.finance-workspace #business-obligations .category-row .form-row,.finance-workspace #business-obligations .finance-payables-date-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;align-items:end;min-width:0}
+.finance-workspace #business-obligations :is(.category-row form,.category-row label,.finance-payables-date-filters>label){min-width:0}
+.finance-workspace #business-obligations :is(.category-row label,.finance-payables-date-filters>label){display:grid;gap:6px}
+.finance-workspace #business-obligations :is(.category-row,.finance-payables-date-filters) :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea,.custom-select,.custom-select-trigger){width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.finance-workspace #business-obligations .category-row form{display:grid;gap:12px;margin-top:12px}
+.finance-workspace #business-obligations .category-row form[hidden],.finance-workspace #business-obligations label[hidden]{display:none}
+.finance-workspace :is(.finance-view-navigation,.finance-view-panel){min-width:0;max-width:100%}
+.finance-workspace .finance-view-panel[hidden]{display:none!important}
+@media(max-width:600px){
+  .finance-workspace #business-obligations :is([data-obligation-list],[data-rule-list])>.category-row{padding:14px}
+  .finance-workspace #business-obligations :is([data-obligation-list],[data-rule-list])>.category-row>.button{flex:1 1 140px}
+  .finance-workspace #business-obligations .category-row .form-row,.finance-workspace #business-obligations .finance-payables-date-filters{grid-template-columns:minmax(0,1fr)}
+  .velora-theme .finance-workspace #business-obligations :is([data-obligation-form],[data-rule-form]) .form-row{padding:0}
+}
+
+/* One financial workspace at a time; navigation never resets mounted forms. */
+#shift-closed-status[hidden],#shift-toggle[hidden]{display:none!important}
+#page-content.finance-workspace .finance-view-panel[hidden],#page-content.finance-workspace .finance-summary-date[hidden]{display:none!important}
+#page-content.finance-workspace>.finance-disclosure>summary{display:none}
+#page-content.finance-workspace>.finance-disclosure{padding:0;border:0;background:none}
+#page-content.finance-workspace .finance-view-navigation:before{display:none}
+#page-content.finance-workspace .finance-view-navigation a[aria-current="page"]{background:var(--ui-action-fill);color:var(--ui-text-on-action);border-color:var(--ui-action-fill)}
+.finance-view-picker{display:none;min-width:0}
+.finance-workspace .finance-result-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+@media(max-width:700px){
+ #page-content.finance-workspace .finance-view-navigation{display:none}
+ .finance-view-picker{display:grid;gap:8px;margin-bottom:16px}
+ .finance-view-picker select{width:100%;min-width:0;min-height:44px;padding:10px;border-radius:10px;background:var(--ui-panel);color:var(--ui-text-primary);border:1px solid var(--ui-border-control);font:inherit}
+}
+
+.finance-workspace[data-finance-view="payroll"]>#payroll{display:block}
+
+/* Date ranges must keep each caption with its own control on narrow screens. */
+.finance-workspace .finance-payables-date-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;align-items:end}
+.finance-workspace .finance-payables-date-filters>label{display:grid;gap:6px;min-width:0}
+.finance-workspace .finance-payables-date-filters>label.payables-filter-undated{display:flex;align-items:center}
+.finance-workspace .finance-payables-date-filters :is(input:not([type=checkbox]),select,.custom-select,.custom-select-trigger){min-width:0;width:100%;max-width:100%;box-sizing:border-box}
+.finance-workspace .finance-payables-date-filters .toolbar-row{display:flex;flex-wrap:wrap;gap:8px}
+
+.staff-theme #shift-closed-status{display:inline-flex;align-items:center;gap:6px;color:var(--ui-text-secondary,#aeb8c5)}
+.staff-theme .staff-floor-shift-gate button{width:auto;min-width:200px;max-width:100%}
+@media(max-width:650px){.staff-theme .staff-floor-shift-gate button{width:100%;min-width:0}}

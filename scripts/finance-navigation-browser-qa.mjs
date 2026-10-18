@@ -97,6 +97,43 @@ try {
     await page.waitForFunction(()=>!document.querySelector('.portal-sidebar').inert&&!document.querySelector('.portal-sidebar').hasAttribute('aria-hidden'));
   };
 
+  if (!baseline) {
+    await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
+    const activeView=()=>page.locator('#page-content').getAttribute('data-finance-view');
+    assert.equal(await activeView(),'overview');
+    for(const key of ['expenses','income','obligations','suppliers','payments','cash','result','staff','discounts','payroll','overview']) {
+      await page.locator(`[data-finance-view="${key}"]`).click();
+      await page.waitForFunction(key=>document.querySelector('#page-content').dataset.financeView===key,key);
+      const visible=await page.locator('#page-content>.finance-view-panel').evaluateAll(nodes=>nodes.filter(n=>n.getClientRects().length).map(n=>n.id||n.className));
+      assert.ok(visible.length>0,`${key} has a visible panel`);
+      assert.equal(await page.locator('.finance-view-navigation [aria-current="page"]').count(),1);
+      if(key!=='overview')assert.equal(await page.locator('.finance-kpi-grid').isVisible(),false);
+    }
+    await page.locator('[data-kpi-target="#payment-list"]').first().click();
+    await page.waitForFunction(()=>document.querySelector('#page-content').dataset.financeView==='payments');
+    assert.equal(await page.locator('#payment-list').isVisible(),true);
+    await page.locator('[data-finance-view="expenses"]').click();
+    await page.locator('#expense-form').locator('xpath=..').locator(':scope > summary').click();
+    await page.locator('#expense-amount').fill('123.45');
+    await page.locator('[data-finance-view="suppliers"]').click();
+    await page.locator('#payables').waitFor({state:'visible'});
+    await page.goBack();
+    await page.waitForFunction(()=>document.querySelector('#page-content').dataset.financeView==='expenses');
+    assert.equal(await page.locator('#expense-amount').inputValue(),'123.45');
+    await page.reload({waitUntil:'networkidle'});assert.equal(await activeView(),'expenses');
+    for(const width of [390,320]) {
+      await page.setViewportSize({width,height:844});
+      await selectOption(page.locator('.finance-view-picker select'),'suppliers');
+      await page.waitForFunction(()=>document.querySelector('#page-content').dataset.financeView==='suppliers');
+      assert.equal(await page.locator('#payables').isVisible(),true);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+      const file=`section-picker-${width}.png`;await page.screenshot({path:path.join(artifacts,file),fullPage:true});evidence.screenshots.push({file,width});
+    }
+    evidence.assertions.push('finance sections isolate panels, supplier target works, KPI reveals payments, Back preserves input, reload and mobile picker restore selection');
+    await page.setViewportSize({width:1366,height:900});
+  }
+
+  if (process.env.FINANCE_NAV_SECTIONS_ONLY !== '1') {
   const categories = async () => { await page.goto(`${base}/finance/categories`,{waitUntil:'networkidle'});await page.locator(`[data-category-report="${rent}"]`).waitFor(); };
   for (const theme of ['dark','light']) for (const width of [1366,390]) for (const route of ['categories','overview','report']) {
     await page.setViewportSize({width,height:900});
@@ -348,7 +385,9 @@ try {
     assert.equal(await reader.locator('#cash-register-action').isVisible(),false,'finance-only reader has no cash shift action');
     evidence.assertions.push('finance reader cannot create/edit/archive/start and API denies write');await reader.close();
   }
+  }
   assert.deepEqual(evidence.errors,[]);
+  evidence.scope=process.env.FINANCE_NAV_SECTIONS_ONLY==='1'?'section-navigation':'full-finance';
   evidence.status=baseline?'BASELINE_CAPTURED':'PASS';
   console.log(`FINANCE NAVIGATION ${evidence.status}: ${artifacts}`);
 } catch(error) { evidence.status='FAIL';evidence.failure={name:error.name,message:error.message};evidence.serverDiagnostics=serverDiagnostics;throw error; }

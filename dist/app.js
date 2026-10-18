@@ -150,7 +150,7 @@ const clearStaffAccessState=(phase='denied')=>{
   closeStaffAttendanceDialog();
   document.body.classList.remove('staff-red-cursor');
   staffAccessRevision++;catalogRequestRevision++;catalogRequest=null;catalogRequestContext='';floorRequestRevision++;floorRefreshPending=null;ordersRequestRevision++;orderPricingRevision++;paymentLoadRevision++;
-  paymentState=null;products=[];catalogState='ready';currentShift=null;shiftRefreshPending=null;
+  paymentState=null;products=[];catalogState='ready';currentShift=null;shiftRefreshPending=null;renderStaffShiftControl(phase==='error'?'error':'loading');
   clearPreparationQueue();
   staffNotificationCenter?.dispose();staffNotificationCenter=null;
   document.querySelectorAll('.modal.open').forEach(node=>node.classList.remove('open'));
@@ -257,6 +257,8 @@ const item=path.match(/^\/api\/orders\/([^/]+)\/items(?:\/([^/]+))?$/);if(item&&
 const staticSplitApi=async(url,options={})=>{const path=new URL(url,location.origin).pathname;const match=path.match(/^\/api\/orders\/([^/]+)\/split$/);if(!match)return null;const input=options.body?JSON.parse(options.body):{};const list=localOrders();const source=list.find((x)=>x.id===match[1]);if(!source)throw new Error('HTTP 404');if(!['open','in_progress','ready'].includes(source.status))throw new Error('invalid_order_transition');const requested=Array.isArray(input.itemIds)?input.itemIds:[];if(!requested.length)throw new Error('item_ids_required');if(requested.some((id)=>typeof id!=='string'||!id.trim())||new Set(requested).size!==requested.length)throw new Error('invalid_item_ids');const ids=new Set(requested);const moved=(source.items||[]).filter((x)=>ids.has(x.id));if(moved.length!==requested.length)throw new Error('item_ids_not_in_order');const remainingItems=(source.items||[]).filter((x)=>!ids.has(x.id));localAssertPaidCovered(source,remainingItems);if(moved.length>=(source.items||[]).length)throw new Error('split_requires_remaining_item');source.items=remainingItems;const target={id:`local-order-${Date.now()}`,tableId:source.tableId,status:'open',minimumOrderTotal:0,clientId:source.clientId||null,guestName:source.guestName||null,guestPhone:source.guestPhone||null,notes:source.notes||'',items:moved,splitFrom:source.id};list.push(target);staticAuditEvent('order.split',source.id,{targetOrderId:target.id,itemIds:[...ids],movedCount:moved.length});saveLocalOrders(list);return target;};
 const apiJson=async(url,options={})=>{if(!staticStaffDemo()&&url.startsWith('/api/orders')&&!staffSessionPermissions.has('orders'))throw new Error('forbidden');if(!staffSessionVerified)throw new Error('session_unverified');if(url.includes('/discount-requests')&&options.body){try{if(JSON.parse(options.body).type==='fixed')throw new Error('invalid_discount_request');}catch(error){if(error.message==='invalid_discount_request')throw error;}}if(!staticStaffDemo())return staffFetchJson(url,options);const method=options.method||'GET';const path=new URL(url,location.origin).pathname;const summary=path.match(/^\/api\/orders\/([^/]+)\/summary$/);if(summary&&method==='GET'){const order=localOrders().find((entry)=>entry.id===summary[1]);if(!order)throw new Error('HTTP 404');const pricing=localOrderPricing(order);return{orderId:order.id,...pricing,minimum:Number(order.minimumOrderTotal||0),shortfall:pricing.minimumAdjustment,minimumApplied:Number(order.minimumOrderTotal||0)>0};}const edit=path.match(/^\/api\/orders\/([^/]+)$/);if(edit&&method==='PATCH'){const before=localOrders().find((entry)=>entry.id===edit[1]);const priorGuest=before?.clientId||null;const body=options.body?JSON.parse(options.body):{};const saved=await staticOrderApi(url,options);const list=localOrders();const order=list.find((entry)=>entry.id===edit[1]);if(order&&(body.clientId!==undefined||body.guestName!==undefined||body.phone!==undefined||body.detachGuest)){if(order.clientId!==priorGuest){const guest=localStaffClients().find((entry)=>entry.id===order.clientId);order.groupDiscountGroupId=guest?.discountGroupId||null;order.groupDiscountName=guest?.discountGroupName||null;order.groupDiscountPercent=order.groupDiscountGroupId?Number(guest?.discountPercent||0):null;order.groupDiscountBase=null;order.groupDiscountAmount=null;}const pricing=localOrderPricing(order);if(localMoneyCents(localReceivedPayments(order))>localMoneyCents(pricing.due))throw new Error('paid_order_total_conflict');saveLocalOrders(list);return{...saved,...pricing,guestId:order.clientId||null,groupDiscountGroupId:order.groupDiscountGroupId||null,groupDiscountName:order.groupDiscountName||null,groupDiscountPercent:order.groupDiscountPercent??null};}return saved;}return method==='POST'&&path.endsWith('/split')?staticSplitApi(url,options):staticOrderApi(url,options);};
 let currentShift=null;
+let staffFloorShiftState='loading';
+let syncFloorShiftGate=()=>{};
 const staticShiftNotificationsApi=async(url,options={})=>{
   const user=JSON.parse(localStorage.getItem('crm_session_user')||'{}');const venueId=user.venueId||'venue-territory';const readKey=`territory_crm_notification_reads:${user.id||user.login||user.role}:${venueId}`;
   let events=[],reads={};try{events=JSON.parse(localStorage.getItem('territory_crm_shift_events')||'[]');reads=JSON.parse(localStorage.getItem(readKey)||'{}');}catch(_){}
@@ -292,11 +294,23 @@ const shiftApi=(options={})=>{
 const shiftCloseFailureMessage=(error)=>{if(error?.code!=='shift_cash_attribution_unresolved')return 'Не удалось закрыть смену';const details=error.payload||{};const count=Number(details.count);const amount=Number(details.amount);const countText=Number.isFinite(count)&&count>=0?String(Math.floor(count)):'неизвестно';const amountText=Number.isFinite(amount)&&amount>=0?`${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(amount)} ₽`:'неизвестна';return `Смена осталась открытой. Платежей без привязки: ${countText}; сумма: ${amountText}. Попросите управляющего сверить эти платежи, затем повторите закрытие.`;};
 const shiftCashCloseDescription=(shift)=>{const format=(value)=>`${new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(value)} ₽`;const unresolved=Number(shift?.unresolvedLegacyCashCount||0);if(unresolved>0)return `Ожидаемую кассу нельзя рассчитать: ${unresolved} наличных платежа на ${format(Number(shift.unresolvedLegacyCashAmount||0))} без привязки к смене. Запрос закрытия будет отклонён, пока управляющий не сверит эти платежи.`;if(shift?.expectedCash!==null&&shift?.expectedCash!==undefined&&Number.isFinite(Number(shift.expectedCash)))return `Ожидаемая наличность по данным системы: ${format(Number(shift.expectedCash))}. Введите фактический остаток; при закрытии сервер пересчитает сумму с учётом новых операций.`;return 'Ожидаемая наличность сейчас недоступна. Проверьте соединение и обновите состояние смены перед закрытием.';};
 const shiftCloseResultMessage=(result)=>{const format=(value)=>`${new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value||0))} ₽`;if(result?.expectedCash===undefined||result?.closingCash===undefined||result?.cashVariance===undefined)return 'Смена закрыта';const variance=Number(result.cashVariance);const sign=variance>0?'+':'';return `Смена закрыта. Ожидалось: ${format(result.expectedCash)}; фактически: ${format(result.closingCash)}; разница: ${sign}${format(variance)}.`;};
+const syncStaffShiftHeader=()=>{
+  const button=document.querySelector('#shift-toggle');if(!button)return;
+  const gate=document.querySelector('#staff-floor-shift-gate');
+  const statusOnly=staffShiftReadable&&staffFloorShiftState==='closed'&&gate&&!gate.hidden&&gate.getClientRects().length>0;
+  let status=document.querySelector('#shift-closed-status');
+  if(!status){status=document.createElement('span');status.id='shift-closed-status';status.className='shift';status.setAttribute('role','status');status.innerHTML=`${staffIcon('clock')}<span>Смена закрыта</span>`;button.before(status);}
+  status.hidden=!statusOnly;
+  button.hidden=!staffShiftReadable||Boolean(statusOnly);
+};
 const renderStaffShiftControl=(state)=>{
+  staffFloorShiftState=state;
+  syncFloorShiftGate();
   const button=document.querySelector('#shift-toggle');if(!button)return;
   const view={loading:['Проверяем смену…','Проверка','Проверяем смену'],closed:['Смена закрыта','Открыть','Открыть смену'],open:['Смена открыта','Закрыть','Закрыть смену'],error:['Смена недоступна','Повтор','Повторить проверку смены'],saving:['Сохраняем смену…','Ждите','Сохраняем смену']}[state];
   button.dataset.shiftState=state;button.disabled=!staffShiftManageable||state==='loading'||state==='saving';button.setAttribute('aria-busy',String(state==='loading'||state==='saving'));button.setAttribute('aria-label',staffShiftManageable?view[2]:view[0]);button.title=staffShiftManageable?view[2]:view[0];
   button.innerHTML=`${staffIcon(state==='open'?'circle-check':'clock')}<span class="shift-state-label">${view[0]}</span><span class="shift-action-label">${staffShiftManageable?view[1]:view[0]}</span>`;
+  syncStaffShiftHeader();
   if(posWorkspaceMounted)updateOrderMainAction();
 };
 let shiftRefreshPending=null;
@@ -304,7 +318,7 @@ const refreshShift=({silent=false}={})=>{
   if(!staffShiftReadable)return Promise.resolve();
   const accessRevision=staffAccessRevision;
   if(shiftRefreshPending)return shiftRefreshPending;if(!silent)renderStaffShiftControl('loading');
-  shiftRefreshPending=shiftApi().then((result)=>{if(accessRevision!==staffAccessRevision)return;currentShift=result.current||null;renderStaffShiftControl(currentShift?'open':'closed');if(currentOrder)drawOrder(currentOrder);}).catch(()=>{if(accessRevision!==staffAccessRevision)return;renderStaffShiftControl('error');if(!silent)notice('Не удалось проверить состояние смены. Повторите проверку.');}).finally(()=>{if(accessRevision===staffAccessRevision)shiftRefreshPending=null;});return shiftRefreshPending;
+  shiftRefreshPending=shiftApi().then((result)=>{if(accessRevision!==staffAccessRevision)return;if(!result||!Object.hasOwn(result,'current')||(result.current!==null&&(typeof result.current?.id!=='string'||!result.current.id.trim()||result.current.closedAt)))throw new Error('shift_payload_invalid');currentShift=result.current||null;renderStaffShiftControl(currentShift?'open':'closed');if(currentOrder)drawOrder(currentOrder);}).catch(()=>{if(accessRevision!==staffAccessRevision)return;currentShift=null;renderStaffShiftControl('error');if(!silent)notice('Не удалось проверить состояние смены. Повторите проверку.');}).finally(()=>{if(accessRevision===staffAccessRevision)shiftRefreshPending=null;});return shiftRefreshPending;
 };
 if(staffSessionVerified)refreshShift();
 const orderRows=document.querySelector('.items');
@@ -497,6 +511,32 @@ floorView.innerHTML='<summary>Вид зала</summary>';
 floorView.append(floorDensityToolbar);
 floorHeading.append(floorTabs,floorView);
 floorDensityShell.prepend(floorHeading);
+const floorShiftGate=document.createElement('section');
+floorShiftGate.id='staff-floor-shift-gate';
+floorShiftGate.className='staff-floor-shift-gate';
+floorShiftGate.setAttribute('aria-live','polite');
+document.querySelector('.workspace').before(floorShiftGate);
+syncFloorShiftGate=()=>{
+  const state=staffFloorShiftState;
+  const available=state==='open'&&Boolean(currentShift)&&staffSessionVerified;
+  document.body.dataset.floorShift=available?'open':state==='open'?'loading':state;
+  floorShiftGate.dataset.state=document.body.dataset.floorShift;
+  floorShiftGate.hidden=available;
+  const copy=state==='closed'?['Смена закрыта',staffShiftManageable?'Столы и заказы будут доступны после начала смены':'Попросите сотрудника с правом управления сменой открыть её.']:state==='error'?['Не удалось проверить смену','Повторите проверку, чтобы безопасно продолжить работу.']:['Проверяем смену…','Столы появятся после подтверждения открытой смены.'];
+  floorShiftGate.innerHTML=available?'':`<h2>${copy[0]}</h2><p>${copy[1]}</p>${state==='closed'&&staffShiftManageable?'<button type="button" class="primary" data-floor-shift-open>Открыть смену</button>':state==='error'&&staffShiftReadable?'<button type="button" class="secondary" data-floor-shift-retry>Повторить проверку</button>':''}`;
+  if(!available){
+    document.body.classList.remove('staff-order-open');
+    document.querySelectorAll('.table.sel').forEach(node=>node.classList.remove('sel'));
+    if(posWorkspaceMounted)document.querySelector('#payment-close')?.click();
+    document.querySelectorAll('#catalog,#payment-modal').forEach(node=>{node.classList.remove('open');node.setAttribute('aria-hidden','true');});
+    if(posWorkspaceMounted&&!staffShiftActionPending)document.querySelector('#staff-action-cancel')?.click();
+  }
+};
+floorShiftGate.addEventListener('click',event=>{
+  if(event.target.closest('[data-floor-shift-open]')&&staffFloorShiftState==='closed'&&staffShiftManageable)document.querySelector('#shift-toggle')?.click();
+  if(event.target.closest('[data-floor-shift-retry]'))refreshShift();
+});
+syncFloorShiftGate();
 const floorDensityRange=floorDensityToolbar.querySelector('input');
 const floorDensityOutput=floorDensityToolbar.querySelector('output');
 const floorDensityFit=floorDensityToolbar.querySelector('[data-floor-fit]');
@@ -714,7 +754,7 @@ tables.addEventListener('click',(event)=>{
   const retry=event.target.closest('[data-staff-floor-retry]');
   if(retry){if(staffSessionVerified)refreshFloor();else verifyStaffSession();return;}
   const card=event.target.closest('.table');
-  if(!card||!floorReady)return;
+  if(!card||!floorReady||staffFloorShiftState!=='open'||!currentShift)return;
   document.querySelectorAll('.table').forEach((node)=>node.classList.remove('sel'));
   card.classList.add('sel');
   document.querySelector('.staff-theme')?.classList.add('staff-order-open');
@@ -740,7 +780,7 @@ const refreshOpenCatalog=()=>{if(catalog?.classList.contains('open')&&document.v
 window.addEventListener('focus',refreshOpenCatalog);document.addEventListener('visibilitychange',refreshOpenCatalog);
 window.setInterval(()=>{if(catalog?.classList.contains('open')&&document.visibilityState==='visible')loadProducts();},60000);
 const closeCatalog=()=>{if(catalogAddPending)return;catalog.classList.remove('open');catalog.setAttribute('aria-hidden','true');catalogRequestRevision++;catalogRequest=null;catalogRequestContext='';if(catalogReturnFocus?.isConnected&&!catalogReturnFocus.disabled)catalogReturnFocus.focus();};
-document.querySelector('.primary')?.addEventListener('click',()=>{catalogReturnFocus=document.querySelector('.order > .primary');catalog.classList.add('open');catalog.setAttribute('aria-hidden','false');const note=document.querySelector('#catalog-flow-note');if(note)note.textContent=currentOrder?.items?.length?'Выберите ещё позиции или нажмите «Вернуться к заказу». Отправка исполнителям — следующий отдельный шаг.':'После первого добавления заказ сохранится на столе. Можно добавить ещё позиции, затем вернуться к заказу.';loadProducts();setTimeout(()=>search?.focus(),0);});document.querySelector('#catalog-close')?.addEventListener('click',closeCatalog);document.querySelector('#catalog-done')?.addEventListener('click',closeCatalog);catalog?.addEventListener('keydown',event=>{if(!catalog.classList.contains('open'))return;if(event.key==='Escape'){event.preventDefault();closeCatalog();return;}if(event.key!=='Tab')return;const nodes=[...catalog.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(node=>node.getClientRects().length&&!node.hidden);if(!nodes.length){event.preventDefault();catalog.querySelector('.catalog-box')?.focus();return;}const first=nodes[0],last=nodes[nodes.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}});search?.addEventListener('input',e=>draw(e.target.value));
+document.querySelector('.order > .primary')?.addEventListener('click',()=>{if(staffFloorShiftState!=='open'||!currentShift)return;catalogReturnFocus=document.querySelector('.order > .primary');catalog.classList.add('open');catalog.setAttribute('aria-hidden','false');const note=document.querySelector('#catalog-flow-note');if(note)note.textContent=currentOrder?.items?.length?'Выберите ещё позиции или нажмите «Вернуться к заказу». Отправка исполнителям — следующий отдельный шаг.':'После первого добавления заказ сохранится на столе. Можно добавить ещё позиции, затем вернуться к заказу.';loadProducts();setTimeout(()=>search?.focus(),0);});document.querySelector('#catalog-close')?.addEventListener('click',closeCatalog);document.querySelector('#catalog-done')?.addEventListener('click',closeCatalog);catalog?.addEventListener('keydown',event=>{if(!catalog.classList.contains('open'))return;if(event.key==='Escape'){event.preventDefault();closeCatalog();return;}if(event.key!=='Tab')return;const nodes=[...catalog.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(node=>node.getClientRects().length&&!node.hidden);if(!nodes.length){event.preventDefault();catalog.querySelector('.catalog-box')?.focus();return;}const first=nodes[0],last=nodes[nodes.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}});search?.addEventListener('input',e=>draw(e.target.value));
 function recalc(){const total=[...document.querySelectorAll('.items [data-line-total]')].reduce((sum,node)=>sum+Number(node.dataset.lineTotal||0),0); const el=document.querySelector('#order-total'); if(el)el.textContent=total.toLocaleString('ru-RU')+' ₽';}
 grid.addEventListener('click',async(e)=>{
   if(e.target.closest('.catalog-retry')){if(!catalogAddPending)loadProducts();return;}
@@ -951,6 +991,7 @@ const setStaffWorkspaceView=(view,{updateUrl=true}={})=>{
   root.classList.remove('staff-preparation-view');
   root.classList.toggle('staff-orders-view',next==='orders');
   root.dataset.staffView=next;
+  syncStaffShiftHeader();
   if(next==='orders'&&!wasOrders)drawOrder(null);
   document.querySelector('.staff-header-title b')?.replaceChildren(document.createTextNode(next==='orders'?'Заказы':'Рабочий зал'));
   document.querySelectorAll('aside nav button').forEach((button)=>{
