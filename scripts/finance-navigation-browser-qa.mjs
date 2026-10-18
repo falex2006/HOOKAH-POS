@@ -30,6 +30,8 @@ const hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
 let child, browser;
 let serverDiagnostics='';
 const selectOption = async (select, value) => {
+  const disclosure = select.locator('xpath=ancestor::details[1]');
+  if (await disclosure.count() && !await disclosure.evaluate(node => node.open)) await disclosure.locator(':scope > summary').click();
   if (await select.getAttribute('data-custom-select') === '1') {
     const wrapper = select.locator('xpath=..');
     await wrapper.locator('.custom-select-trigger').click();
@@ -110,6 +112,28 @@ try {
   if (!baseline) {
     await page.setViewportSize({width:1366,height:900});await categories();
     await captureControl(page.locator('#finance-category-list .category-row').filter({hasText:'Аренда · QA'}),'category-row');
+    const filters = page.locator('.finance-category-filter-options');
+    assert.equal(await filters.evaluate(node=>node.open),false);
+    assert.equal(await page.locator('#finance-category-search').isVisible(),true);
+    await selectOption(page.locator('#finance-category-type'),'expense');
+    await selectOption(page.locator('#finance-category-status'),'all');
+    await page.locator('#finance-category-list .category-row').filter({hasText:'Архив · QA'}).waitFor();
+    await page.locator('#finance-category-search').fill('Аренда');
+    await filters.locator('summary').click();
+    assert.equal(await filters.evaluate(node=>node.open),false);
+    assert.match(await filters.locator('summary').textContent(),/Фильтры.*Расходы.*С архивом/);
+    assert.equal(await page.locator('#finance-category-list .category-row').count(),1);
+    assert.equal(await page.locator('#finance-category-type').inputValue(),'expense');
+    assert.equal(await page.locator('#finance-category-status').inputValue(),'all');
+    assert.equal(await page.locator('#finance-category-search').isVisible(),true);
+    await filters.locator('summary').focus();await page.keyboard.press('Enter');
+    assert.equal(await filters.evaluate(node=>node.open),true);
+    await selectOption(page.locator('#finance-category-type'),'');
+    await selectOption(page.locator('#finance-category-status'),'active');
+    await filters.locator('summary').click();
+    assert.equal(await filters.locator('summary').textContent(),'Фильтры');
+    await page.locator('#finance-category-search').fill('');
+    evidence.assertions.push('collapsed filters preserve type/status/search, show active summary, reopen by keyboard, and reset explicitly');
     await page.locator('#finance-category-search').fill('does-not-exist-qa');
     await page.locator('#finance-category-list .empty').waitFor();
     assert.equal(await page.locator('#finance-category-list .category-row').count(),0);

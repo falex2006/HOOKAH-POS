@@ -5162,3 +5162,12 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .finance-unified-report .finance-payables-date-filters :is(input,select,.custom-select-trigger,.button){min-height:44px}
 .finance-unified-report .finance-payables-date-filters input{border:1px solid var(--ui-border-control,#64717d);border-radius:10px;padding:10px 12px;background:var(--ui-input,#1d2229);color:inherit;font:inherit}
 @media(max-width:600px){.finance-unified-report .finance-payables-date-filters{grid-template-columns:minmax(0,1fr)}}
+
+/* Keep category search visible while secondary filters stay compact. */
+.finance-category-workspace .finance-category-filters,.velora-theme .finance-category-workspace .finance-category-filters{grid-template-columns:minmax(0,1fr);gap:8px}
+.finance-category-filter-options{min-width:0}
+.finance-category-filter-options>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:600}
+.finance-category-filter-options>summary::before{content:'▸'}
+.finance-category-filter-options[open]>summary::before{content:'▾'}
+.finance-category-filter-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:8px}
+@media(max-width:700px){.finance-category-workspace>.page-title .toolbar-row{display:flex;flex-wrap:wrap;gap:8px}.finance-category-workspace>.page-title .toolbar-row>.button{width:auto;flex:1 1 auto}.finance-category-filter-fields{grid-template-columns:minmax(0,1fr)}}
