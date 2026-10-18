@@ -16,6 +16,7 @@ const portalRevision = Number(syncScript.match(/portalRevision = '(\d+)'/)?.[1])
 const portalSessionRevision = Number(syncScript.match(/portalSessionRevision = '(\d+)'/)?.[1]);
 const employeePaymentsCssRevision = Number(syncScript.match(/employeePaymentsCssRevision = '(\d+)'/)?.[1]);
 const employeePaymentsSessionRevision = Number(syncScript.match(/employeePaymentsSessionRevision = '(\d+)'/)?.[1]);
+assert.equal(employeePaymentsSessionRevision, portalSessionRevision, 'finance must load the latest shared session bootstrap');
 const appRevision = Number(syncScript.match(/appRevision = '(\d+)'/)?.[1]);
 const platformRevision = Number(syncScript.match(/platformRevision = '(\d+)'/)?.[1]);
 assert.ok([cssRevision, portalRevision, portalSessionRevision, appRevision, platformRevision].every(Number.isInteger), 'published asset revisions must be declared in the sync script');

@@ -10,7 +10,7 @@ const portalRevision = '2026101805';
 const portalSessionRevision = '2026101805';
 // This employee-page iteration invalidates only its own HTML asset URLs.
 const employeePaymentsCssRevision = '2026101805';
-const employeePaymentsSessionRevision = '2026101803';
+const employeePaymentsSessionRevision = '2026101805';
 const lockRevision = '2026101803';
 const appRevision = '2026101803';
 const posWorkspaceRevision = '5';
