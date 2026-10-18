@@ -1,0 +1,27 @@
+node:assert:152
+  throw new AssertionError(obj);
+  ^
+
+AssertionError [ERR_ASSERTION]: Git blob match: .codex/team/roles/backend_engineer.md
++ actual - expected
+
++ '6123e09f64dc3fb829e0a0374be0bddb0e4d8b28'
+- 'be7eec3d5909109b2f8335061c615102e81c53f1'
+
+    at Object.<anonymous> (C:\Users\ADMIN\Documents\ChatGPT\HOOKAH CRM 2\scripts\ui092-verify-archive.cjs:31:95)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '6123e09f64dc3fb829e0a0374be0bddb0e4d8b28',
+  expected: 'be7eec3d5909109b2f8335061c615102e81c53f1',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

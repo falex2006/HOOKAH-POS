@@ -55,6 +55,21 @@ assert.equal(litersBatch.totalCost, 60);
 assert.equal(litersBatch.outputQuantity, 1.5, '1500 mL yield must be recorded as 1.5 L');
 assert.equal(litersState.inventory[1].onHand, 1.75);
 assert.equal(litersBatch.outputUnit, 'л');
+assert.equal(litersState.inventory[1].cost, 34.2857, 'premix output average cost includes prior stock and this batch');
+assert.equal(litersBatch.batchUnitCost, 40, 'batch cost per output unit uses converted output quantity');
+
+// A late lot-allocation rejection must not mutate stock, output cost, audit or persistence.
+const expiredState = stateFor({ id: 'recipe-expired', name: 'Тест отказа просроченного сырья', recipeType: 'premix', outputIngredientId: 'out-expired', ingredients: [{ ingredientId: 'expired-source', name: 'Сырьё', quantity: '1 мл' }], yieldQuantity: 100, yieldUnit: 'мл' }, [
+  { id: 'expired-source', name: 'Сырьё', unit: 'мл', onHand: 2, cost: 20 },
+  { id: 'out-expired', name: 'Премикс', unit: 'мл', onHand: 100, cost: 10 },
+]);
+await assert.rejects(produce(expiredState, { recipeId: 'recipe-expired', outputItemId: 'out-expired', multiplier: 1 }, () => { throw new Error('expired_premix_stock'); }), /expired_premix_stock/);
+assert.deepEqual(expiredState.inventory.map((item) => item.onHand), [2, 100], 'rejected expired lot changes no ingredient or output stock');
+assert.equal(expiredState.inventory[1].cost, 10, 'rejected expired lot leaves output average cost unchanged');
+assert.equal(expiredState.movements.length, 0);
+assert.equal(expiredState.premixBatches.length, 0);
+assert.equal(expiredState.audit.length, 0);
+assert.equal(expiredState.saved || 0, 0, 'rejected expired lot is not persisted');
 
 // Incompatible units fail closed before stock, output, audit, or batch mutation.
 const mismatchState = stateFor({ id: 'recipe-bad', name: 'Тест несовместимых единиц', recipeType: 'premix', outputIngredientId: 'out-bad', ingredients: [{ ingredientId: 'powder', name: 'Порошок', quantity: '2 шт' }], yieldQuantity: 1, yieldUnit: 'л' }, [

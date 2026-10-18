@@ -14,9 +14,12 @@ const suites = new Set([
   'staff-pin-card-postgres-browser-qa.mjs',
   'owner-pin-lock-postgres-browser-qa.mjs',
   'postgres-qa.mjs', 'payroll-lifecycle-migration-preflight.mjs', 'migrations-pg-upgrade-qa.mjs',
+  'finance-expense-drafts-postgres-qa.mjs', 'finance-income-snapshot-integrity-postgres-qa.mjs',
+  'finance-funding-postgres-qa.mjs',
+  'finance-balance-events-postgres-qa.mjs',
   'migrations-pg-runtime-qa.mjs', 'migrations-pg-041-recovery-concurrency-qa.mjs',
   'venue-inventory-departments-postgres-qa.mjs', 'purchase-payment-postgres-api-qa.mjs',
-  'guest-loyalty-postgres-api-qa.mjs', 'finance-categories-postgres-api-qa.mjs',
+  'guest-loyalty-postgres-api-qa.mjs', 'finance-categories-postgres-api-qa.mjs', 'finance-expense-corrections-postgres-qa.mjs', 'finance-expense-refunds-postgres-qa.mjs',
   'loyalty-promotions-postgres-qa.mjs',
   'loyalty-journey-browser-qa.mjs',
   'payroll-lifecycle-postgres-api-qa.mjs', 'tasks-postgres-e2e-qa.mjs', 'delivery-persistence-qa.mjs',
@@ -36,6 +39,7 @@ const suites = new Set([
   'orders-attention-postgres-browser-qa.mjs', 'alcohol-catalog-api-qa.mjs', 'alcohol-catalog-schema-pg-qa.mjs',
   'acceptance-47-pos-journey-postgres-qa.mjs',
   'recipe-sale-manual-movement-race-postgres-qa.mjs',
+  'payroll-sale-credit-source-postgres-contract.mjs',
   'acceptance-27-purchase-reversal-postgres-qa.mjs',
   'acceptance-27-purchase-reversal-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs',
   'acceptance-22-purchase-fields-postgres-qa.mjs',
@@ -186,7 +190,7 @@ async function runSuite(value) {
     RECIPE_DEPLETION_PG_TEST_DATABASE_URL: urlFor(c), SHIFT_NOTIFICATIONS_TEST_DATABASE_URL: urlFor(c),
     MIGRATIONS_PG_TEST_DOCKER_CONTAINER: c.regressionContainer };
   async function freshDatabase(database) {
-  assert.match(database, /^(?:postgres_qa_[a-f0-9]+|orders_qa_[a-f0-9]+|alcohol_api_qa_[a-f0-9]+|inventory_qa_[a-f0-9]+|promotions_qa_[a-f0-9]+|shifts_qa_[a-f0-9]+|reservations_qa_[a-f0-9]+|audit_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|loyalty_qa_[a-f0-9]+|tobacco_auth_qa_[a-f0-9]+|payables_qa_[a-f0-9]+|territory_qa)$/);
+  assert.match(database, /^(?:postgres_qa_[a-f0-9]+|orders_qa_[a-f0-9]+|payroll_sale_credit_qa_[a-f0-9]{16}|alcohol_api_qa_[a-f0-9]+|inventory_qa_[a-f0-9]+|promotions_qa_[a-f0-9]+|shifts_qa_[a-f0-9]+|reservations_qa_[a-f0-9]+|audit_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|loyalty_qa_[a-f0-9]+|tobacco_auth_qa_[a-f0-9]+|payables_qa_[a-f0-9]+|finance_categories_qa_[a-f0-9]+|finance_corrections_qa_[a-f0-9]+|finance_refunds_qa_[a-f0-9]+|territory_qa)$/);
     await verifyTarget(c);
     const admin = new Pool({ connectionString: urlFor(c), max: 1 });
     try {
@@ -239,6 +243,10 @@ async function runSuite(value) {
     if (name === 'shift-notifications-e2e-qa.mjs') env.SHIFT_NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('shifts_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'notifications-postgres-qa.mjs') env.NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('notifications_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('postgres_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'payroll-sale-credit-source-postgres-contract.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'payroll_sale_credit_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
     if (name === 'recipe-depletion-pg-runtime-qa.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'inventory_qa_' + crypto.randomBytes(8).toString('hex');
       env.RECIPE_DEPLETION_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
@@ -281,6 +289,22 @@ async function runSuite(value) {
     }
     if (name === 'payables-browser-postgres-qa.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'payables_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (['finance-expense-drafts-postgres-qa.mjs', 'finance-income-snapshot-integrity-postgres-qa.mjs'].includes(name)) {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (name === 'finance-categories-postgres-api-qa.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'finance_categories_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (name === 'finance-expense-corrections-postgres-qa.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'finance_corrections_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (name === 'finance-expense-refunds-postgres-qa.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'finance_refunds_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
     if (name === 'alcohol-catalog-api-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('alcohol_api_qa_' + crypto.randomBytes(8).toString('hex'));

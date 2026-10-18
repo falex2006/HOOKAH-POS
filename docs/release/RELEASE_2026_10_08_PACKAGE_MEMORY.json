@@ -1,0 +1,173 @@
+{
+  "started": "2026-10-08T18:35:20.031Z",
+  "finished": "2026-10-08T18:35:54.555Z",
+  "mode": "--memory",
+  "ok": true,
+  "error": null,
+  "total": 23,
+  "pass": 23,
+  "failures": [],
+  "results": [
+    {
+      "group": "guard",
+      "test": "local-full-pg-regression.cjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-guard-local-full-pg-regression.cjs.log"
+    },
+    {
+      "group": "guard",
+      "test": "local-full-qa-setup.cjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-guard-local-full-qa-setup.cjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "discount-groups-memory-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-discount-groups-memory-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "loyalty-promotions-memory-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-loyalty-promotions-memory-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "loyalty-reconciliation-memory-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-loyalty-reconciliation-memory-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "loyalty-memory-period-business-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-loyalty-memory-period-business-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "guest-account-ledger-memory-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-guest-account-ledger-memory-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "finance-rbac-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-finance-rbac-runtime-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "local-static-boundary.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-local-static-boundary.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "notifications-api-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-notifications-api-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "order-delete-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-order-delete-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "order-journal-table-memory-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-order-journal-table-memory-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "paid-order-balance-memory-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-paid-order-balance-memory-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "recipe-depletion-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-recipe-depletion-runtime-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "role-api-matrix-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-role-api-matrix-runtime-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "security-default-credential-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-security-default-credential-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "security-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-security-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "session-preferences-concurrency-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-session-preferences-concurrency-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "staff-pin-passport-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-staff-pin-passport-runtime-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "tasks-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-tasks-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "tobacco-catalog-api-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-tobacco-catalog-api-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "trusted-pin-return-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-trusted-pin-return-runtime-qa.mjs.log"
+    },
+    {
+      "group": "memory",
+      "test": "venue-timezone-validation-runtime-qa.mjs",
+      "exit": 0,
+      "timedOut": false,
+      "log": "local-full-memory-venue-timezone-validation-runtime-qa.mjs.log"
+    }
+  ]
+}

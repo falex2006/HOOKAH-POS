@@ -10,7 +10,9 @@ assert.match(lock, /const lockStateKey = `crm_screen_locked_user_\$\{identityKey
 assert.match(lock, /localStorage\.setItem\(lockStateKey, 'locked'\)/, 'manual and auto lock publish a locked state for other tabs');
 assert.match(lock, /localStorage\.setItem\(lockStateKey, `unlocked:\$\{Date\.now\(\)\}`\)/, 'successful PIN unlock publishes an unlocked state for other tabs');
 assert.match(lock, /window\.addEventListener\('storage'[\s\S]*?event\.key !== lockStateKey[\s\S]*?event\.newValue === 'locked'[\s\S]*?lock\('manual'\)/, 'other tabs react to a locked state');
-assert.match(lock, /event\.newValue\?\.startsWith\('unlocked:'\) && locked[\s\S]*?overlay\.setAttribute\('aria-hidden', 'true'\)/, 'other tabs hide the overlay after unlock');
+assert.match(lock, /event\.newValue\?\.startsWith\('unlocked:'\) && locked[\s\S]*?fetch\('\/api\/session'[\s\S]*?identity\(payload\.user\) !== activeIdentity[\s\S]*?localStorage\.getItem\(lockStateKey\) === signal\) releaseLock\(\)/, 'other tabs release only after live current-identity session and unchanged explicit signal');
+const releaseLock = lock.slice(lock.indexOf('const releaseLock ='), lock.indexOf("window.addEventListener('focusin'"));
+assert.match(releaseLock, /if \(!locked \|\| !currentSession\(\)\) return;[\s\S]*?locked = false;[\s\S]*?overlay\.setAttribute\('aria-hidden', 'true'\)[\s\S]*?overlay\.close\(\)[\s\S]*?scrollLease\.release\(lockScrollOwner\)/, 'guarded common release closes PIN and releases only its scroll lease');
 assert.match(lock, /event\.key === 'crm_session_token' && event\.newValue !== activeToken[\s\S]*?redirectToLogin\(\)/, 'stale tabs leave the workspace when the session token changes');
 assert.match(lock, /fetch\('\/api\/session\/unlock'[\s\S]*?body: JSON\.stringify\(\{ pin: pinInput\.value \}\)/, 'staff lock keeps using the existing screen-unlock endpoint');
 assert.match(lock, /const refreshUserFromSession = async \(\) => \{[\s\S]*?fetch\('\/api\/session', \{ headers: headers\(\), cache: 'no-store' \}\)/, 'lock screen refreshes the current session before trusting stale local PIN state');
@@ -22,7 +24,7 @@ assert.match(server, /if \(pathname === '\/api\/session\/pin-return' && req\.met
 assert.match(server, /if \(pathname === '\/api\/session\/unlock' && req\.method === 'POST'\)[\s\S]*?SELECT pin_hash[\s\S]*?venue_id=\$2/, 'staff screen unlock remains bound to the active venue');
 assert.match(server, /if \(pathname === '\/api\/session\/pin-return' && req\.method === 'POST'\)[\s\S]*?organization_id IS NOT DISTINCT FROM \$2::uuid/, 'admin trusted PIN return is scoped to the authenticated organization');
 assert.match(server, /const STANDARD_SESSION_TTL_MS = 12 \* 60 \* 60 \* 1000[\s\S]*?const TRUSTED_SESSION_TTL_MS = 30 \* 24 \* 60 \* 60 \* 1000/, 'ordinary and trusted sessions keep separate expiry windows');
-assert.match(server, /if \(memorySession\) \{ if \(Date\.now\(\) > Number\(memorySession\.expiresAt \|\| memorySession\.createdAt \+ SESSION_TTL_MS\)\) \{ sessions\.delete\(token\); return null; \}/, 'expired memory sessions are rejected instead of restored by PIN');
+assert.match(server.replace(/\s+/g, ' '), /if \(memorySession\) \{ if \(Date\.now\(\) > Number\(memorySession\.expiresAt \|\| memorySession\.createdAt \+ SESSION_TTL_MS\)\) \{ sessions\.delete\(token\); return null; \}/, 'expired memory sessions are rejected instead of restored by PIN (format-independent)');
 
 assert.match(login, /localStorage\.removeItem\('crm_session_token'\)/, 'login page clears stale local bearer state before trusted cookie probing');
 assert.match(login, /if \(isPasswordReset \|\| !form \|\| trustedSessionUser\) return/, 'trusted PIN return does not interrupt password reset flow');

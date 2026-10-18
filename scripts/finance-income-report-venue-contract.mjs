@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here=path.dirname(fileURLToPath(import.meta.url));
+const require=createRequire(import.meta.url);
+const {handleFinanceIncomeRoute}=require(path.join(here,'../finance-income.js'));
+const active='11111111-1111-4111-8111-111111111111';
+const selected='22222222-2222-4222-8222-222222222222';
+const calls=[];
+const pool={query:async(sql,values=[])=>{calls.push({sql,values});if(sql.includes('AS "amountMinor"')&&sql.includes('allocationCount'))return{rows:[]};if(sql.includes('AS "amount"'))return{rows:[{count:0,amount:'0.00'}]};if(sql.includes('AS "amountMinor"'))return{rows:[{count:0,amountMinor:'0'}]};return{rows:[{unattributedRefunds:0,itemAttributedRefunds:0}]};}};
+const run=async(venueId,resolveVenues)=>{let response;const handled=await handleFinanceIncomeRoute({req:{method:'GET',user:{id:'owner',role:'owner'}},res:{},url:new URL(`/api/finance/income-category-report?from=2026-10-01&to=2026-10-31&venueId=${venueId}`,'http://local'),pool,venueId:active,json:(_res,status,body)=>{response={status,body};},hasPermission:key=>key==='finance_read',resolveVenues});return{handled,response};};
+let out=await run(selected,async(_req,id)=>id===selected?[{id:selected,name:'Филиал',timeZone:'Asia/Vladivostok',permissions:['finance_read']}]:[]);
+assert.equal(out.response.status,200);
+assert.deepEqual(out.response.body.venue,{id:selected,name:'Филиал',timeZone:'Asia/Vladivostok'});
+assert.equal(out.response.body.dateBasis,'venue_local_closed_at');
+assert.equal(calls.length,5,'all five report and coverage queries run only after access check');
+assert.ok(calls.every(call=>call.values[0]===selected),'every report query is scoped to the authorized selected venue');
+calls.length=0;
+out=await run(selected,async()=>[]);
+assert.equal(out.response.status,403);
+assert.equal(calls.length,0,'unauthorized venue is rejected before report SQL');
+
+const portal=fs.readFileSync(path.join(here,'../portal.js'),'utf8');
+const panel=portal.slice(portal.indexOf('const posIncomeReport = document.createElement'),portal.indexOf('let currentIncomeMappings=[]'));
+assert.ok(panel.includes("api('/api/finance/report-venues')"),'POS report loads the server-authorized venue list');
+assert.ok(panel.includes('venueId=${encodeURIComponent(requestedVenueId)}'),'aggregate query includes the selected venue');
+assert.ok(panel.includes("params.set('venueId',detailVenueId)")||panel.includes("new URLSearchParams({from,to,source:'pos',venueId:detailVenueId})"),'every drilldown query carries the aggregate venue');
+assert.ok(panel.includes('incomeReportRequestId')&&panel.includes('requestId!==incomeReportRequestId'),'late aggregate responses cannot replace a newer report');
+assert.ok(panel.includes('detailRequestId!==incomeReportRequestId'),'late drilldown responses cannot repaint a changed venue or period');
+assert.ok(panel.includes('Выбор заведения действует только на этот отчёт'),'mapping management scope is clearly separated from report scope');
+console.log('FINANCE INCOME REPORT VENUE CONTRACT: PASS (target authorization, all-query tenant scope, aggregate/drilldown venue consistency, stale response guards)');

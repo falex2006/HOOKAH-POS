@@ -21,6 +21,18 @@ const { sanitizeAuditEvent } = require('./audit-privacy');
 const { buildMemoryPeriodBusiness, summarizeMemoryReservationPrepayments } = require('./loyalty-memory-reconciliation');
 const shiftCloseContract = require('./shift-close-contract');
 const { isValidIsoDate, countInclusiveDays, calculatePayrollAmount, canTransitionPayroll } = require('./payroll');
+const { handleFinancePayableRoute } = require('./finance-payables');
+const { handleFinancePayableRecognitionRoute } = require('./finance-payable-recognition');
+const { handleFinanceIncomeRoute, writePosOrderIncomeCategorySnapshot } = require('./finance-income');
+const { handleFinanceUnifiedReport } = require('./finance-unified-report');
+const { createFinanceReportVenueAccess } = require('./finance-report-venue-access');
+const { handleFinanceOtherIncomeRoute } = require('./finance-other-income');
+const { handleFinanceExpenseDraftRoute } = require('./finance-expense-drafts');
+const { handleFinanceExpenseCorrectionRoute } = require('./finance-expense-corrections');
+const { handleFinanceExpenseRefundRoute } = require('./finance-expense-refunds');
+const { handleFinancePayableOffsetRoute } = require('./finance-payable-offsets');
+const { handleFinanceFundingRoute } = require('./finance-funding');
+const { handleFinanceBalanceEventRoute } = require('./finance-balance-events');
 const { makeService: makePayrollSchemeService } = require('./payroll-scheme-service');
 const { handlePayrollSchemeRoute, sameOriginMutation } = require('./payroll-scheme-routes');
 const isValidIsoTimestamp = (value) => {
@@ -339,6 +351,7 @@ const systemRoleScopeDefaults = {
 };
 const resolvePermissionPolicy = createPermissionResolver({ rolePermissions, scopedPermissionMap, normalizePermissionScopes });
 const effectivePermissions = (user) => resolvePermissionPolicy(user).permissions;
+const listFinanceReportVenues = createFinanceReportVenueAccess({ pool: repositories?.pool, resolvePermissions: (user) => resolvePermissionPolicy(user).permissions });
 const withEffectivePermissions = (user) => {
   const resolved = resolvePermissionPolicy(user);
   return { ...user, workspacePermissions: resolved.permissions, permissionPolicy: resolved.policy };
@@ -676,48 +689,7 @@ async function pgReservationPrepaymentState(client, venueId, reservationId) {
   const receipts = rows.map((row) => ({ ...row, amount: Number(row.amount), available: Number(row.available) })).filter((row) => row.available > 0);
   return { available: roundMoney(receipts.reduce((sum,row)=>sum+row.available,0)), receipts };
 }
-const orderPricingSqlCtes = `canonical_totals AS (
-  SELECT order_id,venue_id,subtotal_minor/100.0 AS subtotal,discount_minor/100.0 AS discount,minimum_adjustment_minor/100.0 AS minimum_adjustment,final_total_minor/100.0 AS final_total
-  FROM pos_order_pricing_snapshots
-), item_totals AS (
-  SELECT o.id AS order_id,COALESCE(c.subtotal,SUM(oi.quantity*oi.unit_price),0) AS subtotal FROM orders o
-  LEFT JOIN canonical_totals c ON c.order_id=o.id AND c.venue_id=o.venue_id LEFT JOIN order_items oi ON oi.order_id=o.id GROUP BY o.id,c.subtotal
-), manual_totals AS (
-  SELECT d.order_id,LEAST(COALESCE(i.subtotal,0),COALESCE(SUM(ROUND(CASE WHEN d.type='percent' THEN COALESCE(i.subtotal,0)*LEAST(100,GREATEST(0,d.value))/100 ELSE GREATEST(0,d.value) END,2)),0)) AS amount
-  FROM discounts d JOIN item_totals i ON i.order_id=d.order_id WHERE d.status='approved' GROUP BY d.order_id,i.subtotal
-), latest_promotions AS (
-  SELECT DISTINCT ON (venue_id,promotion_id) * FROM loyalty_promotions ORDER BY venue_id,promotion_id,version DESC
-), promotion_basis AS (
-  SELECT o.id AS order_id,p.venue_id,p.promotion_id,p.priority,p.benefit_kind,p.benefit_value,
-    COALESCE(SUM(oi.quantity*oi.unit_price),0) AS basis
-  FROM orders o JOIN order_items oi ON oi.order_id=o.id JOIN products pr ON pr.id=oi.product_id AND pr.venue_id=o.venue_id AND pr.is_active=true
-  JOIN latest_promotions p ON p.venue_id=o.venue_id AND p.status='active' AND p.starts_at<=now() AND now()<p.ends_at
-    AND o.status NOT IN ('closed','cancelled') AND o.pricing_locked_at IS NULL
-  WHERE EXISTS (SELECT 1 FROM loyalty_promotion_scopes s WHERE s.venue_id=p.venue_id AND s.promotion_id=p.promotion_id AND s.version=p.version AND ((s.scope_kind='include_product' AND s.product_id=oi.product_id) OR (s.scope_kind='include_category' AND s.category_name=pr.category)))
-    AND NOT EXISTS (SELECT 1 FROM loyalty_promotion_scopes s WHERE s.venue_id=p.venue_id AND s.promotion_id=p.promotion_id AND s.version=p.version AND ((s.scope_kind='exclude_product' AND s.product_id=oi.product_id) OR (s.scope_kind='exclude_category' AND s.category_name=pr.category)))
-  GROUP BY o.id,p.venue_id,p.promotion_id,p.priority,p.benefit_kind,p.benefit_value
-), promotion_totals AS (
-  SELECT DISTINCT ON (order_id) order_id,priority,amount FROM (
-    SELECT order_id,promotion_id,priority,LEAST(basis,CASE WHEN benefit_kind='percent' THEN ROUND(basis*benefit_value/100,2) ELSE benefit_value END) AS amount
-    FROM promotion_basis WHERE basis>0
-  ) x ORDER BY order_id,amount DESC,priority DESC,promotion_id
-), discount_candidates AS (
-  SELECT o.id AS order_id,COALESCE(m.amount,0) AS amount,1 AS source_rank,0 AS priority,'manual'::text AS source
-  FROM orders o LEFT JOIN manual_totals m ON m.order_id=o.id
-  UNION ALL
-  SELECT o.id,ROUND(COALESCE(i.subtotal,0)*COALESCE(o.group_discount_percent,0)/100,2),2,0,'guest_group'::text
-  FROM orders o LEFT JOIN item_totals i ON i.order_id=o.id
-  UNION ALL
-  SELECT o.id,pt.amount,3,pt.priority,'promotion'::text
-  FROM orders o JOIN promotion_totals pt ON pt.order_id=o.id
-), best_discounts AS (
-  SELECT DISTINCT ON (order_id) order_id,amount FROM discount_candidates ORDER BY order_id,amount DESC,source_rank DESC,priority DESC
-), discount_totals AS (
-  SELECT o.id AS order_id,
-    CASE WHEN c.discount IS NOT NULL THEN c.discount WHEN (o.status='closed' OR o.pricing_locked_at IS NOT NULL) AND o.pricing_version IS NOT NULL AND o.discount_total_snapshot IS NOT NULL THEN o.discount_total_snapshot
-    ELSE LEAST(COALESCE(i.subtotal,0),COALESCE(b.amount,0)) END AS discount
-  FROM orders o LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN best_discounts b ON b.order_id=o.id LEFT JOIN canonical_totals c ON c.order_id=o.id AND c.venue_id=o.venue_id
-)`;
+const { orderPricingSqlCtes } = require('./pos-order-pricing-sql');
 const financeDateLedger = async (client, venueId, date, timezone) => {
   const salesResult = await client.query(`WITH ${orderPricingSqlCtes}, bounds AS (
       SELECT ($2::date::timestamp AT TIME ZONE $3) AS starts_at,(($2::date+1)::timestamp AT TIME ZONE $3) AS ends_at
@@ -1052,6 +1024,8 @@ const normalizePurchaseInput = (input) => {
   if (!supplierName || supplierName.length > 160 || (documentNumber && documentNumber.length > 80) || !validDocumentDate || (note && note.length > 2000)) { const error = new Error('invalid_purchase_document'); throw error; }
   if (input.sourceAutoOrderId !== undefined && input.sourceAutoOrderId !== null && input.sourceAutoOrderId !== '' && !/^[0-9a-f-]{36}$/i.test(String(input.sourceAutoOrderId))) { const error = new Error('invalid_source_auto_order'); throw error; }
   if (input.lines !== undefined && !Array.isArray(input.lines)) { const error = new Error('invalid_purchase_lines'); throw error; }
+  const financeCategoryId = input.financeCategoryId === undefined ? undefined : input.financeCategoryId === null ? null : String(input.financeCategoryId).trim();
+  if (financeCategoryId !== undefined && financeCategoryId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(financeCategoryId)) throw new Error('invalid_purchase_document_finance_category');
   const lines = (input.lines || []).map((entry) => {
     const ingredientId = String(entry.ingredientId || '').trim();
     const quantity = Number(entry.quantity); const unitCost = Number(entry.unitCost);
@@ -1059,7 +1033,7 @@ const normalizePurchaseInput = (input) => {
     if (!ingredientId || !/^[0-9a-f-]{36}$/i.test(ingredientId) || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitCost) || unitCost < 0 || (!inventoryUnitFactors[unit] && unit.length > 30)) { const error = new Error('invalid_purchase_line'); error.ingredientId = ingredientId; throw error; }
     return { ingredientId, quantity, unit, unitCost };
   });
-  return { supplierName, documentNumber, documentDate, note, sourceAutoOrderId: input.sourceAutoOrderId || null, lines };
+  return { supplierName, documentNumber, documentDate, note, sourceAutoOrderId: input.sourceAutoOrderId || null, lines, ...(financeCategoryId !== undefined ? { financeCategoryId } : {}) };
 };
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 700_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
@@ -1222,9 +1196,17 @@ async function getShiftCashSummary(client, venueId, shift) {
       + (SELECT COALESCE(SUM(p.amount),0) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id=$2 AND p.method='cash' AND p.status IN ('paid','partially_paid'))
       + (SELECT COALESCE(SUM(amount),0) FROM guest_deposit_receipts WHERE venue_id=$1 AND shift_id=$2 AND payment_method='cash')
       + (SELECT COALESCE(SUM(amount),0) FROM reservation_pre_payment_receipts WHERE venue_id=$1 AND shift_id=$2 AND payment_method='cash')
+      + (SELECT COALESCE(SUM(r.amount),0) FROM finance_other_income_receipts r JOIN finance_accounts a ON a.venue_id=r.venue_id AND a.id=r.finance_account_id WHERE r.venue_id=$1 AND r.shift_id=$2 AND r.payment_method='cash' AND a.kind='pos_cashbox')
+      + (SELECT COALESCE(SUM(e.amount),0) FROM finance_funding_events e JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.payment_method='cash' AND e.event_type IN ('owner_contribution_received','loan_principal_received') AND a.kind='pos_cashbox')
+      + (SELECT COALESCE(SUM(l.amount),0) FROM finance_account_transfer_legs l WHERE l.venue_id=$1 AND l.shift_id=$2 AND l.leg_type='credit')
+      + (SELECT COALESCE(SUM(r.amount),0) FROM finance_expense_refunds r WHERE r.venue_id=$1 AND r.shift_id=$2 AND r.payment_method='cash')
       - (SELECT COALESCE(SUM(amount),0) FROM guest_account_reversals WHERE venue_id=$1 AND shift_id=$2 AND payout_method='cash')
       - (SELECT COALESCE(SUM(amount),0) FROM reservation_pre_payment_receipt_reversals WHERE venue_id=$1 AND shift_id=$2 AND payout_method='cash')
-      - (SELECT COALESCE(SUM(t.amount),0) FROM order_refund_tenders t JOIN order_refunds r ON r.venue_id=t.venue_id AND r.id=t.refund_id WHERE r.venue_id=$1 AND r.shift_id=$2 AND t.payout_method='cash')
+      - (SELECT COALESCE(SUM(t.amount),0) FROM order_refund_tenders t JOIN order_refunds r ON r.venue_id=t.venue_id AND r.id=t.refund_id LEFT JOIN finance_accounts a ON a.venue_id=t.venue_id AND a.id=t.finance_account_id WHERE r.venue_id=$1 AND COALESCE(t.shift_id,r.shift_id)=$2 AND t.payout_method='cash' AND (a.kind='pos_cashbox' OR t.finance_account_id IS NULL))
+      - (SELECT COALESCE(SUM(r.amount),0) FROM finance_other_income_refunds r JOIN finance_accounts a ON a.venue_id=r.venue_id AND a.id=r.finance_account_id WHERE r.venue_id=$1 AND r.shift_id=$2 AND r.payout_method='cash' AND a.kind='pos_cashbox')
+      - (SELECT COALESCE(SUM(e.amount),0) FROM finance_funding_events e JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.payment_method='cash' AND e.event_type='loan_principal_repaid' AND a.kind='pos_cashbox')
+      - (SELECT COALESCE(SUM(l.amount),0) FROM finance_account_transfer_legs l WHERE l.venue_id=$1 AND l.shift_id=$2 AND l.leg_type='debit')
+      - (SELECT COALESCE(SUM(e.amount),0) FROM expenses e JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.payment_method='cash' AND a.kind='pos_cashbox')
       AS "expectedCash",
     (SELECT COUNT(*)::int FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id IS NULL AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at >= $3 AND p.created_at < statement_timestamp()) AS "unresolvedLegacyCashCount",
     (SELECT COALESCE(SUM(p.amount),0) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id IS NULL AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at >= $3 AND p.created_at < statement_timestamp()) AS "unresolvedLegacyCashAmount",
@@ -1253,16 +1235,27 @@ async function captureShiftCloseLedger(client, venueId, shiftId) {
         WHERE p.shift_id=$2 AND p.status IN ('paid','partially_paid')
       UNION ALL SELECT 'guest_account_top_up',r.id,NULL,'receipt',r.payment_method,r.amount,r.created_at FROM guest_deposit_receipts r WHERE r.venue_id=$1 AND r.shift_id=$2
       UNION ALL SELECT 'reservation_pre_payment',r.id,NULL,'receipt',r.payment_method,r.amount,r.created_at FROM reservation_pre_payment_receipts r WHERE r.venue_id=$1 AND r.shift_id=$2
+      UNION ALL SELECT 'other_income_receipt',r.id,NULL,'receipt',r.payment_method,r.amount,r.created_at FROM finance_other_income_receipts r JOIN finance_accounts a ON a.venue_id=r.venue_id AND a.id=r.finance_account_id WHERE r.venue_id=$1 AND r.shift_id=$2 AND r.payment_method='cash' AND a.kind='pos_cashbox'
+      UNION ALL SELECT 'owner_contribution',e.id,NULL,'receipt',e.payment_method,e.amount,e.created_at FROM finance_funding_events e JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.event_type='owner_contribution_received' AND e.payment_method='cash' AND a.kind='pos_cashbox'
+      UNION ALL SELECT 'loan_principal_received',e.id,NULL,'receipt',e.payment_method,e.amount,e.created_at FROM finance_funding_events e JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.event_type='loan_principal_received' AND e.payment_method='cash' AND a.kind='pos_cashbox'
+       UNION ALL SELECT 'manual_expense_refund',r.id,NULL,'receipt',r.payment_method,r.amount,r.created_at FROM finance_expense_refunds r WHERE r.venue_id=$1 AND r.shift_id=$2 AND r.payment_method='cash'
       UNION ALL SELECT 'guest_account_reversal',r.id,NULL,'payout',r.payout_method,r.amount,r.created_at FROM guest_account_reversals r WHERE r.venue_id=$1 AND r.shift_id=$2
       UNION ALL SELECT 'reservation_pre_payment_reversal',r.id,NULL,'payout',r.payout_method,r.amount,r.created_at FROM reservation_pre_payment_receipt_reversals r WHERE r.venue_id=$1 AND r.shift_id=$2
-      UNION ALL SELECT 'pos_order_refund',t.id,t.order_id,'payout',t.payout_method,t.amount,t.created_at FROM order_refund_tenders t JOIN order_refunds r ON r.venue_id=t.venue_id AND r.id=t.refund_id WHERE r.venue_id=$1 AND r.shift_id=$2
+      UNION ALL SELECT 'pos_order_refund',t.id,t.order_id,'payout',t.payout_method,t.amount,t.created_at FROM order_refund_tenders t JOIN order_refunds r ON r.venue_id=t.venue_id AND r.id=t.refund_id WHERE r.venue_id=$1 AND COALESCE(t.shift_id,r.shift_id)=$2
+      UNION ALL SELECT 'other_income_refund',r.id,NULL,'payout',r.payout_method,r.amount,r.created_at FROM finance_other_income_refunds r JOIN finance_accounts a ON a.venue_id=r.venue_id AND a.id=r.finance_account_id WHERE r.venue_id=$1 AND r.shift_id=$2 AND r.payout_method='cash' AND a.kind='pos_cashbox'
+      UNION ALL SELECT 'loan_principal_repaid',e.id,NULL,'payout',e.payment_method,e.amount,e.created_at FROM finance_funding_events e JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.event_type='loan_principal_repaid' AND e.payment_method='cash' AND a.kind='pos_cashbox'
+      UNION ALL SELECT 'internal_transfer',l.id,NULL,CASE WHEN l.leg_type='credit' THEN 'receipt' ELSE 'payout' END,'cash',l.amount,l.created_at FROM finance_account_transfer_legs l WHERE l.venue_id=$1 AND l.shift_id=$2
+      UNION ALL SELECT 'payable_cash_payment',e.id,NULL,'payout',e.payment_method,e.amount,e.created_at FROM expenses e JOIN finance_payable_payment_links l ON l.venue_id=e.venue_id AND l.expense_id=e.id JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.payment_method='cash' AND a.kind='pos_cashbox'
+      UNION ALL SELECT 'cash_expense',e.id,NULL,'payout',e.payment_method,e.amount,e.created_at FROM expenses e JOIN finance_accounts a ON a.venue_id=e.venue_id AND a.id=e.finance_account_id WHERE e.venue_id=$1 AND e.shift_id=$2 AND e.payment_method='cash' AND a.kind='pos_cashbox' AND NOT EXISTS (SELECT 1 FROM finance_payable_payment_links l WHERE l.venue_id=e.venue_id AND l.expense_id=e.id)
     ) events ORDER BY "occurredAt",source,"eventId"`;
   const { rows: eventRows } = await client.query(eventQuery, [venueId, shiftId]);
   const receipts = eventRows.filter((event) => event.direction === 'receipt');
   const payouts = eventRows.filter((event) => event.direction === 'payout');
+  const settlements = receipts.filter((event) => event.source==='order_payment'&&['bonus','deposit','reservation'].includes(event.tender));
   return {
     sales: { closedOrderCount: Number(saleRows[0]?.count || 0), net: saleRows[0]?.net || '0.00', items: saleRows[0]?.items || [] },
-    receipts,
+    receipts: receipts.filter((event)=>!(event.source==='order_payment'&&['bonus','deposit','reservation'].includes(event.tender))),
+    settlements,
     payouts,
   };
 }
@@ -1433,6 +1426,24 @@ async function api(req, res) {
   const requestVenueId = req.user?.venueId || currentVenueId;
   if (await handleScheduleAccessRoute({ req, res, url, pool: repositories?.pool, readBody: body, json })) return;
   if (await handleAttendanceRoute({ req, res, url, pool: repositories?.pool, readBody: body, json })) return;
+  const financeJson = (...args) => { json(...args); return true; };
+  if (await handleFinanceExpenseDraftRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), isOperationalEmployee: (request) => isOperationalEmployee(request), recordAudit, isValidIsoDate, validateDocument: validatePurchasePaymentDocument })) return;
+   if (await handleFinanceExpenseRefundRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), isOperationalEmployee: (request) => isOperationalEmployee(request), recordAudit })) return;
+  if (await handleFinanceExpenseCorrectionRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), isOperationalEmployee: (request) => isOperationalEmployee(request), recordAudit, validateDocument: validatePurchasePaymentDocument })) return;
+  if (await handleFinancePayableRecognitionRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), recordAudit })) return;
+  if (await handleFinancePayableOffsetRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), recordAudit })) return;
+  if (await handleFinancePayableRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), recordAudit })) return;
+  if (await handleFinanceFundingRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), recordAudit })) return;
+  if (await handleFinanceBalanceEventRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), recordAudit })) return;
+  if (await handleFinanceIncomeRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), recordAudit, resolveVenues: (request, selectedVenueId) => listFinanceReportVenues({ user: request.user, selectedVenueId }) })) return;
+  if (await handleFinanceOtherIncomeRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), recordAudit })) return;
+  if (await handleFinanceUnifiedReport({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), resolveVenues: (request, selectedVenueId) => listFinanceReportVenues({ user: request.user, selectedVenueId }), readSource: async ({kind,id,venueId}) => {
+    if(kind==='purchase')return repositories.purchaseDocuments.get(venueId,id);
+    if(kind==='payroll')return (await repositories.pool.query(`SELECT pe.id,pe.period_from::text AS "periodFrom",pe.period_to::text AS "periodTo",pe.amount::text,pe.status,pe.expense_id AS "expenseId",pe.payment_date::text AS "paymentDate",pe.finance_category_name_snapshot AS "financeCategoryNameSnapshot",u.full_name AS "userName" FROM payroll_entries pe JOIN users u ON u.id=pe.user_id WHERE pe.venue_id=$1 AND pe.id=$2`,[venueId,id])).rows[0]||null;
+    const order=(await repositories.pool.query('SELECT id,vip_minimum FROM orders WHERE venue_id=$1 AND id=$2',[venueId,id])).rows[0];
+    if(!order)return null;
+    return {orderId:order.id,...await pgOrderPricing(repositories.pool,order.id,order.vip_minimum)};
+  } })) return;
   if (await handlePayrollSchemeRoute({ req, res, url, service: payrollSchemeService, readBody: body, json })) return;
   if (pathname === '/api/health') {
     if (repositories?.pool) {
@@ -2265,24 +2276,45 @@ async function api(req, res) {
     recordAudit(req, 'venue.selected', 'venue', item.id, { currentVenueId: before?.id || null }, { currentVenueId: item.id }); return json(res, 200, { ...item, isCurrent: true });
   }
   if (pathname === '/api/finance/categories' && req.method === 'GET') {
-    if (denyUnless(req, res, 'finance')) return;
+    if (denyUnlessAny(req, res, ['finance_read', 'finance'])) return;
+    if (isOperationalEmployee(req)) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+    let categoryVenueId = venueDbId;
+    let categoryCanReadFinance = hasPermission(req, 'finance');
+    const selectedVenueId = url.searchParams.get('venueId');
+    if (selectedVenueId) {
+      let selectable = [];
+      try { selectable = await listFinanceReportVenues({ user: req.user, selectedVenueId }); }
+      catch (_) { return json(res, 503, { error: 'finance_report_venues_unavailable' }); }
+      const selected = selectable.find((item) => String(item.id) === String(selectedVenueId));
+      if (!selected) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+      categoryVenueId = selected.id;
+      categoryCanReadFinance = selected.permissions.includes('finance');
+    }
     const query = String(url.searchParams.get('q') || '').trim().toLocaleLowerCase('ru-RU');
     const includeArchived = url.searchParams.get('includeArchived') === 'true';
-    if (includeArchived && denyUnless(req, res, 'finance')) return;
+    if (includeArchived && !categoryCanReadFinance) return json(res, 403, { error: 'forbidden', permission: 'finance' });
     if (repositories?.pool) {
       try {
-        const { rows } = await repositories.pool.query(`SELECT c.id,c.name,c.kind,c.active,COUNT(e.id)::int AS "operationCount"
-          FROM finance_categories c LEFT JOIN expenses e ON e.venue_id=c.venue_id AND e.category_id=c.id
-          WHERE c.venue_id=$1 AND ($2::boolean OR c.active=true) AND ($3::text='' OR c.name ILIKE '%' || $3 || '%')
-          GROUP BY c.id ORDER BY c.active DESC,c.kind,lower(c.name),c.id`, [venueDbId, includeArchived, query]);
-        return json(res, 200, { items: rows });
+        const { rows } = await repositories.pool.query(`SELECT c.id,c.name,c.kind,c.active,
+          (SELECT COUNT(*)::int FROM expenses e WHERE e.venue_id=c.venue_id AND e.category_id=c.id) AS "expenseOperationCount",
+          (SELECT COUNT(DISTINCT a.order_id)::int FROM pos_order_income_category_allocations a WHERE a.venue_id=c.venue_id AND a.category_id=c.id) AS "incomeOperationCount",
+          (SELECT COUNT(*)::int FROM finance_payables p WHERE p.venue_id=c.venue_id AND p.category_id=c.id) AS "obligationCount",
+          (SELECT COUNT(*)::int FROM finance_recurring_rules rr WHERE rr.venue_id=c.venue_id AND rr.category_id=c.id) AS "recurringRuleCount",
+          CASE WHEN $4::boolean THEN (SELECT COUNT(*)::int FROM payroll_entries pe WHERE pe.venue_id=c.venue_id AND pe.finance_category_id=c.id) ELSE NULL END AS "payrollAccrualCount",
+          (SELECT COUNT(*)::int FROM inventory_purchase_documents pd WHERE pd.venue_id=c.venue_id AND pd.finance_category_id=c.id) AS "purchaseDocumentCount"
+          ,(SELECT COUNT(*)::int FROM finance_expense_corrections fc WHERE fc.venue_id=c.venue_id AND (fc.before_category_id=c.id OR fc.after_category_id=c.id)) AS "expenseCorrectionCount"
+          ,(SELECT COUNT(*)::int FROM finance_other_income_documents oi WHERE oi.venue_id=c.venue_id AND oi.category_id=c.id) AS "otherIncomeDocumentCount"
+          FROM finance_categories c WHERE c.venue_id=$1 AND ($2::boolean OR c.active=true)
+          AND ($3::text='' OR c.name ILIKE '%' || $3 || '%')
+          ORDER BY c.active DESC,c.kind,lower(c.name),c.id`, [categoryVenueId, includeArchived, query, categoryCanReadFinance]);
+        return json(res, 200, { items: rows.map(row => ({ ...row, operationCount: Number(row.expenseOperationCount||0)+Number(row.incomeOperationCount||0) })) });
       } catch (error) { return json(res, 503, { error: 'finance_categories_unavailable', detail: error.message }); }
     }
-    return json(res, 200, { items: financeCategories.filter((item) => (includeArchived || item.active !== false) && (!query || item.name.toLocaleLowerCase('ru-RU').includes(query))).map((item) => ({ ...item, operationCount: manualExpenses.filter((expense) => expense.categoryId === item.id).length })) });
+    return json(res, 200, { items: financeCategories.filter((item) => (includeArchived || item.active !== false) && (!query || item.name.toLocaleLowerCase('ru-RU').includes(query))).map((item) => { const expenseOperationCount=manualExpenses.filter((expense) => expense.categoryId === item.id).length; return { ...item, expenseOperationCount, expenseCorrectionCount:0, incomeOperationCount:0, operationCount:expenseOperationCount, obligationCount:0, recurringRuleCount:0, payrollAccrualCount:null, purchaseDocumentCount:0, otherIncomeDocumentCount:0 }; }) });
   }
   if (pathname === '/api/finance/categories' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
-    const input = await body(req); const name = String(input.name || '').trim(); const kind = String(input.kind || 'income');
+    const input = await body(req); const name = String(input.name || '').trim(); const kind = String(input.kind || 'expense');
     if (!name || name.length > 80 || !['income', 'expense'].includes(kind)) return json(res, 400, { error: 'invalid_finance_category' });
     if (repositories?.pool) {
       try { const { rows } = await repositories.pool.query('INSERT INTO finance_categories (venue_id,name,kind) VALUES ($1,$2,$3) RETURNING id,name,kind,active,0::int AS "operationCount"', [venueDbId, name, kind]); recordAudit(req, 'finance_category.created', 'finance_category', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); }
@@ -2305,17 +2337,38 @@ async function api(req, res) {
         before = current.rows[0];
         const name = input.name === undefined ? before.name : String(input.name || '').trim(); const kind = input.kind === undefined ? before.kind : String(input.kind); const active = input.active === undefined ? before.active : input.active;
         if (!name || name.length > 80 || !['income', 'expense'].includes(kind) || typeof active !== 'boolean') { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_finance_category' }); }
-        if (before.kind === 'expense' && kind !== 'expense') {
-          const usage = await client.query('SELECT 1 FROM expenses WHERE venue_id=$1 AND category_id=$2 LIMIT 1', [venueDbId, before.id]);
-          if (usage.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_category_has_expenses' }); }
+        if (before.kind !== kind) {
+          const usage = await client.query(`SELECT 1 FROM expenses WHERE venue_id=$1 AND category_id=$2
+            UNION ALL SELECT 1 FROM finance_payables WHERE venue_id=$1 AND category_id=$2
+            UNION ALL SELECT 1 FROM finance_recurring_rules WHERE venue_id=$1 AND category_id=$2
+            UNION ALL SELECT 1 FROM finance_expense_drafts WHERE venue_id=$1 AND category_id=$2
+            UNION ALL SELECT 1 FROM payroll_entries WHERE venue_id=$1 AND finance_category_id=$2
+            UNION ALL SELECT 1 FROM inventory_purchase_documents WHERE venue_id=$1 AND finance_category_id=$2
+            UNION ALL SELECT 1 FROM finance_other_income_documents WHERE venue_id=$1 AND category_id=$2
+            UNION ALL SELECT 1 FROM finance_expense_corrections WHERE venue_id=$1 AND (before_category_id=$2 OR after_category_id=$2)
+            UNION ALL SELECT 1 FROM finance_income_category_mappings WHERE venue_id=$1 AND category_id=$2
+            UNION ALL SELECT 1 FROM pos_order_income_category_allocations WHERE venue_id=$1 AND category_id=$2 LIMIT 1`, [venueDbId, before.id]);
+          if (usage.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_category_has_operations' }); }
+        }
+        if (before.active && !active) {
+          const draftUsage = await client.query('SELECT 1 FROM finance_expense_drafts WHERE venue_id=$1 AND category_id=$2 LIMIT 1', [venueDbId,before.id]);
+          if (draftUsage.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_category_has_drafts' }); }
+          const activeRules = await client.query("SELECT 1 FROM finance_recurring_rules WHERE venue_id=$1 AND category_id=$2 AND status IN ('active','paused') LIMIT 1", [venueDbId,before.id]);
+          if (activeRules.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_category_has_active_recurring_rules' }); }
+          const mappedIncome = await client.query(`SELECT 1 FROM finance_income_category_mappings m
+            WHERE m.venue_id=$1 AND m.category_id=$2 AND (m.effective_from >= date_trunc('month',now() AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date
+              OR (m.effective_from < date_trunc('month',now() AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date AND NOT EXISTS (
+                SELECT 1 FROM finance_income_category_mappings newer WHERE newer.venue_id=m.venue_id AND newer.source_key=m.source_key
+                  AND newer.effective_from>m.effective_from AND newer.effective_from<=date_trunc('month',now() AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date
+              ))) LIMIT 1`,[venueDbId,before.id]);
+          if (mappedIncome.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_category_has_active_income_mappings' }); }
         }
         const result = await client.query('UPDATE finance_categories SET name=$1,kind=$2,active=$3,updated_at=now() WHERE id=$4 AND venue_id=$5 RETURNING id,name,kind,active', [name,kind,active,before.id,venueDbId]);
         updated = result.rows[0];
-        if (name !== before.name) await client.query('UPDATE expenses SET category=$1 WHERE venue_id=$2 AND category_id=$3', [name,venueDbId,before.id]);
         await client.query('COMMIT');
         recordAudit(req, active !== before.active ? active ? 'finance_category.restored' : 'finance_category.archived' : 'finance_category.updated', 'finance_category', updated.id, before, updated);
         return json(res, 200, updated);
-      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, error.code === '23505' ? 409 : 503, { error: error.code === '23505' ? 'finance_category_exists' : 'finance_category_update_failed', detail: error.message }); }
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); const categoryInUse = error.message === 'finance_category_source_kind_immutable'; return json(res, error.code === '23505' || categoryInUse ? 409 : 503, { error: error.code === '23505' ? 'finance_category_exists' : categoryInUse ? 'finance_category_has_operations' : 'finance_category_update_failed', detail: error.message }); }
       finally { client.release(); }
     }
     const category = financeCategories.find((item) => item.id === financeCategoryPath[1]); if (!category) return json(res, 404, { error: 'finance_category_not_found' });
@@ -2326,7 +2379,33 @@ async function api(req, res) {
   }
   if (financeCategoryPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'finance')) return;
-    if (repositories?.pool) { const { rows } = await repositories.pool.query('UPDATE finance_categories SET active=false,updated_at=now() WHERE id=$1 AND venue_id=$2 RETURNING id,name,kind,active', [financeCategoryPath[1],venueDbId]); if (!rows[0]) return json(res, 404, { error: 'finance_category_not_found' }); recordAudit(req, 'finance_category.archived', 'finance_category', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); }
+    if (repositories?.pool) {
+      const client=await repositories.pool.connect(); try { await client.query('BEGIN');
+        const current=await client.query('SELECT id,name,kind,active FROM finance_categories WHERE id=$1 AND venue_id=$2 FOR UPDATE',[financeCategoryPath[1],venueDbId]);
+        if(!current.rows[0]){await client.query('ROLLBACK');return json(res,404,{error:'finance_category_not_found'});}
+        const activeRules=await client.query("SELECT 1 FROM finance_recurring_rules WHERE venue_id=$1 AND category_id=$2 AND status IN ('active','paused') LIMIT 1",[venueDbId,current.rows[0].id]);
+        if(activeRules.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'finance_category_has_active_recurring_rules'});}
+        const usage=await client.query(`SELECT 1 FROM expenses WHERE venue_id=$1 AND category_id=$2
+          UNION ALL SELECT 1 FROM finance_payables WHERE venue_id=$1 AND category_id=$2
+          UNION ALL SELECT 1 FROM finance_recurring_rules WHERE venue_id=$1 AND category_id=$2
+          UNION ALL SELECT 1 FROM finance_expense_drafts WHERE venue_id=$1 AND category_id=$2
+          UNION ALL SELECT 1 FROM payroll_entries WHERE venue_id=$1 AND finance_category_id=$2
+          UNION ALL SELECT 1 FROM inventory_purchase_documents WHERE venue_id=$1 AND finance_category_id=$2
+          UNION ALL SELECT 1 FROM finance_other_income_documents WHERE venue_id=$1 AND category_id=$2
+          UNION ALL SELECT 1 FROM finance_income_category_mappings WHERE venue_id=$1 AND category_id=$2
+          UNION ALL SELECT 1 FROM pos_order_income_category_allocations WHERE venue_id=$1 AND category_id=$2 LIMIT 1`,[venueDbId,current.rows[0].id]);
+        if(usage.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'finance_category_has_operations'});}
+        const mappedIncome=await client.query(`SELECT 1 FROM finance_income_category_mappings m WHERE m.venue_id=$1 AND m.category_id=$2
+          AND (m.effective_from >= date_trunc('month',now() AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date
+            OR (m.effective_from < date_trunc('month',now() AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date AND NOT EXISTS (
+              SELECT 1 FROM finance_income_category_mappings newer WHERE newer.venue_id=m.venue_id AND newer.source_key=m.source_key
+                AND newer.effective_from>m.effective_from AND newer.effective_from<=date_trunc('month',now() AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date
+            ))) LIMIT 1`,[venueDbId,current.rows[0].id]);
+        if(mappedIncome.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'finance_category_has_active_income_mappings'});}
+        const {rows}=await client.query('UPDATE finance_categories SET active=false,updated_at=now() WHERE id=$1 AND venue_id=$2 RETURNING id,name,kind,active',[financeCategoryPath[1],venueDbId]);
+        await client.query('COMMIT');recordAudit(req,'finance_category.archived','finance_category',rows[0].id,{active:true},rows[0]);return json(res,200,rows[0]);
+      } catch(error){await client.query('ROLLBACK').catch(()=>{});return json(res,503,{error:'finance_category_archive_failed'});} finally{client.release();}
+    }
     const category = financeCategories.find((item) => item.id === financeCategoryPath[1]); if (!category) return json(res, 404, { error: 'finance_category_not_found' });
     category.active = false; recordAudit(req, 'finance_category.archived', 'finance_category', category.id, { active: true }, { active: false }); return json(res, 200, category);
   }
@@ -2345,7 +2424,7 @@ async function api(req, res) {
     }
     if (repositories?.pool) {
       try {
-        const [ordersMetric, discountsMetric, staffMetric, reservationsMetric, stockMetric] = await Promise.all([
+    const [ordersMetric, discountsMetric, staffMetric, reservationsMetric, stockMetric] = await Promise.all([
           repositories.pool.query(`WITH ${orderPricingSqlCtes}, paid_totals AS (SELECT order_id, COALESCE(SUM(amount) FILTER (WHERE status IN ('paid','partially_paid')),0) AS paid FROM payments GROUP BY order_id) SELECT COUNT(*) FILTER (WHERE o.status IN ('open','in_progress','ready'))::int AS open_orders, COUNT(*) FILTER (WHERE o.status='closed')::int AS closed_orders, COALESCE(SUM(CASE WHEN o.status IN ('open','in_progress','ready') THEN GREATEST(0,GREATEST(COALESCE(o.vip_minimum,0),COALESCE(i.subtotal,0)-COALESCE(d.discount,0))-COALESCE(p.paid,0)) ELSE 0 END),0) AS pending_revenue FROM orders o LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN discount_totals d ON d.order_id=o.id LEFT JOIN paid_totals p ON p.order_id=o.id WHERE o.venue_id=$1`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE venue_id=$1 AND is_active=true`, [venueDbId]),
@@ -2364,7 +2443,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/analytics' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance_read') && !hasPermission(req, 'finance')) return json(res, 403, { error: 'forbidden', permission: 'analytics' });
-    const employeeFinanceView = isOperationalEmployee(req); const requestedPeriod = employeeFinanceView ? '1' : String(url.searchParams.get('days') || '7').trim().toLowerCase(); const isAllTime = !employeeFinanceView && (requestedPeriod === 'all' || requestedPeriod === '0'); const requestedDays = Number(requestedPeriod); const analyticsDays = employeeFinanceView ? 1 : (isAllTime ? 365 : Math.min(Math.max(Number.isFinite(requestedDays) ? Math.round(requestedDays) : 7, 3), 90)); const end = new Date(); let venueTimezone = businessTimezone; let endDate = businessDateKey(end); if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT timezone FROM venues WHERE id=$1', [venueDbId]); venueTimezone = String(rows[0]?.timezone || businessTimezone); try { new Intl.DateTimeFormat('en-US', { timeZone: venueTimezone }).format(end); } catch (_) { venueTimezone = businessTimezone; } const localDate = await repositories.pool.query('SELECT (now() AT TIME ZONE $1)::date::text AS date', [venueTimezone]); endDate = localDate.rows[0]?.date || endDate; } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); } } let startDate; if (isAllTime && repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT to_char(COALESCE(LEAST((SELECT MIN((closed_at AT TIME ZONE $2)::date) FROM orders WHERE venue_id=$1 AND status='closed'), (SELECT MIN(expense_date) FROM expenses WHERE venue_id=$1 AND source<>'payroll'), (SELECT MIN(period_from) FROM payroll_entries WHERE venue_id=$1 AND status IN ('approved','paid')), (SELECT MIN((o.closed_at AT TIME ZONE $2)::date) FROM order_costs c JOIN orders o ON o.id=c.order_id WHERE c.venue_id=$1)), $3::date), 'YYYY-MM-DD') AS start_date`, [venueDbId, venueTimezone, endDate]); startDate = String(rows[0]?.start_date || endDate).slice(0, 10); } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); } } else { const start = new Date(`${endDate}T00:00:00Z`); start.setUTCDate(start.getUTCDate() - (analyticsDays - 1)); startDate = start.toISOString().slice(0, 10); }
+    const employeeFinanceView = isOperationalEmployee(req); const requestedPeriod = employeeFinanceView ? '1' : String(url.searchParams.get('days') || '7').trim().toLowerCase(); const isAllTime = !employeeFinanceView && (requestedPeriod === 'all' || requestedPeriod === '0'); const requestedDays = Number(requestedPeriod); const analyticsDays = employeeFinanceView ? 1 : (isAllTime ? 365 : Math.min(Math.max(Number.isFinite(requestedDays) ? Math.round(requestedDays) : 7, 3), 90)); const end = new Date(); let venueTimezone = businessTimezone; let endDate = businessDateKey(end); if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT timezone FROM venues WHERE id=$1', [venueDbId]); venueTimezone = String(rows[0]?.timezone || businessTimezone); try { new Intl.DateTimeFormat('en-US', { timeZone: venueTimezone }).format(end); } catch (_) { venueTimezone = businessTimezone; } const localDate = await repositories.pool.query('SELECT (now() AT TIME ZONE $1)::date::text AS date', [venueTimezone]); endDate = localDate.rows[0]?.date || endDate; } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); } } let startDate; if (isAllTime && repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT to_char(COALESCE(LEAST((SELECT MIN((closed_at AT TIME ZONE $2)::date) FROM orders WHERE venue_id=$1 AND status='closed'), (SELECT MIN(expense_date) FROM expenses WHERE venue_id=$1 AND source<>'payroll'), (SELECT MIN(refund_date) FROM finance_expense_refunds WHERE venue_id=$1), (SELECT MIN(period_from) FROM payroll_entries WHERE venue_id=$1 AND status IN ('approved','paid')), (SELECT MIN((o.closed_at AT TIME ZONE $2)::date) FROM order_costs c JOIN orders o ON o.id=c.order_id WHERE c.venue_id=$1), (SELECT MIN(period_from) FROM finance_payables WHERE venue_id=$1), (SELECT MIN(recognition_date) FROM finance_payable_recognitions WHERE venue_id=$1), (SELECT MIN(reversal_date) FROM finance_payable_recognition_reversals WHERE venue_id=$1)), $3::date), 'YYYY-MM-DD') AS start_date`, [venueDbId, venueTimezone, endDate]); startDate = String(rows[0]?.start_date || endDate).slice(0, 10); } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); } } else { const start = new Date(`${endDate}T00:00:00Z`); start.setUTCDate(start.getUTCDate() - (analyticsDays - 1)); startDate = start.toISOString().slice(0, 10); }
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
@@ -2374,21 +2453,53 @@ async function api(req, res) {
     }
     if (repositories?.pool) {
       try {
-        const [daily, products, hall, staffRows, stationRows, expenseRows, payrollRows, cashOutflowRows, costRows, staffItemRows, checkRows] = await Promise.all([
-          repositories.pool.query(`SELECT to_char(d::date,'YYYY-MM-DD') AS date, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM generate_series($2::date,$3::date,'1 day') d LEFT JOIN orders o ON o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date=d::date LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') GROUP BY d::date ORDER BY d::date`, [venueDbId, startDate, endDate, venueTimezone]),
+        const [daily, products, hall, staffRows, stationRows, expenseRows, payrollRows, payableRecognitionRows, payableRecognitionCoverage, posRefundCoverageRows, cashOutflowRows, costRows, staffItemRows, checkRows] = await Promise.all([
+          repositories.pool.query(`WITH ${orderPricingSqlCtes}, paid_totals AS (
+            SELECT order_id,COALESCE(SUM(amount) FILTER (WHERE status IN ('paid','partially_paid')),0) AS paid FROM payments GROUP BY order_id
+          ), recognized_orders AS (
+            SELECT o.id,o.venue_id,(o.closed_at AT TIME ZONE $4)::date AS close_date,
+              COALESCE(c.final_total,o.final_total_snapshot,GREATEST(0,GREATEST(COALESCE(o.vip_minimum,0),COALESCE(i.subtotal,0)-COALESCE(d.discount,0)))) AS recognized_total,
+              (c.final_total IS NOT NULL OR o.final_total_snapshot IS NOT NULL OR EXISTS(SELECT 1 FROM order_items evidence WHERE evidence.order_id=o.id)) AS recognized_known
+            FROM orders o LEFT JOIN canonical_totals c ON c.order_id=o.id AND c.venue_id=o.venue_id
+            LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN discount_totals d ON d.order_id=o.id
+            WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
+          )
+          SELECT to_char(d::date,'YYYY-MM-DD') AS date,COALESCE(SUM(p.paid),0) AS revenue,COUNT(DISTINCT o.id)::int AS orders,
+            COALESCE(SUM(o.recognized_total) FILTER (WHERE o.recognized_known),0) AS known_recognized_revenue,
+            COUNT(o.id) FILTER (WHERE NOT o.recognized_known)::int AS unresolved_recognized_order_count
+          FROM generate_series($2::date,$3::date,'1 day') d
+          LEFT JOIN recognized_orders o ON o.close_date=d::date
+          LEFT JOIN paid_totals p ON p.order_id=o.id
+          GROUP BY d::date ORDER BY d::date`, [venueDbId, startDate, endDate, venueTimezone]),
           repositories.pool.query(`SELECT COALESCE(p.name,'Позиция') AS name, SUM(oi.quantity)::numeric AS quantity FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date GROUP BY p.name ORDER BY quantity DESC LIMIT 5`, [venueDbId, startDate, endDate, venueTimezone]),
           repositories.pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t.status IN ('occupied','reserved'))::int AS busy FROM tables t JOIN zones z ON z.id=t.zone_id WHERE z.venue_id=$1`, [venueDbId]),
           repositories.pool.query(`SELECT COALESCE(u.full_name,u.login,'Не указан') AS name, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM orders o LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') LEFT JOIN users u ON u.id=o.opened_by WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date GROUP BY u.full_name,u.login ORDER BY revenue DESC`, [venueDbId, startDate, endDate, venueTimezone]),
           repositories.pool.query(`SELECT oi.order_id AS order_id, COALESCE(oi.station,'other') AS station, COALESCE(SUM(oi.quantity * oi.unit_price),0) AS gross FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date GROUP BY oi.order_id,COALESCE(oi.station,'other')`, [venueDbId, startDate, endDate, venueTimezone]),
-          repositories.pool.query(`SELECT to_char(expense_date,'YYYY-MM-DD') AS date, COALESCE(SUM(amount),0) AS amount FROM expenses e WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND e.source <> 'purchase' AND e.source <> 'payroll' GROUP BY expense_date`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT to_char(event_date,'YYYY-MM-DD') AS date,COALESCE(SUM(amount),0)::numeric(14,2) AS amount FROM (
+            SELECT e.expense_date AS event_date,e.amount FROM expenses e WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND e.source NOT IN ('purchase','payroll') AND NOT EXISTS(SELECT 1 FROM finance_payable_payment_links l WHERE l.venue_id=e.venue_id AND l.expense_id=e.id)
+            UNION ALL SELECT e.expense_date,c.amount_delta FROM finance_expense_corrections c JOIN expenses e ON e.venue_id=c.venue_id AND e.id=c.expense_id WHERE c.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND e.source IN ('manual','other') AND NOT EXISTS(SELECT 1 FROM finance_payable_payment_links l WHERE l.venue_id=e.venue_id AND l.expense_id=e.id)
+          ) expense_events GROUP BY event_date`, [venueDbId, startDate, endDate]),
           repositories.pool.query(`SELECT to_char(d::date,'YYYY-MM-DD') AS date, COALESCE(SUM(pe.amount / (pe.period_to - pe.period_from + 1)),0) AS amount FROM payroll_entries pe CROSS JOIN LATERAL generate_series(GREATEST(pe.period_from,$2::date)::timestamp,LEAST(pe.period_to,$3::date)::timestamp,INTERVAL '1 day') d WHERE pe.venue_id=$1 AND pe.status IN ('approved','paid') AND pe.period_from <= $3::date AND pe.period_to >= $2::date GROUP BY d::date`, [venueDbId, startDate, endDate]),
-          repositories.pool.query(`SELECT to_char(expense_date,'YYYY-MM-DD') AS date, COALESCE(SUM(amount),0) AS amount FROM expenses e WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND (e.source <> 'payroll' OR EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id AND pe.status='paid')) GROUP BY e.expense_date`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT to_char(event_date,'YYYY-MM-DD') AS date,SUM(amount)::numeric(14,2) AS amount FROM (SELECT recognition_date AS event_date,amount FROM finance_payable_recognitions WHERE venue_id=$1 AND recognition_date BETWEEN $2::date AND $3::date UNION ALL SELECT reversal_date,-amount FROM finance_payable_recognition_reversals WHERE venue_id=$1 AND reversal_date BETWEEN $2::date AND $3::date) events GROUP BY event_date`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT COUNT(*)::int AS count,COALESCE(SUM(p.total_amount),0)::numeric(14,2) AS amount FROM finance_payables p LEFT JOIN finance_payable_recognitions r ON r.venue_id=p.venue_id AND r.payable_id=p.id WHERE p.venue_id=$1 AND p.status='approved' AND ((p.period_from<=$3::date AND p.period_to>=$2::date) OR EXISTS (SELECT 1 FROM finance_payable_payment_links pl JOIN expenses e ON e.venue_id=pl.venue_id AND e.id=pl.expense_id WHERE pl.venue_id=p.venue_id AND pl.payable_id=p.id AND e.expense_date BETWEEN $2::date AND $3::date)) AND r.id IS NULL`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT
+            (SELECT COUNT(DISTINCT o.id)::int FROM orders o WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date AND EXISTS (SELECT 1 FROM order_refunds r WHERE r.venue_id=o.venue_id AND r.order_id=o.id)) AS affected_order_count,
+            (SELECT COUNT(*)::int FROM order_refunds r JOIN orders o ON o.id=r.order_id AND o.venue_id=r.venue_id WHERE r.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date) AS sale_period_refund_count,
+            (SELECT COUNT(*)::int FROM order_refund_tenders t WHERE t.venue_id=$1 AND (t.created_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date) AS event_period_refund_tender_count,
+            (SELECT COALESCE(SUM(t.amount),0)::numeric(14,2) FROM order_refund_tenders t WHERE t.venue_id=$1 AND (t.created_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date) AS event_period_payout_amount,
+            (SELECT COUNT(*)::int FROM order_refunds r JOIN orders o ON o.id=r.order_id AND o.venue_id=r.venue_id WHERE r.venue_id=$1 AND r.item_attribution_status='unattributed' AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date) AS unattributed_refund_count,
+            (SELECT COUNT(*)::int FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date AND p.status='refunded') AS legacy_refunded_payment_count`, [venueDbId, startDate, endDate, venueTimezone]),
+          repositories.pool.query(`SELECT to_char(event_date,'YYYY-MM-DD') AS date,COALESCE(SUM(amount),0)::numeric(14,2) AS amount FROM (
+            SELECT e.expense_date AS event_date,e.amount FROM expenses e WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND (e.source <> 'payroll' OR EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id AND pe.status='paid'))
+          ) cash_events GROUP BY event_date`, [venueDbId, startDate, endDate]),
           repositories.pool.query(`SELECT to_char((o.closed_at AT TIME ZONE $4)::date,'YYYY-MM-DD') AS date, COALESCE(SUM(c.cost),0) AS amount FROM order_costs c JOIN orders o ON o.id=c.order_id AND o.venue_id=c.venue_id WHERE c.venue_id=$1 AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date GROUP BY (o.closed_at AT TIME ZONE $4)::date`, [venueDbId, startDate, endDate, venueTimezone]),
           repositories.pool.query(`SELECT o.id AS order_id, COALESCE(u.full_name,u.login,'Не указан') AS staff_name, COALESCE(p.name,'Позиция') AS product_name, SUM(oi.quantity)::numeric AS quantity, COALESCE(SUM(oi.quantity * oi.unit_price),0)::numeric AS gross FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN users u ON u.id=o.opened_by LEFT JOIN products p ON p.id=oi.product_id WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date GROUP BY o.id,COALESCE(u.full_name,u.login,'Не указан'),COALESCE(p.name,'Позиция') ORDER BY staff_name, gross DESC`, [venueDbId, startDate, endDate, venueTimezone]),
           repositories.pool.query(`SELECT o.id AS order_id, to_char((o.closed_at AT TIME ZONE $4)::date,'YYYY-MM-DD') AS date, COALESCE(SUM(p.amount) FILTER (WHERE p.status IN ('paid','partially_paid')),0)::numeric AS check_total FROM orders o LEFT JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.status='closed' AND (o.closed_at AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date GROUP BY o.id,o.closed_at ORDER BY o.closed_at`, [venueDbId, startDate, endDate, venueTimezone])
         ]);
-        const expenseMap = Object.fromEntries(expenseRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const payrollMap = Object.fromEntries(payrollRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const cashOutflowMap = Object.fromEntries(cashOutflowRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const costsByDate = Object.fromEntries(costRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const checksByDate = new Map(); for (const row of checkRows.rows) { const key = String(row.date).slice(0, 10); checksByDate.set(key, [...(checksByDate.get(key) || []), Number(row.check_total || 0)]); } const days = daily.rows.map((row) => { const date = String(row.date).slice(0, 10); const revenue = Number(row.revenue || 0); const expenses = (expenseMap[date] || 0) + (payrollMap[date] || 0); const cashOutflow = cashOutflowMap[date] || 0; const costOfGoods = costsByDate[date] || 0; const orders = Number(row.orders || 0); return { date, revenue, expenses, payroll: payrollMap[date] || 0, cashOutflow, costOfGoods, netProfit: revenue - expenses - costOfGoods, orders, averageCheck: orders ? revenue / orders : 0, medianCheck: medianOf(checksByDate.get(date) || []), tables: 0 }; }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.expenses, 0); const totalPayroll = days.reduce((sum, row) => sum + row.payroll, 0); const totalCashOutflow = days.reduce((sum, row) => sum + row.cashOutflow, 0); const totalCostOfGoods = days.reduce((sum, row) => sum + row.costOfGoods, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const hallRow = hall.rows[0] || {};
-        const checkAmountsByOrder = new Map(checkRows.rows.map((row) => [String(row.order_id), Number(row.check_total || 0)])); const staffSalesMap = new Map(); const staffItemsByOrder = new Map(); for (const row of staffItemRows.rows) { const orderId = String(row.order_id); const rows = staffItemsByOrder.get(orderId) || []; rows.push(row); staffItemsByOrder.set(orderId, rows); } for (const [orderId, rows] of staffItemsByOrder) { const staffName = String(rows[0]?.staff_name || 'Не указан'); const entry = staffSalesMap.get(staffName) || { name: staffName, items: [], revenue: 0, orders: 0 }; const allocations = allocateMoneyByGross(rows, checkAmountsByOrder.get(orderId) || 0, (row) => row.product_name, (row) => Number(row.gross || 0)); for (const row of rows) { const name = String(row.product_name || 'Позиция'); const item = entry.items.find((existing) => existing.name === name); const revenue = allocations.get(name) || 0; if (item) { item.quantity += Number(row.quantity || 0); item.revenue += revenue; } else entry.items.push({ name, quantity: Number(row.quantity || 0), revenue }); } staffSalesMap.set(staffName, entry); } for (const row of staffRows.rows) { const name = String(row.name || 'Не указан'); const entry = staffSalesMap.get(name) || { name, items: [], revenue: 0, orders: 0 }; entry.revenue = Number(row.revenue || 0); entry.orders = Number(row.orders || 0); staffSalesMap.set(name, entry); } const stationTotals = new Map(); const stationsByOrder = new Map(); for (const row of stationRows.rows) { const orderId = String(row.order_id); const rows = stationsByOrder.get(orderId) || []; rows.push(row); stationsByOrder.set(orderId, rows); } for (const [orderId, rows] of stationsByOrder) { const allocations = allocateMoneyByGross(rows, checkAmountsByOrder.get(orderId) || 0, (row) => row.station, (row) => Number(row.gross || 0)); for (const row of rows) { const station = String(row.station || 'other'); const entry = stationTotals.get(station) || { revenue: 0, orders: 0 }; entry.revenue += allocations.get(station) || 0; entry.orders += 1; stationTotals.set(station, entry); } } const byStation = Object.fromEntries([...stationTotals].map(([station, row]) => [station, { ...row, averageCheck: row.orders ? row.revenue / row.orders : 0 }])); const fullAnalytics = { days, totalRevenue, totalExpenses, totalPayroll, totalCashOutflow, totalCostOfGoods, netProfit: totalRevenue - totalExpenses - totalCostOfGoods, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: products.rows.map((row) => ({ name: row.name, quantity: Number(row.quantity || 0) })), staffDynamics: staffRows.rows.map((row) => ({ name: row.name, revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })), staffSales: [...staffSalesMap.values()].sort((a, b) => b.revenue - a.revenue), medianCheck: medianOf(checkRows.rows.map((row) => row.check_total)), avgTablesPerDay: 0, byStation, hallLoad: { busy: Number(hallRow.busy || 0), total: Number(hallRow.total || 0) } }; if (employeeFinanceView) return json(res, 200, { employeeView: true, period: 'today', days: days.map((day) => ({ date: day.date, revenue: day.revenue, orders: day.orders, averageCheck: day.orders ? day.revenue / day.orders : 0 })), totalRevenue, averageCheck: fullAnalytics.averageCheck, staffDynamics: [], staffSales: [], topProducts: [], byStation: {}, hallLoad: { busy: 0, total: 0 } }); return json(res, 200, fullAnalytics);
+        const expenseRefundCoverageRows = await repositories.pool.query("SELECT COUNT(*)::int AS count,COALESCE(SUM(amount),0)::numeric(14,2) AS amount FROM finance_expense_refunds WHERE venue_id=$1 AND pnl_effect='not_calculated' AND refund_date BETWEEN $2::date AND $3::date", [venueDbId,startDate,endDate]);
+        const expenseMap = Object.fromEntries(expenseRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const payrollMap = Object.fromEntries(payrollRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const payableRecognitionMap = Object.fromEntries(payableRecognitionRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const cashOutflowMap = Object.fromEntries(cashOutflowRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const costsByDate = Object.fromEntries(costRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const checksByDate = new Map(); for (const row of checkRows.rows) { const key = String(row.date).slice(0, 10); checksByDate.set(key, [...(checksByDate.get(key) || []), Number(row.check_total || 0)]); } const incompletePayables = Number(payableRecognitionCoverage.rows[0]?.count || 0)>0; const refundCoverageRow=posRefundCoverageRows.rows[0]||{}; const salePeriodRefundCount=Number(refundCoverageRow.sale_period_refund_count||0); const eventPeriodRefundTenderCount=Number(refundCoverageRow.event_period_refund_tender_count||0); const legacyRefundedPaymentCount=Number(refundCoverageRow.legacy_refunded_payment_count||0); const incompletePosRefunds=salePeriodRefundCount>0||eventPeriodRefundTenderCount>0||legacyRefundedPaymentCount>0; const expenseRefundCount=Number(expenseRefundCoverageRows.rows[0]?.count||0); const expenseRefundAmount=Number(expenseRefundCoverageRows.rows[0]?.amount||0); const incompleteExpenseRefunds=expenseRefundCount>0; const expenseTotalsIncomplete=incompletePayables||incompleteExpenseRefunds; const recognizedOrderCount=daily.rows.reduce((sum,row)=>sum+Number(row.orders||0),0); const unresolvedRecognizedOrderCount=daily.rows.reduce((sum,row)=>sum+Number(row.unresolved_recognized_order_count||0),0); const knownRecognizedRevenue=daily.rows.reduce((sum,row)=>sum+Number(row.known_recognized_revenue||0),0); const incompleteRecognizedRevenue=unresolvedRecognizedOrderCount>0; const totalRecognizedRevenue=incompleteRecognizedRevenue?null:knownRecognizedRevenue; // The payroll readiness API currently returns officialReady:false for credit/refund/net sources.
+        const payrollSourceOfficialReady=false; const profitIncomplete=expenseTotalsIncomplete||incompletePosRefunds||incompleteRecognizedRevenue||!payrollSourceOfficialReady; const dailyByDate = new Map(daily.rows.map((row) => [String(row.date).slice(0,10),row])); const allFinanceDates=[...new Set([...dailyByDate.keys(),...Object.keys(expenseMap),...Object.keys(payableRecognitionMap),...Object.keys(payrollMap),...Object.keys(cashOutflowMap),...Object.keys(costsByDate)])].sort(); const days = allFinanceDates.map((date) => { const row=dailyByDate.get(date)||{}; const revenue = Number(row.revenue || 0); const dayKnownRecognizedRevenue=Number(row.known_recognized_revenue||0); const unresolvedDayRecognizedOrderCount=Number(row.unresolved_recognized_order_count||0); const recognizedRevenue=unresolvedDayRecognizedOrderCount>0?null:dayKnownRecognizedRevenue; const expenses = (expenseMap[date] || 0) + (payableRecognitionMap[date] || 0) + (payrollMap[date] || 0); const cashOutflow = cashOutflowMap[date] || 0; const costOfGoods = costsByDate[date] || 0; const orders = Number(row.orders || 0); const knownNetProfit=dayKnownRecognizedRevenue-expenses-costOfGoods; return { date, revenue, recognizedRevenue, knownRecognizedRevenue:dayKnownRecognizedRevenue, unresolvedRecognizedOrderCount:unresolvedDayRecognizedOrderCount, expenses: expenseTotalsIncomplete?null:expenses, knownExpenses:expenses, payroll: payrollMap[date] || 0, cashOutflow, costOfGoods, knownNetProfit, netProfit: profitIncomplete?null:knownNetProfit, orders, averageCheck: orders ? revenue / orders : 0, medianCheck: medianOf(checksByDate.get(date) || []), tables: 0 }; }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.knownExpenses, 0); const totalPayroll = days.reduce((sum, row) => sum + row.payroll, 0); const totalCashOutflow = days.reduce((sum, row) => sum + row.cashOutflow, 0); const totalCostOfGoods = days.reduce((sum, row) => sum + row.costOfGoods, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const hallRow = hall.rows[0] || {};
+        const checkAmountsByOrder = new Map(checkRows.rows.map((row) => [String(row.order_id), Number(row.check_total || 0)])); const staffSalesMap = new Map(); const staffItemsByOrder = new Map(); for (const row of staffItemRows.rows) { const orderId = String(row.order_id); const rows = staffItemsByOrder.get(orderId) || []; rows.push(row); staffItemsByOrder.set(orderId, rows); } for (const [orderId, rows] of staffItemsByOrder) { const staffName = String(rows[0]?.staff_name || 'Не указан'); const entry = staffSalesMap.get(staffName) || { name: staffName, items: [], revenue: 0, orders: 0 }; const allocations = allocateMoneyByGross(rows, checkAmountsByOrder.get(orderId) || 0, (row) => row.product_name, (row) => Number(row.gross || 0)); for (const row of rows) { const name = String(row.product_name || 'Позиция'); const item = entry.items.find((existing) => existing.name === name); const revenue = allocations.get(name) || 0; if (item) { item.quantity += Number(row.quantity || 0); item.revenue += revenue; } else entry.items.push({ name, quantity: Number(row.quantity || 0), revenue }); } staffSalesMap.set(staffName, entry); } for (const row of staffRows.rows) { const name = String(row.name || 'Не указан'); const entry = staffSalesMap.get(name) || { name, items: [], revenue: 0, orders: 0 }; entry.revenue = Number(row.revenue || 0); entry.orders = Number(row.orders || 0); staffSalesMap.set(name, entry); } const stationTotals = new Map(); const stationsByOrder = new Map(); for (const row of stationRows.rows) { const orderId = String(row.order_id); const rows = stationsByOrder.get(orderId) || []; rows.push(row); stationsByOrder.set(orderId, rows); } for (const [orderId, rows] of stationsByOrder) { const allocations = allocateMoneyByGross(rows, checkAmountsByOrder.get(orderId) || 0, (row) => row.station, (row) => Number(row.gross || 0)); for (const row of rows) { const station = String(row.station || 'other'); const entry = stationTotals.get(station) || { revenue: 0, orders: 0 }; entry.revenue += allocations.get(station) || 0; entry.orders += 1; stationTotals.set(station, entry); } } const byStation = Object.fromEntries([...stationTotals].map(([station, row]) => [station, { ...row, averageCheck: row.orders ? row.revenue / row.orders : 0 }])); const knownNetProfit = knownRecognizedRevenue - totalExpenses - totalCostOfGoods; const fullAnalytics = { days, totalRevenue, revenueBasis:'gross_paid_pos_sales_before_refund_recognition', totalRecognizedRevenue, knownRecognizedRevenue, recognizedRevenueBasis:'closed_order_final_total_snapshot_or_safe_legacy_fallback', recognizedRevenueCoverage:{status:incompleteRecognizedRevenue?'incomplete':'complete',reason:incompleteRecognizedRevenue?'closed_order_value_evidence_missing':null,orderCount:recognizedOrderCount,unresolvedOrderCount:unresolvedRecognizedOrderCount,dateBasis:'venue_local_close_date'}, totalExpenses:expenseTotalsIncomplete?null:totalExpenses, knownTotalExpenses:totalExpenses, totalPayroll, totalCashOutflow, totalCostOfGoods, knownNetProfit, netProfit: profitIncomplete?null:knownNetProfit, posRefundCoverage:{ status:incompletePosRefunds?'incomplete':'complete', reason:incompletePosRefunds?'pos_refund_recognition_policy_unresolved':null, dateBasis:'sale_close_date_and_refund_event_local_date', affectedOrderCount:Number(refundCoverageRow.affected_order_count||0), salePeriodRefundCount, eventPeriodRefundTenderCount, eventPeriodPayoutAmount:Number(refundCoverageRow.event_period_payout_amount||0), legacyRefundedPaymentCount, unattributedRefundCount:Number(refundCoverageRow.unattributed_refund_count||0), payoutIncludedInProfit:false }, manualExpenseRefundCoverage:{status:incompleteExpenseRefunds?'incomplete':'complete',reason:incompleteExpenseRefunds?'manual_expense_refund_pnl_policy_not_calculated':null,count:expenseRefundCount,amount:expenseRefundAmount,dateBasis:'actual_refund_date',pnlEffect:'not_calculated',cashEventIncludedInProfit:false}, payableRecognitionCoverage: { status: incompletePayables?'incomplete':'complete', unrecognizedCount:Number(payableRecognitionCoverage.rows[0]?.count||0), unrecognizedAmount:Number(payableRecognitionCoverage.rows[0]?.amount||0), dateBasis:'approved_service_period_overlap' }, payrollCoverage:{status:payrollSourceOfficialReady?'complete':'incomplete',reason:payrollSourceOfficialReady?null:'payroll_source_not_official_ready',officialReady:payrollSourceOfficialReady}, officialReady:payrollSourceOfficialReady, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: products.rows.map((row) => ({ name: row.name, quantity: Number(row.quantity || 0) })), staffDynamics: staffRows.rows.map((row) => ({ name: row.name, revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })), staffSales: [...staffSalesMap.values()].sort((a, b) => b.revenue - a.revenue), medianCheck: medianOf(checkRows.rows.map((row) => row.check_total)), avgTablesPerDay: 0, byStation, hallLoad: { busy: Number(hallRow.busy || 0), total: Number(hallRow.total || 0) } }; if (employeeFinanceView) return json(res, 200, { employeeView: true, period: 'today', days: days.map((day) => ({ date: day.date, revenue: day.revenue, orders: day.orders, averageCheck: day.orders ? day.revenue / day.orders : 0 })), totalRevenue, averageCheck: fullAnalytics.averageCheck, staffDynamics: [], staffSales: [], topProducts: [], byStation: {}, hallLoad: { busy: 0, total: 0 } }); return json(res, 200, fullAnalytics);
       } catch (error) {
         return json(res, 503, { error: 'database_unavailable', detail: error.message });
       }
@@ -3202,9 +3313,11 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         if (!existing) { await client.query('ROLLBACK'); return json(res, 404, { error: 'recipe_not_found' }); }
         const nextType = input.recipeType === undefined ? existing.recipeType : (['sale','premix'].includes(String(input.recipeType)) ? String(input.recipeType) : null);
         if (!nextType) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_recipe_type' }); }
+        const nextOutputIngredientId = nextType === 'premix'
+          ? (input.outputIngredientId === undefined ? existing.outputIngredientId : String(input.outputIngredientId || '').trim() || null)
+          : null;
         const nextProductId = input.productId === undefined ? existing.productId : (input.productId === null ? null : String(input.productId).trim() || null);
         if (nextType === 'premix' && nextProductId) { await client.query('ROLLBACK'); return json(res, 400, { error: 'premix_product_binding_not_allowed' }); }
-        const nextOutputIngredientId = nextType === 'premix' ? (input.outputIngredientId === undefined ? existing.outputIngredientId || null : String(input.outputIngredientId || '').trim() || null) : null;
         if (nextType === 'premix' && (!nextOutputIngredientId || !/^[0-9a-f-]{36}$/i.test(nextOutputIngredientId))) { await client.query('ROLLBACK'); return json(res, 400, { error: 'premix_output_binding_required' }); }
         if (input.outputIngredientId !== undefined && nextType === 'sale' && input.outputIngredientId) { await client.query('ROLLBACK'); return json(res, 400, { error: 'sale_recipe_output_binding_not_allowed' }); }
         const hasPremixBatches = existing.recipeType === 'premix' ? await client.query('SELECT 1 FROM inventory_premix_batches WHERE recipe_id=$1 AND venue_id=$2 LIMIT 1', [recipeProfile[1], venueDbId]) : { rowCount: 0 };
@@ -4618,20 +4731,22 @@ if (staffProfile && req.method === 'PATCH') {
     const amount = Number(input.amount);
     const paymentDate = String(input.paymentDate || '');
     const paymentMethod = String(input.paymentMethod || '');
+    const paymentAccountId = String(input.paymentAccountId || '').toLowerCase();
     const idempotencyKey = String(input.idempotencyKey || req.headers['idempotency-key'] || '').trim();
     const documentUrl = String(input.documentUrl || '');
     if (!Number.isFinite(amount) || amount <= 0 || amount > 9999999999.99 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) return json(res, 400, { error: 'invalid_purchase_payment_amount' });
     if (!isValidIsoDate(paymentDate)) return json(res, 400, { error: 'invalid_purchase_payment_date' });
     if (!['cash','card','bank_transfer','other'].includes(paymentMethod)) return json(res, 400, { error: 'invalid_purchase_payment_method' });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(paymentAccountId)) return json(res, 400, { error: 'finance_payment_account_required' });
     if (!/^[\w:.-]{8,128}$/.test(idempotencyKey)) return json(res, 400, { error: 'purchase_payment_idempotency_key_required' });
     const documentValidation = validatePurchasePaymentDocument(documentUrl);
     if (!documentValidation.valid) return json(res, 400, { error: documentValidation.error });
     try {
-      const result = await repositories.purchaseDocuments.addPayment({ id, venueId: venueDbId, amount, paymentDate, paymentMethod, documentUrl, idempotencyKey, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
-      if (!result.idempotent) recordAudit(req, 'finance.purchase_payment_created', 'purchase_document', id, null, { expenseId: result.expenseId, amount: result.amount, paymentDate: result.paymentDate, paymentMethod: result.paymentMethod, totalPaid: result.totalPaid, balanceDue: result.balanceDue });
+      const result = await repositories.purchaseDocuments.addPayment({ id, venueId: venueDbId, amount, paymentDate, paymentMethod, paymentAccountId, documentUrl, idempotencyKey, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
+      if (!result.idempotent) recordAudit(req, 'finance.purchase_payment_created', 'purchase_document', id, null, { expenseId: result.expenseId, amount: result.amount, paymentDate: result.paymentDate, paymentMethod: result.paymentMethod, paymentAccountId: result.paymentAccountId, paymentAccountNameSnapshot: result.paymentAccountNameSnapshot, shiftId: result.shiftId, totalPaid: result.totalPaid, balanceDue: result.balanceDue });
       return json(res, result.idempotent ? 200 : 201, result);
     } catch (error) {
-      const statuses = { purchase_document_not_found: 404, purchase_document_not_posted: 409, purchase_payment_exceeds_balance: 409, purchase_payment_idempotency_conflict: 409 };
+      const statuses = { purchase_document_not_found: 404, finance_account_not_found: 404, purchase_document_not_posted: 409, purchase_payment_exceeds_balance: 409, purchase_payment_idempotency_conflict: 409, finance_account_inactive: 409, finance_pos_cash_payment_date_must_be_today: 409, finance_payment_open_shift_required: 409, finance_payment_method_account_mismatch: 400 };
       return json(res, statuses[error.message] || (error.code === '23505' ? 409 : 503), { error: statuses[error.message] ? error.message : error.code === '23505' ? 'purchase_payment_idempotency_conflict' : 'purchase_payment_save_failed', detail: error.message });
     }
   }
@@ -4639,6 +4754,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
     if (isOperationalEmployee(req)) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
     const from = url.searchParams.get('from') || '1900-01-01'; const to = url.searchParams.get('to') || '2999-12-31';
+    if (!isValidIsoDate(from) || !isValidIsoDate(to) || to < from) return json(res, 400, { error: 'invalid_expense_date_range' });
     const rawLimit = url.searchParams.get('limit'); const rawOffset = url.searchParams.get('offset');
     const limit = rawLimit === null ? null : Number(rawLimit); const offset = rawOffset === null ? 0 : Number(rawOffset);
     if ((limit !== null && (!Number.isInteger(limit) || limit < 1 || limit > 100)) || !Number.isInteger(offset) || offset < 0 || (limit === null && rawOffset !== null)) return json(res, 400, { error: 'invalid_expense_pagination' });
@@ -4648,7 +4764,17 @@ if (staffProfile && req.method === 'PATCH') {
         const where = 'WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND ($4::boolean OR e.source <> \'payroll\')';
         const [countResult, expenseResult] = await Promise.all([
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM expenses e ${where}`, values),
-          repositories.pool.query(`SELECT e.*,e.category_id AS "categoryId",e.expense_date AS "expenseDate",e.document_url AS "documentUrl",CASE WHEN e.source='payroll' THEN COALESCE(payroll.status,'legacy_unmatched') ELSE NULL END AS "payrollStatus", (e.source='payroll' AND NOT EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id AND pe.status='paid')) AS "payrollNeedsReview", CASE WHEN e.source='payroll' AND payroll.id IS NOT NULL THEN 'Выплата зарплаты за ' || to_char(payroll.period_from,'DD.MM.YYYY') || ' — ' || to_char(payroll.period_to,'DD.MM.YYYY') ELSE e.description END AS description FROM expenses e LEFT JOIN LATERAL (SELECT pe.id,pe.status,pe.period_from,pe.period_to FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id ORDER BY pe.created_at DESC,pe.id DESC LIMIT 1) payroll ON true ${where} ORDER BY e.expense_date DESC,e.created_at DESC${limit === null ? '' : ' LIMIT $5 OFFSET $6'}`, limit === null ? values : [...values,limit,offset]),
+          repositories.pool.query(`SELECT e.*,e.category_id AS "categoryId",e.expense_date AS "expenseDate",e.document_url AS "documentUrl",e.counterparty_name AS "counterpartyName",e.finance_account_name_snapshot AS "paymentAccountNameSnapshot",e.shift_id AS "shiftId",payroll.id AS "payrollEntryId",
+            CASE WHEN correction.latest_after IS NULL THEN e.amount::text ELSE correction.latest_after->>'amount' END AS "effectiveAmount",
+            CASE WHEN correction.latest_after IS NULL THEN e.category_id ELSE (correction.latest_after->>'categoryId')::uuid END AS "effectiveCategoryId",
+            CASE WHEN correction.latest_after IS NULL THEN e.category ELSE correction.latest_after->>'categoryName' END AS "effectiveCategoryName",
+            COALESCE(correction.sequence,0) AS "correctionVersion",
+    (e.source IN ('manual','other') AND e.purchase_document_id IS NULL AND NOT EXISTS(SELECT 1 FROM finance_payable_payment_links l WHERE l.venue_id=e.venue_id AND l.expense_id=e.id) AND NOT EXISTS(SELECT 1 FROM payroll_entries x WHERE x.venue_id=e.venue_id AND x.expense_id=e.id)) AS "canCorrect",
+    (e.source IN ('manual','other') AND e.purchase_document_id IS NULL AND NOT EXISTS(SELECT 1 FROM finance_payable_payment_links l WHERE l.venue_id=e.venue_id AND l.expense_id=e.id) AND NOT EXISTS(SELECT 1 FROM payroll_entries x WHERE x.venue_id=e.venue_id AND x.expense_id=e.id)) AS "canRefund",
+            CASE WHEN e.finance_account_id IS NULL THEN 'unknown_legacy' ELSE 'assigned' END AS "accountCoverage",CASE WHEN e.source='payroll' THEN COALESCE(payroll.status,'legacy_unmatched') ELSE NULL END AS "payrollStatus", (e.source='payroll' AND NOT EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id AND pe.status='paid')) AS "payrollNeedsReview", CASE WHEN e.source='payroll' AND payroll.id IS NOT NULL THEN 'Выплата зарплаты за ' || to_char(payroll.period_from,'DD.MM.YYYY') || ' — ' || to_char(payroll.period_to,'DD.MM.YYYY') ELSE e.description END AS description
+            FROM expenses e LEFT JOIN LATERAL (SELECT pe.id,pe.status,pe.period_from,pe.period_to FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id ORDER BY pe.created_at DESC,pe.id DESC LIMIT 1) payroll ON true
+            LEFT JOIN LATERAL(SELECT c.after_snapshot AS latest_after,c.sequence FROM finance_expense_corrections c WHERE c.venue_id=e.venue_id AND c.expense_id=e.id ORDER BY c.sequence DESC LIMIT 1) correction ON true
+            ${where} ORDER BY e.expense_date DESC,e.created_at DESC${limit === null ? '' : ' LIMIT $5 OFFSET $6'}`, limit === null ? values : [...values,limit,offset]),
         ]);
         return json(res, 200, { items: expenseResult.rows, totalCount: countResult.rows[0].count, limit, offset });
       } catch (error) { return json(res, 503, { error: 'expenses_unavailable', detail: error.message }); }
@@ -4658,35 +4784,60 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/expenses' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
-    const input = await body(req); let category = String(input.category || '').trim(); let categoryId = input.categoryId ? String(input.categoryId) : null; const amount = Number(input.amount); const expenseDate = String(input.expenseDate || today());
+    const input = await body(req); let category = String(input.category || '').trim(); let categoryId = input.categoryId ? String(input.categoryId).toLowerCase() : null; const rawAmount = String(input.amount ?? ''); const amount = Number(rawAmount); const expenseDate = String(input.expenseDate || today());
     const documentUrl = String(input.documentUrl || '');
     const documentValidation = validatePurchasePaymentDocument(documentUrl);
     if (!documentValidation.valid) return json(res, 400, { error: documentValidation.error });
     if (repositories?.pool && categoryId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(categoryId)) return json(res, 400, { error: 'invalid_finance_category' });
-    if ((!categoryId && (!category || category.length > 80)) || !Number.isFinite(amount) || amount < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) return json(res, 400, { error: 'invalid_expense' });
+    const paymentAccountId = String(input.paymentAccountId || '').toLowerCase(); const paymentMethod = String(input.paymentMethod || ''); const idempotencyKey = String(input.idempotencyKey || '').toLowerCase(); const source = String(input.source || 'manual');
+    if ((!categoryId && (!category || category.length > 80)) || !Number.isFinite(amount) || amount <= 0 || !/^\d+(?:\.\d{1,2})?$/.test(rawAmount) || amount > 9999999999.99 || !isValidIsoDate(expenseDate)) return json(res, 400, { error: 'invalid_expense' });
     if (input.source === 'payroll') return json(res, 400, { error: 'payroll_expense_must_be_paid_through_payroll' });
     if (input.source === 'purchase') return json(res, 400, { error: 'purchase_payment_requires_receipt_link' });
+    if (!['manual','other'].includes(source)) return json(res, 400, { error: 'invalid_expense_source' });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(paymentAccountId) || !['cash','card','bank_transfer','other'].includes(paymentMethod) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) return json(res, 400, { error: 'finance_payment_account_required' });
     if (repositories?.pool) {
       const client = await repositories.pool.connect();
       try {
         await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`${venueDbId}:expense:${idempotencyKey.toLowerCase()}`]);
+        const prior = await client.query('SELECT *,expense_date::text AS expense_date_iso FROM expenses WHERE venue_id=$1 AND idempotency_key=$2 FOR UPDATE', [venueDbId,idempotencyKey]);
+        const normalizedDescription = String(input.description || '').slice(0,1000) || null;
+        const normalizedCounterparty = String(input.counterpartyName || '').trim().slice(0,160) || null;
+        if (prior.rows[0]) {
+          const row = prior.rows[0];
+          const same = row.category_id === (categoryId || null) && (Boolean(categoryId) || String(row.category || '') === category) && Math.round(Number(row.amount)*100) === Math.round(amount*100) && String(row.expense_date_iso || '').slice(0,10) === expenseDate && row.counterparty_name === normalizedCounterparty && row.description === normalizedDescription && row.source === source && (row.document_url || '') === documentUrl && row.payment_method === paymentMethod && String(row.finance_account_id || '').toLowerCase() === paymentAccountId.toLowerCase();
+          if (!same) { await client.query('ROLLBACK'); return json(res, 409, { error: 'expense_idempotency_conflict' }); }
+          await client.query('COMMIT'); return json(res, 200, row);
+        }
         if (categoryId) {
           const selected = await client.query("SELECT name FROM finance_categories WHERE id=$1 AND venue_id=$2 AND active=true AND kind='expense' FOR UPDATE", [categoryId,venueDbId]);
           if (!selected.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_finance_category' }); }
           category = selected.rows[0].name;
         }
         if (!category || category.length > 80) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_expense' }); }
-        const { rows } = await client.query('INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,document_url,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *', [venueDbId,category,categoryId,amount,expenseDate,String(input.description || '').slice(0,1000) || null,['manual','purchase','other'].includes(input.source) ? input.source : 'manual',documentUrl || null,req.user?.id || null]);
+        const account = await client.query('SELECT id,name,kind,allowed_payment_methods,active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE', [venueDbId,paymentAccountId]);
+        if (!account.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'finance_account_not_found' }); }
+        if (!account.rows[0].active) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_account_inactive' }); }
+        if (!account.rows[0].allowed_payment_methods.includes(paymentMethod)) { await client.query('ROLLBACK'); return json(res, 400, { error: 'finance_payment_method_account_mismatch' }); }
+        let shiftId = null;
+        if (account.rows[0].kind === 'pos_cashbox') {
+          if (paymentMethod !== 'cash') { await client.query('ROLLBACK'); return json(res, 400, { error: 'finance_payment_method_account_mismatch' }); }
+          const venueDate = await client.query('SELECT (now() AT TIME ZONE timezone)::date::text AS date FROM venues WHERE id=$1', [venueDbId]);
+          if (String(venueDate.rows[0]?.date || '') !== expenseDate) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_pos_cash_payment_date_must_be_today' }); }
+          const openShift = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL FOR UPDATE', [venueDbId]);
+          if (openShift.rows.length !== 1) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_payment_open_shift_required' }); }
+          shiftId = openShift.rows[0].id;
+        }
+        const { rows } = await client.query('INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,counterparty_name,description,source,document_url,created_by,idempotency_key,payment_method,finance_account_id,finance_account_name_snapshot,shift_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *', [venueDbId,category,categoryId,amount,expenseDate,normalizedCounterparty,normalizedDescription,source,documentUrl || null,req.user?.id || null,idempotencyKey,paymentMethod,paymentAccountId,account.rows[0].name,shiftId]);
         await client.query('COMMIT');
+        try { recordAudit(req, 'finance.expense_posted', 'expense', rows[0].id, null, rows[0]); } catch (_) {}
         return json(res, 201, rows[0]);
       } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
-        return json(res, error.code === '23503' ? 400 : 409, { error: error.code === '23503' ? 'invalid_finance_category' : 'expense_save_failed', detail: error.message });
+        return json(res, error.code === '23503' ? 400 : 409, { error: error.code === '23503' ? 'invalid_finance_category' : error.code === '23514' && String(error.message).includes('finance_account') ? String(error.message).split('\n')[0] : 'expense_save_failed' });
       } finally { client.release(); }
     }
-    if (categoryId) { const selected = financeCategories.find((item) => item.id === categoryId && item.active !== false && item.kind === 'expense'); if (!selected) return json(res, 400, { error: 'invalid_finance_category' }); category = selected.name; }
-    if (!category || category.length > 80) return json(res, 400, { error: 'invalid_expense' });
-    const expense = { id: `expense-${Date.now()}`, category, categoryId, amount, date: expenseDate, expenseDate, description: String(input.description || '').slice(0,1000), source: ['manual','other'].includes(input.source) ? input.source : 'manual', documentUrl: documentUrl || null, createdAt: new Date().toISOString() }; manualExpenses.push(expense); return json(res, 201, expense);
+    return json(res, 503, { error: 'finance_accounts_require_database' });
   }
   if (pathname === '/api/payroll/rules' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
@@ -4704,7 +4855,7 @@ if (staffProfile && req.method === 'PATCH') {
     const id = payrollEntryPath ? decodeURIComponent(payrollEntryPath[1]) : '';
     if (id && !/^[0-9a-f-]{36}$/i.test(id)) return json(res, 400, { error: 'invalid_payroll_entry_id' });
     try {
-      const { rows } = await repositories.pool.query(`SELECT pe.id,pe.user_id AS "userId",u.full_name AS "userName",pe.rule_id AS "ruleId",pr.name AS "ruleName",pr.rule_type AS "ruleType",pe.period_from AS "periodFrom",pe.period_to AS "periodTo",pe.amount,pe.status,pe.payment_date AS "paymentDate",pe.expense_id AS "expenseId",pe.approved_at AS "approvedAt",pe.paid_at AS "paidAt",pe.cancelled_at AS "cancelledAt",COALESCE(work.hours,0)::numeric AS hours FROM payroll_entries pe JOIN users u ON u.id=pe.user_id LEFT JOIN payroll_rules pr ON pr.id=pe.rule_id AND pr.venue_id=pe.venue_id JOIN venues v ON v.id=pe.venue_id LEFT JOIN organizations org ON org.id=v.organization_id LEFT JOIN LATERAL (WITH bounds AS (SELECT (pe.period_from::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) starts_at,((pe.period_to+1)::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) ends_at),clipped AS (SELECT GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at FROM bounds b JOIN staff_work_logs w ON w.venue_id=pe.venue_id AND w.user_id=pe.user_id AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at),ordered AS (SELECT *,MAX(ends_at) OVER (ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT SUM(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600)) hours FROM merged) work ON true WHERE pe.venue_id=$1 AND ($2::date IS NULL OR pe.period_to >= $2::date) AND ($3::date IS NULL OR pe.period_from <= $3::date) AND ($4::uuid IS NULL OR pe.user_id=$4) AND ($5::text='' OR pe.status=$5) AND ($6::uuid IS NULL OR pe.id=$6) ORDER BY pe.period_from DESC,u.full_name`, [venueDbId, from === '1900-01-01' ? null : from, to === '2999-12-31' ? null : to, userId || null, status, id || null]);
+      const { rows } = await repositories.pool.query(`SELECT pe.id,pe.user_id AS "userId",u.full_name AS "userName",pe.rule_id AS "ruleId",pr.name AS "ruleName",pr.rule_type AS "ruleType",pe.period_from AS "periodFrom",pe.period_to AS "periodTo",pe.amount,pe.status,pe.finance_category_id AS "financeCategoryId",pe.finance_category_name_snapshot AS "financeCategoryNameSnapshot",pe.payment_date AS "paymentDate",pe.expense_id AS "expenseId",e.finance_account_id AS "paymentAccountId",e.finance_account_name_snapshot AS "paymentAccountNameSnapshot",e.payment_method AS "paymentMethod",e.shift_id AS "shiftId",CASE WHEN e.finance_account_id IS NULL THEN 'unknown_legacy' ELSE 'assigned' END AS "accountCoverage",pe.approved_at AS "approvedAt",pe.paid_at AS "paidAt",pe.cancelled_at AS "cancelledAt",COALESCE(work.hours,0)::numeric AS hours FROM payroll_entries pe JOIN users u ON u.id=pe.user_id LEFT JOIN payroll_rules pr ON pr.id=pe.rule_id AND pr.venue_id=pe.venue_id JOIN venues v ON v.id=pe.venue_id LEFT JOIN organizations org ON org.id=v.organization_id LEFT JOIN expenses e ON e.venue_id=pe.venue_id AND e.id=pe.expense_id LEFT JOIN LATERAL (WITH bounds AS (SELECT (pe.period_from::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) starts_at,((pe.period_to+1)::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) ends_at),clipped AS (SELECT GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at FROM bounds b JOIN staff_work_logs w ON w.venue_id=pe.venue_id AND w.user_id=pe.user_id AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at),ordered AS (SELECT *,MAX(ends_at) OVER (ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT SUM(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600)) hours FROM merged) work ON true WHERE pe.venue_id=$1 AND ($2::date IS NULL OR pe.period_to >= $2::date) AND ($3::date IS NULL OR pe.period_from <= $3::date) AND ($4::uuid IS NULL OR pe.user_id=$4) AND ($5::text='' OR pe.status=$5) AND ($6::uuid IS NULL OR pe.id=$6) ORDER BY pe.period_from DESC,u.full_name`, [venueDbId, from === '1900-01-01' ? null : from, to === '2999-12-31' ? null : to, userId || null, status, id || null]);
       if (id && !rows[0]) return json(res, 404, { error: 'payroll_entry_not_found' });
       return json(res, 200, id ? rows[0] : { items: rows.map((row) => ({ ...row, amount: Number(row.amount || 0), hours: Number(Number(row.hours || 0).toFixed(2)) })) });
     } catch (error) { return json(res, 503, { error: 'payroll_entries_unavailable', detail: error.message }); }
@@ -4713,6 +4864,8 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'finance')) return;
     if (!repositories?.pool) return json(res, 503, { error: 'payroll_requires_database' });
     const input = await body(req); const userId = String(input.userId || '').trim(); const periodFrom = String(input.periodFrom || '').trim(); const periodTo = String(input.periodTo || '').trim(); const ruleId = String(input.ruleId || '').trim();
+    const financeCategoryId = input.financeCategoryId === undefined ? undefined : input.financeCategoryId === null ? null : String(input.financeCategoryId).trim();
+    if (financeCategoryId !== undefined && financeCategoryId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(financeCategoryId)) return json(res, 400, { error: 'invalid_payroll_finance_category' });
     if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[0-9a-f-]{36}$/i.test(ruleId) || !isValidIsoDate(periodFrom) || !isValidIsoDate(periodTo) || periodTo < periodFrom || countInclusiveDays(periodFrom, periodTo) > 366) return json(res, 400, { error: 'invalid_payroll_period' });
     try {
       const [userResult, ruleResult] = await Promise.all([
@@ -4729,10 +4882,10 @@ if (staffProfile && req.method === 'PATCH') {
       }
       const amount = calculatePayrollAmount({ ruleType: rule.rule_type, rate: rule.rate, hours, shifts, revenue, periodFrom, periodTo });
       if (amount === null) return json(res, 400, { error: 'invalid_payroll_rule' });
-      const { rows } = await repositories.pool.query(`INSERT INTO payroll_entries (venue_id,user_id,rule_id,period_from,period_to,amount,status) VALUES ($1,$2,$3,$4,$5,$6,'draft') ON CONFLICT (venue_id,user_id,period_from,period_to,rule_id) DO UPDATE SET amount=EXCLUDED.amount WHERE payroll_entries.status='draft' RETURNING *`, [venueDbId,userId,ruleId,periodFrom,periodTo,amount]);
+      const { rows } = await repositories.pool.query(`INSERT INTO payroll_entries (venue_id,user_id,rule_id,period_from,period_to,amount,status,finance_category_id) VALUES ($1,$2,$3,$4,$5,$6,'draft',$7) ON CONFLICT (venue_id,user_id,period_from,period_to,rule_id) DO UPDATE SET amount=EXCLUDED.amount,finance_category_id=CASE WHEN $8::boolean THEN EXCLUDED.finance_category_id ELSE payroll_entries.finance_category_id END WHERE payroll_entries.status='draft' RETURNING *`, [venueDbId,userId,ruleId,periodFrom,periodTo,amount,financeCategoryId || null,financeCategoryId !== undefined]);
       if (!rows[0]) return json(res, 409, { error: 'payroll_entry_not_editable' });
       const entry = rows[0]; recordAudit(req, 'payroll.entry_drafted', 'payroll_entry', entry.id, null, { ...entry, hours });
-      return json(res, 201, { ...entry, amount: Number(entry.amount), hours: Number(hours.toFixed(2)), expenseId: entry.expense_id || null });
+      return json(res, 201, { ...entry, amount: Number(entry.amount), hours: Number(hours.toFixed(2)), expenseId: entry.expense_id || null, financeCategoryId: entry.finance_category_id || null, financeCategoryNameSnapshot: entry.finance_category_name_snapshot || null });
     } catch (error) { return json(res, 409, { error: 'payroll_entry_save_failed', detail: error.message }); }
   }
   if (payrollEntryPath && req.method === 'PATCH') {
@@ -4741,8 +4894,10 @@ if (staffProfile && req.method === 'PATCH') {
     const id = decodeURIComponent(payrollEntryPath[1]); if (!/^[0-9a-f-]{36}$/i.test(id)) return json(res, 400, { error: 'invalid_payroll_entry_id' });
     const input = await body(req); const action = String(input.action || '');
     if (!['approve','pay','cancel'].includes(action)) return json(res, 400, { error: 'invalid_payroll_action' });
-    const paymentDate = String(input.paymentDate || today()); const reason = String(input.reason || '').trim();
+    const paymentDate = String(input.paymentDate || today()); const paymentAccountId=String(input.paymentAccountId||'').toLowerCase(); const paymentMethod=String(input.paymentMethod||''); const reason = String(input.reason || '').trim();
     if (action === 'pay' && !isValidIsoDate(paymentDate)) return json(res, 400, { error: 'invalid_payroll_payment_date' });
+    if (action === 'pay' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(paymentAccountId)) return json(res, 400, { error: 'finance_payment_account_required' });
+    if (action === 'pay' && !['cash','card','bank_transfer','other'].includes(paymentMethod)) return json(res, 400, { error: 'invalid_payroll_payment_method' });
     if (action === 'cancel' && (reason.length < 3 || reason.length > 500)) return json(res, 400, { error: 'payroll_cancellation_reason_required' });
     let client; let before;
     try {
@@ -4776,20 +4931,38 @@ if (staffProfile && req.method === 'PATCH') {
           await client.query('ROLLBACK');
           return json(res, 409, { error: 'payroll_period_overlap', conflictingEntryId: overlap.rows[0].id });
         }
+        const accountResult=await client.query('SELECT id,name,kind,allowed_payment_methods,active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE',[venueDbId,paymentAccountId]);
+        const account=accountResult.rows[0];
+        if(!account){await client.query('ROLLBACK');return json(res,404,{error:'finance_account_not_found'});}
+        if(!account.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_account_inactive'});}
+        if(!account.allowed_payment_methods.includes(paymentMethod)||(account.kind==='pos_cashbox'&&paymentMethod!=='cash')){await client.query('ROLLBACK');return json(res,400,{error:'finance_payment_method_account_mismatch'});}
+        let shiftId=null;
+        if(account.kind==='pos_cashbox'){
+          const venueDate=await client.query('SELECT (now() AT TIME ZONE timezone)::date::text AS date FROM venues WHERE id=$1',[venueDbId]);
+          if(String(venueDate.rows[0]?.date||'')!==paymentDate){await client.query('ROLLBACK');return json(res,409,{error:'finance_pos_cash_payment_date_must_be_today'});}
+          const openShifts=await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC FOR UPDATE',[venueDbId]);
+          if(openShifts.rows.length!==1){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_open_shift_required'});}
+          shiftId=openShifts.rows[0].id;
+        }
         const description = `Выплата зарплаты за ${before.period_from_label} — ${before.period_to_label}`;
         let expenseId = before.expense_id;
         if (expenseId) {
-          const { rows } = await client.query("UPDATE expenses SET category='Зарплата',amount=$1,expense_date=$2,description=$3,source='payroll',created_by=COALESCE($4,created_by) WHERE id=$5 AND venue_id=$6 RETURNING id", [before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,expenseId,venueDbId]);
+          const linkedExpense=await client.query('SELECT payment_method,finance_account_id,finance_account_name_snapshot,shift_id FROM expenses WHERE id=$1 AND venue_id=$2 FOR UPDATE',[expenseId,venueDbId]);
+          const linked=linkedExpense.rows[0];
+          if(!linked||String(linked.finance_account_id||'').toLowerCase()!==paymentAccountId||linked.finance_account_name_snapshot!==account.name||linked.payment_method!==paymentMethod||String(linked.shift_id||'').toLowerCase()!==String(shiftId||'').toLowerCase()){
+            await client.query('ROLLBACK');return json(res,409,{error:'payroll_expense_attribution_conflict'});
+          }
+          const { rows } = await client.query("UPDATE expenses SET category=$7,category_id=$8,amount=$1,expense_date=$2,description=$3,source='payroll',created_by=COALESCE($4,created_by) WHERE id=$5 AND venue_id=$6 RETURNING id", [before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,expenseId,venueDbId,before.finance_category_name_snapshot || 'Зарплата',before.finance_category_id]);
           if (!rows[0]) return await client.query('ROLLBACK').then(() => json(res, 409, { error: 'payroll_expense_link_invalid' }));
           expenseId = rows[0].id;
         } else {
-          const { rows } = await client.query("INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,created_by) VALUES ($1,'Зарплата',$2,$3,$4,'payroll',$5) RETURNING id", [venueDbId,before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); expenseId = rows[0].id;
+          const { rows } = await client.query("INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,created_by,payment_method,finance_account_id,finance_account_name_snapshot,shift_id) VALUES ($1,$6,$7,$2,$3,$4,'payroll',$5,$8,$9,$10,$11) RETURNING id", [venueDbId,before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,before.finance_category_name_snapshot || 'Зарплата',before.finance_category_id,paymentMethod,paymentAccountId,account.name,shiftId]); expenseId = rows[0].id;
         }
         const { rows } = await client.query("UPDATE payroll_entries SET status='paid',paid_at=now(),paid_by=$3,payment_date=$4,expense_id=$5 WHERE id=$1 AND venue_id=$2 RETURNING *", [id,venueDbId,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,paymentDate,expenseId]); updated = rows[0];
       }
       await client.query('COMMIT');
       recordAudit(req, `payroll.entry_${action === 'pay' ? 'paid' : action === 'approve' ? 'approved' : 'cancelled'}`, 'payroll_entry', id, before, updated);
-      return json(res, 200, { ...updated, amount: Number(updated.amount), expenseId: updated.expense_id || null });
+      return json(res, 200, { ...updated, amount: Number(updated.amount), expenseId: updated.expense_id || null, financeCategoryId: updated.finance_category_id || null, financeCategoryNameSnapshot: updated.finance_category_name_snapshot || null });
     } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'payroll_entry_transition_failed', detail: error.message }); }
     finally { client?.release(); }
   }
@@ -5105,6 +5278,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_documents_unavailable' });
     try {
       const input = normalizePurchaseInput(await body(req));
+      if (input.financeCategoryId !== undefined && denyUnless(req, res, 'finance')) return;
       const created = await repositories.purchaseDocuments.saveDraft({ ...input, venueId: venueDbId, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
       recordAudit(req, 'inventory.purchase_document_created', 'purchase_document', created.id, null, created);
       return json(res, 201, created);
@@ -5120,6 +5294,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_documents_unavailable' });
     try {
       const input = normalizePurchaseInput(await body(req));
+      if (input.financeCategoryId !== undefined && denyUnless(req, res, 'finance')) return;
       const updated = await repositories.purchaseDocuments.updateDraft({ ...input, id: purchaseDocumentPath[1], venueId: venueDbId });
       recordAudit(req, 'inventory.purchase_document_updated', 'purchase_document', updated.id, null, updated);
       return json(res, 200, updated);
@@ -5281,7 +5456,7 @@ if (staffProfile && req.method === 'PATCH') {
         const { rows } = await client.query('INSERT INTO inventory_premix_batches (venue_id,recipe_id,output_ingredient_id,output_quantity,planned_output_quantity,previous_output_cost,output_movement_id,output_unit,total_cost,ingredients,produced_by,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12) RETURNING id,recipe_id AS "recipeId",output_ingredient_id AS "outputItemId",output_quantity AS "outputQuantity",planned_output_quantity AS "plannedOutputQuantity",output_unit AS "outputUnit",total_cost AS "totalCost",ingredients,expires_at AS "expiresAt",created_at AS "createdAt",produced_by AS "producedById"', [venueDbId, recipe.id, output.id, outputQuantity, plannedOutputQuantity, Number(outputRow.cost || 0), outputMovementRows[0].id, output.unit, Math.round(totalCost * 100) / 100, JSON.stringify(requirements.map((entry) => ({ ingredientId: entry.item.id, name: entry.item.name, quantity: entry.quantity, unit: entry.unit }))), /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, expiresAt]); await client.query('COMMIT'); recordAudit(req, 'inventory.premix_produced', 'premix', rows[0].id, null, { ...rows[0], recipeName: recipe.name, outputItemName: output.name, batchUnitCost: Math.round(totalCost / outputQuantity * 100) / 100 }); return json(res, 201, { ...rows[0], recipeName: recipe.name, outputItemName: output.name, remainingQuantity: outputQuantity, producedBy: req.user?.name || null, batchUnitCost: Math.round(totalCost / outputQuantity * 100) / 100 });
       } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: ['insufficient_premix_stock','expired_premix_stock'].includes(error.message) ? error.message : 'premix_production_failed', missing: error.missing, detail: error.message }); } finally { client?.release(); }
     }
-    const recipe = recipes.find((item) => item.id === recipeId && (item.recipeType || 'sale') === 'premix'); if (!recipe) return json(res, 404, { error: 'premix_recipe_not_found' }); if (!recipe.outputIngredientId) return json(res, 409, { error: 'premix_output_binding_required' }); if (requestedOutputItemId && requestedOutputItemId !== String(recipe.outputIngredientId)) return json(res, 409, { error: 'premix_output_binding_mismatch', outputItemId: recipe.outputIngredientId }); const output = inventory.find((item) => String(item.id) === String(recipe.outputIngredientId)); if (!output) return json(res, 404, { error: 'premix_output_item_not_found' }); const requirements = []; let totalCost = 0; for (const entry of recipe.ingredients || []) { const item = inventory.find((candidate) => candidate.id === entry.ingredientId || String(candidate.name).toLocaleLowerCase('ru-RU') === String(entry.name || '').toLocaleLowerCase('ru-RU')); if (!item) return json(res, 409, { error: 'premix_ingredient_not_found', ingredient: entry.name || entry.ingredientId }); if (String(item.id) === String(output.id)) return json(res, 409, { error: 'premix_output_cannot_be_an_ingredient' }); const parsed = parseRecipeQuantity(entry.quantity, item.unit, entry.unit || null); if (parsed.error) return json(res, 409, { error: parsed.error, ingredient: item.name }); const quantity = Number((parsed.amount * parsed.factor * multiplier).toFixed(6)); requirements.push({ item, quantity, unit: item.unit }); } const combinedRequirements = new Map(); for (const entry of requirements) { const key = String(entry.item.id); const previous = combinedRequirements.get(key); if (previous) previous.quantity += entry.quantity; else combinedRequirements.set(key, { ...entry }); } requirements.splice(0, requirements.length, ...combinedRequirements.values()); for (const entry of requirements) { if (Number(entry.item.onHand || 0) < entry.quantity) return json(res, 409, { error: 'insufficient_premix_stock', missing: [{ name: entry.item.name, required: entry.quantity, onHand: Number(entry.item.onHand || 0), unit: entry.unit }] }); totalCost += entry.quantity * Number(entry.item.cost || 0); } const outputFactor = unitFactors[recipe.yieldUnit]?.[output.unit]; if (!outputFactor) return json(res, 409, { error: 'premix_output_unit_mismatch' }); const plannedOutputQuantity = Number((Number(recipe.yieldQuantity) * multiplier * outputFactor).toFixed(6)); const actualOutput = input.actualOutput === undefined || input.actualOutput === '' ? null : Number(input.actualOutput); if (actualOutput !== null && (!Number.isFinite(actualOutput) || actualOutput <= 0)) return json(res, 400, { error: 'invalid_premix_production' }); const outputQuantity = Number(((actualOutput ?? Number(recipe.yieldQuantity) * multiplier) * outputFactor).toFixed(6)); const batchExpiresAt = expiresAt ? expiresAt.toISOString() : null; const previousOutputCost = Number(output.cost || 0); const newOutputQuantity = Number(output.onHand || 0) + outputQuantity; const batchUnitCost = outputQuantity > 0 ? totalCost / outputQuantity : 0; const nextOutputCost = Number((newOutputQuantity > 0 ? ((Number(output.onHand || 0) * Number(output.cost || 0)) + totalCost) / newOutputQuantity : batchUnitCost).toFixed(4)); const sourceMovements = requirements.map((requirement) => ({ requirement, id: `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` })); for (const { requirement, id } of sourceMovements) { try { allocateMemoryPremixConsumption(requirement.item.id, requirement.quantity, Number(requirement.item.onHand || 0), id, `Приготовление премикса «${recipe.name}»`, { apply: false }); } catch (error) { return json(res, 409, { error: error.message }); } } for (const { requirement, id } of sourceMovements) { allocateMemoryPremixConsumption(requirement.item.id, requirement.quantity, Number(requirement.item.onHand || 0), id, `Приготовление премикса «${recipe.name}»`); requirement.item.onHand = Number((Number(requirement.item.onHand || 0) - requirement.quantity).toFixed(6)); stockMovements.push({ id, itemId: requirement.item.id, itemName: requirement.item.name, direction: 'out', delta: -requirement.quantity, quantity: requirement.quantity, reason: `Приготовление премикса «${recipe.name}»`, createdAt: new Date().toISOString() }); } output.cost = nextOutputCost; output.onHand = Number(newOutputQuantity.toFixed(6)); const batch = { id: `premix-${Date.now()}`, recipeId, recipeName: recipe.name, outputItemId: output.id, outputItemName: output.name, outputQuantity, plannedOutputQuantity, previousOutputCost, expiresAt: batchExpiresAt, outputUnit: output.unit, totalCost: Math.round(totalCost * 100) / 100, batchUnitCost: Math.round(batchUnitCost * 100) / 100, producedBy: req.user?.name || 'администратор', ingredients: requirements.map(({ item, quantity, unit }) => ({ ingredientId: item.id, name: item.name, quantity, unit })), type: 'premix', status: 'produced', lotMovements: [], createdAt: new Date().toISOString() }; batch.outputMovementId = `premix-out-${batch.id}`; stockMovements.push(batch); recordAudit(req, 'inventory.premix_produced', 'premix', batch.id, null, batch); return json(res, 201, batch);
+    const recipe = recipes.find((item) => item.id === recipeId && (item.recipeType || 'sale') === 'premix'); if (!recipe) return json(res, 404, { error: 'premix_recipe_not_found' }); if (!recipe.outputIngredientId) return json(res, 409, { error: 'premix_output_binding_required' }); if (requestedOutputItemId && requestedOutputItemId !== String(recipe.outputIngredientId)) return json(res, 409, { error: 'premix_output_binding_mismatch', outputItemId: recipe.outputIngredientId }); const outputItemId = String(recipe.outputIngredientId); const output = inventory.find((item) => String(item.id) === outputItemId); if (!output) return json(res, 404, { error: 'premix_output_item_not_found' }); const requirements = []; let totalCost = 0; for (const entry of recipe.ingredients || []) { const item = inventory.find((candidate) => candidate.id === entry.ingredientId || String(candidate.name).toLocaleLowerCase('ru-RU') === String(entry.name || '').toLocaleLowerCase('ru-RU')); if (!item) return json(res, 409, { error: 'premix_ingredient_not_found', ingredient: entry.name || entry.ingredientId }); if (String(item.id) === String(output.id)) return json(res, 409, { error: 'premix_output_cannot_be_an_ingredient' }); const parsed = parseRecipeQuantity(entry.quantity, item.unit, entry.unit || null); if (parsed.error) return json(res, 409, { error: parsed.error, ingredient: item.name }); const quantity = Number((parsed.amount * parsed.factor * multiplier).toFixed(6)); requirements.push({ item, quantity, unit: item.unit }); } const combinedRequirements = new Map(); for (const entry of requirements) { const key = String(entry.item.id); const previous = combinedRequirements.get(key); if (previous) previous.quantity += entry.quantity; else combinedRequirements.set(key, { ...entry }); } requirements.splice(0, requirements.length, ...combinedRequirements.values()); for (const entry of requirements) { if (Number(entry.item.onHand || 0) < entry.quantity) return json(res, 409, { error: 'insufficient_premix_stock', missing: [{ name: entry.item.name, required: entry.quantity, onHand: Number(entry.item.onHand || 0), unit: entry.unit }] }); totalCost += entry.quantity * Number(entry.item.cost || 0); } const outputFactor = unitFactors[recipe.yieldUnit]?.[output.unit]; if (!outputFactor) return json(res, 409, { error: 'premix_output_unit_mismatch' }); const plannedOutputQuantity = Number((Number(recipe.yieldQuantity) * multiplier * outputFactor).toFixed(6)); const actualOutput = input.actualOutput === undefined || input.actualOutput === '' ? null : Number(input.actualOutput); if (actualOutput !== null && (!Number.isFinite(actualOutput) || actualOutput <= 0)) return json(res, 400, { error: 'invalid_premix_production' }); const outputQuantity = Number(((actualOutput ?? Number(recipe.yieldQuantity) * multiplier) * outputFactor).toFixed(6)); const batchExpiresAt = expiresAt ? expiresAt.toISOString() : null; const previousOutputCost = Number(output.cost || 0); const previousOutputQuantity = Number(output.onHand || 0); const newOutputQuantity = previousOutputQuantity + outputQuantity; const batchUnitCost = outputQuantity > 0 ? totalCost / outputQuantity : 0; const nextOutputCost = Number((newOutputQuantity > 0 ? ((previousOutputQuantity * previousOutputCost) + totalCost) / newOutputQuantity : batchUnitCost).toFixed(4)); const sourceMovements = requirements.map((requirement) => ({ requirement, id: `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, allocations: null })); for (const movement of sourceMovements) { try { movement.allocations = allocateMemoryPremixConsumption(movement.requirement.item.id, movement.requirement.quantity, Number(movement.requirement.item.onHand || 0), movement.id, `Приготовление премикса «${recipe.name}»`, { apply: false }); } catch (error) { return json(res, 409, { error: error.message }); } } const mutationTime = new Date().toISOString(); for (const { requirement, id, allocations } of sourceMovements) { for (const { batch, used } of allocations) { batch.lotMovements ||= []; batch.lotMovements.push({ movementId: id, type: 'consumption', quantityDelta: -used, reason: `Приготовление премикса «${recipe.name}»`, createdAt: mutationTime }); } requirement.item.onHand = Number((Number(requirement.item.onHand || 0) - requirement.quantity).toFixed(6)); stockMovements.push({ id, itemId: requirement.item.id, itemName: requirement.item.name, direction: 'out', delta: -requirement.quantity, quantity: requirement.quantity, reason: `Приготовление премикса «${recipe.name}»`, createdAt: mutationTime }); } output.cost = nextOutputCost; output.onHand = Number(newOutputQuantity.toFixed(6)); const batch = { id: `premix-${Date.now()}`, recipeId, recipeName: recipe.name, outputItemId, outputItemName: output.name, outputQuantity, plannedOutputQuantity, previousOutputCost, expiresAt: batchExpiresAt, outputUnit: output.unit, totalCost: Math.round(totalCost * 100) / 100, batchUnitCost: Math.round(batchUnitCost * 100) / 100, producedBy: req.user?.name || 'администратор', ingredients: requirements.map(({ item, quantity, unit }) => ({ ingredientId: item.id, name: item.name, quantity, unit })), type: 'premix', status: 'produced', lotMovements: [], createdAt: new Date().toISOString() }; batch.outputMovementId = `premix-out-${batch.id}`; stockMovements.push(batch); recordAudit(req, 'inventory.premix_produced', 'premix', batch.id, null, batch); return json(res, 201, batch);
   }
   if (pathname === '/api/inventory/movements' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -5770,7 +5945,15 @@ if (staffProfile && req.method === 'PATCH') {
     if (!Number.isInteger(Number(input.guests || 1)) || Number(input.guests || 1) < 1 || Number(input.guests || 1) > 50) return json(res, 400, { error: 'invalid_guest_count' });
     if (!Number.isFinite(Number(input.deposit || 0)) || Number(input.deposit || 0) < 0) return json(res, 400, { error: 'invalid_reservation_deposit' });
     let minimumAtReservationTime = 0;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query("SELECT t.min_order_total AS \"minimumOrderTotal\",to_char(t.minimum_order_start_time,'HH24:MI') AS \"minimumOrderStartTime\",to_char(t.minimum_order_end_time,'HH24:MI') AS \"minimumOrderEndTime\" FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.archived_at IS NULL", [input.tableId, venueDbId]); if (rows[0]) minimumAtReservationTime = tableMinimumForClock(rows[0], input.time); } catch (_) { return json(res, 503, { error: 'reservation_table_lookup_failed' }); } } else { const selected = floor.flatMap((zone) => zone.tables || []).find((entry) => entry.id === input.tableId); if (selected) minimumAtReservationTime = tableMinimumForClock(selected, input.time); }
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query("SELECT t.min_order_total AS \"minimumOrderTotal\",to_char(t.minimum_order_start_time,'HH24:MI') AS \"minimumOrderStartTime\",to_char(t.minimum_order_end_time,'HH24:MI') AS \"minimumOrderEndTime\" FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.archived_at IS NULL", [input.tableId, venueDbId]);
+        if (rows[0]) minimumAtReservationTime = tableMinimumForClock(rows[0], input.time);
+      } catch (_) { return json(res, 503, { error: 'reservation_table_lookup_failed' }); }
+    } else {
+      const selected = floor.flatMap((zone) => zone.tables || []).find((entry) => entry.id === input.tableId);
+      if (selected) minimumAtReservationTime = tableMinimumForClock(selected, input.time);
+    }
     if (Number(input.deposit || 0) < minimumAtReservationTime) return json(res, 409, { error: 'vip_deposit_below_minimum', requiredDeposit: minimumAtReservationTime, providedDeposit: Number(input.deposit || 0) });
     if (repositories?.reservations && /^[0-9a-f-]{36}$/i.test(reservationId)) {
       try { const updated = await repositories.reservations.update(venueDbId, reservationId, { ...input, guestName: String(input.guestName).trim(), phone: String(input.phone || '').trim(), notes: String(input.notes || '') }); recordAudit(req, 'reservation.updated', 'reservation', reservationId, null, updated); return json(res, 200, updated); }
@@ -6386,7 +6569,7 @@ if (staffProfile && req.method === 'PATCH') {
         const {rows}=await repositories.pool.query(`SELECT r.id,r.order_id AS "orderId",r.amount,r.reason,r.created_at AS "createdAt",r.actor_id AS "actorId",r.shift_id AS "shiftId",r.item_attribution_status AS "itemAttributionStatus",
           COALESCE(t.allocations,'[]'::jsonb) AS allocations,COALESCE(i.item_returns,'[]'::jsonb) AS "itemReturns"
           FROM order_refunds r
-          LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('sourcePaymentId',t.source_payment_id,'amount',t.amount,'payoutMethod',t.payout_method) ORDER BY t.created_at,t.id) AS allocations FROM order_refund_tenders t WHERE t.venue_id=r.venue_id AND t.refund_id=r.id) t ON true
+          LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('sourcePaymentId',t.source_payment_id,'amount',t.amount,'payoutMethod',t.payout_method,'paymentAccountId',t.finance_account_id,'paymentAccountNameSnapshot',t.finance_account_name_snapshot,'shiftId',t.shift_id,'accountCoverage',CASE WHEN t.finance_account_id IS NULL THEN 'unknown_legacy' ELSE 'assigned' END) ORDER BY t.created_at,t.id) AS allocations FROM order_refund_tenders t WHERE t.venue_id=r.venue_id AND t.refund_id=r.id) t ON true
           LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('orderItemId',ri.order_item_id,'quantity',ri.returned_quantity,'itemValueMinor',ri.returned_item_value_minor,'producerSequence',ri.producer_sequence,'previousReturnedQuantity',ri.previous_returned_quantity,'cumulativeReturnedQuantity',ri.cumulative_returned_quantity,'previousReturnedItemValueMinor',ri.previous_returned_item_value_minor,'cumulativeReturnedItemValueMinor',ri.cumulative_returned_item_value_minor,'sequenceScope',CASE WHEN ri.producer_sequence IS NULL THEN 'legacy_unsequenced' ELSE 'per_source_post_092' END,'productName',sl.product_facts->>'productName','sellerId',sl.seller_id,'soldAt',sl.sold_at) ORDER BY ri.order_item_id) AS item_returns FROM order_refund_items ri JOIN pos_order_pricing_snapshot_lines sl ON sl.venue_id=ri.venue_id AND sl.snapshot_id=ri.snapshot_id AND sl.order_id=ri.order_id AND sl.order_item_id=ri.order_item_id WHERE ri.venue_id=r.venue_id AND ri.refund_id=r.id) i ON true
           WHERE r.venue_id=$1 AND r.order_id=$2 ORDER BY r.created_at,r.id`,[venueDbId,refundOrderId]);
         const returnable=await repositories.pool.query(`SELECT s.id AS "snapshotId",l.order_item_id AS "orderItemId",l.quantity AS "soldQuantity",l.unit_price AS "unitPrice",l.gross_minor AS "grossMinor",l.discount_minor AS "discountMinor",l.net_minor AS "netMinor",l.seller_id AS "sellerId",l.sold_at AS "soldAt",l.product_facts AS "productFacts",b.returned_quantity AS "returnedQuantity",b.returned_item_value_minor AS "returnedItemValueMinor"
@@ -6402,15 +6585,15 @@ if (staffProfile && req.method === 'PATCH') {
     const input=await body(req); const reason=String(input.reason||'').trim(); const key=String(input.idempotencyKey||'').trim();
     const decimalCents=(value)=>{const raw=typeof value==='number'?String(value):String(value??'').trim();if(!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(raw))return null;const [whole,frac='']=raw.split('.');const cents=Number(whole)*100+Number((frac+'00').slice(0,2));return Number.isSafeInteger(cents)?cents:null;};
     const totalCents=decimalCents(input.amount); const rawAllocations=Array.isArray(input.allocations)?input.allocations:[];
-    const allocations=rawAllocations.map((item)=>({sourcePaymentId:String(item?.sourcePaymentId||'').trim().toLowerCase(),amountCents:decimalCents(item?.amount),payoutMethod:String(item?.payoutMethod||'').trim()}));
+    const allocations=rawAllocations.map((item)=>({sourcePaymentId:String(item?.sourcePaymentId||'').trim().toLowerCase(),amountCents:decimalCents(item?.amount),payoutMethod:String(item?.payoutMethod||'').trim(),paymentAccountId:String(item?.paymentAccountId||'').trim().toLowerCase()}));
     const quantityMilli=(value)=>{const raw=typeof value==='number'?String(value):String(value??'').trim();if(!/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(raw))return null;const [whole,fraction='']=raw.split('.');const milli=Number(whole)*1000+Number((fraction+'000').slice(0,3));return Number.isSafeInteger(milli)&&milli>0&&milli<=999999999999?milli:null;};
     const rawItems=Array.isArray(input.items)?input.items:[];
     const itemReturns=rawItems.map((item)=>({orderItemId:String(item?.orderItemId||'').trim().toLowerCase(),quantityMilli:quantityMilli(item?.quantity)}));
     const noItemReturn=input.noItemReturn===true;
-    if(totalCents===null||totalCents<=0||!reason||reason.length>500||key.length<8||key.length>120||!allocations.length||allocations.some((a)=>! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(a.sourcePaymentId)||a.amountCents===null||a.amountCents<=0||!['cash','card','qr'].includes(a.payoutMethod))||allocations.reduce((s,a)=>s+(a.amountCents||0),0)!==totalCents||new Set(allocations.map((a)=>a.sourcePaymentId)).size!==allocations.length||input.items!==undefined&&!Array.isArray(input.items)||itemReturns.some((item)=>! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(item.orderItemId)||item.quantityMilli===null)||new Set(itemReturns.map((item)=>item.orderItemId)).size!==itemReturns.length||noItemReturn&&itemReturns.length>0||input.noItemReturn!==undefined&&typeof input.noItemReturn!=='boolean') return json(res,400,{error:'invalid_order_refund'});
+    if(totalCents===null||totalCents<=0||!reason||reason.length>500||key.length<8||key.length>120||!allocations.length||allocations.some((a)=>! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(a.sourcePaymentId)||! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(a.paymentAccountId)||a.amountCents===null||a.amountCents<=0||!['cash','card','qr'].includes(a.payoutMethod))||allocations.reduce((s,a)=>s+(a.amountCents||0),0)!==totalCents||new Set(allocations.map((a)=>a.sourcePaymentId)).size!==allocations.length||input.items!==undefined&&!Array.isArray(input.items)||itemReturns.some((item)=>! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(item.orderItemId)||item.quantityMilli===null)||new Set(itemReturns.map((item)=>item.orderItemId)).size!==itemReturns.length||noItemReturn&&itemReturns.length>0||input.noItemReturn!==undefined&&typeof input.noItemReturn!=='boolean') return json(res,400,{error:'invalid_order_refund'});
     allocations.sort((a,b)=>a.sourcePaymentId.localeCompare(b.sourcePaymentId));
     itemReturns.sort((a,b)=>a.orderItemId.localeCompare(b.orderItemId));
-    const canonical=JSON.stringify({amountCents:totalCents,reason,allocations:allocations.map(({sourcePaymentId,amountCents,payoutMethod})=>({sourcePaymentId,amountCents,payoutMethod})),items:itemReturns,noItemReturn});
+    const canonical=JSON.stringify({amountCents:totalCents,reason,allocations:allocations.map(({sourcePaymentId,amountCents,payoutMethod,paymentAccountId})=>({sourcePaymentId,amountCents,payoutMethod,paymentAccountId})),items:itemReturns,noItemReturn});
     let client;
     try {
       client=await repositories.pool.connect(); await client.query('BEGIN');
@@ -6419,9 +6602,9 @@ if (staffProfile && req.method === 'PATCH') {
       const pricingSnapshot=await client.query('SELECT id FROM pos_order_pricing_snapshots WHERE venue_id=$1 AND order_id=$2',[venueDbId,refundOrderId]);
       const prior=await client.query('SELECT id,order_id AS "orderId",amount,reason,shift_id AS "shiftId",created_at AS "createdAt",actor_id AS "actorId",item_attribution_status AS "itemAttributionStatus" FROM order_refunds WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,key]);
       if(prior.rows[0]){
-        const priorTenders=await client.query("SELECT source_payment_id AS \"sourcePaymentId\",amount,payout_method AS \"payoutMethod\" FROM order_refund_tenders WHERE venue_id=$1 AND refund_id=$2 ORDER BY source_payment_id",[venueDbId,prior.rows[0].id]);
+        const priorTenders=await client.query("SELECT source_payment_id AS \"sourcePaymentId\",amount,payout_method AS \"payoutMethod\",finance_account_id AS \"paymentAccountId\",finance_account_name_snapshot AS \"paymentAccountNameSnapshot\",shift_id AS \"shiftId\",CASE WHEN finance_account_id IS NULL THEN 'unknown_legacy' ELSE 'assigned' END AS \"accountCoverage\" FROM order_refund_tenders WHERE venue_id=$1 AND refund_id=$2 ORDER BY source_payment_id",[venueDbId,prior.rows[0].id]);
         const priorItems=await client.query("SELECT order_item_id AS \"orderItemId\",round(returned_quantity*1000)::bigint AS \"quantityMilli\" FROM order_refund_items WHERE venue_id=$1 AND refund_id=$2 ORDER BY order_item_id",[venueDbId,prior.rows[0].id]);
-        const priorBody=JSON.stringify({amountCents:decimalCents(prior.rows[0].amount),reason:prior.rows[0].reason,allocations:priorTenders.rows.map((a)=>({sourcePaymentId:a.sourcePaymentId,amountCents:decimalCents(a.amount),payoutMethod:a.payoutMethod})),items:priorItems.rows.map((item)=>({orderItemId:item.orderItemId,quantityMilli:Number(item.quantityMilli)})),noItemReturn:prior.rows[0].itemAttributionStatus==='not_applicable'});
+        const priorBody=JSON.stringify({amountCents:decimalCents(prior.rows[0].amount),reason:prior.rows[0].reason,allocations:priorTenders.rows.map((a)=>({sourcePaymentId:a.sourcePaymentId,amountCents:decimalCents(a.amount),payoutMethod:a.payoutMethod,paymentAccountId:a.paymentAccountId})),items:priorItems.rows.map((item)=>({orderItemId:item.orderItemId,quantityMilli:Number(item.quantityMilli)})),noItemReturn:prior.rows[0].itemAttributionStatus==='not_applicable'});
         if(prior.rows[0].orderId!==refundOrderId||priorBody!==canonical){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}
         const priorDetails=await client.query(`SELECT ri.order_item_id AS "orderItemId",ri.returned_quantity AS quantity,ri.returned_item_value_minor AS "itemValueMinor",ri.producer_sequence AS "producerSequence",ri.previous_returned_quantity AS "previousReturnedQuantity",ri.cumulative_returned_quantity AS "cumulativeReturnedQuantity",ri.previous_returned_item_value_minor AS "previousReturnedItemValueMinor",ri.cumulative_returned_item_value_minor AS "cumulativeReturnedItemValueMinor",CASE WHEN ri.producer_sequence IS NULL THEN 'legacy_unsequenced' ELSE 'per_source_post_092' END AS "sequenceScope",ri.created_at AS "createdAt",sl.product_facts->>'productName' AS "productName",sl.seller_id AS "sellerId",sl.sold_at AS "soldAt" FROM order_refund_items ri JOIN pos_order_pricing_snapshot_lines sl ON sl.venue_id=ri.venue_id AND sl.snapshot_id=ri.snapshot_id AND sl.order_id=ri.order_id AND sl.order_item_id=ri.order_item_id WHERE ri.venue_id=$1 AND ri.refund_id=$2 ORDER BY ri.order_item_id`,[venueDbId,prior.rows[0].id]);
         const response=prior.rows[0]; response.allocations=priorTenders.rows; response.itemReturns=priorDetails.rows; response.idempotentReplay=true; await client.query('COMMIT'); return json(res,200,response);
@@ -6447,17 +6630,29 @@ if (staffProfile && req.method === 'PATCH') {
         const used=await client.query('SELECT COALESCE(SUM(amount),0)::numeric AS amount FROM order_refund_tenders WHERE venue_id=$1 AND order_id=$2 AND source_payment_id=$3',[venueDbId,refundOrderId,allocation.sourcePaymentId]);
         if(cap===null||allocation.amountCents+decimalCents(used.rows[0].amount)>cap){await client.query('ROLLBACK');return json(res,409,{error:'refund_exceeds_payment_balance'});}
       }
+      const accountRows=await client.query('SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active FROM finance_accounts WHERE venue_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE',[venueDbId,allocations.map((allocation)=>allocation.paymentAccountId)]);
+      if(accountRows.rows.length!==new Set(allocations.map((allocation)=>allocation.paymentAccountId)).size){await client.query('ROLLBACK');return json(res,404,{error:'finance_account_not_found'});}
+      for(const allocation of allocations){const account=accountRows.rows.find((row)=>row.id===allocation.paymentAccountId);const validKind=allocation.payoutMethod==='cash'?account?.kind==='pos_cashbox':allocation.payoutMethod==='card'?['bank','electronic'].includes(account?.kind):account?.kind==='electronic';if(!account?.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_account_inactive'});}if(!validKind||!(account.allowedPaymentMethods||[]).includes(allocation.payoutMethod)){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_method_account_mismatch'});}allocation.paymentAccountNameSnapshot=account.name;}
       const shifts=await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE',[venueDbId]);
       if(!shifts.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'open_shift_required'});}
       const itemAttributionStatus=itemReturns.length?'complete':noItemReturn?'not_applicable':'unattributed';
       const inserted=await client.query(`INSERT INTO order_refunds(venue_id,order_id,shift_id,amount,reason,idempotency_key,actor_id,item_attribution_status) VALUES($1,$2,$3,$4::numeric/100,$5,$6,$7,$8) RETURNING id,order_id AS "orderId",amount,reason,shift_id AS "shiftId",created_at AS "createdAt",actor_id AS "actorId",item_attribution_status AS "itemAttributionStatus"`,[venueDbId,refundOrderId,shifts.rows[0].id,totalCents,reason,key,req.user.id,itemAttributionStatus]);
       const refund=inserted.rows[0];
-      for(const allocation of allocations) await client.query('INSERT INTO order_refund_tenders(venue_id,refund_id,order_id,source_payment_id,amount,payout_method) VALUES($1,$2,$3,$4,$5::numeric/100,$6)',[venueDbId,refund.id,refundOrderId,allocation.sourcePaymentId,allocation.amountCents,allocation.payoutMethod]);
+      for(const allocation of allocations){const account=accountRows.rows.find((row)=>row.id===allocation.paymentAccountId);const tenderShiftId=account.kind==='pos_cashbox'?shifts.rows[0].id:null;allocation.shiftId=tenderShiftId;allocation.accountCoverage='assigned';await client.query('INSERT INTO order_refund_tenders(venue_id,refund_id,order_id,source_payment_id,amount,payout_method,finance_account_id,finance_account_name_snapshot,shift_id) VALUES($1,$2,$3,$4,$5::numeric/100,$6,$7,$8,$9)',[venueDbId,refund.id,refundOrderId,allocation.sourcePaymentId,allocation.amountCents,allocation.payoutMethod,allocation.paymentAccountId,allocation.paymentAccountNameSnapshot,tenderShiftId]);}
       const returnedItems=[];
       for(const requested of itemReturns){const line=lockedLines.find((row)=>row.orderItemId===requested.orderItemId);const insertedItem=await client.query('INSERT INTO order_refund_items(venue_id,refund_id,order_id,snapshot_id,order_item_id,returned_quantity,returned_item_value_minor) VALUES($1,$2,$3,$4,$5,$6::numeric/1000,NULL) RETURNING order_item_id AS "orderItemId",returned_quantity AS quantity,returned_item_value_minor AS "itemValueMinor",producer_sequence AS "producerSequence",previous_returned_quantity AS "previousReturnedQuantity",cumulative_returned_quantity AS "cumulativeReturnedQuantity",previous_returned_item_value_minor AS "previousReturnedItemValueMinor",cumulative_returned_item_value_minor AS "cumulativeReturnedItemValueMinor",\'per_source_post_092\'::text AS "sequenceScope",created_at AS "createdAt"',[venueDbId,refund.id,refundOrderId,pricingSnapshot.rows[0].id,requested.orderItemId,requested.quantityMilli]);returnedItems.push({...insertedItem.rows[0],productName:line.productName,sellerId:line.sellerId,soldAt:line.soldAt});}
       await client.query('INSERT INTO audit_events(venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES($1,$2,$3,$4,$5,$6)',[venueDbId,req.user.id,'order.refunded','order_refund',refund.id,{...refund,allocations:allocations.map(a=>({sourcePaymentId:a.sourcePaymentId,amount:a.amountCents/100,payoutMethod:a.payoutMethod})),itemReturns:returnedItems}]);
-      refund.allocations=allocations.map(a=>({sourcePaymentId:a.sourcePaymentId,amount:a.amountCents/100,payoutMethod:a.payoutMethod})); refund.itemReturns=returnedItems; await client.query('COMMIT'); return json(res,201,refund);
+      refund.allocations=allocations.map(a=>({sourcePaymentId:a.sourcePaymentId,amount:a.amountCents/100,payoutMethod:a.payoutMethod,paymentAccountId:a.paymentAccountId,paymentAccountNameSnapshot:a.paymentAccountNameSnapshot,shiftId:a.shiftId,accountCoverage:a.accountCoverage})); refund.itemReturns=returnedItems; await client.query('COMMIT'); return json(res,201,refund);
     } catch(error){if(client)await client.query('ROLLBACK').catch(()=>{});if(error.code==='23505')return json(res,409,{error:'idempotency_key_reused'});if(error.code==='23514')return json(res,409,{error:error.message});return json(res,503,{error:'order_refund_failed'});} finally{client?.release();}
+  }
+  if (pathname === '/api/pos/payment-accounts' && req.method === 'GET') {
+    if (denyUnless(req,res,'orders')) return;
+    if (!repositories?.pool) return json(res,503,{error:'finance_accounts_requires_database'});
+    try {
+      const {rows}=await repositories.pool.query(`SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods"
+        FROM finance_accounts WHERE venue_id=$1 AND active=true AND (kind='pos_cashbox' OR kind IN ('bank','electronic')) ORDER BY kind,code,id`,[venueDbId]);
+      return json(res,200,{items:rows});
+    } catch(error) { return json(res,503,{error:'finance_accounts_unavailable'}); }
   }
   const paymentPath = pathname.match(/^\/api\/orders\/([^/]+)\/payments$/);
   if (paymentPath && (req.method === 'GET' || req.method === 'POST')) {
@@ -6471,19 +6666,22 @@ if (staffProfile && req.method === 'PATCH') {
           const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' });
           if (persisted.reservationId && denyUnless(req,res,'reservations')) return;
           const pricing = await pgOrderPricing(repositories.pool, paymentPath[1], persisted.minimumOrderTotal);
-          const { rows } = await repositories.pool.query('SELECT id,method,amount,status,idempotency_key AS "idempotencyKey",created_at AS "createdAt" FROM payments WHERE order_id=$1 ORDER BY created_at', [paymentPath[1]]);
+          const { rows } = await repositories.pool.query(`SELECT p.id,p.method,p.amount,p.status,p.shift_id AS "shiftId",p.finance_account_id AS "paymentAccountId",p.finance_account_name_snapshot AS "paymentAccountNameSnapshot",CASE WHEN p.method IN ('cash','card','qr') AND p.finance_account_id IS NULL THEN 'unknown_legacy' WHEN p.method IN ('cash','card','qr') THEN 'assigned' ELSE 'not_applicable' END AS "accountCoverage",p.idempotency_key AS "idempotencyKey",p.created_at AS "createdAt" FROM payments p WHERE p.order_id=$1 ORDER BY p.created_at`, [paymentPath[1]]);
           const reservationPrepayment = await pgReservationPrepaymentState(repositories.pool,venueDbId,persisted.reservationId);
           let guestAccount = null; if (persisted.guestId) { const { rows: guestRows } = await repositories.pool.query('SELECT g.loyalty_points AS "bonusBalance",g.deposit_balance AS "depositBalance",COALESCE(dg.bonus_percent,0) AS "bonusPercent" FROM guests g LEFT JOIN guest_discount_groups dg ON dg.id=g.discount_group_id AND dg.venue_id=g.venue_id AND dg.active=true WHERE g.id=$1 AND g.venue_id=$2', [persisted.guestId, venueDbId]); if (guestRows[0]) guestAccount = { guestId: persisted.guestId, bonusBalance: Number(guestRows[0].bonusBalance || 0), depositBalance: Number(guestRows[0].depositBalance || 0), bonusPercent:Number(guestRows[0].bonusPercent||0), conversionRate: 1 }; }
           const redemptionPolicy = persisted.redemptionPolicyVersion !== null ? { version:Number(persisted.redemptionPolicyVersion), maxRedemptionPercent:Number(persisted.redemptionCapPercent), minimumRedemptionPoints:Number(persisted.redemptionMinPoints), base:Number(persisted.redemptionBase??pricing.due) } : { version:0, maxRedemptionPercent:100, minimumRedemptionPoints:1, base:Number(pricing.due) };
           const redeemed = rows.filter((row)=>row.method==='bonus'&&['paid','partially_paid'].includes(row.status)).reduce((sum,row)=>sum+Number(row.amount||0),0);
           const bonusRedemptionRemaining = Math.max(0,Math.floor(moneyCents(redemptionPolicy.base*redemptionPolicy.maxRedemptionPercent/100)-moneyCents(redeemed))/100);
-          return json(res, 200, { items: rows, closed:persisted.status==='closed', pricingLocked:Boolean(persisted.pricingLockedAt), pricingLockedAt:persisted.pricingLockedAt||null, guestAccount, reservationId: persisted.reservationId, reservationPrepaymentAvailable: reservationPrepayment.available, reservationPrepaymentReceipts: reservationPrepayment.receipts, bonusRedemptionRemaining, bonusRedemptionPolicy: { version:redemptionPolicy.version, maxRedemptionPercent:redemptionPolicy.maxRedemptionPercent, minimumRedemptionPoints:redemptionPolicy.minimumRedemptionPoints, base:redemptionPolicy.base }, ...pricing, remaining: Math.max(0, pricing.due - pricing.paid), loyaltyBonusPercent: persisted.loyaltyBonusPercent === null ? null : Number(persisted.loyaltyBonusPercent), loyaltyBonusBase: persisted.loyaltyBonusBase === null ? null : Number(persisted.loyaltyBonusBase), loyaltyBonusEarned: persisted.loyaltyBonusEarned === null ? null : Number(persisted.loyaltyBonusEarned) });
+          const posAccounts=await repositories.pool.query("SELECT id,name,kind,allowed_payment_methods AS \"allowedPaymentMethods\" FROM finance_accounts WHERE venue_id=$1 AND active=true AND (kind='pos_cashbox' OR kind IN ('bank','electronic')) ORDER BY kind,code,id",[venueDbId]);
+          return json(res, 200, { items: rows, posPaymentAccounts:posAccounts.rows, closed:persisted.status==='closed', pricingLocked:Boolean(persisted.pricingLockedAt), pricingLockedAt:persisted.pricingLockedAt||null, guestAccount, reservationId: persisted.reservationId, reservationPrepaymentAvailable: reservationPrepayment.available, reservationPrepaymentReceipts: reservationPrepayment.receipts, bonusRedemptionRemaining, bonusRedemptionPolicy: { version:redemptionPolicy.version, maxRedemptionPercent:redemptionPolicy.maxRedemptionPercent, minimumRedemptionPoints:redemptionPolicy.minimumRedemptionPoints, base:redemptionPolicy.base }, ...pricing, remaining: Math.max(0, pricing.due - pricing.paid), loyaltyBonusPercent: persisted.loyaltyBonusPercent === null ? null : Number(persisted.loyaltyBonusPercent), loyaltyBonusBase: persisted.loyaltyBonusBase === null ? null : Number(persisted.loyaltyBonusBase), loyaltyBonusEarned: persisted.loyaltyBonusEarned === null ? null : Number(persisted.loyaltyBonusEarned) });
         } catch (error) { return json(res, 409, { error: 'payment_create_failed', detail: error.message }); }
       }
 
       const input = allocationInput || await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); const idempotencyKey = String(input.idempotencyKey || req.headers['idempotency-key'] || '').trim();
       const receiptId = String(input.receiptId || '').trim();
+      const paymentAccountId=['cash','card','qr'].includes(method)?String(input.paymentAccountId||'').trim().toLowerCase():null;
       if (!validPaymentAmount(amount) || !['cash', 'card', 'qr', 'bonus', 'deposit', 'reservation'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' });
+      if (['cash','card','qr'].includes(method) && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(paymentAccountId||'')) return json(res,400,{error:'finance_account_required'});
       if (method === 'bonus' && (!Number.isInteger(amount) || amount <= 0)) return json(res, 400, { error: 'invalid_bonus_points' });
       if ((['bonus','deposit','reservation'].includes(method) && !idempotencyKey) || (method === 'reservation' && !/^[0-9a-f-]{36}$/i.test(receiptId)) || (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 120))) return json(res, 400, { error: 'valid_idempotency_key_required' });
       let client;
@@ -6496,10 +6694,19 @@ if (staffProfile && req.method === 'PATCH') {
         if (!persisted) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
         let reservationShiftId=null;
         if (method==='reservation') { const shiftGuard=await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE',[venueDbId]); reservationShiftId=shiftGuard.rows[0]?.id||null; if(!reservationShiftId){await client.query('ROLLBACK');return json(res,409,{error:'open_shift_required'});} }
-        if (idempotencyKey) { const { rows: priorRows } = await client.query('SELECT id,method,amount,status,shift_id AS "shiftId",created_at AS "createdAt" FROM payments WHERE order_id=$1 AND idempotency_key=$2', [paymentPath[1], idempotencyKey]); if (priorRows[0]) { const prior=priorRows[0]; if (prior.method!==method || Number(prior.amount)!==amount) { await client.query('ROLLBACK'); return json(res,409,{error:'idempotency_key_reused'}); } if(method==='reservation'){const allocation=await client.query('SELECT receipt_id AS "receiptId" FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND payment_id=$2',[venueDbId,prior.id]);if(!allocation.rows[0]||allocation.rows[0].receiptId!==receiptId){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}} const current=await pgOrderPricing(client,paymentPath[1]); let guestAccount=null;if(persisted.guestId){const {rows}=await client.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2',[persisted.guestId,venueDbId]);if(rows[0])guestAccount={guestId:persisted.guestId,bonusBalance:Number(rows[0].bonusBalance||0),depositBalance:Number(rows[0].depositBalance||0),conversionRate:1};}await client.query('COMMIT');return json(res,200,{...prior,due:current.due,paid:current.paid,remaining:Math.max(0,current.due-current.paid),closed:persisted.status==='closed',guestAccount,idempotentReplay:true}); } }
+        if (idempotencyKey) { const { rows: priorRows } = await client.query('SELECT id,method,amount,status,shift_id AS "shiftId",finance_account_id AS "paymentAccountId",finance_account_name_snapshot AS "paymentAccountNameSnapshot",created_at AS "createdAt" FROM payments WHERE order_id=$1 AND idempotency_key=$2', [paymentPath[1], idempotencyKey]); if (priorRows[0]) { const prior=priorRows[0]; if (prior.method!==method || Number(prior.amount)!==amount || (['cash','card','qr'].includes(method)&&String(prior.paymentAccountId||'').toLowerCase()!==paymentAccountId)) { await client.query('ROLLBACK'); return json(res,409,{error:'idempotency_key_reused'}); } if(method==='reservation'){const allocation=await client.query('SELECT receipt_id AS "receiptId" FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND payment_id=$2',[venueDbId,prior.id]);if(!allocation.rows[0]||allocation.rows[0].receiptId!==receiptId){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}} const current=await pgOrderPricing(client,paymentPath[1]); let guestAccount=null;if(persisted.guestId){const {rows}=await client.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2',[persisted.guestId,venueDbId]);if(rows[0])guestAccount={guestId:persisted.guestId,bonusBalance:Number(rows[0].bonusBalance||0),depositBalance:Number(rows[0].depositBalance||0),conversionRate:1};}await client.query('COMMIT');return json(res,200,{...prior,due:current.due,paid:current.paid,remaining:Math.max(0,current.due-current.paid),closed:persisted.status==='closed',guestAccount,idempotentReplay:true}); } }
         if (method==='reservation' && idempotencyKey) { const priorAllocation=await client.query('SELECT order_id FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]); if(priorAllocation.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});} }
         if (persisted.status === 'closed' || persisted.status === 'cancelled') { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_already_final' }); }
         if (persisted.pricingLockedAt && !persisted.pricingVersion) { await client.query('ROLLBACK'); return json(res, 409, { error: 'legacy_paid_order_requires_reconciliation' }); }
+        let accountRow=null;
+        if (paymentAccountId) {
+          const {rows}=await client.query('SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE',[venueDbId,paymentAccountId]);
+          accountRow=rows[0];
+          if(!accountRow){await client.query('ROLLBACK');return json(res,404,{error:'finance_account_not_found'});}
+          if(!accountRow.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_account_inactive'});}
+          const validKind=method==='cash'?accountRow.kind==='pos_cashbox':method==='card'?['bank','electronic'].includes(accountRow.kind):accountRow.kind==='electronic';
+          if(!validKind||!(accountRow.allowedPaymentMethods||[]).includes(method)){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_method_account_mismatch'});}
+        }
         const { rows: shiftRows } = method==='reservation' ? { rows: [{id:reservationShiftId}] } : await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
         const activeShiftId = shiftRows[0]?.id;
         if (!activeShiftId) { await client.query('ROLLBACK'); return json(res, 409, { error: 'open_shift_required' }); }
@@ -6538,7 +6745,8 @@ if (staffProfile && req.method === 'PATCH') {
           await client.query('UPDATE orders SET pricing_locked_at=now(),group_discount_base=$3,group_discount_amount=$4,effective_discount_source=$5,subtotal_snapshot=$6,discount_total_snapshot=$7,minimum_adjustment_snapshot=$8,final_total_snapshot=$9,pricing_version=1,pricing_offers_snapshot=$10,selected_promotion_id=$11,selected_promotion_version=$12,selected_promotion_name=$13,selected_promotion_benefit_kind=$14,selected_promotion_benefit_value=$15,selected_promotion_basis=$16,selected_promotion_amount=$17 WHERE id=$1 AND venue_id=$2 AND pricing_locked_at IS NULL', [paymentPath[1], venueDbId, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, due, JSON.stringify(pricing.offers || []), promotion?.promotionId || null, promotion?.version || null, promotion?.label || null, promotion?.benefitKind || null, promotion?.benefitValue ?? null, promotion?.eligibleBasis ?? null, promotion?.amount ?? null]);
         }
         await writePosOrderPricingSnapshot(client,{venueId:venueDbId,orderId:paymentPath[1],pricing});
-        const { rows } = await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id,idempotency_key) VALUES ($1,$2,$3,\'paid\',$4,$5) RETURNING id,method,amount,status,shift_id AS "shiftId",idempotency_key AS "idempotencyKey",created_at AS "createdAt"', [paymentPath[1], method, amount, activeShiftId, idempotencyKey||null]);
+        const paymentShiftId=accountRow?.kind==='pos_cashbox'?activeShiftId:null;
+        const { rows } = await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id,idempotency_key,finance_account_id,finance_account_name_snapshot) VALUES ($1,$2,$3,\'paid\',$4,$5,$6,$7) RETURNING id,method,amount,status,shift_id AS "shiftId",finance_account_id AS "paymentAccountId",finance_account_name_snapshot AS "paymentAccountNameSnapshot",idempotency_key AS "idempotencyKey",created_at AS "createdAt"', [paymentPath[1], method, amount, paymentShiftId, idempotencyKey||null,paymentAccountId,accountRow?.name||null]);
         if (method === 'reservation') {
           await client.query('INSERT INTO reservation_pre_payment_allocations (venue_id,reservation_id,receipt_id,order_id,payment_id,shift_id,amount,idempotency_key,actor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',[venueDbId,persisted.reservationId,receiptId,paymentPath[1],rows[0].id,activeShiftId,amount,idempotencyKey,req.user?.id||null]);
         }
@@ -6554,6 +6762,7 @@ if (staffProfile && req.method === 'PATCH') {
           const promotion = pricing.selectedPromotion;
           const { rows: closedRows } = await client.query('UPDATE orders SET status=\'closed\',closed_at=now(),closed_in_shift_id=$3,loyalty_bonus_percent=$4,loyalty_bonus_base=$5,loyalty_bonus_earned=$6,group_discount_base=$7,group_discount_amount=$8,effective_discount_source=$9,subtotal_snapshot=$10,discount_total_snapshot=$11,minimum_adjustment_snapshot=$12,final_total_snapshot=$13,pricing_version=1,pricing_offers_snapshot=$14,selected_promotion_id=$15,selected_promotion_version=$16,selected_promotion_name=$17,selected_promotion_benefit_kind=$18,selected_promotion_benefit_value=$19,selected_promotion_basis=$20,selected_promotion_amount=$21,pricing_locked_at=COALESCE(pricing_locked_at,now()) WHERE id=$1 AND venue_id=$2 AND status NOT IN (\'closed\',\'cancelled\') RETURNING id', [paymentPath[1], venueDbId, activeShiftId, loyaltyAccrual.percent, loyaltyAccrual.base, loyaltyAccrual.earned, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, due, JSON.stringify(pricing.offers || []), promotion?.promotionId || null, promotion?.version || null, promotion?.label || null, promotion?.benefitKind || null, promotion?.benefitValue ?? null, promotion?.eligibleBasis ?? null, promotion?.amount ?? null]);
           if (!closedRows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
+          await writePosOrderIncomeCategorySnapshot(client,{venueId:venueDbId,orderId:paymentPath[1]});
           await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]);
           if (persisted.tableId) await refreshTableReservationStatus(client, persisted.tableId, venueDbId);
         }
@@ -6599,7 +6808,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
-      const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
+      const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); const paymentAccountId=String(input.paymentAccountId||'').trim().toLowerCase(); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
       let client;
       let result;
       try {
@@ -6629,6 +6838,15 @@ if (staffProfile && req.method === 'PATCH') {
         const paid = pricing.paid;
         if (orderBalanceConflict({ due: finalTotal, paid })) { await client.query('ROLLBACK'); return json(res, 409, orderBalanceConflictBody({ due: finalTotal, paid })); }
         const remaining = Math.max(0, finalTotal - paid);
+        let closePaymentAccount=null;
+        if(remaining>0){
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(paymentAccountId)){await client.query('ROLLBACK');return json(res,400,{error:'finance_account_required'});}
+          const accountResult=await client.query('SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE',[venueDbId,paymentAccountId]);closePaymentAccount=accountResult.rows[0];
+          const validKind=paymentMethod==='cash'?closePaymentAccount?.kind==='pos_cashbox':paymentMethod==='card'?['bank','electronic'].includes(closePaymentAccount?.kind):closePaymentAccount?.kind==='electronic';
+          if(!closePaymentAccount){await client.query('ROLLBACK');return json(res,404,{error:'finance_account_not_found'});}
+          if(!closePaymentAccount.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_account_inactive'});}
+          if(!validKind||!(closePaymentAccount.allowedPaymentMethods||[]).includes(paymentMethod)){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_method_account_mismatch'});}
+        }
 
         await writePosOrderPricingSnapshot(client,{venueId:venueDbId,orderId:orderPath[1],pricing});
 
@@ -6638,8 +6856,9 @@ if (staffProfile && req.method === 'PATCH') {
         const promotion = pricing.selectedPromotion;
         const { rows } = await client.query('UPDATE orders SET status=$1,closed_at=now(),closed_in_shift_id=$4,loyalty_bonus_percent=$5,loyalty_bonus_base=$6,loyalty_bonus_earned=$7,group_discount_base=$8,group_discount_amount=$9,effective_discount_source=$10,subtotal_snapshot=$11,discount_total_snapshot=$12,minimum_adjustment_snapshot=$13,final_total_snapshot=$14,pricing_version=1,pricing_offers_snapshot=$15,selected_promotion_id=$16,selected_promotion_version=$17,selected_promotion_name=$18,selected_promotion_benefit_kind=$19,selected_promotion_benefit_value=$20,selected_promotion_basis=$21,selected_promotion_amount=$22,pricing_locked_at=COALESCE(pricing_locked_at,now()) WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId, activeShiftId, loyaltyAccrual.percent, loyaltyAccrual.base, loyaltyAccrual.earned, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, finalTotal, JSON.stringify(pricing.offers || []), promotion?.promotionId || null, promotion?.version || null, promotion?.label || null, promotion?.benefitKind || null, promotion?.benefitValue ?? null, promotion?.eligibleBasis ?? null, promotion?.amount ?? null]);
         if (!rows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
+        await writePosOrderIncomeCategorySnapshot(client,{venueId:venueDbId,orderId:orderPath[1]});
         await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]);
-        if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id) VALUES ($1,$2,$3,$4,$5)', [orderPath[1], paymentMethod, remaining, 'paid', activeShiftId]);
+        if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES ($1,$2,$3,$4,$5,$6,$7)', [orderPath[1], paymentMethod, remaining, 'paid', closePaymentAccount.kind==='pos_cashbox'?activeShiftId:null,closePaymentAccount.id,closePaymentAccount.name]);
         if (persisted.tableId) await refreshTableReservationStatus(client, persisted.tableId, venueDbId);
         result = { ...rows[0], ...pricing, subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: pricing.minimumAdjustment, paymentMethod, loyaltyBonusPercent: loyaltyAccrual.percent, loyaltyBonusBase: loyaltyAccrual.base, loyaltyBonusEarned: loyaltyAccrual.earned, loyaltyBonusBalance: loyaltyAccrual.balance };
         await client.query('COMMIT');

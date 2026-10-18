@@ -26,7 +26,7 @@ const createFixture = () => {
     let markup = '';
     return { value: '', options: [], attributes: {}, setAttribute(key, value) { this.attributes[key] = value; }, get innerHTML() { return markup; }, set innerHTML(value) { markup = value; this.options = [...value.matchAll(/<option value="([^"]*)"/g)].map((match) => ({ value: match[1] })); this.value = this.options[0]?.value || ''; } };
   };
-  const controls = [0, 1, 2].map((index) => ({ disabled: false, matches: () => index === 2 }));
+  const controls = [];
   const classes = new Set(); const attributes = new Map();
   const nodes = {
     '#premix-recipe': createSelect(),
@@ -36,6 +36,7 @@ const createFixture = () => {
     '#premix-empty-guidance': { hidden: true, innerHTML: '', classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) }, setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) },
     '#premix-batches': { innerHTML: '' },
   };
+  controls.push(nodes['#premix-recipe'], nodes['#premix-output'], { disabled: false, matches: () => true });
   const document = { querySelector: (selector) => nodes[selector] || null };
   const deps = { document, nodes, classes, attributes, controls };
   return deps;

@@ -37,6 +37,8 @@ const voidRoute = server.slice(voidRouteStart, voidRouteEnd);
 const isValidIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 let venueId = null;
 let otherVenueId = null;
+let bankAccountId = null;
+let cashAccountId = null;
 
 const callApi = async ({ path, method = 'GET', body = {}, permissions = ['finance'], role = 'owner', venue = venueId }) => {
   let response;
@@ -53,7 +55,7 @@ const callApi = async ({ path, method = 'GET', body = {}, permissions = ['financ
     pathname,
     { method, headers: {}, user: { id: null, permissions, role } }, {},
     { pool, purchaseDocuments: new PurchaseDocumentRepository(pool) }, venue,
-    denyUnlessAny, denyUnless, async () => body,
+    denyUnlessAny, denyUnless, async () => (method === 'POST' && pathname.includes('/payments') ? { paymentAccountId: bankAccountId, ...body } : body),
     json, () => {}, isOperationalEmployee,
     validation.validateDataUrl, isValidIsoDate,
   );
@@ -84,6 +86,8 @@ try {
   await setup.query("INSERT INTO organization_subscriptions (organization_id,status) VALUES ($1,'trialing')", [organizationId]);
   venueId = (await setup.query("INSERT INTO venues (organization_id,name) VALUES ($1,'Isolated purchase-payment API QA') RETURNING id", [organizationId])).rows[0].id;
   otherVenueId = (await setup.query("INSERT INTO venues (organization_id,name) VALUES ($1,'Isolated purchase-payment tenant QA') RETURNING id", [organizationId])).rows[0].id;
+  bankAccountId = (await setup.query("INSERT INTO finance_accounts (venue_id,code,name,kind,allowed_payment_methods) VALUES ($1,'qa_bank','QA Bank','bank',ARRAY['bank_transfer','card','other']) RETURNING id", [venueId])).rows[0].id;
+  cashAccountId = (await setup.query("INSERT INTO finance_accounts (venue_id,code,name,kind,allowed_payment_methods) VALUES ($1,'qa_cash','QA External Cash','cash',ARRAY['cash']) RETURNING id", [venueId])).rows[0].id;
   const ingredientId = (await setup.query(`INSERT INTO ingredients (venue_id,name,unit,cost,is_marked,purchase_unit,pack_multiplier)
     VALUES ($1,'QA syrup','ml',0,true,'bottle',1000) RETURNING id`, [venueId])).rows[0].id;
 
@@ -161,6 +165,9 @@ try {
     amount: 10, paymentDate: '2026-09-27', paymentMethod: 'cash', idempotencyKey: `qa:denied:${process.pid}`,
   } });
   assert.equal(noPermissionPayment.status, 403, 'roles without finance access cannot settle a supplier document');
+  const missingAccount = await callApi({ path: paymentPath, method: 'POST', body: { paymentAccountId: '', amount: 10, paymentDate: '2026-09-27', paymentMethod: 'bank_transfer', idempotencyKey: `qa:missing-account:${process.pid}` } });
+  assert.equal(missingAccount.status, 400, 'a purchase payment must explicitly select a finance account');
+  assert.equal(missingAccount.data.error, 'finance_payment_account_required');
   assert.equal((await setup.query("SELECT COUNT(*)::int AS count FROM expenses WHERE purchase_document_id=$1 AND source='purchase'", [draft.id])).rows[0].count, 0,
     'forbidden roles create no cash movements');
   const foreignHistory = await callApi({ path: paymentPath, venue: otherVenueId });
@@ -176,13 +183,16 @@ try {
   const retry = await callApi({ path: paymentPath, method: 'POST', body: payment });
   assert.equal(retry.status, 200, `same payment key returns an idempotent replay: ${JSON.stringify(retry)}`);
   assert.equal(retry.data.idempotent, true);
+  const changedAccountReplay = await callApi({ path: paymentPath, method: 'POST', body: { ...payment, paymentAccountId: cashAccountId } });
+  assert.equal(changedAccountReplay.status, 409, 'reusing a payment key with a different account conflicts');
+  assert.equal(changedAccountReplay.data.error, 'purchase_payment_idempotency_conflict');
   const conflict = await callApi({ path: paymentPath, method: 'POST', body: { ...payment, amount: 74 } });
   assert.equal(conflict.status, 409, 'reusing the payment key with a changed amount is rejected');
   const overpay = await callApi({ path: paymentPath, method: 'POST', body: { ...payment, amount: 126, idempotencyKey: `qa:overpay:${process.pid}` } });
   assert.equal(overpay.status, 409);
   assert.equal(overpay.data.error, 'purchase_payment_exceeds_balance');
 
-  const final = await callApi({ path: paymentPath, method: 'POST', body: { ...payment, amount: 125, idempotencyKey: `qa:final:${process.pid}`, paymentMethod: 'cash' } });
+  const final = await callApi({ path: paymentPath, method: 'POST', body: { ...payment, amount: 125, idempotencyKey: `qa:final:${process.pid}`, paymentMethod: 'cash', paymentAccountId: cashAccountId } });
   assert.equal(final.status, 201);
   assert.equal(final.data.balanceDue, 0);
   payables = await callApi({ path: '/api/finance/purchase-payables' });
@@ -193,6 +203,9 @@ try {
   assert.deepEqual(history.data.items.map((item) => Number(item.amount)).sort((a, b) => a - b), [75, 125]);
   assert.ok(history.data.items.every((item) => item.paymentDate === '2026-09-27'),
     'payment history exposes the original local calendar day instead of a timezone-shifted JavaScript Date');
+  assert.ok(history.data.items.every((item) => item.paymentAccountId && item.paymentAccountNameSnapshot && item.accountCoverage === 'assigned'), 'history preserves explicit account attribution and immutable account name');
+  assert.ok(history.data.items.find((item) => item.paymentMethod === 'bank_transfer')?.shiftId == null, 'bank settlements never affect the POS shift');
+  assert.ok(history.data.items.find((item) => item.paymentMethod === 'cash')?.shiftId == null, 'cash paid from an external cash account never affects the POS shift');
   const expenses = await setup.query("SELECT COUNT(*)::int AS count,COALESCE(SUM(amount),0)::numeric AS total FROM expenses WHERE venue_id=$1 AND purchase_document_id=$2 AND source='purchase'", [venueId, draft.id]);
   assert.equal(expenses.rows[0].count, 2, 'cashflow contains only two committed settlements');
   assert.equal(Number(expenses.rows[0].total), 200, 'settlements reconcile to receipt cost without duplicate retry or overpayment');
@@ -216,10 +229,10 @@ try {
   const competingPath = `/api/finance/purchase-payables/${competingDocumentId}/payments`;
   const competing = await Promise.all([
     callApi({ path: competingPath, method: 'POST', body: {
-      amount: 100, paymentDate: '2026-09-27', paymentMethod: 'cash', idempotencyKey: `qa:race-a:${process.pid}`,
+      amount: 100, paymentDate: '2026-09-27', paymentMethod: 'cash', paymentAccountId: cashAccountId, idempotencyKey: `qa:race-a:${process.pid}`,
     } }),
     callApi({ path: competingPath, method: 'POST', body: {
-      amount: 100, paymentDate: '2026-09-27', paymentMethod: 'card', idempotencyKey: `qa:race-b:${process.pid}`,
+      amount: 100, paymentDate: '2026-09-27', paymentMethod: 'card', paymentAccountId: bankAccountId, idempotencyKey: `qa:race-b:${process.pid}`,
     } }),
   ]);
   assert.deepEqual(competing.map((result) => result.status).sort((a, b) => a - b), [201, 409],
@@ -239,6 +252,7 @@ try {
   const replayPath = `/api/finance/purchase-payables/${replayDocumentId}/payments`;
   const replayPayload = {
     amount: 40, paymentDate: '2026-09-27', paymentMethod: 'bank_transfer',
+    paymentAccountId: bankAccountId,
     idempotencyKey: `qa:parallel-replay:${process.pid}`,
   };
   const concurrentReplay = await Promise.all([
@@ -256,6 +270,16 @@ try {
   assert.equal(replayHistory.status, 200);
   assert.equal(replayHistory.data.items.length, 1, 'parallel retry produces one history item');
   assert.equal(Number(replayHistory.data.items[0].amount), 40);
+
+  const posCashDocumentId = await createPostedReceipt(`QA-POS-CASH-${process.pid}`, 20);
+  const posCashboxId = (await setup.query("SELECT id FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox' AND active=true", [venueId])).rows[0].id;
+  const venueToday = (await setup.query('SELECT (now() AT TIME ZONE timezone)::date::text AS date FROM venues WHERE id=$1', [venueId])).rows[0].date;
+  const missingShiftPayment = await callApi({ path: `/api/finance/purchase-payables/${posCashDocumentId}/payments`, method: 'POST', body: {
+    amount: 1, paymentDate: venueToday, paymentMethod: 'cash', paymentAccountId: posCashboxId, idempotencyKey: `qa:no-shift:${process.pid}`,
+  } });
+  assert.equal(missingShiftPayment.status, 409, 'POS cashbox settlement requires one open shift');
+  assert.equal(missingShiftPayment.data.error, 'finance_payment_open_shift_required');
+  assert.equal((await setup.query("SELECT COUNT(*)::int AS count FROM expenses WHERE venue_id=$1 AND purchase_document_id=$2 AND source='purchase'", [venueId, posCashDocumentId])).rows[0].count, 0, 'missing-shift payment writes no cash movement');
 
   console.log('PURCHASE PAYMENT POSTGRES API QA: PASS (real PostgreSQL nullable supplier dates + independent record timestamp; receipt → stock → payables; partial/full settlement; concurrent balance/idempotency checks)');
 } finally {

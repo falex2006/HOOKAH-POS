@@ -7,6 +7,13 @@
 - Reminder is advisory: an open session is prompted one hour after its snapshotted planned end; without a planned end, after16 hours from start. The reminder is not a no-show/disciplinary decision and never auto-closes work. These thresholds are explained in help; future configurable thresholds are outside this local iteration.
 - No publication or production migration is included in this stage. Preserve existing calendar/attendance WIP and unrelated shared-root work.
 
+## 2026-10-09 — D-UI012-R5: область приёмки визуальной базы
+
+- Введён UI_01_2_BASELINE_GATE_R5.md: 1 080 baseline + 42 appearance groups / 198 visual-state obligations. Основание PLAN UI-01.2 vs UI-09.1; независимые architect/QA scope GO в CONTRACT_R5, design scope GO в VISUAL_REVIEW_R5.
+- Заменено расширенное требование terminal acceptance всех 6 480 exhaustive cases до завершения исходного визуального исследования. Все IDs, pending/rejected/defect outcomes сохранены как UI-09.1 backlog; необходимые distinct visual states, own-role/session/route, integrity, theme, геометрия и независимое review остаются обязательными. Автоматические PASS/equivalence не вводятся.
+- Terminal restriction с неуместным pending shift control допускается как inspected baseline defect только после current bitmap + own-session/source bridge и назначения владельца. Непроверенный pending остаётся gap, whole shell N_A запрещён. Это явное уточнение исторического R3 gate, не признание исправленного shift lifecycle.
+- Stage NOT ACCEPTED, product/release PASS отсутствует. Независимые scope signoffs не заменяют итоговые подписи фактической приёмки. Координатор продолжает конечные visual obligations.
+
 ## 2026-10-02 — безопасный контракт управления акциями L11.5
 
 - Кампания — отдельная сущность от группы гостя, с version history, tenant scope, явным периодом, IANA timezone, выбранными товарами/категориями, размером выгоды и приоритетом. Интервалы храним как UTC instants; ценовой evaluator должен трактовать их как `[start,end)`.
@@ -301,3 +308,175 @@ Basis: read-only system_architect, data_engineer, Finance, and code_health_engin
 - Policy warnings подключаются к существующим draft range/publish preview → apply/publish, остаются отдельными от hard availability conflicts, требуют явного подтверждения и причины; fingerprints включают полный versioned venue policy/interval snapshot, поэтому изменение config делает preview stale. RBAC использует owner или `manage && canManageSettings` для настроек; planner сохраняет текущие manage/canPublish требования.
 - Владелец согласовал: неделя пн–вс по timezone заведения; считаются planned смены, интервальные минуты распределяются по датам, перерыв вычитается из даты начала; отдых — UTC gap; подряд дни — даты локального пересечения; бизнес-время требует полного покрытия. Все правила — advisory, не юридические ограничения. Список business intervals заменяется атомарно целиком; API/DTO/errors — в `docs/architecture/STAFF_SCHEDULING_CONTRACT.md` §5.1.
 - Это архитектурный контракт для проектирования stage05, не подтверждение реализации и не разрешение на GitHub/VPS публикацию.
+
+## 2026-10-09 — D-UI012-R6: приёмка исследовательской визуальной базы
+
+UI-01.2 принят по scope D-UI012-R5: 1 080 исходных ячеек и 198 компонентных обязательств, все текущие SHA и собственные role/session bridges сверены. 174 reviewed + 14 documented source defects + 10 narrow source N/A; pending 0. Принятие относится к полноте исследования и доказательств; product/runtime PASS не присваивается. Матрица 6 480 IDs/статусов сохранена для UI09.1.
+
+Conditional appearance допускается только с точными исходными шаблонами/стилями, own receiver baseline, source hashes и отдельным origin/type; без claims реального сохранения, прав, auth, focus-return или timing. Source cursor asset/fallback evidence не утверждает системный cursor bitmap/failure. Нативные validation bubbles фактически появились в сохранённых оригиналах; R7 исключение, разрешённое пользователем, исторически сохранено, но не применяется.
+
+Следующие программные этапы исправляют записанные дефекты по владельцам. UI02.1 разрешён как следующая зависимая задача после принятия UI01.2, автоматически не запускался. Итог/подписи: docs/design/UNIFIED_UI_2026-10-09/UI_01_2_CHECKPOINT_R6.md.
+
+## D-UI021 — 2026-10-09: theme map и compatibility snapshots
+
+Для UI-02.1 приняты отдельные theme-aware --ui-* карты и root-resolved legacy aliases. Глобальная миграция текста старых тёмных островов в light отложена до парной миграции поверхности/текста: иначе возможен тёмный текст на тёмной панели. Восьми прежним invalid-at-computed-value --text декларациям оставлено явное наследование; 23 fallback consumers используют согласованный dark primary. Design lead/system architect/code health согласовали scoped пакет. Удаление aliases возможно только после отсутствия потребителей и проверки обеих тем. Доказательства: docs/design/UNIFIED_UI_2026-10-09/UI_02_1_RESULT.md.
+
+
+## UI-02.2 — scoped acceptance and staged adoption, 2026-10-09
+
+Новый family применяется только через `.ui-components`; массовой миграции legacy CSS нет. Shared primitive boundary включает geometry/type/states/accessibility/motion, local reference не является production page. Приёмка по51финальной source-bound паре и independent design/QA/codehealth GO; native OS reduced-motion activation открыто передUI09.1, manualactual+parsedCSSOM отдельно. Native collapsed long select truncation documented. Concurrent portal.js copies preserved/excluded. Статус ACCEPTED_SCOPED_WITH_DOCUMENTED_LIMITATIONS; UI03.1 отдельно. Полный результат docs/design/UNIFIED_UI_2026-10-09/UI_02_2_RESULT.md.
+
+
+## UI-03.1 — desktop shell contract — 2026-10-09
+
+System_architect согласовал >900px: operational210px, management существующий clamp(210px,18vw,280px), shared header/padding. Role marker применяется после verified session и управляет только CSS. Права и действия сохранены. Заголовок маршрута не сжимается раньше длинного заведения; avatar/profile цели44px.
+
+Мобильная переработка и POS saved-theme поведение остаются отдельным долгом. Приёмка:72allowed/8denied основных ячеек,126 итоговых кадров; независимые architect/design/QA/health scoped GO. UI-03.2 автоматически не запускается; release этим пакетом не согласован. Границы: UI_03_1_RESULT.md.
+
+
+## UI-03.2 — state namespace/search/history — 2026-10-09
+
+Architect согласовал crm_sidebar_state_v2:<verifiedUserId>:<venueId> с{version:2,route,openGroup}; legacyflagsignore, неизвестнаяidentitymemoryonly. SameURLreloadmanual/null; arrivals/historyroutegroup; searchtemporarymulti,clearrestorenormal,permission∩role∩prefs. Не добавлятьtenantqueryко всемanchors. Inventory auxiliaryhashнеопределяетactiveview. Приёмка scoped115frames/VM56; inheritedcontrast/resizerenderdebt/BFcachehit/Fold явноrecorded вUI_03_2_RESULT.md. Исторические evidence не перепривязываются к новым хешам. Publication/UI041 отдельно.
+
+
+## 2026-10-10 — UI-04.1: примитив окна и границы миграции
+
+Принято: общий custom overlay с одним shared form, явными draft/pending/context policies и разными portal/staffrequired/checkbox adapters. Причина: четырёхкадровый actualbrowser static top-layer опыт показал PINdiv за native dialog; переход всей auth/stack системы превышаетUI-04.1. Staticyield/resume не объявляетсяреальнойPINавторизационнойпроверкой; UI-04.3владелец полногоконтура. Первыйпилот — «Новаязадача»: меньше финансовыхсвязей, пятьстарыхстроковыхполей и неизменныйPOST/readback. Ошибкасохранения остаётсявокне; draftживёттолькоrenderTasks. ТаймерыPOS8–12sявносохранены, полнаяклассификацияошибокотложена. Ранниеstale-hash/wrongtheme/iconкадры вынесенывdiagnostic; frozenматрицавновьснята. ScopedGOархитектора,healthиQAподтверждены;98пар/1044refs/5acceptedwrites. Productionнепубликоватьпоэтомуэтапу. Результат:docs/design/UNIFIED_UI_2026-10-09/UI_04_1_RESULT.md.
+
+
+## 2026-10-10 — UI-04.2: существующая reservation form в shared shell
+
+System architect согласовал optional mount/validateMounted/onPending/result-onClose с парковкой прежнего DOM, поскольку domain wizard owns steps/identity/validation/payload. Default generated adapters сохранены; финансовые handlers не переносились. Draft только текущего render/entity/context; pending не отменяет API. Focus после readback — stable heading/CTA с current guard и lifetime tabindex до blur. UI043 отдельно проверяет PIN/mixed stack; автоматически запускается по прямому разрешению пользователя.
+
+
+## 2026-10-10 — UI-04.3
+
+UI-04.3: native PIN устраняет воспроизведённый D05; shared сохраняет custom single-editor и DOM. Общий scroll owner lease предотвращает ранний release при pending. Разблокировка привязана к verified identity/token+epoch; GET session для peer signal не является проверкой PIN. Остальные legacy/finance migrations не расширены. См. docs/design/UNIFIED_UI_2026-10-09/UI_04_3_RESULT.md.
+
+
+## 2026-10-10 — UI-05.1
+
+UI-05.1: retain C15 permanent selected editor; compact unselected only floor view, preserve density/time/API/financial boundaries. Apply semantic primitives scoped; session-verified theme consumer approved architect. Confirmed busy modal relative loading override fixed narrowly with position:fixed, handlers untouched. Strict 1:1 saved pixels replace provisional scaled/offscreen records as diagnostics; current PIN functional DOM/unlock accepted bounded, overlay pixel limitation explicit. UI-05.2 requires separate request.
+
+
+## 2026-10-10 — UI-05.2
+
+Use existing C14 primitives, no invented factories. Attached delivery disclosure approved with same form DOM, pending snapshot and focus/draft preservation. Narrow client GET generation+verified context guard approved after reproduced new stale-error overwrite; no business mutations/grants changed. Legacy CSS specificity fixed only affected task/guest semantic consumers. Current empty response fixtures are presentation evidence, not emptyPG claim; old SHA/raster mismatch remain diagnostic. UI-06.1 requires separate request.
+
+
+## UI-06.1 — итог 2026-10-10
+
+Принят scoped с документированным долгом. Первопричины: read-state перерисовка/устаревший GET, readonly фото, контраст и flex стоимость; первоначально зависшие child loaders при parent error. Исправлены portal/style +точныеdist, права/API/units/payload/frozen business сохранены.35VM,12focused независимоPASS;52Edgeпары и9GUI/GET/PG;5roles30reads20write403,11journals0;health/architect/QA GO. Прежний tobacco regex FAIL явно отделён. Архив и границы: docs/design/UNIFIED_UI_2026-10-09/UI_06_1_RESULT.md. WIP сохранён, без commit/deploy/миграций. Автоочередь заканчивается послеUI061, UI062LunaMedium не начат. Помощники SolMedium, переключение основного чата не заявлено.
+
+
+## 2026-10-10 — UI-06.2
+
+ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT; три inventory views, source portal40794456/stylec2fd3213, 19 checks/8VM/35regression/13 frozen spans, 52 pairs, GUI3→GET3→PG cost25/stock450+100, role15/denied12. Read-error поиск остатков ранее убирал retry; исправлен short-circuit при state != loaded и добавлена regression. Semantic light inputs/summary исправлены; desktop themes reviewed. Архив docs/design/UNIFIED_UI_2026-10-09/evidence/UI-06.2/acceptance. Production/GitHub не публиковались; UI071SolHigh не запущен. Узкая оболочка, readonly quantity affordance, initial action и Edge detached cleanup документированы.
+
+
+## 2026-10-10 — UI071 critical pending-close и контекст
+
+Решение: во время финансового/складского POST обычное закрытие/Escape/повтор блокируются до settlement, без abort запроса. При утрате контекста старые финансовые поля скрыты, pending status остаётся; после settlement cleanup. Shared native lifecycle учитывает observer перед queued close, не освобождает leases старым событием после reopen. Mixed payment продолжает следующий tender только в исходном venue/order/auth/access; частичный успех перечитывается у исходного заказа, при смене точки — после возврата. Сохранены бизнес-payload/keys/revisions/server permissions. Неопределённый результат не называется подтверждённым отказом. SourceVM и realAPI/PG доказательства разделены; перечень исключений и следующих владельцев в UI_07_1_RESULT.md. Это локальная scoped acceptance, без разрешения publication либо UI072 auto-start.
+
+
+## 2026-10-10 — UI-07.2
+
+Разделять продажи, поступления и выплаты по существующим данным; не менять формулы, права и периоды в визуальном этапе. Payroll cancellation использует настоящий submit/Enter; read-state guards предотвращают показ денег старой даты. Полная матрица и публикация сохраняют отдельные этапы. **ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT**. [RESULT](UI_07_2_RESULT.md), [REVIEWS](UI_07_2_REVIEWS.md). Scoped semantic finance/report/category/payroll, loading/error/retry/stale protection, keyboard cancellation. 11 focused suites,12 QA conservation,42 final pairs; real API/PG,16 denied actions403,12 journals unchanged. Protected7/source outside finance/CSS outside block unchanged; source/dist exact. Own31969/31970 stopped,IAB closed/viewport reset,PG31954 retained. Full role×theme×state/Edge/WCAG/Fold and recorded GUI cancel PATCH response not claimed. No commit/GitHub/VPS. STOP UI081 — GPT-6.1 Sol / High;15/22 closed,6 remain before publication plus separate Fold.
+
+
+## 2026-10-10 — UI-08.1
+
+Визуальная миграция admin не меняет ролевую модель/серверные права/расчёты. Пустая custom role отключает направления; role→employee acceptance только isolated. Исторические functional screenshots с прежнимCSS не перепривязываются к новой surface; latest assets проверяются отдельным readonly proof. **ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT**. [RESULT](UI_08_1_RESULT.md), [REVIEWS](UI_08_1_REVIEWS.md). 14admin hashes, scoped semantic themes/C11roles/read states; staff3views/5columns/scale retained.9/10focused (inherited CRLF harness FAIL),22VM,12QA,69final current pairs/84historical functional pairs;3GUIwrites/API/PG,16denials403,employee restored,12journals unchanged. Protected8/source boundaries/CSS outside block exact,source/dist equal. Own31971/31972 stopped,IAB closed/viewport reset,PG31954 retained. No commit/GitHub/VPS. STOP UI082 — GPT-6.1 Sol / High;16/22closed,5remain beforepublication plus separateFold. QA formalfile historic; finalfeedback and coordinatorclosure explicit.
+
+
+## 2026-10-10 — UI-08.2
+
+Сохранить отдельный platform control plane и login C18 fixed-dark. Theme платформы — отдельный storage key; auth/API/tenant/delete guards неизменны. Owner modal sibling устраняет inherited inert; pending/reset/late answers исправлены без расширения прав. Legacy isPrimary checkbox иcredential/reset GUI acceptance остаются явным долгом. Текущие46 и historical53 различаются SHA; не перепривязывать старые снимки. Закрыто scoped;STOP перед UI083,GPT-6 Luna/Medium.
+## Премикс как готовый складской компонент
+
+Премикс остаётся физически приготовленной складской позицией. Техкарта премикса закрепляет одну позицию результата; производство списывает сырьё по её составу и приходует готовую партию в эту позицию. Техкарта продажи использует ту же позицию как компонент, поэтому продажа списывает готовую партию по FEFO и не раскрывает сырьевой состав повторно. Неоднозначную историческую связь не угадывать: до выпуска владелец склада назначает позицию вручную.
+
+## 2026-10-17 — категории финансовых источников
+
+Категория — явная аналитическая классификация, а не денежное событие. Зарплатное начисление получает выбранную статью расхода при создании черновика; после утверждения ID и историческое название статьи фиксируются. Единственная выплата по-прежнему создаётся существующим payroll-переходом в `expenses` и несёт ту же статью. Отчёт отдельно показывает начисление за период и денежную выплату по дате платежа; их нельзя складывать как два расхода. Старые начисления и выплаты без стабильного ID остаются неклассифицированными, сопоставление по словам «Зарплата» запрещено.
+
+Проведённая закупочная накладная получает одну явную статью расхода на уровне документа; она обозначает назначение закупки/классификацию связанных денежных платежей, но не превращает стоимость прихода товара в P&L-расход. Все частичные платежи наследуют категорию документа и остаются отдельными фактическими строками `expenses`. Приход товара и оплата показываются в разных разделах отчёта. Старые документы/платежи остаются без категории; сопоставление по строке «Закупка» запрещено. Смешение статей внутри одной накладной в этой модели не поддерживается: до проведения пользователь разбивает закупки на документы по назначению. Категория документа неизменяема после проведения.
+
+Смена вида использованной статьи блокируется ссылками payroll/document/expense; архивирование сохраняет историю и запрещает новый выбор. Категорийный фильтр применяется только к тем источникам, где есть достоверный ID; неразмеченные legacy-источники показываются как неклассифицированные и не притворяются совпавшими с выбранной статьёй. Эта связка не активирует новую payroll scheme и не делает её официальный расчёт готовым.
+
+## 2026-10-17 — разовый бизнес-доход вне POS
+
+Не использовать `payments` (обязателен заказ POS), `expenses` (это денежный расход) или закупочные/зарплатные источники для ручного поступления. Прочий бизнес-доход хранится отдельным документом основания с доходной статьёй, контрагентом, основанием/ссылкой, датой признания и неизменяемой суммой. Проведение документа подтверждает признанный доход по этой дате; факт денег не выводится из проведения.
+
+Поступления хранятся отдельно от документа как append-only события с суммой, датой фактического получения, способом (`cash`, `card`, `qr`, `bank_transfer`, `other`), автором и обязательным ключом идемпотентности. Сумма поступлений не превышает утверждённую сумму документа; частичное поступление поддерживается. Статья должна быть активной и типа `income` при проведении; после проведения ID и имя являются историческим снимком, а последующие поступления продолжают наследовать классификацию документа и после архивации.
+
+Взносы владельца, займы, переводы между своими счетами, депозиты/авансы и предоплаты не являются `business_income` и этим маршрутом не записываются. Они требуют отдельной модели балансовых/обязательственных событий. Исходный проведённый документ и квитанции остаются неизменяемыми; отдельное сторно признания ограничено чистым признанием, а возврат денег связан с конкретной квитанцией и ограничен её невозвращённым остатком. Оба события требуют дату, причину, автора и venue-unique idempotency key.
+
+Отчёт разделяет `otherIncomeRecognition` (проведённые документы по дате признания), `otherIncomeAdjustments` (уменьшения признания по дате корректировки), `otherIncomeReceipts` (фактические поступления по дате денег) и `otherIncomeRefunds` (возвраты конкретной квитанции по фактической дате выплаты). Корректировка признания не создаёт денежный возврат; возврат не изменяет признанный доход. Источники раскрываются по документу и не складываются с POS-признанием, POS-платежами или друг с другом. Банковский перевод считается фактом поступления денег наряду с наличными, картой и QR; способ «другое» не включается в классифицированный денежный эквивалент. Общие итоги прибыли/оборота из этих независимых источников не строятся.
+
+Источниковые таблицы прочего дохода не являются вторым общим кассовым регистром: POS payments ограничены заказом, expenses описывает исходящие события, а unified report остаётся read-only представлением раздельных фактов. Корректировка признания хранится как отдельное append-only уменьшение с причиной, датой события, автором и ключом; возврат денег связан с отдельной исходной квитанцией и ограничен её невозвращённым остатком. Оба события блокируют исходный документ и сохраняют историю. Возвраты не сверяются с кассой/сменой; POS возвраты остаются отдельной моделью.
+
+## 2026-10-17 — признание арендных и иных договорных расходов
+
+Подтверждение обязательства, признание расхода и оплата — независимые состояния. `approved` фиксирует долг, но не доказывает факт оказания услуги. В approved-обязательстве расход можно признать только отдельным действием finance-пользователя: неизменяемая запись с датой признания, суммой и снимками статьи/контрагента/периода. Для аренды предлагается полная сумма в явно выбранную дату (по умолчанию конец периода услуги); автоматического дневного распределения и признания при генерации/подтверждении нет.
+
+`expenses` и связанная выплата остаются единственным денежным событием. В P&L связанные с `finance_payable_payment_links` расходы исключаются полностью; вместо них включаются события признания и отдельные отрицательные сторно по их собственным датам. Срезы показывают исходное признание gross и signed adjustments раздельно. Обязательство/денежный остаток считается только по сумме документа минус связанные оплаты; recognition не меняет долг или cash. Простое изменение суммы/периода проведённого факта запрещено.
+
+Additive migration не заполняет историю автоматически. Approved обязательства без признания отображаются как непокрытие accrual-данных по пересечению периода услуги и явно предупреждают, что общий P&L неполный. Отмена признанного обязательства запрещена до полного сторно; оплаченного — запрещена существующим cash guard. Сторно recognition не возвращает деньги и не уменьшает договорный долг; изменения долга/зачёты/денежные возвраты требуют своих отдельных событий. Ошибки, требующие увеличить сумму сверх исходного обязательства, оформляются новым подтверждённым документом с основанием.
+
+Переход меняет историческую классификацию: старые связанные выплаты перестают быть P&L-расходами по cash date, но отсутствие исторического recognition не исправляется backfill-ом. Отчёты сохраняют cash history и раскрывают legacy coverage gap. В рамках того же пакета обновляются P&L и unified report; добавлять только accrual-таблицу без исключения связанных cash expenses запрещено из-за двойного расхода.
+
+## 2026-10-17 — финансовый отчёт по выбранному заведению
+
+Фильтр отчёта выбирает одно активное заведение организации на запрос и не переключает `auth_sessions.active_venue_id`. Доступный список вычисляется из текущей активной membership/subscription и эффективных прав пользователя для каждой площадки: base/personal/custom scopes с target venue system-role ceiling. В отчёт попадают только роли с `finance_read` или `finance`; операционные роли исключены, а payroll требует target-venue `finance`. Категории перечитываются под тем же target-venue guard. Сырые ID не доверяются, сетевой итог и склейка статей между заведениями не формируются; даты каждого отчёта трактуются в часовом поясе выбранной точки.
+
+## 2026-10-17 — счёт оплаты обязательства и привязка к POS-смене
+
+Миграция 112 и сквозной контракт подключают явный venue-scoped счёт к существующему `expenses` событию оплаты обязательства. Пара «счёт–метод» проверяется сервером и БД; наличная POS-касса требует текущую открытую смену. Оплата блокирует строку смены, как и закрытие, поэтому результат гонки целостен. Cash flow и close snapshot читают тот же расход один раз; связь payable не создаёт второго движения. Исторические расходы остаются unknown. Реестр пока не является банковским остатком: остальные денежные писатели, начальные остатки и переводы не подключены. Поставщицкие возвраты и зачёты требуют отдельного append-only контракта.
+## 2026-10-17 — ручной расход: draft, correction, refund
+
+Принято для следующего этапа: существующий `expenses` остаётся неизменяемым источником фактической выплаты. Новый UI не сохраняет «черновик» в него; draft хранится отдельно с venue scope, переживает reload и при проведении создаёт ровно один linked expense. Исправление ошибочных реквизитов после проведения оформляется append-only correction с причиной/автором/временем и исходным ID; реальный возврат денег — отдельный receipt на выбранный денежный счёт и дату получения. Correction не изображает реальный возврат; refund не является продажей и не меняет исходный expense. Простое PATCH/DELETE проведённой строки запрещено. Права записи — `finance`, чтение — `finance_read`; исходники и исторические строки не backfill-ятся по тексту.
+
+Основание: текущая ручная форма сразу вызывает `POST /api/expenses`, а связанные API/отчёты считают эту строку фактическим cash outflow. Разделение защищает денежный журнал, отчёт прибыли и историю. Полный контракт и критерии — `docs/architecture/FINANCE_UNIFIED_MODEL.md`, раздел «Жизненный цикл ручного расхода». Решение реализовано локально для этапа draft → post: миграция 116, отдельные API/UI, tenant/RBAC, DB lifecycle guards и QA. Коррекции проведённого расхода и фактический возврат остаются следующим отдельным этапом.
+
+## 2026-10-17 — идемпотентное создание обязательств
+
+POST для ручного обязательства и нового регулярного правила требует явный idempotencyKey. Сервер связывает venue + тип операции + ключ с fingerprint нормализованного payload и первоначальным ответом внутри той же транзакции, что создаёт документ. Точный повтор возвращает тот же документ; тот же ключ с иными данными получает 409. Естественная уникальность по сумме, названию и датам не вводится, потому что реальные обязательства могут совпадать. UI сохраняет payload и ключ перед запросом, восстанавливает попытку после перезагрузки и очищает её только после readback. Генерация периодов остаётся защищена уникальным ключом правила и месяца.
+
+Follow-up по неопределённому COMMIT: если acknowledgement потерян после фиксации, сервер отвечает `503 finance_create_result_unknown`, а клиент сохраняет ключ и отправляет точный replay при повторе. Это предотвращает новую сущность с новым ключом после неизвестного исхода. API-контракт и fault-injection регрессия включены; UI не снимает pending attempt до readback.
+
+## 2026-10-17 — первая коррекция проведённого ручного расхода
+
+Первая версия исправления затрагивает только сумму и статью несвязанных `manual|other` расходов. Сумма меняется как signed delta на исходной дате/счёте для P&L; исходная строка `expenses` и исходная сумма движения остаются неизменными. Замена статьи переносит эффективную сумму между статьями без изменения общего P&L. Причина, автор, время и полные снимки до/после записываются append-only с ожидаемой версией и ключом идемпотентности.
+
+Payable-linked, purchase- и payroll-расходы принадлежат своим subledger и не могут исправляться общей ручной коррекцией. Коррекция является accounting adjustment: cash flow, ожидаемая наличность и закрытый сменный снимок продолжают показывать исходную выплату без дельты. Отдельная знаковая строка коррекции показывается в P&L на исходную дату; реальный возврат денег — будущий отдельный cash inflow. Изменение даты/счёта и возврат оставлены за пределами этого пакета.
+
+Основание: `docs/architecture/FINANCE_UNIFIED_MODEL.md`, раздел «Контракт первой коррекции проведённого расхода»; финансовая domain-проверка подтвердила знаки дельты и исключения linked sources. Эта запись фиксирует узкий контракт для реализации; полная коррекция и возврат остаются отдельными следующими этапами.
+
+## 2026-10-18 — ручное восстановление пропущенных периодов регулярных обязательств
+
+После простоя генератора финансовый пользователь может выбрать диапазон и проверить каждый полный период до создания черновиков. Подтверждение привязано к снимку правила, версий и существующих документов, создаёт только отсутствующие периоды и безопасно повторяется тем же ключом. Оплаты, признания и статусы существующих обязательств не меняются. Из-за отсутствия истории интервалов паузы фоновое автоматическое восстановление не выполняется; пользователь явно исключает согласованные паузы из диапазона.
+
+## 2026-10-18 — фактический возврат по несвязанному ручному расходу
+
+Локальный v1 допускает отдельное положительное поступление только для точного `source='manual'|'other'` расхода без purchase document, payable link и payroll link. Лимит считается от исходной суммы выплаченного расхода за вычетом прежних возвратов; коррекция расхода не увеличивает лимит. Событие immutable, связано с исходным expense ID, получает выбранные активный счёт и совместимый метод, фактическую дату, причину, автора и идемпотентный ключ. Поступление в POS cashbox допускается только наличными за сегодняшнюю локальную дату при одной открытой смене и попадает в её cash summary/close ledger один раз.
+
+Возврат не меняет исходный расход, не является бизнес-доходом, не создаёт supplier/payable/payroll/inventory-связей и не получает пока P&L-признание. Unified report показывает его как отдельный cash inflow по фактической дате и без фильтра категории; общая аналитика ставит `totalExpenses` и `netProfit` в `null` при наличии возврата за период, сохраняя только отдельные известные subtotal/knownNetProfit. Следующий отдельный финрешающий пакет нужен для выбора даты/знака и утверждения P&L-политики, а затем только можно уточнить обработку неполной аналитики.
+
+## 2026-10-18 — единый отчёт свыше 500 строк
+
+Пользователь выбрал фиксированный серверный снимок на 15 минут с подгрузкой страниц и раскрываемых документов из одного и того же материализованного набора. Все строки, итоги, количества, coverage и basis дат должны происходить из одного `REPEATABLE READ READ ONLY` чтения; страницы используют стабильную сортировку и курсор, повторная авторизация проверяет актуальный доступ к заведению на каждом запросе. Снимок истекает через 15 минут с явным `410`, обновление создаёт новый снимок, а неизвестные/чужие ID не раскрывают данные. Текущая согласованность одного API-запроса не считается реализацией этой функции; требуется отдельная серверная модель хранения и API.
+
+## 2026-10-18 — выбран полный scope балансовых событий
+
+Пользователь ответил «все» на выбор балансового сценария. В scope входят четыре класса: невозвратный вклад владельца; получение займа и возврат principal; атомарный внутренний перевод между счетами; подтверждённый opening balance. Это не означает включение событий в P&L или создание параллельного реестра гостевых депозитов/авансов. До реализации применяются консервативные границы контракта: RUB, без изъятия капитала владельцем в первом пакете, текстовый snapshot кредитора/основания без лишних персональных данных; процент/комиссия отдельно от principal; POS cashbox — только текущая открытая смена с попаданием в её cash snapshot; opening balance создаётся finance-пользователем с документом/основанием. Полный остаток счёта остаётся скрытым при неполном coverage.
+
+
+## 2026-10-18 — неполный месяц регулярной аренды
+
+Принят явный режим `calendar_days` с включительными датами и HALF_UP по каждой строке в целых копейках (BigInt); default `full_months_only`. Политика неизменяема в рамках правила, ставка версионируется ежемесячно. Due date сохраняет договорный день (с ограничением длиной месяца), но не предшествует началу услуги; окончание услуги не переносит срок оплаты назад. Снимок первоначального расчёта сохраняется отдельно от уточнённой суммы переменного черновика. Количество/цена единицы не добавляются: существующая модель строк — название и месячная сумма; proration не требует расширять её. Архитектурный и финансовый аудиты получены; финальное независимое code-health выполнение недоступно из-за лимита агентов, координатор выполняет review и runtime проверки.
+
+
+## 2026-10-18 — распределение договорных оплат без нового денежного события
+
+Принят контракт FINANCE_PAYABLE_OFFSETS_CONTRACT: сохранять исходный expense ID на всей цепочке зачётов, не определять допустимость пары по равенству названий контрагентов, показывать явное основание соглашения. Денежный возврат ограничить распределением, оставшимся на исходном обязательстве; для зачтённой суммы сначала обратное распределение. paidAmount/netPaidAmount сохраняют существующую семантику, settledAmount отдельно включает зачёты. Обязателен единый порядок блокировок для исходного/затронутых payable и expense. Реализация и runtime-приёмка ещё впереди.

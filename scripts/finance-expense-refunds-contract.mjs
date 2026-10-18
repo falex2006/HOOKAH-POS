@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const { handleFinanceExpenseRefundRoute } = require(path.join(path.dirname(fileURLToPath(import.meta.url)), '../finance-expense-refunds.js'));
+const venueId = '11111111-1111-4111-8111-111111111111';
+const expenseId = '22222222-2222-4222-8222-222222222222';
+const accountId = '33333333-3333-4333-8333-333333333333';
+const actorId = '44444444-4444-4444-8444-444444444444';
+const refundId = '55555555-5555-4555-8555-555555555555';
+const key = '66666666-6666-4666-8666-666666666666';
+const expense = { id: expenseId, source: 'manual', grossPaid: '100.00', expenseDate: '2026-10-01', sourcePaymentMethod: 'bank_transfer', sourceAccountId: accountId, sourceAccountName: 'Банк', sourceCategoryName: 'Аренда', sourceCategoryId: null, counterpartyName: 'Арендодатель', purchaseDocumentId: null, payableLinked: false, payrollLinked: false };
+const stored = [];
+const statements = [];
+const account = { id: accountId, name: 'Банк', kind: 'bank', active: true, allowedPaymentMethods: ['cash', 'bank_transfer'] };
+const refundRows = () => stored.map((row) => ({ ...row }));
+const mockQuery = async (sql, values = []) => {
+  statements.push({ sql, values });
+  if (sql.startsWith('SELECT e.id,e.source')) return { rows: [{ ...expense }] };
+  if (sql.includes('SELECT id,name,kind,active')) return { rows: [{ ...account }] };
+  if (sql.includes('round(r.amount*100)')) return { rows: stored.filter((row) => row.idempotency_key === values[1]).map((row) => ({ ...row })) };
+  if (sql.startsWith('SELECT id,amount::text AS amount')) return { rows: refundRows() };
+  if (sql.includes('COALESCE(SUM(amount),0)::numeric(14,2) AS amount')) return { rows: [{ amount: stored.reduce((sum, row) => sum + Number(row.amount), 0).toFixed(2) }] };
+  if (sql.includes('SELECT (now() AT TIME ZONE')) return { rows: [{ today: '2026-10-18' }] };
+  if (sql.startsWith('INSERT INTO finance_expense_refunds')) {
+    stored.push({ id: refundId, venue_id: values[0], expense_id: values[1], amount: (Number(values[2]) / 100).toFixed(2), amount_cents: Number(values[2]), refund_date: values[3], payment_method: values[4], finance_account_id: values[5], finance_account_name_snapshot: values[6], shift_id: values[7], document_reference: values[8], reason: values[9], idempotency_key: values[10], request_sha256: values[11], created_by: values[12], created_at: '2026-10-18T10:00:00.000Z' });
+    return { rows: [{ id: refundId }] };
+  }
+  return { rows: [] };
+};
+const client = { query: mockQuery, release() {} };
+const pool = { query: mockQuery, connect: async () => client };
+const call = async ({ method = 'POST', body, permissions = ['finance'], role = 'owner', pathId = expenseId } = {}) => {
+  let response;
+  const req = { method, user: { id: actorId, role } };
+  const url = new URL(`/api/finance/expenses/${pathId}/refunds`, 'http://local');
+  const handled = await handleFinanceExpenseRefundRoute({ req, res: {}, url, pool, venueId, json: (_res, status, payload) => { response = { status, body: payload }; }, readBody: async () => body, hasPermission: (permission) => permissions.includes(permission), isOperationalEmployee: () => false });
+  return { handled, response };
+};
+const body = { amount: '25.50', refundDate: '2026-10-18', paymentMethod: 'bank_transfer', paymentAccountId: accountId, documentReference: 'акт 18/10', reason: 'Возврат переплаты', idempotencyKey: key };
+
+let result = await call({ permissions: ['finance_read'] });
+assert.equal(result.response.status, 403, 'read-only finance role cannot create a refund');
+result = await call({ body: { ...body, amount: '0.00' } });
+assert.equal(result.response.status, 400, 'zero-value refunds are rejected');
+result = await call({ body });
+assert.equal(result.response.status, 201);
+assert.equal(result.response.body.totals.availableToReturn, '74.50');
+assert.equal(result.response.body.pnlEffect, 'not_calculated');
+assert.equal(stored.length, 1);
+assert.ok(statements.some(({ sql }) => sql.includes('pg_advisory_xact_lock')), 'creation serializes idempotency attempts');
+assert.ok(statements.some(({ sql }) => sql.includes('FOR UPDATE') && sql.includes('expenses')), 'creation locks the exact source expense before checking remaining refundable amount');
+assert.ok(statements.some(({ sql }) => sql.startsWith('INSERT INTO finance_expense_refunds')), 'refund is a new append-only event, not an expense edit');
+result = await call({ body });
+assert.equal(result.response.status, 200, 'exact replay returns the existing event');
+assert.equal(result.response.body.idempotent, true);
+assert.equal(stored.length, 1, 'exact replay does not duplicate the receipt');
+result = await call({ body: { ...body, amount: '26.00' } });
+assert.equal(result.response.status, 409, 'same key with a changed payload is rejected');
+result = await call({ method: 'GET', permissions: ['finance_read'] });
+assert.equal(result.response.status, 200, 'read-only finance role can inspect history');
+assert.equal(result.response.body.refunds.length, 1);
+assert.equal(result.response.body.totals.grossReturned, '25.50');
+const reportSource = await import('node:fs').then((fs) => fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../finance-unified-report.js'), 'utf8'));
+assert.match(reportSource, /pnlEffect:'not_calculated'/);
+const root = path.dirname(fileURLToPath(import.meta.url));
+const portal = readFileSync(path.join(root, '../portal.js'), 'utf8');
+assert.ok(portal.includes('data-expense-refund=') && portal.includes('data-expense-refund-history=') && portal.includes('История возвратов расхода'), 'expense UI exposes a finance-write action and a read-only refund history');
+assert.ok(portal.includes('report.coverage.manualExpenseRefunds.count') && portal.includes('report.coverage.manualExpenseRefunds.amount'), 'report coverage warning renders count and amount instead of an empty placeholder');
+assert.ok(portal.includes('expenseRefunds:`Поступление') && portal.includes('не доход/P&L') && portal.includes('не фильтруются по категории'), 'report explains cash-only, unclassified-P&L treatment and category-filter behavior');
+assert.equal(portal, readFileSync(path.join(root, '../dist/portal.js'), 'utf8'), 'served portal bundle includes the exact source UI');
+const server = readFileSync(path.join(root, '../server.js'), 'utf8');
+assert.ok(server.includes("'manual_expense_refund',r.id,NULL,'receipt'") && server.includes('finance_expense_refunds r WHERE r.venue_id=$1 AND r.shift_id=$2'), 'cash refund is included in POS expected cash and close ledger');
+console.log('FINANCE EXPENSE REFUNDS CONTRACT: PASS (role gate, positive amount, locked cap, immutable cash event, idempotent retry, history readback, uncalculated P&L)');

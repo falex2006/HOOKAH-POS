@@ -123,7 +123,12 @@ assert.match(inventoryErrorMarkup, /Не удалось загрузить ск�
 assert.match(inventoryErrorMarkup, /data-inventory-retry/);
 assert.match(portal, /const retry = event\.target\.closest\('\[data-inventory-retry\]'\); if \(retry\) \{ retry\.disabled = true; retry\.textContent = 'Загружаем…'; load\(\); return; \}/,
   'the inventory error retry button must disable during retry and invoke the same load function');
-assert.match(portal, /\.catch\(\(\) => \{ inventoryLoadState = 'error'; refreshInventoryContext\(\); document\.querySelector\('#inventory-rows'\)\.innerHTML = inventoryLoadErrorMarkup\(\);/,
-  'inventory request errors must render the actionable error state');
+const inventoryLoadStart = portal.indexOf('const load = () => { const requestId = ++inventoryLoadGeneration');
+const guardedInventoryCatch = portal.indexOf("catch(() => { if (requestId !== inventoryLoadGeneration", inventoryLoadStart);
+const currentInventoryError = portal.indexOf("inventoryLoadState = 'error'; refreshInventoryContext();", guardedInventoryCatch);
+assert.ok(inventoryLoadStart >= 0 && guardedInventoryCatch > inventoryLoadStart && currentInventoryError > guardedInventoryCatch,
+  'stale or detached inventory request errors are ignored before current errors render the actionable error state');
+assert.ok(portal.includes('stockRows?.isConnected === false') && portal.indexOf('return false;', guardedInventoryCatch) < currentInventoryError && portal.indexOf('inventoryLoadErrorMarkup()', currentInventoryError) > currentInventoryError,
+  'only the current stock request reaches its explicit retry markup');
 
 console.log('INVENTORY CRITICAL STATE QA: PASS (custom department round-trip; auto-order error states; inventory error retry state)');

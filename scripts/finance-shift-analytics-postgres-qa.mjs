@@ -52,25 +52,31 @@ try {
     VALUES ($1,$2,now()-INTERVAL '2 hours',now()-INTERVAL '30 minutes',0) RETURNING id`, [venueId, ownerId])).rows[0].id;
   const shiftB = (await client.query(`INSERT INTO shifts (venue_id,opened_by,opened_at,opening_cash)
     VALUES ($1,$2,now()-INTERVAL '20 minutes',0) RETURNING id`, [venueId, ownerId])).rows[0].id;
+  const posCashbox=(await client.query("SELECT id,name FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox' AND active=true",[venueId])).rows[0];
+  const cardAccount=(await client.query("INSERT INTO finance_accounts(venue_id,code,name,kind,allowed_payment_methods) VALUES($1,'finance_analytics_card','QA bank','bank',ARRAY['card']) RETURNING id,name",[venueId])).rows[0];
 
   const barProductId = randomUUID(); const hookahProductId = randomUUID(); productIds.push(barProductId, hookahProductId);
   await client.query(`INSERT INTO products (id,venue_id,name,category,sale_price)
     VALUES ($1,$3,'QA лимонад','bar',200),($2,$3,'QA кальян','hookah',300)`, [barProductId, hookahProductId, venueId]);
 
-  for (const amount of productOrderAmounts) {
-    const orderId = randomUUID();
-    await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id)
-      VALUES ($1,$2,$3,'closed',now(),$4)`, [orderId, venueId, ownerId, shiftA]);
-    await client.query(`INSERT INTO payments (order_id,method,amount,status,shift_id)
-      VALUES ($1,'cash',$2,'paid',$3)`, [orderId, amount, shiftA]);
-    await client.query(`INSERT INTO order_items (order_id,product_id,quantity,unit_price,station)
-      VALUES ($1,$2,1,$3,'bar')`, [orderId, barProductId, amount]);
-  }
+  // These records model legacy payments written before finance-account attribution.
+  await client.query('ALTER TABLE payments DISABLE TRIGGER payments_finance_account_guard');
+  try {
+    for (const amount of productOrderAmounts) {
+      const orderId = randomUUID();
+      await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id)
+        VALUES ($1,$2,$3,'closed',now(),$4)`, [orderId, venueId, ownerId, shiftA]);
+      await client.query(`INSERT INTO payments (order_id,method,amount,status,shift_id)
+        VALUES ($1,'cash',$2,'paid',$3)`, [orderId, amount, shiftA]);
+      await client.query(`INSERT INTO order_items (order_id,product_id,quantity,unit_price,station)
+        VALUES ($1,$2,1,$3,'bar')`, [orderId, barProductId, amount]);
+    }
 
-  await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id)
-    VALUES ($1,$2,$3,'closed',now(),$4)`, [splitOrderId, venueId, ownerId, shiftB]);
-  await client.query(`INSERT INTO payments (order_id,method,amount,status,shift_id)
-    VALUES ($1,'cash',100,'partially_paid',$2),($1,'cash',200,'paid',$3)`, [splitOrderId, shiftA, shiftB]);
+    await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id)
+      VALUES ($1,$2,$3,'closed',now(),$4)`, [splitOrderId, venueId, ownerId, shiftB]);
+    await client.query(`INSERT INTO payments (order_id,method,amount,status,shift_id)
+      VALUES ($1,'cash',100,'partially_paid',$2),($1,'cash',200,'paid',$3)`, [splitOrderId, shiftA, shiftB]);
+  } finally { await client.query('ALTER TABLE payments ENABLE TRIGGER payments_finance_account_guard'); }
   await client.query(`INSERT INTO order_items (order_id,product_id,quantity,unit_price,station)
     VALUES ($1,$2,1,200,'bar'),($1,$3,1,300,'hookah')`, [splitOrderId, barProductId, hookahProductId]);
   await client.query(`INSERT INTO discounts (order_id,requested_by,approved_by,type,value,reason,status)
@@ -122,8 +128,10 @@ try {
   const mixedTenderOrderId = randomUUID();
   await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id,pricing_version,subtotal_snapshot,discount_total_snapshot,minimum_adjustment_snapshot,final_total_snapshot)
     VALUES ($1,$2,$3,'closed',now(),$4,1,900,0,0,900)`, [mixedTenderOrderId, venueId, ownerId, shiftB]);
-  await client.query(`INSERT INTO payments (order_id,method,amount,status,created_at)
-    VALUES ($1,'cash',300,'paid',now()-INTERVAL '1 day'),($1,'bonus',600,'paid',now())`, [mixedTenderOrderId]);
+  await client.query('ALTER TABLE payments DISABLE TRIGGER payments_finance_account_guard');
+  try { await client.query(`INSERT INTO payments (order_id,method,amount,status,created_at)
+    VALUES ($1,'cash',300,'paid',now()-INTERVAL '1 day'),($1,'bonus',600,'paid',now())`, [mixedTenderOrderId]); }
+  finally { await client.query('ALTER TABLE payments ENABLE TRIGGER payments_finance_account_guard'); }
   await client.query(`INSERT INTO order_items (order_id,product_id,quantity,unit_price,station)
     VALUES ($1,$2,1,900,'bar')`, [mixedTenderOrderId, barProductId]);
   const report = await request('/api/finance/report?type=waiter');
@@ -170,6 +178,27 @@ try {
   assert.equal(zeroTotalSummary.receipts.total, zeroTotalReport.receipts.total, 'summary and report reconcile event-date cash receipts on the same fixture');
   assert.equal(zeroTotalSummary.receipts.coverage, 'postgres_order_payments_and_guest_receipts', 'summary discloses receipt source coverage');
 
+  // Recognized close value is independent from partially collected money.
+  const partiallyPaidSnapshotId=randomUUID(); const partialSnapshotProductId=randomUUID(); productIds.push(partialSnapshotProductId);
+  await client.query(`INSERT INTO products (id,venue_id,name,category,sale_price) VALUES ($1,$2,'QA partially paid snapshot','bar',1000)`,[partialSnapshotProductId,venueId]);
+  await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id,pricing_version,subtotal_snapshot,discount_total_snapshot,minimum_adjustment_snapshot,final_total_snapshot) VALUES ($1,$2,$3,'closed',now(),$4,1,1000,300,0,700)`,[partiallyPaidSnapshotId,venueId,ownerId,shiftB]);
+  await client.query(`INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,1,1000,'bar')`,[partiallyPaidSnapshotId,partialSnapshotProductId]);
+  await client.query(`INSERT INTO payments (order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES ($1,'cash',200,'partially_paid',$2,$3,$4)`,[partiallyPaidSnapshotId,shiftB,posCashbox.id,posCashbox.name]);
+  const recognizedAnalytics=await request('/api/analytics?days=7');
+  assert.equal(recognizedAnalytics.totalRevenue,2500,'legacy-compatible analytics turnover remains the sum of paid payment amounts');
+  assert.equal(recognizedAnalytics.totalRecognizedRevenue,3000,'P&L revenue follows all closed-order final values, including a partially paid 700 snapshot');
+  assert.equal(recognizedAnalytics.recognizedRevenueCoverage.status,'complete','canonical snapshots and safe persisted-line fallbacks provide complete recognized-revenue coverage');
+  assert.equal(recognizedAnalytics.recognizedRevenueBasis,'closed_order_final_total_snapshot_or_safe_legacy_fallback','recognized-revenue source is explicit');
+  assert.equal(recognizedAnalytics.knownNetProfit,recognizedAnalytics.knownRecognizedRevenue-recognizedAnalytics.knownTotalExpenses-recognizedAnalytics.totalCostOfGoods,'known P&L uses recognized sales less known expenses and COGS, never the paid-sales total');
+  assert.equal(recognizedAnalytics.officialReady,false,'current payroll source contract does not authorize official net profit');
+  assert.equal(recognizedAnalytics.payrollCoverage.reason,'payroll_source_not_official_ready','payroll readiness gap is explicit');
+  assert.equal(recognizedAnalytics.netProfit,null,'official net profit remains unavailable until payroll sources are ready');
+  const recognizedDay=recognizedAnalytics.days.find((day)=>day.orders===7);
+  assert.equal(recognizedDay.revenue,2500,'daily revenue stays labelled as paid sales');
+  assert.equal(recognizedDay.recognizedRevenue,3000,'daily recognized revenue reconciles to the closed-sale ledger');
+  assert.equal(recognizedDay.knownNetProfit,recognizedDay.knownRecognizedRevenue-recognizedDay.knownExpenses-recognizedDay.costOfGoods,'daily known P&L uses recognized revenue less expenses and COGS');
+  assert.equal(recognizedDay.netProfit,null,'daily official profit stays unavailable while payroll sources are not ready');
+
   await client.query(`INSERT INTO guest_deposit_receipts (venue_id,guest_id,shift_id,amount,payment_method,reason,idempotency_key,actor_id)
     VALUES ($1,$2,$3,100,'qr','Finance QA guest top-up','finance-ledger-topup-001',$4)`, [venueId, guestId, shiftB, ownerId]);
   await client.query(`INSERT INTO guest_account_entries (id,venue_id,guest_id,account_type,amount,reason,source_type,source_key,actor_id)
@@ -182,7 +211,7 @@ try {
         VALUES ($1,$2,$3,$4,50,'card','Finance QA prepayment refund','finance-ledger-prepay-refund-001',$5)`, [venueId, reservationId, rows[0].id, shiftB, ownerId]);
     });
   const ledgerToday = await request('/api/finance/report?type=x');
-  assert.equal(ledgerToday.receipts.total, 1500, 'event-date receipts include POS cash plus actual guest-account top-ups');
+  assert.equal(ledgerToday.receipts.total, 1700, 'event-date receipts include POS cash, the partial tender, and actual guest-account top-ups');
   assert.equal(ledgerToday.receipts.bySource.guest_account_top_up, 100);
   assert.equal(ledgerToday.receipts.byMethod.qr, 100);
   assert.equal(ledgerToday.payouts.total, 80, 'event-date payouts include guest deposit and reservation prepayment refunds');
@@ -199,7 +228,40 @@ try {
   const priorLedgerDay = await request(`/api/finance/report?date=${priorDateKey}&type=x`);
   assert.equal(priorLedgerDay.receipts.bySource.reservation_prepayment, 200, 'reservation prepayment uses its own event date');
 
-  console.log('FINANCE SHIFT/ANALYTICS POSTGRES QA: PASS (sale snapshots vs event-date cash receipts, bonus tender exclusion, legacy fallbacks, shift attribution, medians, station allocation, zero-total discount)');
+  const legacyRefundOrderId = randomUUID();
+  await client.query(`INSERT INTO orders (id,venue_id,opened_by,status,closed_at,closed_in_shift_id)
+    VALUES ($1,$2,$3,'closed',now(),$4)`, [legacyRefundOrderId, venueId, ownerId, shiftB]);
+  await client.query('ALTER TABLE payments DISABLE TRIGGER payments_finance_account_guard');
+  try { await client.query(`INSERT INTO payments (order_id,method,amount,status,shift_id)
+    VALUES ($1,'cash',75,'refunded',$2)`, [legacyRefundOrderId, shiftB]); }
+  finally { await client.query('ALTER TABLE payments ENABLE TRIGGER payments_finance_account_guard'); }
+  const legacyRefundAnalytics = await request('/api/analytics?days=7');
+  assert.equal(legacyRefundAnalytics.posRefundCoverage.status, 'incomplete', 'legacy refunded payment status makes profit coverage incomplete');
+  assert.equal(legacyRefundAnalytics.posRefundCoverage.legacyRefundedPaymentCount, 1, 'legacy refund count is disclosed without attempting reconstruction');
+  assert.equal(legacyRefundAnalytics.netProfit, null, 'legacy refund uncertainty withholds official profit');
+  assert.equal(legacyRefundAnalytics.recognizedRevenueCoverage.status,'incomplete','closed orders without a frozen total or persisted lines are explicitly unresolved');
+  assert.equal(legacyRefundAnalytics.recognizedRevenueCoverage.unresolvedOrderCount,1,'unresolved close evidence is counted once');
+  assert.equal(legacyRefundAnalytics.totalRecognizedRevenue,null,'official recognized revenue is withheld when a closed sale cannot be priced safely');
+
+  const beforePosRefund = await request('/api/analytics?days=7');
+  const refundId = randomUUID();
+  const refundSourcePaymentId = (await client.query('SELECT id FROM payments WHERE order_id=$1 AND status IN (\'paid\',\'partially_paid\') ORDER BY amount LIMIT 1', [splitOrderId])).rows[0].id;
+  const refundEventDate = new Date();
+  await client.query(`INSERT INTO order_refunds (id,venue_id,order_id,shift_id,amount,reason,idempotency_key,actor_id,created_at)
+    VALUES ($1,$2,$3,$4,30,'Analytics POS refund coverage QA',$5,$6,$7)`, [refundId, venueId, splitOrderId, shiftB, `analytics-refund-${refundId}`, ownerId, refundEventDate]);
+  await client.query(`INSERT INTO order_refund_tenders (venue_id,refund_id,order_id,source_payment_id,amount,payout_method,created_at,finance_account_id,finance_account_name_snapshot,shift_id)
+    VALUES ($1,$2,$3,$4,15,'cash',$5,$6,$7,$8),($1,$2,$3,$4,15,'card',$5,$9,$10,NULL)`, [venueId, refundId, splitOrderId, refundSourcePaymentId, refundEventDate,posCashbox.id,posCashbox.name,shiftB,cardAccount.id,cardAccount.name]);
+  const posRefundAnalytics = await request('/api/analytics?days=7');
+  assert.equal(posRefundAnalytics.totalRevenue, beforePosRefund.totalRevenue, 'POS refund tenders do not multiply or subtract gross paid sales');
+  assert.equal(posRefundAnalytics.posRefundCoverage.status, 'incomplete', 'sale-period POS refund makes recognition coverage incomplete');
+  assert.equal(posRefundAnalytics.posRefundCoverage.salePeriodRefundCount, 1, 'refund header is counted once despite multiple tenders');
+  assert.equal(posRefundAnalytics.posRefundCoverage.eventPeriodRefundTenderCount, 2, 'tender rows are counted as actual payout events');
+  assert.equal(posRefundAnalytics.posRefundCoverage.eventPeriodPayoutAmount, 30, 'payout amount is aggregated separately from revenue');
+  assert.equal(posRefundAnalytics.posRefundCoverage.payoutIncludedInProfit, false, 'payout is not misrepresented as a P&L expense');
+  assert.equal(posRefundAnalytics.netProfit, null, 'unresolved POS refund recognition withholds official profit');
+  assert(posRefundAnalytics.days.filter((day) => day.orders > 0).every((day) => day.netProfit === null), 'affected report period does not show a numeric daily profit');
+
+  console.log('FINANCE SHIFT/ANALYTICS POSTGRES QA: PASS (sale snapshots vs event-date cash receipts, bonus tender exclusion, legacy fallbacks, shift attribution, medians, station allocation, zero-total discount, POS refund coverage)');
 } catch (error) {
   console.error('FINANCE SHIFT/ANALYTICS POSTGRES QA failed before cleanup:', error);
   throw error;
@@ -208,6 +270,12 @@ try {
   if (serverExitPromise && server?.exitCode === null && server?.signalCode === null) await serverExitPromise;
   if (client._connected) {
     try {
+      await client.query('ALTER TABLE order_refund_tenders DISABLE TRIGGER USER');
+      try { await client.query('DELETE FROM order_refund_tenders WHERE venue_id=$1', [venueId]); }
+      finally { await client.query('ALTER TABLE order_refund_tenders ENABLE TRIGGER USER'); }
+      await client.query('ALTER TABLE order_refunds DISABLE TRIGGER USER');
+      try { await client.query('DELETE FROM order_refunds WHERE venue_id=$1', [venueId]); }
+      finally { await client.query('ALTER TABLE order_refunds ENABLE TRIGGER USER'); }
       await client.query('DELETE FROM reservation_pre_payment_receipt_reversals WHERE venue_id=$1', [venueId]);
       await client.query('DELETE FROM reservation_pre_payment_receipts WHERE venue_id=$1', [venueId]);
       await client.query('DELETE FROM guest_account_reversals WHERE venue_id=$1', [venueId]);
@@ -223,6 +291,10 @@ try {
       await client.query('DELETE FROM shifts WHERE venue_id=$1', [venueId]);
       await client.query('DELETE FROM users WHERE venue_id=$1', [venueId]);
       await client.query('DELETE FROM audit_events WHERE venue_id=$1', [venueId]);
+      await client.query('ALTER TABLE inventory_purchase_reversal_policies DISABLE TRIGGER USER');
+      try { await client.query('DELETE FROM inventory_purchase_reversal_policies WHERE venue_id=$1', [venueId]); }
+      finally { await client.query('ALTER TABLE inventory_purchase_reversal_policies ENABLE TRIGGER USER'); }
+      await client.query('DELETE FROM finance_accounts WHERE venue_id=$1', [venueId]);
       const deletedVenue = await client.query('DELETE FROM venues WHERE id=$1 RETURNING id', [venueId]);
       assert.equal(deletedVenue.rowCount, 1, 'finance report QA venue is fully removed');
     } finally { await client.end(); }

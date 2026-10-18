@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-10-09T08:20:04.868Z",
+  "rows": 6480,
+  "distinctCaseIds": 6480,
+  "captures": 72,
+  "mapped": 72,
+  "blocked": 6408,
+  "pass": 0,
+  "rasterMismatches": 12,
+  "roles": [
+    "owner"
+  ],
+  "themes": [
+    "dark"
+  ],
+  "sourceFiles": 215,
+  "sourceMirrorMismatches": [],
+  "sourceRootMismatches": [],
+  "allEvidenceRefsExist": true
+}

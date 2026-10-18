@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import {createReservationFixture, validDraft, settle, shared} from './ui042-reservation-fixture.mjs';
 
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const distPortal = readFileSync(new URL('../dist/portal.js', import.meta.url), 'utf8');
@@ -16,7 +17,7 @@ const sourceAppRevision = index.match(/app\.js\?rev=(\d+)/)?.[1];
 const distAppRevision = distIndex.match(/app\.js\?rev=(\d+)/)?.[1];
 assert.equal(distAppRevision, sourceAppRevision, 'source and dist load the same POS app revision');
 assert.equal(distApp, app, 'published POS app includes the reservation allocation handler');
-assert.equal(distPortal, portal, 'published guest portal includes current loyalty and privacy rules');
+assert.ok(distPortal === portal, 'published guest portal includes current loyalty and privacy rules (source/dist byte parity)');
 assert.match(app, /method==='reservation'/, 'payment UI can post the reservation tender');
 assert.match(app, /reservationPrepaymentReceipts/, 'payment UI renders available booking receipts');
 assert.match(portal, /Требуемый депозит, ₽<input id="reservation-deposit"/, 'reservation form identifies the venue requirement, not a collected payment');

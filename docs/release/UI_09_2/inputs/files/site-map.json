@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "contract": {
+    "version": "1.0",
+    "date": "2026-10-09",
+    "owner": "system_architect",
+    "scope": "local-working-tree-inventory; no route or permission changes",
+    "baselineHead": "802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf",
+    "includesUncommittedChanges": true,
+    "matrix": "docs/design/UNIFIED_UI_2026-10-09/ROUTE_ROLE_MATRIX.md",
+    "sources": ["server.js:staticFile", "portal.js:adminSectionTitles", "portal.js:inventorySections", "portal-session.js:canAccessRoute", "effective-permissions.js:createPermissionResolver"],
+    "modeIsAuthorization": false
+  },
+  "canonicalRoot": "/",
+  "adminRoot": "/admin",
+  "sidebarBrandPresentation": {
+    "maxWidth": 190,
+    "maxHeight": 61,
+    "fit": "contain",
+    "compactMaxViewportWidth": 900,
+    "compactWidth": 42,
+    "compactHeight": 40,
+    "compactDrawerAsset": "symbol"
+  },
+  "staffHeaderPresentation": {
+    "title": "separate-left",
+    "actions": ["shift", "auto-lock-settings", "screen-lock", "profile"],
+    "mobileActionsRowMaxWidth": 650,
+    "compactShiftLabelMaxWidth": 480,
+    "notifications": "server-authorized-management-only"
+  },
+  "navigationPresentation": {
+    "expandableGroupIcon": "summary-only",
+    "childLinks": "text-only",
+    "childTextAlignment": "group-label"
+  },
+  "entries": [
+    {"path":"/","file":"index.html","mode":"authenticated-workspace","title":"Зал и заказы"},
+    {"path":"/login","file":"login.html","mode":"auth","title":"Авторизация"},
+    {"path":"/admin","file":"admin.html","mode":"admin","title":"Панель администратора"},
+    {"path":"/orders","file":"orders.html","mode":"admin","title":"Заказы"},
+    {"path":"/clients","file":"clients.html","mode":"admin","title":"Гости"},
+    {"path":"/reservations","file":"reservations.html","mode":"admin","title":"Бронирования"},
+    {"path":"/delivery","file":"delivery.html","mode":"admin","title":"Доставка"},
+    {"path":"/inventory","file":"inventory.html","mode":"admin","title":"Склад"},
+    {"path":"/finance","file":"finance.html","mode":"admin","title":"Финансы"},
+    {"path":"/finance/categories","file":"finance-categories.html","mode":"admin","title":"Категории доходов и расходов"},
+    {"path":"/finance/report","file":"finance-report.html","mode":"admin","title":"Финансовые отчёты"},
+    {"path":"/integrations","file":"integrations.html","mode":"admin","title":"Интеграции"},
+    {"path":"/network","file":"network.html","mode":"admin","title":"Моя сеть"},
+    {"path":"/platform","file":"platform.html","mode":"platform","title":"Платформа"}
+  ],
+  "inventoryWorkingViewsPresentation": {"views":["stock","auto-orders","premixes"],"summary":"compact","lists":"bounded","premixForm":"prerequisites"},
+  "inventoryMovementsPresentation": {"default":"documents","sections":["documents","operations"],"editor":"modal"},
+  "inventoryDirectoryPresentation": {"layout":"cascade","columns":["departments","subdepartments","categories"],"editor":"modal","categorySearch":true},
+  "inventoryViews": [
+    {"view":"products","group":"menu","title":"Каталог товаров"},
+    {"view":"recipes","group":"menu","title":"Технологические карты"},
+    {"view":"stock","group":"inventory","title":"Остатки"},
+    {"view":"auto-orders","group":"inventory","title":"Пополнение запасов"},
+    {"view":"movements","group":"inventory","title":"Поставки и списания"},
+    {"view":"premixes","group":"inventory","title":"Заготовки и премиксы"},
+    {"view":"directories","group":"inventory","title":"Цеха и категории"}
+  ],
+  "adminSubroutes": ["staff","permissions","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics","notifications","help"],
+  "financeSubroutes": ["payroll"],
+  "canonicalization": {
+    "htmlAlias": "Each entries.file prefixed with / redirects to entries.path with HTTP 308; query is preserved",
+    "nestedTrailingSlash": "nginx/default.conf redirects to slashless path with HTTP 308; / is unchanged",
+    "inventoryDefaultView": "stock",
+    "employeeOrdersView": "/?view=orders",
+    "employeeOrdersFallback": "/orders",
+    "scope": "Source contract; deployed HTTP behavior is not verified in UI-01.1"
+  }
+}

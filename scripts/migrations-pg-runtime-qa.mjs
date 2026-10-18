@@ -38,6 +38,15 @@ try {
   const shiftB = (await client.query(
     'INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,50) RETURNING id', [venueB, userB],
   )).rows[0].id;
+  const cashAccountA = (await client.query(
+    "SELECT id,name FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox' AND active", [venueA],
+  )).rows[0];
+  assert.ok(cashAccountA, 'finance account migration seeds the venue POS cashbox');
+  const cardAccountA = (await client.query(
+    "INSERT INTO finance_accounts (venue_id,code,name,kind,allowed_payment_methods,created_by) VALUES ($1,'migration_qa_card','Migration QA card account','bank',ARRAY['card']::text[],$2) RETURNING id,name",
+    [venueA, userA],
+  )).rows[0];
+
   await client.query('SAVEPOINT expected_failure');
   await expectSqlState(
     client.query('INSERT INTO shifts (venue_id,opened_by) VALUES ($1,$2)', [venueA, userA]),
@@ -48,11 +57,15 @@ try {
     'INSERT INTO orders (venue_id,opened_by) VALUES ($1,$2) RETURNING id', [venueA, userA],
   )).rows[0].id;
   await client.query(
-    "INSERT INTO payments (order_id,method,amount,status,shift_id) VALUES ($1,'cash',25,'paid',$2)", [orderA, shiftA],
+    "INSERT INTO payments (order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES ($1,'cash',25,'paid',$2,$3,$4)",
+    [orderA, shiftA, cashAccountA.id, cashAccountA.name],
   );
   const attributed = await client.query('SELECT COUNT(*)::int AS count FROM payments WHERE order_id=$1 AND shift_id=$2', [orderA, shiftA]);
   assert.equal(attributed.rows[0].count, 1, '039 stores a payment against its same-venue shift');
-  await client.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,\'cash\',5,\'paid\')', [orderA]);
+  await client.query(
+    "INSERT INTO payments (order_id,method,amount,status,finance_account_id,finance_account_name_snapshot) VALUES ($1,'card',5,'paid',$2,$3)",
+    [orderA, cardAccountA.id, cardAccountA.name],
+  );
   await client.query('SAVEPOINT expected_failure');
   await expectSqlState(
     client.query("INSERT INTO payments (order_id,method,amount,status,shift_id) VALUES ($1,'cash',5,'paid',$2)", [orderA, shiftB]),
