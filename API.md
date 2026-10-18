@@ -109,9 +109,6 @@ actual — отдельные итоги закрытых staff_work_logs (об�
 - `POST /api/login` — вход и выдача bearer-токена. Для `owner`/`admin`/`developer` поле `trustDevice: true` выдаёт долгую доверенную сессию, которая затем может быть восстановлена через PIN.
 - `GET/PATCH /api/venue` — карточка компании, телефон, адрес и логотип.
 - `GET/POST /api/staff`, `DELETE /api/staff/:id`, `POST /api/staff/:id/avatar` — управление сотрудниками и аватарами.
-- `GET /api/staff/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD` — плановые смены текущей точки; чтение доступно с `staff_view`, `staff_manage` или отдельным `staff_schedule`.
-- `POST /api/staff/schedule` — создать или скорректировать смену `{userId,workDate,plannedStart,plannedEnd,note}`; запись требует `staff_schedule`.
-- `DELETE /api/staff/schedule/:id` — удалить плановую смену текущей точки; требует `staff_schedule`.
 - `POST /api/staff/:id/archive` — владелец удаляет заранее заблокированного сотрудника из рабочего списка; кадровая и операционная история остаётся в аудите.
 - `POST /api/products/:id/image` — загрузка изображения товара (PNG/JPG/WebP до 1.5 МБ).
 
