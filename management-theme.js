@@ -6,6 +6,8 @@
   const schemeMarker = 'data-management-scheme';
   const roles = new Set(['owner', 'admin', 'manager']);
   const adminHashes = new Set(['', '#tasks', '#loyalty', '#settings', '#company', '#settings-dashboard-modules', '#lock-security', '#audit', '#diagnostics', '#notifications', '#help', '#shift-control']);
+  // Finance hashes select mounted views, not a different presentation context.
+  const financeHashes = new Set(['', '#finance-chart-panel', '#expenses', '#other-income', '#business-obligations', '#payables', '#finance-payments-panel', '#cash-register-panel', '#finance-result-panel', '#finance-staff-panel', '#discounts', '#payroll', '#expense-form', '#payment-list', '#finance-account-settings']);
   const inventoryViews = new Set(['stock', 'products', 'recipes', 'auto-orders', 'movements', 'premixes', 'directories']);
   const pages = new Set(['/admin', '/inventory', '/finance', '/finance/report', '/finance/categories', '/orders', '/clients', '/reservations', '/delivery', '/integrations', '/network']);
   // renderDashboard creates the floor editor even when it is hidden. Exclusion
@@ -42,7 +44,7 @@
     if (url.searchParams.has('operator') || url.searchParams.has('mode')) return null;
     if (path === '/admin' && !adminHashes.has(url.hash)) return null;
     if (path === '/inventory' && (url.hash || !inventoryViews.has(url.searchParams.get('view') || 'stock'))) return null;
-    if (path === '/finance' && !['', '#payroll'].includes(url.hash)) return null;
+    if (path === '/finance' && !financeHashes.has(url.hash)) return null;
     if (!['/admin', '/inventory', '/finance'].includes(path) && url.hash) return null;
     if (path !== '/inventory' && url.searchParams.has('view')) return null;
     if (path === '/admin' && url.hash === '#diagnostics' && !['owner', 'admin'].includes(session.user.role)) return null;

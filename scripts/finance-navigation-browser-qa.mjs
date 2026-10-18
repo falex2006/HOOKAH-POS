@@ -22,6 +22,7 @@ const { Client } = require('pg');
 const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_PATH);
 const db = new Client({ connectionString: target.url.toString() });
 const baseline = process.env.FINANCE_NAV_BASELINE === '1';
+const paletteOnly = process.env.FINANCE_NAV_PALETTE_ONLY === '1';
 const artifacts = path.join(root, 'tmp/finance-navigation-qa', `${baseline ? 'baseline' : 'acceptance'}-${Date.now()}-${process.pid}`);
 const evidence = { baseline, screenshots: [], assertions: [], errors: [] };
 const password = randomBytes(24).toString('hex');
@@ -47,10 +48,10 @@ try {
   await db.query("INSERT INTO organization_subscriptions(organization_id,status) VALUES($1,'trialing')", [org]);
   const venue = (await db.query("INSERT INTO venues(organization_id,name,timezone) VALUES($1,'Finance navigation QA','Asia/Yekaterinburg') RETURNING id", [org])).rows[0].id;
   const logins = {};
-  for (const [key, role, membership] of [['owner','owner','owner'],['reader','manager','member']]) {
+  for (const [key, role, membership] of [['owner','owner','owner'],['reader','manager','member'],...(paletteOnly?[['employee','bartender','member']]:[])]) {
     logins[key] = `finance-nav-${process.pid}-${key}`;
     const user = (await db.query('INSERT INTO users(organization_id,venue_id,full_name,login,password_hash,role) VALUES($1,$2,$3,$4,$5,$6) RETURNING id', [org,venue,`Finance QA ${key}`,logins[key],hash,role])).rows[0].id;
-    if(key==='reader')await db.query("UPDATE users SET permission_scopes='[\"finance_read\"]'::jsonb WHERE id=$1",[user]);
+    if(['reader','employee'].includes(key))await db.query("UPDATE users SET permission_scopes='[\"finance_read\"]'::jsonb WHERE id=$1",[user]);
     await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role,status) VALUES($1,$2,$3,'active')", [org,user,membership]);
   }
   const rent = (await db.query("INSERT INTO finance_categories(venue_id,name,kind) VALUES($1,'Аренда · QA','expense') RETURNING id", [venue])).rows[0].id;
@@ -84,7 +85,7 @@ try {
   let seededIncomeId=null,seededPayrollUser=null;const seededDiscounts=[];
   const priorMonthEnd=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),0)).toISOString().slice(0,10);
   const payrollFrom=priorMonthEnd.slice(0,7)+'-01';
-  if(process.env.FINANCE_NAV_SECTIONS_ONLY==='1') {
+  if(process.env.FINANCE_NAV_SECTIONS_ONLY==='1'&&!paletteOnly) {
     seededPayrollUser=(await db.query("INSERT INTO users(organization_id,venue_id,full_name,login,role) VALUES($1,$2,'QA бармен для начисления',$3,'bartender') RETURNING id",[org,venue,`finance-payroll-${process.pid}`])).rows[0].id;
     await db.query("INSERT INTO staff_work_logs(venue_id,user_id,started_at,ended_at,source) VALUES($1,$2,$3,$4,'manual')",[venue,seededPayrollUser,`${priorMonthEnd.slice(0,7)}-15T05:00:00Z`,`${priorMonthEnd.slice(0,7)}-15T13:00:00Z`]);
     for(const action of ['approve','reject']) {
@@ -138,20 +139,62 @@ try {
     for(const summary of summaries)await page.locator('summary').filter({hasText:new RegExp('^'+summary.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$')}).click();
   };
   await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
-  for(const width of [1366,768,390,320]) {
+  for(const theme of paletteOnly?['dark','light']:['dark']) {
+  await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;document.body.classList.toggle('light-theme',theme==='light');document.dispatchEvent(new Event('management-theme-context-change'));},theme);
+  for(const width of paletteOnly?[1366,390]:[1366,768,390,320]) {
     await page.setViewportSize({width,height:width===1366?900:844});
     if(width<901)await settleClosedSidebar(page);
     for(const key of sectionKeys) {
       await chooseSection(key);
       await page.evaluate(()=>document.fonts.ready);
+      if(paletteOnly){
+        const heading=await page.locator('#page-content>.page-title h1').first().boundingBox();
+        if(heading)await page.mouse.move(heading.x+5,heading.y+5);
+        await page.waitForTimeout(200); // Resting view after the 150 ms navigation color transition.
+      }
       const geometry=await page.locator('#page-content').evaluate(node=>({
         overflow:document.documentElement.scrollWidth>innerWidth+1,
         visiblePanels:[...node.querySelectorAll(':scope > .finance-view-panel')].filter(panel=>panel.getClientRects().length).map(panel=>({id:panel.id,classes:panel.className})),
         controls:[...node.querySelectorAll('button,input:not([type=hidden]),select,summary')].filter(control=>control.getClientRects().length&&getComputedStyle(control).visibility!=='hidden').map(control=>{const r=control.getBoundingClientRect();return {text:(control.getAttribute('aria-label')||control.textContent||control.id).trim().slice(0,80),left:r.left,right:r.right};})
       }));
-      const file=`section-${key}-${width}.png`;
+      const file=paletteOnly?`palette-${theme}-${key}-${width}.png`:`section-${key}-${width}.png`;
       await page.screenshot({path:path.join(artifacts,file),fullPage:true});
-      evidence.screenshots.push({file,kind:'section',key,width,geometry});
+      evidence.screenshots.push({file,kind:paletteOnly?'finance-palette':'section',key,width,theme,geometry});
+      if(paletteOnly){
+        await page.waitForFunction(()=>document.querySelector('#page-content')?.closest('[data-management-theme="mt"]'));
+        const readPalette=()=>page.locator('#page-content').evaluate(node=>{
+          const rgb=color=>{const values=color.match(/[\d.]+/g)?.map(Number)||[0,0,0,0];return [...values.slice(0,3),values[3]??1];};
+          const blend=(front,back)=>front.slice(0,3).map((channel,index)=>channel*front[3]+back[index]*(1-front[3]));
+          const background=element=>{const colors=[];for(let parent=element;parent;parent=parent.parentElement)colors.unshift(rgb(getComputedStyle(parent).backgroundColor));return colors.reduce((back,front)=>blend(front,back),[255,255,255]);};
+          const luminance=channels=>channels.map(channel=>{const value=channel/255;return value<=.04045?value/12.92:((value+.055)/1.055)**2.4;}).reduce((sum,value,index)=>sum+value*[.2126,.7152,.0722][index],0);
+          const sample=element=>{const style=getComputedStyle(element),back=background(element),front=blend(rgb(style.color),back),values=[luminance(back),luminance(front)].sort((a,b)=>a-b);return {color:style.color,background:style.backgroundColor,backgroundImage:style.backgroundImage,border:style.borderColor,effectiveBackground:back,contrast:(values[1]+.05)/(values[0]+.05)};};
+          const primary=[...node.querySelectorAll('.panel')].find(panel=>panel.getClientRects().length&&!panel.parentElement.closest('.panel'));
+          const active=node.querySelector('.finance-view-navigation [aria-current="page"]'),inactive=node.querySelector('.finance-view-navigation a:not([aria-current])');
+          return {primary:primary?{id:primary.id,...sample(primary)}:null,scheme:node.getAttribute('data-management-scheme'),active:sample(active),inactive:sample(inactive),picker:node.querySelector('.finance-view-picker select').value};
+        });
+        const palette=await readPalette();
+        evidence.screenshots.at(-1).palette=palette;
+        assert.equal(palette.scheme,theme,`${key}/${theme} management theme remains applied`);
+        assert.ok(palette.primary,`${key}/${theme} has a primary panel`);
+        assert.deepEqual(palette.primary.effectiveBackground,theme==='dark'?[29,33,38]:[255,255,255],`${key}/${theme} primary surface`);
+        assert.ok(palette.active.contrast>=4.5,`${key}/${theme} active navigation contrast ${palette.active.contrast}`);
+        assert.ok(palette.inactive.contrast>=4.5,`${key}/${theme} inactive navigation contrast ${palette.inactive.contrast}`);
+        assert.notDeepEqual(palette.active.effectiveBackground,palette.inactive.effectiveBackground,`${key}/${theme} active navigation is distinct`);
+        assert.equal(palette.picker,key);
+        if(width===1366){
+          await page.locator('.finance-view-navigation a:not([aria-current])').first().hover();
+          await page.waitForTimeout(200);
+          const hover=await readPalette();evidence.screenshots.at(-1).hover=hover.inactive;
+          assert.notDeepEqual(hover.inactive.effectiveBackground,palette.inactive.effectiveBackground,`${key}/${theme} hover feedback changes inactive tab`);
+          assert.notDeepEqual(hover.inactive.effectiveBackground,hover.active.effectiveBackground,`${key}/${theme} hover differs from selected tab`);
+          assert.ok(hover.inactive.contrast>=4.5,`${key}/${theme} hovered text contrast ${hover.inactive.contrast}`);
+          const active=page.locator('.finance-view-navigation [aria-current="page"]');
+          await page.keyboard.press('Tab');await active.focus();
+          const focus=await active.evaluate(node=>{const style=getComputedStyle(node);return {visible:node.matches(':focus-visible'),width:parseFloat(style.outlineWidth),style:style.outlineStyle,color:style.outlineColor};});
+          evidence.screenshots.at(-1).focus=focus;
+          assert.ok(focus.visible&&focus.width>=2&&focus.style!=='none',`${key}/${theme} visible keyboard focus outline`);
+        }
+      }
       if(!baseline){
         assert.equal(geometry.overflow,false,`${key}/${width} document overflow`);
         assert.ok(geometry.visiblePanels.length,`${key}/${width} visible content`);
@@ -160,10 +203,25 @@ try {
       }
     }
   }
-  evidence.assertions.push('all 11 finance sections captured at desktop 1366, tablet 768 and mobile 390/320; active section and visible controls checked');
+  }
+  evidence.assertions.push(paletteOnly?'all 11 sections preserve dark/light management palette at1366/390; primary surfaces, selected navigation,4.5:1 text contrast and keyboard focus checked':'all 11 finance sections captured at desktop 1366, tablet 768 and mobile 390/320; active section and visible controls checked');
+  if(paletteOnly){
+    for(const hash of ['#expense-form','#payment-list','#finance-chart-panel','#finance-account-settings']){
+      await page.goto(`${base}/finance${hash}`,{waitUntil:'networkidle'});
+      await page.waitForFunction(()=>document.querySelector('#page-content')?.getAttribute('data-management-theme')==='mt');
+      assert.equal(await page.locator('#page-content').getAttribute('data-management-theme'),'mt',`${hash} nested target keeps management theme`);
+    }
+    await page.goto(`${base}/finance#qa-unclassified-hash`,{waitUntil:'networkidle'});
+    assert.equal(await page.locator('[data-management-theme]').count(),0,'unclassified finance hash remains outside management theme');
+    const employee=await browser.newPage();await paceSessionReads(employee);await login(employee,logins.employee);
+    await employee.goto(`${base}/finance#expenses`,{waitUntil:'networkidle'});
+    assert.equal(await employee.locator('[data-management-theme]').count(),0,'employee role remains excluded even with finance_read');
+    await employee.close();
+    evidence.assertions.push('known nested financial targets retain theme; unknown hash and employee role remain excluded');
+  }
   await page.setViewportSize({width:1366,height:900});
 
-  if (!baseline) {
+  if (!baseline && !paletteOnly) {
     await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
     const activeView=()=>page.locator('#page-content').getAttribute('data-finance-view');
     assert.equal(await activeView(),'overview');
@@ -440,7 +498,7 @@ try {
 
   }
 
-  if (process.env.FINANCE_NAV_SECTIONS_ONLY !== '1') {
+  if (process.env.FINANCE_NAV_SECTIONS_ONLY !== '1' && !paletteOnly) {
   const categories = async () => { await page.goto(`${base}/finance/categories`,{waitUntil:'networkidle'});await page.locator(`[data-category-report="${rent}"]`).waitFor(); };
   for (const theme of ['dark','light']) for (const width of [1366,390]) for (const route of ['categories','overview','report']) {
     await page.setViewportSize({width,height:900});
@@ -694,7 +752,7 @@ try {
   }
   }
   assert.deepEqual(evidence.errors,[]);
-  evidence.scope=process.env.FINANCE_NAV_SECTIONS_ONLY==='1'?'section-navigation':'full-finance';
+  evidence.scope=paletteOnly?'finance-palette':process.env.FINANCE_NAV_SECTIONS_ONLY==='1'?'section-navigation':'full-finance';
   evidence.status=baseline?'BASELINE_CAPTURED':'PASS';
   console.log(`FINANCE NAVIGATION ${evidence.status}: ${artifacts}`);
 } catch(error) { evidence.status='FAIL';evidence.failure={name:error.name,message:error.message};evidence.serverDiagnostics=serverDiagnostics;if(diagnosticPage&&!diagnosticPage.isClosed()){evidence.failureUi=await diagnosticPage.locator('#payroll-create-message,#payroll-message,#payroll-rule-message,[data-scheme-message]').allTextContents().catch(()=>[]);await diagnosticPage.screenshot({path:path.join(artifacts,'failure.png')}).catch(()=>{});}throw error; }

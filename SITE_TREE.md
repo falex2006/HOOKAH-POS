@@ -145,3 +145,8 @@ model form calls the existing `POST /api/payroll/rules`, refreshes the model lis
 and selects the confirmed saved ID. No scheme-version ID is substituted for a
 basic model ID. Advanced scheme workspaces (list/configuration/checks/trial)
 are local presentation state, keep mounted input and do not add routes.
+
+Financial theme context (2026-10-19): all11 section hashes and the documented
+nested targets `#finance-chart-panel`, `#expense-form`, `#payment-list`,
+`#finance-account-settings` retain the management theme. Unknown hashes still
+fail closed; verified session/role/route and lock checks remain authoritative.

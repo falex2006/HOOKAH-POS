@@ -5,11 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '2026101901';
+const cssRevision = '2026101902';
+const managementThemeRevision = '3';
 const portalRevision = '2026101901';
 const portalSessionRevision = '2026101805';
 // This employee-page iteration invalidates only its own HTML asset URLs.
-const employeePaymentsCssRevision = '2026101901';
+const employeePaymentsCssRevision = '2026101902';
 const employeePaymentsSessionRevision = '2026101805';
 const lockRevision = '2026101803';
 const appRevision = '2026101807';
@@ -63,6 +64,7 @@ if (process.argv.includes('--saas-only')) {
   for (const path of paths) {
     const html = readFileSync(path, 'utf8')
       .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
+      .replace(/management-theme\.js\?rev=\d+/g, `management-theme.js?rev=${managementThemeRevision}`)
       .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
       .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
       .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`);
@@ -107,6 +109,7 @@ for (const path of htmlFiles) {
       return open + withReducedMotion + close;
     })
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${employeePaymentsPage ? employeePaymentsCssRevision : cssRevision}`)
+    .replace(/management-theme\.js\?rev=\d+/g, `management-theme.js?rev=${managementThemeRevision}`)
     .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
     .replace(/(?:portal|portal-session)\.js\?rev=\d+/g, `portal-session.js?rev=${employeePaymentsPage ? employeePaymentsSessionRevision : portalSessionRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)

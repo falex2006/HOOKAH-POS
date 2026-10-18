@@ -5334,3 +5334,17 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
  #page-content.finance-workspace .finance-payroll-schemes .scheme-workspace-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
  #page-content.finance-workspace .finance-payroll-schemes .scheme-workspace-nav>.button{width:100%;padding-inline:10px}
 }
+
+
+/* Finance keeps one surface hierarchy and quiet section navigation in both themes. */
+#page-content.finance-workspace.ui-financial-pages[data-finance-view]{background:var(--ui-page)}
+#page-content.finance-workspace.ui-financial-pages .finance-view-navigation{padding:6px;gap:4px;border:1px solid var(--ui-border-subtle);border-radius:14px;background:var(--ui-panel);box-shadow:none}
+#page-content.finance-workspace.ui-financial-pages .finance-view-navigation a[data-finance-view][href]{position:relative;justify-content:center;min-height:44px;padding:11px 15px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ui-text-secondary);font-weight:600;line-height:1.4;box-shadow:none;text-decoration:none;transition:background-color 150ms ease,border-color 150ms ease,color 150ms ease}
+#page-content.finance-workspace.ui-financial-pages .finance-view-navigation a[data-finance-view][href]:hover{background:var(--ui-raised);border-color:var(--ui-border-subtle);color:var(--ui-text-primary);box-shadow:none}
+#page-content.finance-workspace.ui-financial-pages .finance-view-navigation a[data-finance-view][href][aria-current="page"]{background:var(--mt-selected,var(--ui-raised));border-color:var(--mt-selected-border,var(--ui-border-control));color:var(--ui-link);box-shadow:inset 0 -3px 0 var(--ui-link)}
+#page-content.finance-workspace.ui-financial-pages .finance-view-navigation a[data-finance-view][href]:focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
+#page-content.finance-workspace.ui-financial-pages[data-finance-view] :is(.finance-chart-view,.payment-chart-view,.cash-register-grid>div,.finance-segment-grid>article,.finance-chart-summary>div){background:var(--ui-raised);border-color:var(--ui-border-subtle);color:var(--ui-text-primary);box-shadow:none}
+#page-content.finance-workspace.ui-financial-pages[data-finance-view] :is(.finance-chart-summary,.finance-chart-visual){background:var(--ui-panel);border-color:var(--ui-border-subtle);box-shadow:none}
+#page-content.finance-workspace.ui-financial-pages[data-finance-view] .finance-chart-summary>div::before{display:none}
+#page-content.finance-workspace.ui-financial-pages[data-finance-view] .finance-view-picker :is(select,.custom-select-trigger){background:var(--ui-panel);border-color:var(--ui-border-control);color:var(--ui-text-primary)}
+@media(prefers-reduced-motion:reduce){#page-content.finance-workspace.ui-financial-pages .finance-view-navigation a[data-finance-view][href]{transition:none}}
