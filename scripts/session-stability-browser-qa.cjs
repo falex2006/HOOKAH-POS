@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'tmp', `session-stability-browser-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 let status = 200;
+let sessionRequests = 0;
 let stallScript = false;
 const hanging = new Set();
 const session = { user: { id: 'fixture-user', role: 'owner', venueId: 'fixture-venue', organizationId: 'fixture-org' }, permissions: ['inventory_read'] };
@@ -21,7 +22,11 @@ const server = http.createServer((req, res) => {
   const send = (body, type='text/html', code=200) => { res.writeHead(code, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-store' }); res.end(body); };
   if (['/style.css','/management-theme.css'].includes(url.pathname)) return send(fs.readFileSync(path.join(root,url.pathname.slice(1)), 'utf8'), 'text/css');
   if (url.pathname.startsWith('/assets/')) return send('', 'text/plain', 204);
-  if (url.pathname === '/api/session') return send(JSON.stringify(status === 200 ? session : { error: 'fixture_error' }), 'application/json', status);
+  if (url.pathname === '/api/session') {
+    sessionRequests++;
+    if(status===429) res.setHeader('Retry-After','2');
+    return send(JSON.stringify(status === 200 ? session : { error: 'fixture_error' }), 'application/json', status);
+  }
   if (url.pathname === '/api/setup/status') return send('{"required":false}', 'application/json');
   if (url.pathname === '/portal-session.js' || url.pathname === '/login.js') return send(fs.readFileSync(path.join(root,url.pathname.slice(1)), 'utf8'), 'text/javascript');
   if (url.pathname === '/portal.js') {
@@ -58,6 +63,24 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator('#unsaved').inputValue(), 'Изменённый черновик');
     assert.equal(await page.evaluate(() => window.fixturePortalExecutions), 1);
     await page.screenshot({ path:path.join(output,'same-session-recovered.png') });
+    await page.clock.install();
+    status=503;
+    await page.evaluate(() => window.__portalSessionGate.refresh());
+    status=429;
+    await page.locator('[data-session-retry]').click();
+    await page.waitForFunction(() => document.querySelector('[data-session-message]')?.textContent.includes('Повтор через 2 с'));
+    assert.equal(await page.locator('[data-session-retry]').isDisabled(),true);
+    const beforeFocus = sessionRequests;
+    await page.evaluate(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('focus')); return window.__portalSessionGate.refresh(); });
+    assert.equal(sessionRequests,beforeFocus,'focus and manual refresh respect Retry-After');
+    assert.equal(await page.evaluate(() => localStorage.getItem('crm_session_token')), 'fixture-token');
+    await page.screenshot({path:path.join(output,'rate-limit-countdown.png')});
+    status=200;
+    await page.clock.fastForward(2100);
+    await page.waitForFunction(() => !window.__portalSessionGate.blocked);
+    assert.equal(sessionRequests,beforeFocus+1,'one automatic retry at cooldown expiry');
+    assert.equal(await page.evaluate(() => localStorage.getItem('crm_session_token')), 'fixture-token');
+    assert.equal(await page.locator('#unsaved').inputValue(), 'Изменённый черновик');
     const sibling = await context.newPage();
     await sibling.goto(`${origin}/login`);
     await sibling.waitForFunction(() => document.body.dataset.loginState === 'idle');
@@ -68,7 +91,6 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => window.__portalSessionGate.refresh()).catch(() => {});
     await page.waitForURL('**/login');
     assert.equal(await page.evaluate(() => localStorage.getItem('crm_session_token')), null);
-    await page.clock.install();
     for (const width of [1366, 390]) {
       await page.setViewportSize({ width, height:768 });
       status=200; stallScript=true;
@@ -99,7 +121,7 @@ const server = http.createServer((req, res) => {
       await page.screenshot({path:path.join(output,`script-recovered-${width}.png`)});
     }
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ result:'PASS', scope:'Real Chromium; actual portal-session.js/login.js; local mock HTTP and portal script sentinel, not live DB E2E', scenarios:['503 preserves token','same-session retry retains DOM draft','sibling login retains session','current401 clears token','portal script deadline exposes retry','retry reloads exactly once','1366/390 actual inventory CSS: initial spinner only; compact retry without overflow'], screenshots:output, pageErrors:errors },null,2));
+    console.log(JSON.stringify({ result:'PASS', scope:'Real Chromium; actual portal-session.js/login.js; local mock HTTP and portal script sentinel, not live DB E2E', scenarios:['503 preserves token','429 Retry-After2 countdown disables retry, suppresses focus/manual requests and auto recovers','same-session retry retains DOM draft','sibling login retains session','current401 clears token','portal script deadline exposes retry','retry reloads exactly once','1366/390 actual inventory CSS: initial spinner only; compact retry without overflow'], screenshots:output, pageErrors:errors },null,2));
   } finally {
     if(browser) await browser.close();
     for(const response of hanging) response.destroy();
