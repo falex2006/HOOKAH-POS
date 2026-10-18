@@ -5171,3 +5171,13 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .finance-category-filter-options[open]>summary::before{content:'▾'}
 .finance-category-filter-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:8px}
 @media(max-width:700px){.finance-category-workspace>.page-title .toolbar-row{display:flex;flex-wrap:wrap;gap:8px}.finance-category-workspace>.page-title .toolbar-row>.button{width:auto;flex:1 1 auto}.finance-category-filter-fields{grid-template-columns:minmax(0,1fr)}}
+
+/* The working floor is available only after an authoritative open-shift read. */
+.staff-theme:not([data-floor-shift="open"]) :is(.floor-workspace,.workspace>.order,#catalog,#payment-modal){display:none!important}
+.staff-theme:not([data-floor-shift="open"]):not(.staff-orders-view) :is(.queue,#pos-workspace-toolbar){display:none!important}
+.staff-floor-shift-gate{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:300px;padding:32px 20px;margin:20px 0;border:1px solid var(--ui-border-control,#343c47);border-radius:18px;background:var(--ui-surface,#1b2026);text-align:center}
+.staff-floor-shift-gate h2,.staff-floor-shift-gate p{margin:0;max-width:520px}
+.staff-floor-shift-gate p{color:var(--ui-text-secondary,#aeb8c5);line-height:1.5}
+.staff-floor-shift-gate button{min-height:44px;padding:12px 24px}
+.staff-floor-shift-gate[hidden],.staff-orders-view .staff-floor-shift-gate{display:none!important}
+@media(max-width:650px){.staff-floor-shift-gate{min-height:240px;padding:24px 16px}.staff-floor-shift-gate button{width:100%}}
