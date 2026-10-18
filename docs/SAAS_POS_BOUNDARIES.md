@@ -15,6 +15,8 @@
 
 ## Hookah POS
 
+Для согласованного обновления общей CSS допускается узкое исключение: только `platform.html`, `dist/platform.html`, `dist/platform/index.html` могут сопровождать POS-пакет, если отличаются исключительно числовой ревизией `/style.css?rev=…`. Сравнение нормализует только CRLF/LF как Git-текст; разметка, другие URL и пробелы должны совпадать. Паритет трёх копий проверяет `platform-saas-contract.mjs`. Сам `scripts/saas-pos-boundary-contract.mjs` относится к shared governance; остальные SaaS scripts сохраняют владельца. Исключение не разрешает смешивать функциональные изменения SaaS и POS.
+
 К POS-only страницам, защищённым от смешивания в одном diff с SaaS UI, относятся `/`, `/orders`, `/clients`, `/reservations`, `/delivery`, `/inventory`, `/finance`, `/finance/categories`, `/finance/report` и `/integrations`, включая их опубликованные HTML-копии. Их канонические маршруты зафиксированы в `SITE_TREE.md` и `site-map.json`.
 
 Рабочий зал, заказы, склад, меню, смены и сотрудники остаются POS-областями. Этот пакет не меняет их интерфейс или бизнес-логику.

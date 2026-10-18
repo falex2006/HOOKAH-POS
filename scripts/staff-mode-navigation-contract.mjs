@@ -47,8 +47,12 @@ for (const permission of ['floor', 'orders', 'inventory_read', 'finance_read', '
 }
 assert.equal(hasStaffPermission('inventory', managerPermissions), false, 'read-only manager must not get inventory write access');
 assert.equal(hasStaffPermission('staff_manage', managerPermissions), false, 'manager must not get personnel-management access');
-assert.match(app, /canOpenAdmin=\['owner','admin','manager','developer'\]/,
-  'the manager must be able to open the management panel granted by the server role profile');
+const adminHelper=app.match(/const canOpenStaffAdmin=[^;]+;/);
+assert.ok(adminHelper);
+const canOpenStaffAdmin=vm.runInNewContext(`${adminHelper[0]};canOpenStaffAdmin`);
+assert.equal(canOpenStaffAdmin(managerPermissions),true,'manager authoritative grants allow management panel');
+assert.equal(canOpenStaffAdmin(new Set()),false,'role name cannot restore absent grants');
+assert.equal(canOpenStaffAdmin(new Set(['staff_view'])),true,'custom personnel read grant allows panel');
 assert.match(app, /link\.className='staff-admin-nav-link'/,
   'the authorized management return remains in the sidebar navigation');
 assert.doesNotMatch(app, /staff-admin-switch/,

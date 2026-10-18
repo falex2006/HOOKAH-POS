@@ -1,0 +1,182 @@
+{
+  "stage": "UI-09.3",
+  "status": "DEPLOYED_SCOPED_WITH_DOCUMENTED_DEBT",
+  "recordedAt": "2026-10-11T05:04:33.416Z",
+  "deploymentReady": true,
+  "deployed": true,
+  "commit": "ace7b365d77dfc89ce0a3303ba2d6c152c9e6115",
+  "tree": "d3d34f2433108ff1ed99a63ca2d6d7834b044a9e",
+  "github": {
+    "repository": "falex2006/HOOKAH-POS",
+    "branch": "main",
+    "pullRequests": [
+      20,
+      21,
+      22
+    ],
+    "ci": [
+      {
+        "id": 38112993402,
+        "name": "CRM contracts",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "ace7b365d77dfc89ce0a3303ba2d6c152c9e6115",
+        "url": "https://github.com/falex2006/HOOKAH-POS/actions/runs/38112993402"
+      },
+      {
+        "id": 38112993438,
+        "name": "AI team contracts",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "ace7b365d77dfc89ce0a3303ba2d6c152c9e6115",
+        "url": "https://github.com/falex2006/HOOKAH-POS/actions/runs/38112993438"
+      }
+    ]
+  },
+  "archive": {
+    "path": "tmp/ui093/UI-09.3-ace7b365d77dfc89ce0a3303ba2d6c152c9e6115.tar.gz",
+    "bytes": 31921480,
+    "files": 1011,
+    "sha256": "572c5f9b4a682d72cd908339bde03af866467440b0d26cbce775020af7e21b80",
+    "exactGitBlobs": true
+  },
+  "local": {
+    "image": "hookah-pos:ui093-ace7b365",
+    "apiActors": 13,
+    "apiChecks": 454,
+    "apiFailures": 0,
+    "pinPreferenceFinancialChecks": 128,
+    "pinEvidenceLinkage": "unchanged backend Git blobs and exact runtime server hash; whole final tree differs",
+    "pinVmChecks": 54,
+    "lockCsvVmChecks": 38
+  },
+  "production": {
+    "url": "https://212.192.0.58",
+    "checkout": "/root/hookah-pos-ui093-release",
+    "fingerprint": "52e0669d9593d747ae62d05c4812bd9971164ca00330b85f2a7c11653cc80cc4",
+    "containers": [
+      {
+        "name": "hookah-pos-crm-1",
+        "id": "309f84f13c51584586c8682430d7fbaeba5e5a537dd3a0758701e49dd5d81cfc",
+        "image": "sha256:256fa072bff9f6a943597adeb7186af913aa8f17c905e49c722579f1c8c9e563",
+        "status": "running",
+        "health": "healthy",
+        "startedAt": "2026-10-11T04:57:52.475014644Z",
+        "releaseLabel": "52e0669d9593d747ae62d05c4812bd9971164ca00330b85f2a7c11653cc80cc4",
+        "project": "hookah-pos",
+        "workingDir": "/root/hookah-pos-ui093-release",
+        "mounts": []
+      },
+      {
+        "name": "hookah-pos-db-1",
+        "id": "ca752479caf46deb02bdda05aa90baa7b0256671c87ed7093ed5264394672e4a",
+        "image": "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+        "status": "running",
+        "health": "healthy",
+        "startedAt": "2026-10-07T11:43:32.303053704Z",
+        "releaseLabel": null,
+        "project": "hookah-pos",
+        "workingDir": "/root/hookah-pos-release-1ae58fd0",
+        "mounts": [
+          {
+            "Type": "bind",
+            "Name": null,
+            "Source": "/root/hookah-pos-release-1ae58fd0/schema.sql",
+            "Destination": "/docker-entrypoint-initdb.d/001-schema.sql",
+            "RW": false
+          },
+          {
+            "Type": "bind",
+            "Name": null,
+            "Source": "/root/hookah-pos-release-1ae58fd0/seed.sql",
+            "Destination": "/docker-entrypoint-initdb.d/002-seed.sql",
+            "RW": false
+          },
+          {
+            "Type": "volume",
+            "Name": "territory-crm_pgdata",
+            "Source": "/var/lib/docker/volumes/territory-crm_pgdata/_data",
+            "Destination": "/var/lib/postgresql/data",
+            "RW": true
+          }
+        ]
+      },
+      {
+        "name": "hookah-pos-nginx-1",
+        "id": "444626abc64a7ced7264318af466d159be394b653dd5caaebdaf98eb764b5f31",
+        "image": "sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+        "status": "running",
+        "health": null,
+        "startedAt": "2026-10-11T04:57:55.546912295Z",
+        "releaseLabel": null,
+        "project": "hookah-pos",
+        "workingDir": "/root/hookah-pos-ui093-release",
+        "mounts": [
+          {
+            "Type": "bind",
+            "Name": null,
+            "Source": "/root/hookah-pos-ui093-release/nginx/default.conf",
+            "Destination": "/etc/nginx/conf.d/default.conf",
+            "RW": false
+          },
+          {
+            "Type": "bind",
+            "Name": null,
+            "Source": "/etc/letsencrypt",
+            "Destination": "/etc/letsencrypt",
+            "RW": false
+          },
+          {
+            "Type": "bind",
+            "Name": null,
+            "Source": "/root/hookah-pos-ui093-release/acme-webroot",
+            "Destination": "/var/www/certbot",
+            "RW": false
+          }
+        ]
+      }
+    ],
+    "backup": {
+      "path": "/var/backups/territory-crm/hookah-pos/crm-pre-52e0669d9593d747ae62d05c4812bd9971164ca00330b85f2a7c11653cc80cc4.sql.gz",
+      "bytes": 2707122,
+      "mode": "0o600",
+      "sha256": "c8bcc7ecd443435fcd51c38db98cd914418f759e0028c46aa53080b5bb4aa444",
+      "gzipIntegrity": true,
+      "restoreDatabase": "ui093_restore_20261011_ace7b365_f84d197a",
+      "restoreDatabaseRemoved": true
+    },
+    "backupChecksumSidecarVerified": true,
+    "restoreRehearsalPass": true,
+    "publicAssetsExact": 24,
+    "httpsVerified": true,
+    "anonymousSession": 401,
+    "platformOwnerApiLoginSessionLogoutPass": true,
+    "ownerEdgeGuiVerified": true,
+    "ownerUserLoggedIn": true,
+    "userSessionPreserved": true,
+    "businessSmokeWrites": 0
+  },
+  "exclusions": {
+    "fold": "excluded by user",
+    "additionalMobileAndViewportChecks": "skipped at user request"
+  },
+  "limitations": [
+    "Full role/theme/state visual matrix, WCAG and OS motion not certified",
+    "Production admin/bartender real-account login not checked; isolated role/API evidence retained",
+    "UI012 native validation popup images remain the two user-approved limitations",
+    "Earlier scoped stage debt retained in original reports"
+  ],
+  "evidenceSha256": {
+    "health-final.md": "712586b6a4e719fb28d3ea2bf4016e691cdaa59ee37b8ee0db1731ebe24cc3e3",
+    "platform-health.md": "5ce0ecabfc217ae0327d92797aa5d0556426480dac04ef3076c2d940d2c4130b",
+    "lock-label-health.md": "3f12b1c80c24014690e9dde36645bccbf66297e7f3816920243a4ad9119d7940",
+    "final-release-runtime.md": "c4ca8c121fac170b6aa0e8cb05e690715bc5d5ee9ee8d0a22bddd19507b2103e",
+    "final-release-runtime.json": "153d2953b2049ca26e426b129314556768e040952a153a18d072a50ce421c3f5",
+    "production-release-verification.md": "7e1e324294bd16e4933c379754e28568dcec1a2b47756738de9b0436232de97a",
+    "production-release-verification.json": "8e49d7c183b87c5d12e21db6ce98592c8be63a59521bfd9891424934d978c89c",
+    "production-smoke.json": "f01a6f8adbb366739128d9af21e3f01ee0c23e1058259990cb42c2829f3f3656",
+    "final-ci.json": "0700f693dcc65f427a99c32357e888986984b295f2142bb2457b4cc0b7c83196",
+    "deploy-final.log": "ce32783d92b96cbaecf990b81b9dd31227c3e2e8700eb50c7e094aaa9a47bacf",
+    "backup-checksum.log": "6bf502745290eba5fe3a16a55eefec0328ad21e0138070ad87596095fc0fed1e"
+  }
+}

@@ -14,7 +14,8 @@ const { redactAuditData, sanitizeAuditEvent } = require('../audit-privacy.js');
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 const target = validateQaDatabaseUrl(databaseUrl, 'audit privacy regression database');
 assert.equal(Number(target.url.port), 31931, 'Audit fixtures only use the dedicated disposable regression PostgreSQL port');
-assert.ok(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'Explicit disposable container identity is required');
+assert.match(target.database, /^audit_qa_[a-f0-9]{16}$/i, 'Audit privacy QA requires the runner-created fresh disposable database');
+assert.equal(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'hookah-full-regression-qa-20261001', 'Audit privacy QA must run through the guarded disposable PostgreSQL runner');
 const pool = new Pool({ connectionString: databaseUrl, max: 2 });
 const marker = `private-${randomUUID()}`;
 const password = `qa-${randomUUID()}`;
@@ -62,7 +63,8 @@ assert.deepEqual(safeGuestEvent.afterData, { amount: 55, sourceKey: 'loyalty-adj
 
 let child;
 let base;
-let fixturesTouched = false;
+let functionalFailure = null;
+let shutdownFailures = [];
 async function startServer(dbUrl = databaseUrl, authRequired = true) {
   const listener = net.createServer(); listener.listen(0,'127.0.0.1'); await once(listener,'listening'); const port = listener.address().port; await new Promise(resolve => listener.close(resolve));
   base = `http://127.0.0.1:${port}`;
@@ -74,7 +76,7 @@ async function startServer(dbUrl = databaseUrl, authRequired = true) {
   }
   throw new Error('Isolated audit QA server startup timed out');
 }
-async function stopServer() { if(child && child.exitCode===null){const exited=once(child,'exit');child.kill('SIGTERM');await exited;}child=null; }
+async function stopServer() { if(child && child.exitCode===null && child.signalCode===null){const exited=once(child,'exit');child.kill('SIGTERM');await exited;}child=null; }
 async function request(endpoint, token, method='GET', input, expected=200) {
   const response = await fetch(base+endpoint,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:input===undefined?undefined:JSON.stringify(input)});
   assert.equal(response.status,expected,`${method} ${endpoint} returns expected status`);return response.json();
@@ -84,7 +86,6 @@ async function login(loginName) { return (await request('/api/login',null,'POST'
 try {
   const identity=(await pool.query('SELECT current_database() AS database,inet_server_addr()::text AS address,inet_server_port() AS port,COALESCE((SELECT rolsuper FROM pg_roles WHERE rolname=current_user),false) AS superuser')).rows[0];
   assertQaDatabaseIdentity(identity,target.database,31931,'audit privacy PostgreSQL');
-  fixturesTouched = true;
   for(let index=0;index<2;index++){
     await pool.query("INSERT INTO organizations(id,name,slug,plan) VALUES($1,'Audit privacy QA',$2,'enterprise')",[orgs[index],`audit-privacy-${suffix}-${index}`]);
     await pool.query("INSERT INTO organization_subscriptions(organization_id,plan,status,seats_limit,venues_limit) VALUES($1,'enterprise','active',100,10)",[orgs[index]]);
@@ -156,18 +157,14 @@ try {
   assert.equal(foreignGuestAfter.items.find(item=>item.id===foreignGuest.id).name,'QA isolated guest 1','cross-venue profile/archive attempts leave guest data unchanged');
   for(const owner of memoryOwners){const audit=await request('/api/audit?action=client.created',owner.token);assert.equal(audit.items.length,1,'memory audit excludes events of the other venue');assert.equal(audit.items[0].entityId,owner.guest.id);guestPiiAbsent(audit,'memory guest audit read');await request('/api/logout',owner.token,'POST',{});}
   console.log('AUDIT PRIVACY POSTGRES QA: PASS (encrypted profile, recursive write/read redaction, historical data, owner/manager/developer RBAC, PostgreSQL and memory tenant isolation, unavailable database503)');
+}catch(error){
+  functionalFailure=error;
 }finally{
-  await stopServer();
-  try{
-    if (fixturesTouched) {
-    await pool.query('BEGIN');
-    await pool.query('DELETE FROM notification_reads WHERE venue_id=ANY($1::uuid[])',[venues]);
-    await pool.query('DELETE FROM audit_events WHERE venue_id=ANY($1::uuid[])',[venues]);
-    await pool.query('DELETE FROM auth_sessions WHERE user_id=ANY($1::uuid[])',[users.map(user=>user.id)]);
-    await pool.query('DELETE FROM users WHERE id=ANY($1::uuid[])',[users.map(user=>user.id)]);
-    await pool.query('DELETE FROM venues WHERE id=ANY($1::uuid[])',[venues]);
-    await pool.query('DELETE FROM organizations WHERE id=ANY($1::uuid[])',[orgs]);
-    await pool.query('COMMIT');
-    }
-  }catch{await pool.query('ROLLBACK').catch(()=>{});throw new Error('Owned audit QA fixture cleanup failed');}finally{await pool.end();}
+  shutdownFailures=[];
+  try{await stopServer();}catch(error){shutdownFailures.push(error);}
+  try{await pool.end();}catch(error){shutdownFailures.push(error);}
+  console.log('FIXTURE CLEANUP DEFERRED: guarded runner will drop its owned disposable database after this child exits');
 }
+if(functionalFailure&&shutdownFailures.length)throw new AggregateError([functionalFailure,...shutdownFailures],'Functional QA and process cleanup both failed');
+if(functionalFailure)throw functionalFailure;
+if(shutdownFailures.length)throw new AggregateError(shutdownFailures,'QA process cleanup failed');

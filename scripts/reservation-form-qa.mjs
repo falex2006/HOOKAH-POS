@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import {createReservationFixture, validDraft, settle, shared} from './ui042-reservation-fixture.mjs';
 
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const distPortal = readFileSync(new URL('../dist/portal.js', import.meta.url), 'utf8');
@@ -16,11 +17,11 @@ const sourceAppRevision = index.match(/app\.js\?rev=(\d+)/)?.[1];
 const distAppRevision = distIndex.match(/app\.js\?rev=(\d+)/)?.[1];
 assert.equal(distAppRevision, sourceAppRevision, 'source and dist load the same POS app revision');
 assert.equal(distApp, app, 'published POS app includes the reservation allocation handler');
-assert.equal(distPortal, portal, 'published guest portal includes current loyalty and privacy rules');
+assert.ok(distPortal === portal, 'published guest portal includes current loyalty and privacy rules (source/dist byte parity)');
 assert.match(app, /method==='reservation'/, 'payment UI can post the reservation tender');
 assert.match(app, /reservationPrepaymentReceipts/, 'payment UI renders available booking receipts');
-assert.match(portal, /Требуемый депозит<input id="reservation-deposit"/, 'reservation form identifies the venue requirement, not a collected payment');
-assert.match(portal, /полученные деньги учитываются отдельно/, 'reservation form explains payment is recorded separately');
+assert.match(portal, /Требуемый депозит, ₽<input id="reservation-deposit"/, 'reservation form identifies the venue requirement, not a collected payment');
+assert.match(portal, /Предоплата учитывается отдельно/, 'reservation form explains payment is recorded separately');
 assert.match(portal, /status: 'confirmed', tableName: input\.tableId, deposit: 0, depositRequired: deposit, depositPaid: 0/, 'demo reservation preserves the required amount without faking collection');
 const historyReservation = portal.slice(portal.indexOf('const reservations = (data.reservations || []).map'), portal.indexOf('const accountEntries =', portal.indexOf('const reservations = (data.reservations || []).map')));
 assert.match(portal.slice(portal.indexOf('const reservationHistoryPaymentLabel'), portal.indexOf('\n};', portal.indexOf('const reservationHistoryPaymentLabel'))), /reservation\.depositRequired \?\? reservation\.deposit/, 'guest history keeps reading legacy reservation requirement amounts');
@@ -36,10 +37,10 @@ const refundedHistoryLabel = renderHistoryPayment({ depositRequired: 300, verifi
 assert.match(refundedHistoryLabel, /предоплата возвращена полностью \(300 ₽\)/);
 assert.doesNotMatch(refundedHistoryLabel, /получение не подтверждено/);
 assert.match(historyPaymentHelper, /refund/);
-assert.match(portal, /canAdjustGuestLoyalty = portalPermissions\.has\('finance'\) \|\| portalPermissions\.has\('loyalty'\) \|\| portalPermissions\.has\('staff_manage'\)/, 'loyalty UI visibility uses scoped permissions rather than role labels');
-assert.match(portal, /if \(!portalPermissions\.has\('finance'\) && !portalPermissions\.has\('loyalty'\) && !portalPermissions\.has\('staff_manage'\)\) throw new Error\('forbidden'\)/, 'demo guest-ledger endpoint matches the API permission boundary');
+assert.match(portal, /canAdjustGuestLoyalty = hasPortalPermission\('finance'\) \|\| hasPortalPermission\('loyalty'\) \|\| hasPortalPermission\('staff_manage'\)/, 'loyalty UI visibility uses scoped permissions rather than role labels');
+assert.match(portal, /if \(!hasPortalPermission\('finance'\) && !hasPortalPermission\('loyalty'\) && !hasPortalPermission\('staff_manage'\)\) throw new Error\('forbidden'\)/, 'demo guest-ledger endpoint matches the API permission boundary');
 assert.match(portal, /reservationPaymentsVisible: canReadReservationPayments/, 'demo guest history explicitly reports restricted payment fields');
-assert.match(portal, /if \(path === '\/api\/clients' && method === 'GET'\).*canReadGuestBalances = portalPermissions/, 'demo guest list applies the same balance visibility policy as the API');
+assert.match(portal, /if \(path === '\/api\/clients' && method === 'GET'\).*canReadGuestBalances = hasPortalPermission/, 'demo guest list applies the same balance visibility policy as the API');
 assert.match(portal, /const clientProfile = path\.match\(.*?protectedFields = \['discountGroupId','loyaltyPoints','bonusBalance','depositBalance'\].*?guest_balances_require_ledger/, 'demo guest profile update cannot overwrite protected loyalty balances');
 assert.match(portal, /const prepaymentReceipts = \(item\.prepaymentReceipts \|\| \[\]\).*refundedAmount = \(item\.prepaymentRefunds \|\| \[\]\)/, 'demo history derives receipt refund summaries for the common UI label');
 const reservationListStart = portal.indexOf('const draw = (query = \'\') =>', portal.indexOf("function renderReservations"));
@@ -65,15 +66,15 @@ assert.match(memoryPrepaymentRoute, /reservations\.filter\(\(entry\) => entry\.v
 assert.match(memoryPrepaymentRoute, /prior\.reservationId !== reservation\.id/, 'memory rejects a reused idempotency key on another booking');
 const capture = portal.slice(portal.indexOf("document.addEventListener('submit'"), portal.indexOf('\n', portal.indexOf("document.addEventListener('submit'")));
 assert.match(capture, /'reservation-form'/, 'reservation form must own its pending state');
-const submitStart = portal.indexOf("document.querySelector('#reservation-form').addEventListener('submit'");
-const submitEnd = portal.indexOf("  api('/api/clients').then((data) => {", submitStart);
-assert.ok(submitStart >= 0 && submitEnd > submitStart);
-const submit = portal.slice(submitStart, submitEnd);
-assert.match(submit, /if \(form\.dataset\.submitting === '1'\) return/, 'pending request blocks duplicate submit');
-assert.match(submit, /submit\.disabled = true; submit\.textContent = 'Подтверждение…'/, 'pending state is visible');
-assert.match(submit, /const controls = \[\.\.\.form\.querySelectorAll\('input, select, textarea'\)\]/, 'pending request locks draft fields');
-assert.match(submit, /\.finally\(\(\) => \{ controls\.forEach\(\(\{ control, disabled \}\) => \{ control\.disabled = disabled; control\._customSelectRefresh\?\.\(\); \}\); form\.dataset\.submitting = '0'; if \(submit\) \{ submit\.disabled = false; submit\.textContent = 'Подтвердить бронь'; \} if \(reservationSaved\) loadTables\(\); \}\)/, 'request completion restores original field states before reloading tables');
-
+const submitStart=portal.indexOf('  async function saveReservation()');
+const submitEnd=portal.indexOf("  api('/api/clients').then((data) => {",submitStart);
+assert.ok(submitStart>=0&&submitEnd>submitStart);
+const submit=portal.slice(submitStart,submitEnd);
+assert.match(shared,/if\(pending\|\|closed\|\|suspended\)return/, 'shared guards repeat submit');
+assert.match(shared,/disabled.set\(node,node.disabled\)/,'shared retains preexisting disabled state');
+assert.match(shared,/node.disabled=disabled.get\(node\)\|\|false/,'shared restores previous control states');
+assert.match(portal,/onPending: \(pending\) =>/,'domain owns submitting mode callback');
+assert.match(portal,/reservationForm.dataset.submitting = pending \? '1' : '0'/);
 const start = portal.indexOf("  api('/api/clients').then((data) => {", submitEnd);
 const endMarker = '  }).catch(() => {}); loadTables(); load();';
 const end = portal.indexOf(endMarker, start) + endMarker.length;
@@ -124,31 +125,27 @@ guest.value = 'Другой разовый'; onInput();
 assert.equal(clientId.value, '');
 assert.equal(phone.value, '+79998887766', 'manual phone edit must survive guest name edit');
 
-const values = new Map();
-for (const id of ['reservation-guest', 'reservation-client-id', 'reservation-phone', 'reservation-date', 'reservation-time', 'reservation-table', 'reservation-guests', 'reservation-deposit', 'reservation-notes']) values.set(`#${id}`, { value: '', disabled: id === 'reservation-table' });
-values.set('#reservation-message', { textContent: '', className: '' });
-const submitButton = { disabled: false, textContent: 'Подтвердить бронь' };
-const form = { dataset: {}, querySelector: () => submitButton, querySelectorAll: () => [...values.values()].filter((item) => 'value' in item) };
-let onSubmit;
-vm.runInNewContext(submit, {
-  document: { querySelector: (selector) => selector === '#reservation-form' ? { addEventListener: (_event, callback) => { onSubmit = callback; } } : values.get(selector) },
-  api: () => Promise.reject({ payload: { error: 'invalid_guest_phone' } }),
-  portalUser: { name: 'QA' },
-  portalRole: ['owner'],
-  money: (amount) => String(amount),
-  localDateKey: () => '2026-09-29',
-  loadTables: () => {},
-  load: () => {},
-});
-onSubmit({ preventDefault() {}, target: form });
-assert.equal(submitButton.disabled, true);
-assert.equal(submitButton.textContent, 'Подтверждение…');
-assert.equal(values.get('#reservation-guest').disabled, true);
-await new Promise((resolve) => setImmediate(resolve));
-assert.equal(values.get('#reservation-message').textContent, 'Проверьте телефон гостя');
-assert.equal(submitButton.disabled, false, 'API error must unlock without timer');
-assert.equal(submitButton.textContent, 'Подтвердить бронь');
-assert.equal(values.get('#reservation-guest').disabled, false, 'editable field must unlock after error');
-assert.equal(values.get('#reservation-table').disabled, true, 'initially disabled table must stay disabled');
-
-console.log('RESERVATION FORM QA: PASS (pending ownership, guest identity, autofill cleanup)');
+const f=createReservationFixture(),get=f.get,ctx=f.context;
+validDraft(f);get('table').disabled=true;ctx.showStep(2);await ctx.openWizard(f.document.querySelector('#focus-reservation'));
+const initial=get('guest').value;
+const dispatched=get('form').dispatch('submit');
+assert.equal(ctx.getWindow().pending,false,'disabled table cannot submit');
+assert.equal(get('form').querySelectorAll('[data-reservation-step]')[1].hidden,false,'unavailable table reveals visit step');
+get('table').disabled=false;get('next').click();get('form').dispatch('submit');
+assert.equal(ctx.getWindow().pending,true);assert.equal(get('form').dataset.submitting,'1');
+assert.equal(get('form').querySelector('[type="submit"]').textContent,'Подтверждение…');
+assert.equal(get('guest').disabled,true);
+assert.equal(ctx.getWindow().close(),false,'pending cannot close');
+f.document.dispatch('keydown',{key:'Escape'});assert.ok(ctx.getWindow());
+const requestCount=f.requests.length;get('form').dispatch('submit');assert.equal(f.requests.length,requestCount);
+f.pending.at(-1).reject({payload:{error:'invalid_guest_phone'}});await settle();
+assert.equal(ctx.getWindow().element.querySelector('.ui-modal-message').textContent,'Проверьте телефон гостя');
+assert.equal(ctx.getWindow().element.querySelector('.ui-modal-message').getAttribute('role'),'alert');
+assert.equal(get('form').querySelector('[type="submit"]').textContent,'Подтвердить бронь');
+assert.equal(get('guest').disabled,false);assert.equal(get('guest').value,initial);
+get('phone').disabled=true;get('form').dispatch('submit');assert.equal(ctx.getWindow().pending,true);
+f.pending.at(-1).reject(new Error('write_failed'));await settle();
+assert.equal(get('phone').disabled,true,'initially disabled field stays disabled');
+assert.equal(get('guest').disabled,false,'editable field restores after error');
+ctx.getWindow().close();
+console.log('RESERVATION FORM QA: PASS (actual shared pending ownership/retry/errors/disabled restoration, guest identity/autofill cleanup)');

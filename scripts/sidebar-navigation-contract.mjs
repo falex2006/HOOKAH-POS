@@ -2,16 +2,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-assert.ok(portal.includes('const normalizeManagementSidebar = ({ routeChange = false } = {}) => {'));
+assert.ok(portal.includes('const normalizeManagementSidebar = () => {'));
 assert.match(portal, /disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'menu', 'inventory', 'finance', 'team', 'system'\]/);
 assert.match(portal, /const rememberGroupState = \(details, key\) => \{/);
-// Navigation now restores a single preferred group. Restoring every saved group
-// was deliberately removed because it reopened multiple sections after reload.
-assert.match(portal, /const savedOpenGroup = normalizedGroups\.find\(\(group\) => savedGroupState\(group\.dataset\.navGroup\) === true\);/);
-assert.ok(portal.includes('const preferCurrentRoute = routeChange || !initialDocumentReload;'));
-assert.ok(portal.includes('const preferredGroup = preferCurrentRoute ? normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) : (hasSavedDisclosureState ? savedOpenGroup'));
-assert.match(portal, /normalizedGroups\.forEach\(\(group\) => \{ group\.open = group === preferredGroup; \}\)/);
-assert.match(portal, /homeLink\.addEventListener\('click', \(\) => \{\s*normalizedGroups\.forEach\(\(group\) => \{\s*group\.open = false;/);
+assert.ok(portal.includes('reload && saved?.route === lastRoute'));
+assert.ok(portal.includes('group.dataset.navGroup === openGroup'));
+assert.match(portal, /homeLink\.addEventListener\('click', \(event\) => sidebar\._navigationController\?\.home\(event\)\)/);
+assert.ok(portal.includes('event.metaKey || event.ctrlKey || event.shiftKey || event.altKey'));
+assert.ok(portal.includes("window.addEventListener('hashchange', syncRoute)"));
+assert.ok(portal.includes("window.addEventListener('popstate', syncRoute)"));
 assert.doesNotMatch(portal, /activeGroup\.open = true/);
 assert.match(portal, /href: '\/admin#permissions'/);
 assert.match(portal, /href: '\/admin#diagnostics'/);

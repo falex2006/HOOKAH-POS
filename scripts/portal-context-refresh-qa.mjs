@@ -11,7 +11,7 @@ const pending=[];
 const shiftStart=source.indexOf('const portalShiftListeners = new Set();');
 const shiftEnd=source.indexOf('let portalContextGeneration =',shiftStart);
 assert.ok(shiftStart>=0&&shiftEnd>shiftStart,'shared shift publisher and coalesced reader are exercised with the context');
-const refresh=new Function('document','api','esc','money','formatActiveStaffCount','updateDashboardGreeting','portalPermissions',`let venueTimezone='old';${source.slice(shiftStart,shiftEnd)}${source.slice(start,end)}return refreshPortalContext;`)(document,url=>new Promise((resolve,reject)=>pending.push({url,resolve,reject})),String,String,String,()=>{},new Set(['floor']));
+const refresh=new Function('document','api','esc','money','formatActiveStaffCount','updateDashboardGreeting','portalPermissions',`const hasPortalPermission=key=>portalPermissions.has(key);let venueTimezone='old';${source.slice(shiftStart,shiftEnd)}${source.slice(start,end)}return refreshPortalContext;`)(document,url=>new Promise((resolve,reject)=>pending.push({url,resolve,reject})),String,String,String,()=>{},new Set(['floor']));
 const old=refresh();const newer=refresh();
 assert.equal(node('#vip-minimum-summary').textContent,'Проверяем минимумы…');
 assert.equal(node('.portal-header .header-shift-status').dataset.shiftState,'loading');

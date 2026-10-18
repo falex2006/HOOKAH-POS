@@ -1,0 +1,478 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-11",
+  "status": "active",
+  "plan": "FLEXIBLE_LOYALTY_PLAN_2026-10-11.md",
+  "startPrompt": "FLEXIBLE_LOYALTY_START_PROMPT.md",
+  "implementationAuthorized": true,
+  "scope": "local_only_after_explicit_start",
+  "summary": {
+    "completedSubsteps": 14,
+    "totalSubsteps": 47,
+    "percentByCount": 29.8,
+    "currentStage": "FL04",
+    "nextSubstep": "FL04.4",
+    "automationStatus": "computed_by_scripts/flexible-loyalty-progress.mjs"
+  },
+  "progressRule": "Compute accepted done substeps / all substeps. Mark done only with evidence. Next is first non-done substep in dependency order. IDs stable.",
+  "stages": [
+    {
+      "id": "FL01",
+      "title": "Исходное состояние",
+      "status": "done",
+      "substeps": [
+        {
+          "id": "FL01.1",
+          "title": "Актуальная база и ветки",
+          "status": "done",
+          "evidence": [
+            "docs/requirements/FLEXIBLE_LOYALTY_FL01_BASELINE.md"
+          ],
+          "completedAt": "2026-10-11T21:15:58.5550115+05:00"
+        },
+        {
+          "id": "FL01.2",
+          "title": "Карта существующих возможностей",
+          "status": "done",
+          "evidence": [
+            "docs/requirements/FLEXIBLE_LOYALTY_FL01_BASELINE.md"
+          ],
+          "completedAt": "2026-10-11T21:15:58.5563529+05:00"
+        },
+        {
+          "id": "FL01.3",
+          "title": "Зависимости финансов зарплаты и UI",
+          "status": "done",
+          "evidence": [
+            "docs/requirements/FLEXIBLE_LOYALTY_FL01_BASELINE.md"
+          ],
+          "completedAt": "2026-10-11T21:15:58.5563933+05:00"
+        }
+      ]
+    },
+    {
+      "id": "FL02",
+      "title": "Контракты",
+      "status": "done",
+      "substeps": [
+        {
+          "id": "FL02.1",
+          "title": "Сценарии и права",
+          "status": "done",
+          "evidence": [
+            "docs/architecture/FLEXIBLE_LOYALTY_CONTRACT.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_FINANCE_REVIEW.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_DATA_SECURITY_REVIEW.md"
+          ],
+          "completedAt": "2026-10-11T21:47:29.1326429+05:00"
+        },
+        {
+          "id": "FL02.2",
+          "title": "UI API и данные",
+          "status": "done",
+          "evidence": [
+            "docs/architecture/FLEXIBLE_LOYALTY_CONTRACT.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_FINANCE_REVIEW.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_DATA_SECURITY_REVIEW.md"
+          ],
+          "completedAt": "2026-10-11T21:47:29.1365015+05:00"
+        },
+        {
+          "id": "FL02.3",
+          "title": "Расчёт и совместимость",
+          "status": "done",
+          "evidence": [
+            "docs/architecture/FLEXIBLE_LOYALTY_CONTRACT.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_FINANCE_REVIEW.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_DATA_SECURITY_REVIEW.md"
+          ],
+          "completedAt": "2026-10-11T21:47:29.1366511+05:00"
+        },
+        {
+          "id": "FL02.4",
+          "title": "Миграции и совместимость",
+          "status": "done",
+          "evidence": [
+            "docs/architecture/FLEXIBLE_LOYALTY_CONTRACT.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_FINANCE_REVIEW.md",
+            "docs/architecture/FLEXIBLE_LOYALTY_DATA_SECURITY_REVIEW.md"
+          ],
+          "completedAt": "2026-10-11T21:47:29.1367232+05:00"
+        }
+      ]
+    },
+    {
+      "id": "FL03",
+      "title": "UX",
+      "status": "done",
+      "substeps": [
+        {
+          "id": "FL03.1",
+          "title": "Карта экранов",
+          "status": "done",
+          "evidence": [
+            "docs/design/flexible-loyalty/FL03_ACCEPTANCE.md",
+            "docs/design/flexible-loyalty/evidence/qa.json"
+          ],
+          "completedAt": "2026-10-11T21:51:39.1371265+05:00"
+        },
+        {
+          "id": "FL03.2",
+          "title": "Макеты desktop и mobile",
+          "status": "done",
+          "evidence": [
+            "docs/design/flexible-loyalty/FL03_ACCEPTANCE.md",
+            "docs/design/flexible-loyalty/evidence/qa.json"
+          ],
+          "completedAt": "2026-10-11T21:51:39.1385211+05:00"
+        },
+        {
+          "id": "FL03.3",
+          "title": "Состояния и тексты",
+          "status": "done",
+          "evidence": [
+            "docs/design/flexible-loyalty/FL03_ACCEPTANCE.md",
+            "docs/design/flexible-loyalty/evidence/qa.json"
+          ],
+          "completedAt": "2026-10-11T21:51:39.1385735+05:00"
+        },
+        {
+          "id": "FL03.4",
+          "title": "Сценарии владельца и кассира",
+          "status": "done",
+          "evidence": [
+            "docs/design/flexible-loyalty/FL03_ACCEPTANCE.md",
+            "docs/design/flexible-loyalty/evidence/qa.json"
+          ],
+          "completedAt": "2026-10-11T21:51:39.1385902+05:00"
+        }
+      ]
+    },
+    {
+      "id": "FL04",
+      "title": "Хранение",
+      "status": "in_progress",
+      "substeps": [
+        {
+          "id": "FL04.1",
+          "title": "Версии и членства",
+          "status": "done",
+          "evidence": [
+            "docs/qa/FLEXIBLE_LOYALTY_SCHEMA_QA.md",
+            "migrations/101_flexible_loyalty_programs.sql"
+          ],
+          "completedAt": "2026-10-11T21:53:01.5230516+05:00"
+        },
+        {
+          "id": "FL04.2",
+          "title": "События и награды",
+          "status": "done",
+          "evidence": [
+            "docs/qa/FLEXIBLE_LOYALTY_REWARDS_SCHEMA_QA.md",
+            "migrations/102_flexible_loyalty_events_rewards.sql"
+          ],
+          "completedAt": "2026-10-11T21:59:02.874111+05:00"
+        },
+        {
+          "id": "FL04.3",
+          "title": "Партии и обязательства",
+          "status": "done",
+          "evidence": [
+            "docs/qa/FLEXIBLE_LOYALTY_BONUS_LOTS_QA.md",
+            "docs/qa/FLEXIBLE_LOYALTY_PAID_STORAGE_QA.md",
+            "migrations/103_flexible_loyalty_bonus_lots.sql",
+            "migrations/104_flexible_loyalty_paid_entitlements.sql"
+          ],
+          "completedAt": "2026-10-11T22:18:22.9720758+05:00"
+        },
+        {
+          "id": "FL04.4",
+          "title": "Миграция legacy",
+          "status": "in_progress",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL05",
+      "title": "Движок",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL05.1",
+          "title": "Аудитории и время",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL05.2",
+          "title": "Типы выгод",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL05.3",
+          "title": "Совместимость и лимиты",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL05.4",
+          "title": "Симулятор и детерминизм",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL06",
+      "title": "Конструктор",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL06.1",
+          "title": "Список и шаблоны",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL06.2",
+          "title": "Блоки и редактор",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL06.3",
+          "title": "Версии и переключатели",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL06.4",
+          "title": "Предпросмотр",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL07",
+      "title": "Механики",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL07.1",
+          "title": "Даты уровни и пороги",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL07.2",
+          "title": "Серии цепочки и возвращение",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL07.3",
+          "title": "Приглашения и выбор наград",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL07.4",
+          "title": "Клуб компании и сеть",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL08",
+      "title": "POS и расчёты",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL08.1",
+          "title": "Карточка гостя и заказ",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL08.2",
+          "title": "Оплаты и резервы",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL08.3",
+          "title": "Возвраты и разделение",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL08.4",
+          "title": "Склад финансы и зарплата",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL09",
+      "title": "Уведомления",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL09.1",
+          "title": "Внутренние уведомления",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL09.2",
+          "title": "Outbox и повторы",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL09.3",
+          "title": "Согласия и каналы",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL09.4",
+          "title": "Статусы и тихие часы",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL10",
+      "title": "Управление",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL10.1",
+          "title": "Отчёты и сверка",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL10.2",
+          "title": "Аудит и история",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL10.3",
+          "title": "Производительность и лимиты",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL10.4",
+          "title": "Аварийная пауза",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL11",
+      "title": "Приёмка",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL11.1",
+          "title": "Unit API и PostgreSQL",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL11.2",
+          "title": "Роли изоляция и конкуренция",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL11.3",
+          "title": "E2E и визуальная проверка",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL11.4",
+          "title": "Миграции и регрессии",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "id": "FL12",
+      "title": "Единый локальный выпуск",
+      "status": "pending",
+      "substeps": [
+        {
+          "id": "FL12.1",
+          "title": "Manifest и source dist",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL12.2",
+          "title": "Миграция и запуск",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL12.3",
+          "title": "Локальный smoke",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        },
+        {
+          "id": "FL12.4",
+          "title": "Отчёт владельцу и передача",
+          "status": "pending",
+          "evidence": [],
+          "completedAt": null
+        }
+      ]
+    }
+  ]
+}

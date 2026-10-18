@@ -58,6 +58,7 @@ const management = {
   Promise, Boolean, String, Object, Error, AbortSignal,
   document,
   portalPermissions: new Set(['floor']),
+  hasPortalPermission: (permission) => management.portalPermissions.has(permission),
   window: { setInterval: (callback, delay) => { timers.push({ callback, delay }); }, addEventListener: (type, callback) => { windowEvents[type] = callback; } },
   api: async (url, options) => {
     assert.equal(url, '/api/shifts'); assert.equal(options, undefined, 'shift status read does not pass an invalid fetch signal');

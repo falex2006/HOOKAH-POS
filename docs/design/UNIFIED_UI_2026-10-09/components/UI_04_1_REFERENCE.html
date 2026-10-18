@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>UI-04.1 — эталон жизненного цикла окна</title>
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/auth-smoke.css">
+  <script defer src="/ui-dialog.js"></script><script defer src="/ui-dialog-reference.js"></script>
+  <style>
+    body.portal{display:block;margin:0;padding:24px;background:var(--ui-page);color:var(--ui-text-primary)}
+    #reference-main{max-width:1000px;margin:auto}#reference-main h1{font-size:24px;margin:0 0 16px}#reference-main p{line-height:1.5}
+    .reference-actions{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}#reference-report{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--ui-panel);border:1px solid var(--ui-border-control);padding:16px;font:13px ui-monospace,monospace;max-height:420px;overflow:auto}
+    .reference-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:20px 0}.reference-controls label{display:grid;gap:8px}
+    .screen-lock-card{max-height:calc(100dvh - 32px);overflow:auto}#reference-lock-end{width:100%;margin-top:12px}.screen-lock-brand img{max-width:100%;height:auto}
+    #reference-settings .reference-actions{position:relative}#reference-settings p{position:relative;line-height:1.5}
+  </style>
+</head>
+<body class="portal ui-components">
+  <main id="reference-main">
+    <h1 id="reference-heading" tabindex="-1">Общий контракт окна — локальный эталон</h1>
+    <p>UI-04.1. Использует действующий модуль HOOKAH_UI и токены. Здесь нет API, авторизации, сохранения PIN или browser storage. «Сохранить» выполняет явно обозначенный локальный callback. Темы переключаются только у этого эталона.</p>
+    <div class="reference-actions"><button class="ui-button" id="reference-dark">Тёмная тема</button><button class="ui-button" id="reference-light">Светлая тема</button></div>
+    <div class="reference-controls">
+      <label class="ui-label">Ответ локального callback<select class="ui-input" id="reference-result"><option value="success">Успех</option><option value="error">Ошибка</option></select></label>
+      <label class="ui-label">Задержка локального callback<select class="ui-input" id="reference-delay"><option value="0">Без задержки</option><option value="1500">1,5 секунды</option><option value="8000">8 секунд</option></select></label>
+    </div>
+    <div class="reference-actions">
+      <button class="ui-button ui-button--primary" id="reference-open-portal">Portal — сохранить черновик</button>
+      <button class="ui-button" id="reference-open-staff">Staff — адаптер полей</button>
+      <button class="ui-button" id="reference-open-small">Small — 440</button>
+      <button class="ui-button" id="reference-open-long">Large — 40 полей</button>
+      <button class="ui-button" id="reference-open-discard">Подтвердить удаление ввода</button>
+    </div>
+    <div class="reference-actions"><button class="ui-button" id="reference-feedback-success">Локальное сообщение успеха</button><button class="ui-button" id="reference-feedback-error">Локальное сообщение ошибки</button><button class="ui-button" id="reference-restore-openers">Восстановить инициаторы</button></div>
+    <h2 class="ui-heading ui-heading--section">Наблюдаемый результат</h2>
+    <pre id="reference-report" aria-live="polite"></pre>
+  </main>
+  <div class="screen-lock-overlay" id="reference-lock" aria-hidden="true">
+    <div class="auth-smoke-backdrop" aria-hidden="true"><span class="auth-smoke-texture"></span><span class="auth-smoke-light"></span><span class="auth-smoke-vignette"></span></div>
+    <section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
+      <div class="screen-lock-mark" aria-label="Аватар сотрудника"><span>ТЕ</span></div>
+      <picture class="auth-product-brand screen-lock-brand"><img src="/assets/brand/hookah-pos-lockup.svg?rev=2" width="200" height="64" alt="Hookah POS by AlphaSat"></picture>
+      <p class="screen-lock-eyebrow">ЛОКАЛЬНЫЙ ЭТАЛОН ПОВЕРХНОСТИ PIN</p><h2 id="screen-lock-title">Вернитесь к работе</h2>
+      <p class="screen-lock-user">Тестовый сотрудник</p><p class="screen-lock-hint">Статическая поверхность без проверки PIN. Никакой авторизации.</p>
+      <input class="screen-lock-pin" id="screen-lock-pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="••••" aria-label="PIN сотрудника">
+      <p class="screen-lock-message" role="alert">PIN не отправляется и не сохраняется.</p>
+      <button class="screen-lock-exit" id="reference-lock-settings" type="button">Открыть native настройки</button>
+      <button id="reference-lock-end" class="button" type="button">Завершить статический опыт</button>
+    </section>
+  </div>
+  <dialog id="reference-settings" class="lock-settings-dialog" aria-labelledby="reference-settings-title">
+    <div class="lock-settings-card"><h2 id="reference-settings-title">Настройки — локальный эталон</h2><p>Native dialog без установки PIN и API.</p><label>Тестовое поле<input id="reference-settings-input" class="ui-input" placeholder="Ничего не сохраняется"></label><div class="reference-actions"><button class="button" type="button" id="reference-settings-close">Закрыть настройки</button></div></div>
+  </dialog>
+</body>
+</html>

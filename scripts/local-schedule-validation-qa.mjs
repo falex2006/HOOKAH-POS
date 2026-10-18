@@ -33,10 +33,11 @@ async function execute(input, { allowed = true, employeeFound = true } = {}) {
   const context = {
     pathname: '/api/staff/schedule', req: { method: 'POST', user: { id: actorId } }, res: {}, venueDbId: venueId,
     isValidIsoDate, isValidIsoTimestamp,
+    recordAudit: () => {},
     body: async () => { bodyReads++; return input; },
     json: (_, status, data) => { response = { status, data }; },
     denyUnless: (_, res, permission) => {
-      assert.equal(permission, 'staff_manage', 'schedule creation remains staff_manage only');
+      assert.equal(permission, 'staff_schedule', 'schedule creation uses the dedicated schedule permission');
       if (allowed) return false;
       response = { status: 403, data: { error: 'forbidden', permission } }; return true;
     },
@@ -51,7 +52,7 @@ async function execute(input, { allowed = true, employeeFound = true } = {}) {
       assert.match(sql, /ON CONFLICT \(venue_id,user_id,work_date\) DO UPDATE/, 'one row per employee and working day');
       assert.deepEqual(Array.from(parameters).slice(0, 3), [venueId, employeeId, input.workDate]);
       assert.equal(parameters[6], actorId, 'author identity is preserved');
-      return { rows: [{ id: 'synthetic-schedule', planned_start: parameters[3], planned_end: parameters[4] }] };
+      return { rows: [{ id: 'synthetic-schedule', plannedStart: parameters[3], plannedEnd: parameters[4] }] };
     } } },
   };
   await vm.runInNewContext(`(async () => { ${handler} })()`, context, { timeout: 1000 });
@@ -95,8 +96,8 @@ for (const [plannedStart, plannedEnd] of [
   const result = await execute({ ...base, plannedStart, plannedEnd, note: 'Synthetic QA' });
   assert.equal(result.status, 201, 'valid timestamps or nullable plans must save');
   assert.equal(result.queries.length, 2, 'one employee lookup and one upsert');
-  assert.equal(result.data.planned_start, plannedStart || null);
-  assert.equal(result.data.planned_end, plannedEnd || null);
+  assert.equal(result.data.plannedStart, plannedStart || null);
+  assert.equal(result.data.plannedEnd, plannedEnd || null);
   checks++;
 }
 

@@ -5,7 +5,7 @@ const start=source.indexOf("  if (path === '/api/tobacco-catalog'");
 const end=source.indexOf("  if (path === '/api/session/preferences'",start);
 assert.ok(start>0&&end>start);
 const state={networkCurrentId:'A'},user={role:'owner'},permissions=new Set(['inventory']);let saved=0;
-const api=new Function('demoState','portalUser','portalPermissions','demoDefaultVenue','demoSave','window',`return async(url,method='GET',input={})=>{const path=new URL(url,window.location.origin).pathname;${source.slice(start,end)}throw Error('unknown_route');}`)(state,user,permissions,{id:'A'},()=>saved++,{location:{origin:'http://qa.local'}});
+const api=new Function('demoState','portalUser','portalPermissions','hasPortalPermission','demoDefaultVenue','demoSave','window',`return async(url,method='GET',input={})=>{const path=new URL(url,window.location.origin).pathname;${source.slice(start,end)}throw Error('unknown_route');}`)(state,user,permissions,(permission)=>permissions.has(permission),{id:'A'},()=>saved++,{location:{origin:'http://qa.local'}});
 assert.deepEqual((await api('/api/tobacco-catalog')).items,[]);
 const input={scope:'venue',brand:'QA',flavor:'Мята',aliases:['Mint'],packageGrams:100};
 const local=await api('/api/tobacco-catalog','POST',input);

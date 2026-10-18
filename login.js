@@ -218,7 +218,7 @@ const finishLogin = async (data) => {
     ['territory_crm_staff_orders', 'territory_crm_shift', 'territory_crm_discount_requests', 'territory_crm_demo_audits', 'territory_crm_seen_discount_notifications', 'territory_crm_seen_staff_pin_notifications'].forEach((key) => localStorage.removeItem(key));
   }
   localStorage.setItem('crm_session_token', data.token);
-  localStorage.setItem('crm_session_user', JSON.stringify(data.user));
+  localStorage.setItem('crm_session_user', JSON.stringify({ ...data.user, ...(Array.isArray(data.permissions) ? { workspacePermissions: [...data.permissions] } : {}), ...(data.permissionPolicy ? { permissionPolicy: data.permissionPolicy } : {}) }));
   setLoginState('idle');
   await showLoginTransition();
   window.location.replace(data.user.role === 'platform_owner' ? '/platform' : ['owner', 'admin', 'developer'].includes(data.user.role) ? '/admin' : '/' );

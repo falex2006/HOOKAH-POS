@@ -1,0 +1,38 @@
+# UI-01.2 R2 — targeted review browser instrumentation
+
+2026-10-09 · `code_health_engineer`. Проверен ignored `tmp/ui012-baseline/browser-evidence.cjs` чтением и `node --check` (exit 0); фактически исполняемая ESM копия `browser-evidence.mjs` также прочитана, алгоритмы совпадают с CJS helper. API, браузер, продуктовый код и данные этим ревью не менялись. **Verdict: helper пригоден для сбора предварительного evidence; `consistent=true` не является UI PASS. Приёмка требует независимой проверки условий ниже.** R2 processor проверен дополнительно в `UI_01_2_PROCESSOR_HEALTH_R2.md`.
+
+## Подтверждённые свойства
+
+- Helper использует предоставленный tab внутри поддерживаемого cua_repl. Нет самостоятельного browser driver, CDP, доступа к браузерным профилям, network fetch или обхода browser policy. `evaluate` собирает DOM/computed geometry; login выполняется разрешёнными locator actions.
+- Base зафиксирован на локальной UI012 среде 31952. Credentials читаются из private temp файла; helper не возвращает password/token в login result, не читает localStorage/cookies и не сохраняет credential object. В controls метрике нет `.value` input. Uncheck «Запомнить это устройство» ограничивает persistent login.
+- Capture получает metrics до и после комбинированного AX/screenshot, сравнивает URL, viewport, visibleText и JPEG dimensions. Записаны actual DPR, CSS zoom и честный unknown browser zoom. Это снижает риск изменения страницы между наблюдениями, но не доказывает совпадение состояния paint с DOM.
+- Visible filter учитывает размеры, вертикальное положение, hidden/aria-hidden/inert, display/visibility/opacity предков, closed details. Такая фильтрация точнее проверки одного DOM rectangle.
+- Существующие 248 R2 JSON проверены на точные значения сгенерированных runtime-паролей/ключей: совпадений 0. Значения не выводились. Эта проверка не является доказательством отсутствия всех возможных неизвестных секретов или приватного текста в изображениях.
+
+## Условия и риски для координатора
+
+| Приоритет | Наблюдение / воспроизведение | Минимальное действие владельца |
+|---|---|---|
+| P1, потенциальный | Snapshot и AX state сохраняются целиком без явного redaction. При неуспешном login пароль уже заполнен, а login timeout подавлен; последующий capture может сохранить input state. Фактической утечки в проверенных JSON не обнаружено. | Координатор: подтвердить успешный вход до batch; auth captures выполнять после очистки полей либо удалять чувствительные values из snapshot/AX перед сохранением. Не полагаться на неизвестное поведение маскирования provider. |
+| P2 | `go` использует наличие текста UI012/Логин как ready marker и подавляет wait failures. Общая shell может отрисоваться раньше data region. `pending` возвращается после записи и не входит в `consistent`. | Координатор/QA: отдельная готовность requested surface; фиксировать loading как loading, baseline принимать только при pending=false и видимом конечном регионе. Ошибка wait должна оставлять capture непринимаемым. |
+| P2 | Helper не сверяет actual URL/theme/size/role с requested metadata. Стабильная login redirect или прежний hash screen может иметь `consistent=true`; login возвращает requested role без чтения actual session context. | Координатор/R2 processor: сверить requested route с final route по разрешённым нормализациям, effective session role/tenant, actual theme и viewport dimensions. Denied verdict требует видимого сообщения/реального отказа, redirect сам по себе недостаточен. |
+| P2 | До/после сравнивается visibleText, но geometry/fonts/theme не участвуют в consistency. Поздний font/layout paint может оставить прежний текст. | QA: проверка settled кадра и DOM/raster alignment; `document.fonts`/geometry readiness использовать только через разрешённые DOM observations. Raster dimensions сами по себе не доказывают scale 1:1. |
+| P2 | Visible filter не проверяет горизонтальный viewport, clip/overflow ancestors, перекрытие overlay и opacity с записью кроме точного `0`; focus может быть скрытым. | QA/R2 processor: не считать каждый измеренный control реально видимым/доступным по одному фильтру. Сопоставлять с текущим screenshot; учитывать overlay, clipping и keyboard/focus сценарий. |
+| P2 | Key строится из metadata без whitelist/path containment, JPG/JSON пишутся последовательно и перезаписывают существующую пару. Direct capture с ошибочной строкой или повторным key может повредить evidence/provenance. | Координатор: передавать только доверенные role/surface/viewport/theme/state tokens; сохранять уникальные attempt/state keys и проверять обе части по SHA256. При расширении helper добавить containment и fail-closed validation; сейчас внешнего ввода в metadata нет. |
+
+Случай auth failure нельзя классифицировать как визуальный доступ или role deny. Наличие AX объекта не доказывает видимость скрытого PIN/dialog. Raw snapshot может содержать синтетические значения, поэтому сбор сохранять только в изолированном test tenant.
+
+Helper source данным reviewer не правился; предложения переданы координатору. Координатор уточнил: auth capture выполнялся только на пустом login до заполнения credentials; после заполнения capture не вызывался. Перед следующими входами login failure guard должен исключить такой capture. Продуктового diff нет. Продолжать сбор допустимо при сохранении непринятых статусов до фактической проверки route, theme, role, viewport и readiness. Отчёт не выдаёт полный UI PASS.
+
+## Повторный focused review: browser-evidence-v2.mjs
+
+Прочитана новая фактически используемая ESM версия; `node --check` exit 0. Исходный потенциальный P1 для заполненного password input закрыт для описанного потока: до metrics/AX/screenshot/save guard возвращает только boolean наличия непустого password поля и запрещает capture; login дополнительно бросает ошибку, если URL остался на `/login`. Роль/tenant этим URL guard ещё не доказаны. Review не запускал вход и не снимал кадры.
+
+Для DPR около 1 helper получает отдельный документированный `tab.screenshot({fullPage:true,clip:...})`; captureMethod отличает этот путь от native combined на actual DPR 1.25. Координатор сообщил о проверенном точном raster 1366×768 вместо native 1366×697. Размеры и сохранённый DOM всё равно должны пройти независимую привязку к изображению; screenshot/AX теперь приходят из двух последовательных вызовов, `consistent=true` не получает дополнительных прав приёмки.
+
+**Remaining P2: scroll origin для clip.** Clip использует x=0,y=0 full document, а geometry `getBoundingClientRect` описывает текущий viewport. При window scrollX/scrollY≠0 размер raster может совпасть, но screenshot и DOM относятся к разным областям. Measure не сохраняет window scroll offsets. Владелец — координатор/instrumentation; минимальная мера — записывать offsets и требовать 0/0 для этого capture пути либо применять документированный clip текущего viewport. При reload и подтверждённых нулевых offsets сбор допустим. CSS overflow внутри отдельных panels по-прежнему проверять по текущему изображению.
+
+## Повторный focused review: browser-evidence-v3.mjs
+
+V3 прочитана, `node --check` exit 0. P2 постоянного origin clip(0,0) исправлен: measure сохраняет `document.scrollingElement.scrollLeft/scrollTop`, DPR1 clip использует эти offsets из before metrics. При стабильном scroll это привязывает raster к тому же viewport, который описан geometry. Само значение `consistent` пока не сравнивает before/after scroll offsets: изменение scroll во время нескольких вызовов по-прежнему требует независимой проверки, рекомендуется включить сравнение left/top в guard. Это уточнение передано координатору; no-PASS policy сохраняется.

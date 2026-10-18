@@ -1,0 +1,66 @@
+{
+  "at": "2026-10-11T04:15:26.558Z",
+  "kind": "actual verifier source in VM with mocked read-only Git/archive IO; deterministic positive/malformed fixtures",
+  "results": [
+    {
+      "name": "valid annotation/content/mode",
+      "pass": true,
+      "reason": ""
+    },
+    {
+      "name": "trailing nonzero data",
+      "pass": true,
+      "reason": "Zero-only TAR remainder"
+    },
+    {
+      "name": "unsupported global PAX",
+      "pass": true,
+      "reason": "Supported global PAX metadata only"
+    },
+    {
+      "name": "unsupported local PAX size",
+      "pass": true,
+      "reason": "Supported local PAX metadata only"
+    },
+    {
+      "name": "wrong blob bytes",
+      "pass": true,
+      "reason": "Git blob match: a.txt"
+    },
+    {
+      "name": "wrong executable bit",
+      "pass": true,
+      "reason": "Executable bit: a.txt"
+    },
+    {
+      "name": "unsafe path",
+      "pass": true,
+      "reason": "Safe archive path"
+    },
+    {
+      "name": "unexpected directory",
+      "pass": true,
+      "reason": "Expected archive directory"
+    },
+    {
+      "name": "duplicate member",
+      "pass": true,
+      "reason": "Duplicate archive file"
+    },
+    {
+      "name": "symlink member",
+      "pass": true,
+      "reason": "Regular archive member: a.txt"
+    },
+    {
+      "name": "missing inventory",
+      "pass": true,
+      "reason": "Complete archive inventory"
+    },
+    {
+      "name": "missing annotation",
+      "pass": true,
+      "reason": "Archive commit annotation"
+    }
+  ]
+}

@@ -1,5 +1,15 @@
 # Payroll: проверка готовности источников
 
+## Зачёт товарных продаж до возвратов — 2026-10-14
+
+`components.payrollSaleCredit` применяет только явно сохранённые `line_seller_snapshot` и `immutable_line_snapshot` к результату canonical090, уже прочитанному в той же RR read-only транзакции. Компонент не создаёт начислений, расходов или выплат.
+
+При полных проверенных строках и известной атрибуции возвращаются все товарные строки, включая некомиссионные, и суммы по сотрудникам. `discountEligible` не означает commission eligibility. Сумма зачтённых строк равна merchandise net; `minimumAdjustmentCents` остаётся отдельной суммой площадки. Для неполных, legacy, unknown/cross-venue источников суммы — `null`, доверенные агрегаты не выдаются. Отсутствующая или другая допустимая policy даёт `unsupported`.
+
+Область результата — `pre_refund_sale_credit`, дата — `current_venue_timezone`, eligibility — `current_eligibility_observation`. `historicalEligibility` и `historicalDateAssignment` имеют значение `not_attested`: текущая membership и timezone не являются доказательством исторической принадлежности или даты. Этот компонент не является `fullEmployeeNetRevenue` и не признаёт возвраты.
+
+`canonicalSourceWatermark` сохраняет checksum исходного reader; новый `sourceWatermark` включает его, выбранную policy, tenant, валюту, период, timezone и область наблюдений. `officialReady:false` остаётся обязательным; recognized refunds, full employee net, margin и department/shift allocation по-прежнему неподтверждены. Pure-проверки и PostgreSQL suite прошли. `scripts/payroll-sale-credit-source-postgres-contract.mjs` прогнан через общий guarded runner с отдельной одноразовой БД. Тест использует только собственную временную схему, применяет настоящую миграцию090 и проверяет read-only RR, tenant/date scope, unknown/cross-venue/legacy блокировки, состояние downstream readiness и отсутствие payroll/expenses/runs записей. До090 явно подтверждено отсутствие fallback в public. Схема и БД очищены после завершения.
+
 Состояние: локальный read-only API и секция отчёта владельца в существующей странице зарплаты. Официальный расчёт и запись выплат этот этап не включают.
 
 ## Интерфейс владельца

@@ -1,0 +1,6 @@
+# Employee workspace polish
+
+## 09.10.2026 — Employee header and order panel
+Approved first UX package: shared display-only employee name helper, full-name title and identity retained, management names unchanged, ambiguous free-form names retained. Shared helper served by exact static allowlist and Docker COPY. Removed duplicate table-context transfer menu; all six original More actions retained. Readable order row grid/44px quantity controls/financial explanation lines; scoped light-dark CSS and wider desktop order column. No API or schema/permission changes except public static asset declaration. Architect and code-health reviews PASS. Edge local hookah-master login, Roman POS/tasks parity, real transfer to table2, reopening/reload and total1500 preserved; production orders never used for mutations. Relevant header/shell/design/name/financial-summary and pending contracts PASS. Assets CSS412/portal479/app215.
+
+Scope: header and table order panel only. Remaining audit suggestions (tasks auto-refresh/status policy, guests/history, finance caption, queue elapsed formatting) are separate follow-up packages. Local UI writes used disposable memory API; no new PostgreSQL business logic or payment changes.

@@ -10,6 +10,8 @@ import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-s
 
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 const { database } = validateQaDatabaseUrl(databaseUrl, 'MIGRATIONS_PG_TEST_DATABASE_URL');
+assert.match(database, /^orders_qa_[a-f0-9]{16}$/i, 'Paid-order QA requires the runner-created fresh disposable database');
+assert.equal(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'hookah-full-regression-qa-20261001', 'Paid-order QA must run through the guarded disposable PostgreSQL runner');
 const { Client } = createRequire(import.meta.url)('pg');
 const client = new Client({ connectionString: databaseUrl });
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -53,6 +55,8 @@ let output = '';
 let base = '';
 let passed = false;
 let token = '';
+let functionalFailure = null;
+const shutdownFailures = [];
 
 const api = async (route, method = 'GET', data, expected = 200) => {
   const response = await fetch(`${base}${route}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: data === undefined ? undefined : JSON.stringify(data) });
@@ -141,10 +145,10 @@ try {
   await api(`/api/orders/${promoOrder.id}/items`, 'POST', { productId:promoProductId,quantity:2 }, 201);
   assert.equal(Number((await api('/api/metrics')).pendingRevenue)-pendingBeforePromo,1500,'pending-revenue CTE applies active promotion to an unpaid, unlocked order');
   const promoQuote = await api(`/api/orders/${promoOrder.id}/payments`);
-  assert.equal(promoQuote.subtotal,2000); assert.equal(promoQuote.discount,500); assert.equal(promoQuote.due,1500);
+  assert.equal(Number(promoQuote.subtotal),2000); assert.equal(Number(promoQuote.discount),500); assert.equal(Number(promoQuote.due),1500);
   assert.equal(promoQuote.selectedPromotion.version,2); assert.equal(promoQuote.offers.find((offer)=>offer.source==='promotion')?.reasonCode,'selected');
   const promoPartial = await api(`/api/orders/${promoOrder.id}/payments`, 'POST', { amount:500,method:'cash' }, 201);
-  assert.equal(promoPartial.remaining,1000); assert.equal((await api(`/api/orders/${promoOrder.id}/payments`)).pricingLocked,true);
+  assert.equal(Number(promoPartial.remaining),1000); assert.equal((await api(`/api/orders/${promoOrder.id}/payments`)).pricingLocked,true);
   assert.equal(Number((await api('/api/metrics')).pendingRevenue)-pendingBeforePromo,1000,'pending-revenue CTE applies the active promotion to an unlocked quote and subtracts accepted tender');
   const promoV3 = await api(`/api/loyalty/promotions/${livePromotion.promotionId}`, 'PATCH', { expectedVenueId:venueId,expectedVersion:2,status:'active',benefitValue:80 }, 200);
   assert.equal(promoV3.version,3);
@@ -254,12 +258,20 @@ try {
   assert.equal(capturedQuote.due, 180);
   const groupPartial = await api(`/api/orders/${groupOrderId}/payments`, 'POST', { amount: 150, method: 'cash' }, 201);
   assert.equal(groupPartial.closed, false);
+  const lockedGroupQuote = await api(`/api/orders/${groupOrderId}/summary`);
+  assert.deepEqual([lockedGroupQuote.groupDiscountBase, lockedGroupQuote.groupDiscountAmount], [200, 20], 'locked quote retains group discount metadata');
+  const readCanonicalGroupSnapshot = async () => (await client.query('SELECT to_jsonb(s) AS header,(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM pos_order_pricing_snapshot_lines l WHERE l.snapshot_id=s.id) AS lines FROM pos_order_pricing_snapshots s WHERE s.venue_id=$1 AND s.order_id=$2', [venueId, groupOrderId])).rows;
+  const frozenGroupSnapshot = await readCanonicalGroupSnapshot();
+  assert.equal(frozenGroupSnapshot.length, 1, 'partial payment creates exactly one canonical snapshot');
+  assert.equal(frozenGroupSnapshot[0].lines.length, 1, 'snapshot contains the purchased order line');
   assert.equal((await api(`/api/orders/${groupOrderId}/payments`)).pricingLocked, true, 'first accepted tender fixes complete price');
   assert.equal((await api(`/api/orders/${groupOrderId}/items/${groupOrderItemId}`, 'PATCH', { quantity: 3 }, 409)).error, 'order_pricing_locked');
   assert.equal((await api(`/api/orders/${groupOrderId}`, 'PATCH', { clientId: null }, 409)).error, 'order_pricing_locked');
   const groupFinal = await api(`/api/orders/${groupOrderId}/payments`, 'POST', { amount: 30, method: 'card' }, 201);
   assert.equal(groupFinal.closed, true);
-  assert.equal(groupFinal.groupDiscountAmount, 20);
+  assert.equal(Number(groupFinal.discountTotal), 20, 'final payment response exposes the applied discount total');
+  assert.deepEqual([groupFinal.groupDiscountBase, groupFinal.groupDiscountAmount], [200, 20], 'final payment returns the frozen group discount');
+  assert.deepEqual(await readCanonicalGroupSnapshot(), frozenGroupSnapshot, 'final payment leaves canonical header and lines unchanged');
   assert.equal(groupFinal.effectiveDiscountSource, 'guest_group');
   assert.equal(groupFinal.finalTotalSnapshot, 180);
   assert.equal(groupFinal.loyaltyBonusBase, 180);
@@ -392,69 +404,31 @@ try {
   const cashComponents = await client.query("SELECT (SELECT COALESCE(SUM(p.amount),0) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id=$2 AND p.method='cash' AND p.status IN ('paid','partially_paid')) + (SELECT COALESCE(SUM(amount),0) FROM guest_deposit_receipts WHERE venue_id=$1 AND shift_id=$2 AND payment_method='cash') AS amount", [venueId, shiftId]);
   const cashClose = await api(`/api/shifts/${shiftId}/close`, 'POST', { checklist: { version: 1, items: { ordersReviewed: true, cashCounted: true, inventoryReviewed: true, externalFiscalReportsHandled: true } }, closingCash: Number(cashComponents.rows[0].amount) }, 200);
   assert.equal(Number(cashClose.expectedCash), Number(cashComponents.rows[0].amount), 'cash wallet funding is reconciled without adding it to sales revenue');
+  const immutableGuards = await client.query(`SELECT count(*)::int AS count FROM pg_trigger
+    WHERE tgname IN ('loyalty_program_settings_immutable','loyalty_promotions_immutable','loyalty_promotion_scopes_immutable')
+      AND tgenabled='O'`);
+  assert.equal(immutableGuards.rows[0].count, 3, 'paid-order QA leaves every immutable loyalty trigger enabled');
   passed = true;
+} catch (error) {
+  functionalFailure = error;
 } finally {
-  if (server && server.exitCode === null && server.signalCode === null) server.kill();
-  if (serverExitPromise && server?.exitCode === null && server?.signalCode === null) {
-    await Promise.race([serverExitPromise, delay(3000)]);
-    if (server.exitCode === null && server.signalCode === null) server.kill('SIGKILL');
-    await Promise.race([serverExitPromise, delay(3000)]);
+  if (server && server.exitCode === null && server.signalCode === null) {
+    try {
+      server.kill();
+      await Promise.race([serverExitPromise, delay(3000)]);
+      if (server.exitCode === null && server.signalCode === null) {
+        server.kill('SIGKILL');
+        await Promise.race([serverExitPromise, delay(3000)]);
+      }
+      if (server.exitCode === null && server.signalCode === null) throw new Error('QA child did not stop');
+    } catch (error) { shutdownFailures.push(error); }
   }
   if (client._connected) {
-    const cleanupErrors = [];
-    await client.query('DROP TRIGGER IF EXISTS qa_reject_order_payment_audit ON audit_events').catch((error) => cleanupErrors.push(error));
-    await client.query('DROP FUNCTION IF EXISTS qa_reject_order_payment_audit()').catch((error) => cleanupErrors.push(error));
-    for (const [query, params] of [
-      ['DELETE FROM auth_sessions WHERE user_id=$1', [ownerId]],
-      ['DELETE FROM guest_deposit_receipts WHERE venue_id=$1', [venueId]],
-      ['DELETE FROM guest_account_entries WHERE venue_id=$1', [venueId]],
-      ['DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]],
-      ['DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]],
-      ['DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]],
-      ['DELETE FROM order_costs WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]],
-      ['DELETE FROM orders WHERE venue_id=$1', [venueId]],
-      ['DELETE FROM tables WHERE id=$1', [policyTableId]],
-      ['DELETE FROM tables WHERE id=$1', [promoTableId]],
-      ['DELETE FROM tables WHERE id=$1', [raceTableId]],
-      ['DELETE FROM zones WHERE id=$1', [zoneId]],
-      ['DELETE FROM guests WHERE venue_id=$1', [venueId]],
-      ['DELETE FROM guest_discount_groups WHERE venue_id=$1', [venueId]],
-      ['DELETE FROM shifts WHERE venue_id=$1', [venueId]],
-      ['DELETE FROM audit_events WHERE venue_id=$1', [venueId]],
-      ['DELETE FROM organization_memberships WHERE organization_id=$1', [organizationId]],
-    ]) {
-      try { await client.query(query, params); } catch (error) { cleanupErrors.push(error); }
-    }
-    try {
-      await client.query('BEGIN');
-      await client.query('UPDATE users SET venue_id=NULL WHERE id=ANY($1::uuid[])', [[ownerId, managerId]]);
-      await client.query('DELETE FROM products WHERE venue_id=ANY($1::uuid[])', [[venueId, otherVenueId]]);
-      await client.query('DELETE FROM venues WHERE id=ANY($1::uuid[])', [[otherVenueId, venueId]]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => {});
-      cleanupErrors.push(error);
-    }
-    for (const [query, params] of [
-      ['DELETE FROM auth_sessions WHERE user_id=ANY($1::uuid[])', [[ownerId, managerId]]],
-      ['DELETE FROM users WHERE id=ANY($1::uuid[])', [[ownerId, managerId]]],
-      ['DELETE FROM organization_subscriptions WHERE organization_id=$1', [organizationId]],
-      ['DELETE FROM organizations WHERE id=$1', [organizationId]],
-    ]) {
-      try { await client.query(query, params); } catch (error) { cleanupErrors.push(error); }
-    }
-    const guards = await client.query(`SELECT count(*)::int AS count FROM pg_trigger
-      WHERE tgname IN ('loyalty_program_settings_immutable','loyalty_promotions_immutable','loyalty_promotion_scopes_immutable')
-        AND tgenabled='O'`).catch((error) => { cleanupErrors.push(error); return null; });
-    if (guards) {
-      try { assert.equal(guards.rows[0].count, 3, 'QA cleanup leaves every immutable loyalty trigger enabled'); }
-      catch (error) { cleanupErrors.push(error); }
-    }
-    const residue = await client.query('SELECT count(*)::int AS count FROM venues WHERE id=$1', [venueId])
-      .catch((error) => { cleanupErrors.push(error); return null; });
-    await client.end().catch((error) => cleanupErrors.push(error));
-    if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'QA fixture cleanup failed');
-    if (residue) assert.equal(residue.rows[0].count, 0, 'QA venue and child records were removed');
+    try { await client.end(); } catch (error) { shutdownFailures.push(error); }
   }
+  console.log('FIXTURE CLEANUP DEFERRED: guarded runner will drop its owned disposable database after this child exits');
 }
-if (passed) console.log('PAID ORDER BALANCE POSTGRES QA: PASS (HTTP transactions, rollback, exact balance, close, cleanup)');
+if (functionalFailure && shutdownFailures.length) throw new AggregateError([functionalFailure, ...shutdownFailures], 'Functional QA and process cleanup both failed');
+if (functionalFailure) throw functionalFailure;
+if (shutdownFailures.length) throw new AggregateError(shutdownFailures, 'QA process cleanup failed');
+if (passed) console.log('PAID ORDER BALANCE POSTGRES QA: PASS (HTTP transactions, rollback, exact balance and close)');

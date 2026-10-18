@@ -59,9 +59,16 @@ try {
   const order = (await client.query(
     'INSERT INTO orders (venue_id,opened_by,closed_at,status) VALUES ($1,$2,now(),\'closed\') RETURNING id', [venue, user],
   )).rows[0].id;
-  const oldPayment = (await client.query(
-    "INSERT INTO payments (order_id,method,amount,status) VALUES ($1,'cash',25,'paid') RETURNING id", [order],
-  )).rows[0].id;
+  const legacyCashAccount = (await client.query(
+    "SELECT id,name FROM finance_accounts WHERE venue_id=$1 AND kind='pos_cashbox' AND active=true LIMIT 1", [venue],
+  )).rows[0];
+  await client.query('ALTER TABLE payments DISABLE TRIGGER payments_finance_account_guard');
+  let oldPayment;
+  try {
+    oldPayment = (await client.query(
+      "INSERT INTO payments (order_id,method,amount,status,finance_account_id,finance_account_name_snapshot) VALUES ($1,'cash',25,'paid',$2,$3) RETURNING id", [order,legacyCashAccount.id,legacyCashAccount.name],
+    )).rows[0].id;
+  } finally { await client.query('ALTER TABLE payments ENABLE TRIGGER payments_finance_account_guard'); }
   const rule = (await client.query(
     "INSERT INTO payroll_rules (venue_id,name,rule_type,rate) VALUES ($1,'Legacy hourly','hourly',100) RETURNING id", [venue],
   )).rows[0].id;
@@ -285,6 +292,17 @@ try {
       AND t.tgenabled='O'`)).rows[0].count, 3, 'all immutable-history triggers remain enabled after hard-delete refusal and archive');
   assert.equal((await client.query("SELECT to_regprocedure('reject_loyalty_promotion_history_mutation()') IS NULL AS dropped")).rows[0].dropped,
     true, 'the replaced pre-076 trigger function is removed');
+
+  // Model a pre-129 database inside this generated rollback-only schema, then upgrade twice.
+  assert.equal((await client.query('SELECT current_schema() AS name')).rows[0].name,schema);
+  await client.query('ALTER TABLE finance_recurring_rules DROP COLUMN partial_month_policy CASCADE');
+  await client.query('ALTER TABLE finance_payables DROP COLUMN proration_snapshot CASCADE');
+  const partialUpgradeCategory=(await client.query("INSERT INTO finance_categories(venue_id,name,kind) VALUES($1,'Legacy partial policy QA','expense') RETURNING id",[venue])).rows[0].id;
+  const legacyRecurringRule=(await client.query("INSERT INTO finance_recurring_rules(venue_id,category_id,title,day_of_month,starts_on,ends_on,created_by) VALUES($1,$2,'Legacy full months',5,'2026-10-01','2026-11-15',$3) RETURNING id",[venue,partialUpgradeCategory,user])).rows[0].id;
+  const partialMigration=fs.readFileSync(path.join(root,'migrations/129_finance_recurring_partial_month.sql'),'utf8');
+  await client.query(partialMigration);await client.query(partialMigration);
+  const upgradedRule=(await client.query('SELECT partial_month_policy,starts_on::text,ends_on::text FROM finance_recurring_rules WHERE id=$1',[legacyRecurringRule])).rows[0];
+  assert.deepEqual(upgradedRule,{partial_month_policy:'full_months_only',starts_on:'2026-10-01',ends_on:'2026-11-15'},'pre-129 rules retain default skip behavior and exact term through repeated migration');
 
   console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline files + ${latest.length} migration files replayed, including migrations 039–076 in both groups; legacy records preserved; six-decimal warehouse and recipe quantities verified; immutable venue histories and actor retention verified; hard-delete restricted and archive preserves history; schema rolled back)`);
 } finally {

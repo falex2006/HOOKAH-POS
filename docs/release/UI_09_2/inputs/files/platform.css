@@ -1,0 +1,253 @@
+/* SaaS Control Center only. Keep these selectors outside the POS stylesheet. */
+.platform-page .platform-start-card[hidden] {
+  display: none;
+}
+
+.platform-page .platform-start-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #303742;
+  border-radius: 12px;
+  background: #12161a;
+  color: #e9edf2;
+  text-decoration: none;
+}
+
+.platform-page button.platform-start-step {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.platform-page .platform-start-step:hover,
+.platform-page .platform-start-step:focus-visible {
+  border-color: #ff7752;
+}
+
+.platform-page .owner-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.platform-page .owner-detail {
+  display: grid;
+  gap: 10px;
+  color: #dce3eb;
+}
+
+.platform-page .owner-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #2b333d;
+  border-radius: 11px;
+  background: #171c22;
+}
+
+.platform-page .owner-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.platform-page .owner-main strong,
+.platform-page .owner-main span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.platform-page .owner-main strong {
+  color: #f5f7fa;
+  font-size: 14px;
+}
+
+.platform-page .owner-main span {
+  color: #9ca9b7;
+  font-size: 12px;
+}
+
+.platform-page .owner-status {
+  justify-self: end;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.platform-page .owner-status.is-active {
+  color: #8fe0bc;
+  background: #1a2926;
+}
+
+.platform-page .owner-status.is-blocked {
+  color: #ffb0b8;
+  background: #342126;
+}
+
+.platform-page .owner-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid #2b333d;
+}
+
+.platform-page .owner-actions .table-action {
+  min-height: 44px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: #20262e;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+}
+
+.platform-page .owner-actions .table-action:hover {
+  background: #2a323d;
+}
+
+.platform-page .platform-modal-panel {
+  max-height: min(88dvh, 900px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.platform-page .platform-owner-dialog {
+  z-index: 24;
+}
+
+.platform-access-denied {
+  max-width: 520px;
+  margin: 12vh auto;
+  padding: 28px;
+  border: 1px solid #2b333d;
+  border-radius: 16px;
+  background: #171c22;
+  color: #f5f7fa;
+}
+
+.platform-access-denied p { color: #9ca9b7; }
+.platform-access-denied a { color: #9ad6ff; }
+
+.platform-page .owner-access-link-label {
+  display: grid;
+  gap: 7px;
+}
+
+.platform-page #owner-access-link {
+  min-height: 76px;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  resize: vertical;
+}
+
+@media (max-width: 560px) {
+  .platform-page .company-detail-owner {
+    padding: 12px;
+  }
+
+  .platform-page .owner-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .platform-page .owner-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .platform-page .owner-status {
+    justify-self: start;
+  }
+
+  .platform-page .owner-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .platform-page .owner-actions .table-action {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .platform-page .platform-modal {
+    padding: 12px;
+  }
+
+  .platform-page .platform-modal-panel {
+    max-height: calc(100dvh - 24px);
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .platform-page .platform-owner-dialog .modal-actions {
+    flex-direction: column-reverse;
+  }
+}
+
+@media (max-width: 360px) {
+  .platform-page .owner-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.platform-page .platform-settings-actions{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}
+.platform-page .platform-settings-actions a{text-decoration:none}
+.platform-page .danger-button{border:1px solid #b94b60;border-radius:10px;background:#48222d;color:#ffb6c3;padding:12px 16px;font:inherit;font-weight:700;cursor:pointer}
+.platform-page .danger-button:hover:not(:disabled){background:#652b39}
+.platform-page .danger-button:disabled{opacity:.45;cursor:not-allowed}
+.platform-page .delete-company-target{font-weight:700;overflow-wrap:anywhere;color:#ffb6c3}
+.platform-page #company-delete-form{display:grid;gap:16px}
+.platform-page #company-delete-form .delete-company-ack{display:flex;align-items:flex-start;gap:10px}
+.platform-page #company-delete-form .delete-company-ack input{width:20px;height:20px;min-height:20px;padding:0;flex:0 0 20px;margin:2px 0 0}
+
+/* UI-08.2 platform semantic consumers; control plane remains separate. */
+body.platform-page{background:var(--ui-page);color:var(--ui-text-primary)}
+body.platform-page :is(.platform-sidebar,.platform-header,.platform-card,.platform-kpis>article,.plan-card,.platform-start-step,.owner-row,.platform-modal-panel,.platform-settings-grid>div,.platform-access-denied){background:var(--ui-panel);border-color:var(--ui-border-control);color:var(--ui-text-primary);box-shadow:none;min-width:0}
+body.platform-page :is(h1,h2,h3,b,strong,.company-name b){color:var(--ui-text-primary);overflow-wrap:anywhere}
+body.platform-page :is(p,small,.muted,.side-label,.owner-main span,.platform-settings-grid span,.platform-kpis span,.platform-user>span){color:var(--ui-text-secondary);overflow-wrap:anywhere}
+body.platform-page :is(input:not([type=checkbox]),select,textarea){min-height:44px;background:var(--ui-input);color:var(--ui-text-primary);border-color:var(--ui-border-control);box-sizing:border-box;max-width:100%}
+body.platform-page :is(button,.primary-button,.secondary-button,.platform-start-step){min-height:44px;min-width:44px;white-space:normal}
+body.platform-page :is(.secondary-button,.table-action,.modal-close){background:var(--ui-input);border-color:var(--ui-border-control);color:var(--ui-text-primary)}
+body.platform-page .primary-button{background:var(--ui-action-fill);color:var(--ui-text-on-action);box-shadow:none}
+body.platform-page :is(.form-error,.bad-text,.delete-company-target,.danger-button){color:var(--ui-danger)}
+body.platform-page .danger-button{background:var(--ui-panel);border-color:var(--ui-danger)}
+body.platform-page :is(.good-text,.owner-status.is-active,.state-pill.active){color:var(--ui-success);background:var(--ui-panel)}
+body.platform-page .platform-table :is(th,td){background:var(--ui-panel);color:var(--ui-text-primary);border-color:var(--ui-border-control);vertical-align:top}
+body.platform-page .platform-table :is(th,td):first-child{min-width:240px}
+body.platform-page .company-name :is(b,small){white-space:normal;overflow-wrap:anywhere;max-width:300px}
+body.platform-page .company-name>div{min-width:0}
+body.platform-page .company-avatar{flex-shrink:0;background:var(--ui-input);color:var(--ui-text-primary)}
+body.platform-page .platform-search{background:var(--ui-input);border-color:var(--ui-border-control);color:var(--ui-text-secondary)}
+body.platform-page .empty-state{color:var(--ui-text-secondary)}
+body.platform-page .test-badge{color:var(--ui-success);background:var(--ui-panel)}
+body.platform-page :is(.plan-card-top span,.plan-limits){color:var(--ui-text-secondary)}
+body.platform-page .form-section-label{color:var(--ui-text-secondary);border-color:var(--ui-border-control)}
+body.platform-page .platform-modal{background:var(--ui-overlay)}
+body.platform-page .platform-modal-panel{width:min(640px,calc(100vw - 32px));max-height:calc(100dvh - 32px);box-sizing:border-box;overflow:auto;overscroll-behavior:contain}
+body.platform-page .platform-modal-panel h2{padding-right:44px;line-height:var(--ui-line-heading)}
+body.platform-page .platform-modal:not([hidden]) .platform-modal-panel{background:var(--ui-panel);animation:none;outline:1px solid var(--ui-border-control)}
+body.platform-page .platform-modal-panel label{color:var(--ui-text-secondary)}
+body.platform-page .owner-main-toggle{display:flex;align-items:center;gap:10px;min-height:44px}
+body.platform-page .owner-main-toggle input{width:20px;min-width:20px;height:20px;min-height:20px;accent-color:var(--ui-action-fill)}
+body.platform-page :is(.owner-main-toggle,.delete-company-ack){min-height:44px}
+body.platform-page .platform-user{flex-wrap:wrap}
+body.platform-page .platform-header{height:auto;min-height:68px;gap:12px;padding-top:8px;padding-bottom:8px}
+body.platform-page .platform-sidebar .portal-nav a{color:var(--ui-text-secondary)}
+body.platform-page .platform-sidebar .portal-nav a.active{background:var(--ui-action-fill);color:var(--ui-text-on-action)}
+body.platform-page :is(a,button,input,select,textarea):focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
+@media(max-width:560px){body.platform-page .platform-header{align-items:flex-start}body.platform-page .modal-actions{flex-wrap:wrap}body.platform-page .platform-modal-panel{padding:20px}}

@@ -24,9 +24,9 @@ const loaderSource = portal.slice(start, end + 1);
 const createFixture = () => {
   const createSelect = () => {
     let markup = '';
-    return { value: '', options: [], get innerHTML() { return markup; }, set innerHTML(value) { markup = value; this.options = [...value.matchAll(/<option value="([^"]*)"/g)].map((match) => ({ value: match[1] })); this.value = this.options[0]?.value || ''; } };
+    return { value: '', disabled: false, options: [], matches: () => false, get innerHTML() { return markup; }, set innerHTML(value) { markup = value; this.options = [...value.matchAll(/<option value="([^"]*)"/g)].map((match) => ({ value: match[1] })); this.value = this.options[0]?.value || ''; } };
   };
-  const controls = [0, 1, 2].map((index) => ({ disabled: false, matches: () => index === 2 }));
+  const controls = [];
   const classes = new Set(); const attributes = new Map();
   const nodes = {
     '#premix-recipe': createSelect(),
@@ -36,6 +36,7 @@ const createFixture = () => {
     '#premix-empty-guidance': { hidden: true, innerHTML: '', classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) }, setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) },
     '#premix-batches': { innerHTML: '' },
   };
+  controls.push(nodes['#premix-recipe'], nodes['#premix-output'], { disabled: false, matches: () => true });
   const document = { querySelector: (selector) => nodes[selector] || null };
   const deps = { document, nodes, classes, attributes, controls };
   return deps;
@@ -57,11 +58,14 @@ assert.equal(failedFixture.nodes['#premix-production'].hidden, true, 'failed pre
 assert.match(failedFixture.nodes['#premix-batches'].innerHTML, /История партий временно недоступна/);
 
 const recoveredFixture = createFixture();
-const recover = loadPremixData((path) => Promise.resolve(path === '/api/recipes' ? { items: [{ id: 'r', name: 'Сироп', recipeType: 'premix', yieldQuantity: 1, yieldUnit: 'л' }] } : path === '/api/inventory' ? { items: [{ id: 'o', name: 'Сироп', unit: 'л' }] } : { items: [] }), recoveredFixture);
+const recover = loadPremixData((path) => Promise.resolve(path === '/api/recipes' ? { items: [{ id: 'r', name: 'Сироп', recipeType: 'premix', outputIngredientId: 'o', yieldQuantity: 1, yieldUnit: 'л' }] } : path === '/api/inventory' ? { items: [{ id: 'o', name: 'Сироп', unit: 'л' }] } : { items: [] }), recoveredFixture);
 await recover();
 assert.equal(recoveredFixture.nodes['#premix-empty-guidance'].hidden, true);
 assert.ok(!recoveredFixture.classes.has('auto-order-load-error'));
-assert.ok(recoveredFixture.controls.every((control) => !control.disabled), 'successful retry restores the production form');
+assert.equal(recoveredFixture.nodes['#premix-recipe'].disabled, false, 'successful retry enables recipe selection');
+assert.equal(recoveredFixture.nodes['#premix-output'].disabled, true, 'output selector is a read-only display of the recipe binding');
+assert.equal(recoveredFixture.controls[2].disabled, false, 'successful retry enables remaining production controls');
+assert.equal(recoveredFixture.nodes['#premix-output'].value, '');
 assert.equal(recoveredFixture.nodes['#premix-form'].hidden, false, 'ready prerequisites reveal the form');
 assert.equal(recoveredFixture.nodes['#premix-production'].hidden, false, 'ready prerequisites reveal the production section');
 recoveredFixture.nodes['#premix-recipe'].value = 'r';
@@ -70,7 +74,8 @@ recoveredFixture.nodes['#premix-form'].dataset.submitting = '1';
 await recover();
 assert.equal(recoveredFixture.nodes['#premix-recipe'].value, 'r', 'reload preserves the chosen recipe');
 assert.equal(recoveredFixture.nodes['#premix-output'].value, 'o', 'reload preserves the chosen output');
-assert.ok(recoveredFixture.controls.slice(0, 2).every((control) => !control.disabled), 'reload keeps selectors available while producing');
+assert.equal(recoveredFixture.nodes['#premix-recipe'].disabled, false, 'reload keeps recipe selection available while producing');
+assert.equal(recoveredFixture.nodes['#premix-output'].disabled, true, 'reload cannot make the recipe output editable');
 assert.equal(recoveredFixture.controls[2].disabled, true, 'reload cannot re-enable production during an in-flight batch');
 assert.match(recoveredFixture.nodes['#premix-recipe'].innerHTML, /Сироп/);
 assert.match(recoveredFixture.nodes['#premix-batches'].innerHTML, /Партии ещё не приготовлены/);

@@ -3,6 +3,7 @@
 const { createHash } = require('node:crypto');
 const { requiredPayrollSourceFacts } = require('./payroll-source-policies');
 const { readCanonicalPayrollPricingInTransaction } = require('./payroll-canonical-pricing-source');
+const { buildPayrollSaleCreditComponent } = require('./payroll-sale-credit-source');
 const { readPayrollItemReturnEvidenceInTransaction } = require('./payroll-item-return-source');
 const fail = code => { throw Object.assign(new TypeError(code), { code, status:400 }); };
 const parsePayrollReadinessPeriod = input => {
@@ -83,7 +84,10 @@ const readPayrollSourceReadinessInTransaction = async (db, actor, scheme, period
       approvedAttendance,orderObservations,refundObservations,
       canonicalLinePricing:{...canonicalPricing.component,attribution:canonicalPricing.attribution},
       itemReturnEvidence,
-      payrollSaleCredit:unsupported('immutable_payroll_sale_credit_not_implemented'),
+      payrollSaleCredit:buildPayrollSaleCreditComponent(canonicalPricing, {
+        sourcePolicies:scheme.sourcePolicies,venueId:actor.venueId,currency:scheme.currency,
+        from:period.from,to:period.to,timezone
+      }),
       recognizedLineRefunds:unsupported('recognized_line_refund_lineage_not_implemented'),
       fullEmployeeNetRevenue:unsupported('full_employee_net_revenue_source_not_implemented'),
       marginCosts:unsupported('immutable_margin_cost_source_not_implemented'),

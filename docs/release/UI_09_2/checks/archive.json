@@ -1,0 +1,11 @@
+{
+  "commit": "11b81f6abea615f5aca35ad3714ae3382be388db",
+  "archiveSha256": "ae1d4e0fe272475ba8a42d56c9a1ab3d05a7859fe557b778787408dfeff8062a",
+  "archiveBytes": 31916725,
+  "files": 1009,
+  "gitBlobsExact": true,
+  "archiveExecutableBitsExact": true,
+  "commitAnnotation": "11b81f6abea615f5aca35ad3714ae3382be388db",
+  "findings": [],
+  "secretScan": "high-confidence token/private-key signatures and runtime-file names; not a universal secret detector"
+}

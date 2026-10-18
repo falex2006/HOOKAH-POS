@@ -14,7 +14,7 @@ const { url, database } = validateQaDatabaseUrl(rawUrl, 'MIGRATIONS_PG_TEST_DATA
 assert.ok(process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER, 'Explicit owned disposable container is required');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const db = new Client({ connectionString: url.href });
-const ids = { org: randomUUID(), venue: randomUUID(), otherVenue: randomUUID(), owner: randomUUID(), manager: randomUUID(), staff: randomUUID(), cleaner: randomUUID(), reservation: randomUUID(), order: randomUUID(), otherOrder: randomUUID(), foreignOrder: randomUUID(), uiOrder: randomUUID(), uiPayment: randomUUID(), uiItem: randomUUID(), returnProduct: randomUUID(), uiErrorOrder: randomUUID(), uiErrorPayment: randomUUID(), returnOrder: randomUUID(), returnItem: randomUUID(), returnPayment: randomUUID(), raceOrder: randomUUID(), raceItem: randomUUID(), racePayment: randomUUID(), shift: randomUUID(), paymentCash: randomUUID(), paymentCard: randomUUID(), paymentQr: randomUUID(), extraPayment: randomUUID() };
+const ids = { org: randomUUID(), venue: randomUUID(), otherVenue: randomUUID(), owner: randomUUID(), manager: randomUUID(), staff: randomUUID(), cleaner: randomUUID(), reservation: randomUUID(), order: randomUUID(), otherOrder: randomUUID(), foreignOrder: randomUUID(), uiOrder: randomUUID(), uiPayment: randomUUID(), uiItem: randomUUID(), returnProduct: randomUUID(), uiErrorOrder: randomUUID(), uiErrorPayment: randomUUID(), returnOrder: randomUUID(), returnItem: randomUUID(), returnPayment: randomUUID(), raceOrder: randomUUID(), raceItem: randomUUID(), racePayment: randomUUID(), shift: randomUUID(), paymentCash: randomUUID(), paymentCard: randomUUID(), paymentQr: randomUUID(), extraPayment: randomUUID(),cashAccount:randomUUID(),cardAccount:randomUUID(),qrAccount:randomUUID() };
 const logins = Object.fromEntries(['owner','manager','staff','cleaner'].map(role => [role, `refund-${role}-${randomUUID()}`]));
 const password = 'qa-' + randomUUID();
 const salt = randomBytes(16).toString('hex');
@@ -26,7 +26,7 @@ const req = async (route, method='GET', body, expected=200) => {
   if(Array.isArray(expected))assert.ok(expected.includes(response.status),`${method} ${route}: expected ${expected.join('/')} got ${response.status}: ${JSON.stringify(data)}`);else assert.equal(response.status, expected, `${method} ${route}: ${JSON.stringify(data)}`);
   return data;
 };
-const refund = (amount, allocations, key, reason='QA refund') => ({ amount, allocations, idempotencyKey:key, reason });
+const refund = (amount, allocations, key, reason='QA refund') => ({ amount, allocations:allocations.map(allocation=>({...allocation,paymentAccountId:allocation.payoutMethod==='cash'?ids.cashAccount:allocation.payoutMethod==='qr'?ids.qrAccount:ids.cardAccount})), idempotencyKey:key, reason });
 const route = `/api/finance/orders/${ids.order}/refunds`;
 try {
   await db.connect();
@@ -41,14 +41,16 @@ try {
     else await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role,status) VALUES($1,$2,'member','active')",[ids.org,id]);
   }
   const shift = (await db.query("INSERT INTO shifts(venue_id,opened_by,opening_cash) VALUES($1,$2,100) RETURNING id",[ids.venue,ids.owner])).rows[0]; ids.shift=shift.id;
+  await db.query("INSERT INTO finance_accounts(id,venue_id,code,name,kind,allowed_payment_methods,created_by) VALUES($1,$2,'qa_card','QA bank','bank',ARRAY['card']::text[],$4),($3,$2,'qa_qr','QA QR','electronic',ARRAY['qr']::text[],$4)",[ids.cardAccount,ids.venue,ids.qrAccount,ids.owner]);
+  ids.cashAccount=(await db.query("SELECT id FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox'",[ids.venue])).rows[0].id;
   for (const [orderId,venueId] of [[ids.order,ids.venue],[ids.otherOrder,ids.venue],[ids.foreignOrder,ids.otherVenue]]) await db.query("INSERT INTO orders(id,venue_id,opened_by,status,closed_at,closed_in_shift_id) VALUES($1,$2,$3,'closed',now()-interval '2 days',$4)",[orderId,venueId,ids.owner,venueId===ids.venue?ids.shift:null]);
   await db.query("INSERT INTO reservations(id,venue_id,starts_at,guests_count,status) VALUES($1,$2,now()+interval '1 day',2,'confirmed')",[ids.reservation,ids.venue]);
   await db.query('UPDATE orders SET reservation_id=$1 WHERE id=$2 AND venue_id=$3',[ids.reservation,ids.otherOrder,ids.venue]);
   await db.query("INSERT INTO products(id,venue_id,name,category,sale_price,is_active) VALUES($1,$2,'QA returned hookah bowl','Кальян',0.05,true)",[ids.returnProduct,ids.venue]);
-  const payments = [[ids.paymentCash,ids.order,'cash',500],[ids.paymentCard,ids.order,'card',300],[ids.paymentQr,ids.order,'qr',200]];
-  for (const [id,orderId,method,amount] of payments) await db.query('INSERT INTO payments(id,order_id,method,amount,status,shift_id,created_at) VALUES($1,$2,$3,$4,\'paid\',$5,now()-interval \'2 days\')',[id,orderId,method,amount,ids.shift]);
+  const payments = [[ids.paymentCash,ids.order,'cash',500,ids.cashAccount,'Основная касса',ids.shift],[ids.paymentCard,ids.order,'card',300,ids.cardAccount,'QA bank',null],[ids.paymentQr,ids.order,'qr',200,ids.qrAccount,'QA QR',null]];
+  for (const [id,orderId,method,amount,accountId,accountName,shiftId] of payments) await db.query('INSERT INTO payments(id,order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot,created_at) VALUES($1,$2,$3,$4,\'paid\',$5,$6,$7,now()-interval \'2 days\')',[id,orderId,method,amount,shiftId,accountId,accountName]);
   for (const orderId of [ids.uiOrder,ids.uiErrorOrder]) await db.query("INSERT INTO orders(id,venue_id,opened_by,status,closed_at,closed_in_shift_id) VALUES($1,$2,$3,'closed',now(),$4)",[orderId,ids.venue,ids.owner,ids.shift]);
-  await db.query('INSERT INTO payments(id,order_id,method,amount,status,shift_id) VALUES($1,$2,\'cash\',20,\'paid\',$3),($4,$5,\'card\',7,\'paid\',$6)',[ids.uiPayment,ids.uiOrder,ids.shift,ids.uiErrorPayment,ids.uiErrorOrder,ids.shift]);
+  await db.query('INSERT INTO payments(id,order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES($1,$2,\'cash\',20,\'paid\',$3,$4,\'Основная касса\'),($5,$6,\'card\',7,\'paid\',NULL,$7,\'QA bank\')',[ids.uiPayment,ids.uiOrder,ids.shift,ids.cashAccount,ids.uiErrorPayment,ids.uiErrorOrder,ids.cardAccount]);
   const seedSnapshot=async({orderId,itemId,paymentId,quantity,unitPrice,grossMinor,discountMinor,netMinor,paymentAmount})=>{
     await db.query("INSERT INTO order_items(id,order_id,product_id,quantity,unit_price,station,sales_employee_id,sold_at) VALUES($1,$2,$3,$4,$5,'bar',$6,now())",[itemId,orderId,ids.returnProduct,quantity,unitPrice,ids.owner]);
     const source=(await db.query('SELECT oi.sold_at::text AS "soldAt",oi.product_id AS "productId",oi.station,p.name AS "productName",p.category,p.is_active AS "productActive" FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.id=$1',[itemId])).rows[0];
@@ -58,7 +60,7 @@ try {
     await db.query(`INSERT INTO pos_order_pricing_snapshot_lines(venue_id,snapshot_id,order_id,order_item_id,seller_id,sold_at,quantity,unit_price,gross_minor,discount_minor,net_minor,eligible,product_facts)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb)`,[ids.venue,snapshot.id,orderId,itemId,ids.owner,source.soldAt,quantity,unitPrice,grossMinor,discountMinor,netMinor,Boolean(discountMinor),JSON.stringify({productId:source.productId,productName:source.productName,category:source.category,station:source.station,productActive:source.productActive})]);
     await db.query('COMMIT');
-    if(paymentId)await db.query("INSERT INTO payments(id,order_id,method,amount,status,shift_id) VALUES($1,$2,'cash',$3,'paid',$4)",[paymentId,orderId,paymentAmount,ids.shift]);
+    if(paymentId)await db.query("INSERT INTO payments(id,order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES($1,$2,'cash',$3,'paid',$4,$5,'Основная касса')",[paymentId,orderId,paymentAmount,ids.shift,ids.cashAccount]);
     return snapshot.id;
   };
   await seedSnapshot({orderId:ids.uiOrder,itemId:ids.uiItem,paymentId:null,quantity:3,unitPrice:0.05,grossMinor:15,discountMinor:4,netMinor:11,paymentAmount:20});
@@ -77,9 +79,12 @@ try {
   await db.query("INSERT INTO orders(id,venue_id,opened_by,status,closed_at,closed_in_shift_id) VALUES($1,$2,$3,'closed',now()-interval '2 days',$4),($5,$2,$3,'closed',now()-interval '2 days',$4)",[ids.returnOrder,ids.venue,ids.owner,ids.shift,ids.raceOrder]);
   await seedSnapshot({orderId:ids.returnOrder,itemId:ids.returnItem,paymentId:ids.returnPayment,quantity:3,unitPrice:0.05,grossMinor:15,discountMinor:4,netMinor:11,paymentAmount:100});
   await seedSnapshot({orderId:ids.raceOrder,itemId:ids.raceItem,paymentId:ids.racePayment,quantity:1,unitPrice:1,grossMinor:100,discountMinor:0,netMinor:100,paymentAmount:100});
-  await db.query('INSERT INTO payments(order_id,method,amount,status,shift_id) VALUES($1,\'cash\',100,\'refunded\',$2)',[ids.otherOrder,ids.shift]);
-  await db.query('INSERT INTO payments(id,order_id,method,amount,status,shift_id) VALUES($1,$2,\'card\',100,\'paid\',$3)',[ids.extraPayment,ids.otherOrder,ids.shift]);
-  await db.query('INSERT INTO payments(order_id,method,amount,status,shift_id) VALUES($1,\'cash\',100,\'paid\',NULL)',[ids.foreignOrder]);
+  await db.query('INSERT INTO payments(order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES($1,\'cash\',100,\'refunded\',$2,$3,\'Основная касса\')',[ids.otherOrder,ids.shift,ids.cashAccount]);
+  await db.query('INSERT INTO payments(id,order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES($1,$2,\'card\',100,\'paid\',NULL,$3,\'QA bank\')',[ids.extraPayment,ids.otherOrder,ids.cardAccount]);
+  const foreignCashAccount=(await db.query("SELECT id FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox'",[ids.otherVenue])).rows[0].id;
+  await db.query('ALTER TABLE payments DISABLE TRIGGER payments_finance_account_guard');
+  try { await db.query('INSERT INTO payments(order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES($1,\'cash\',100,\'paid\',NULL,$2,\'Основная касса\')',[ids.foreignOrder,foreignCashAccount]); }
+  finally { await db.query('ALTER TABLE payments ENABLE TRIGGER payments_finance_account_guard'); }
   server = spawn(process.execPath,['server.js'],{cwd:root,windowsHide:true,env:{...process.env,HOST:'127.0.0.1',PORT:'0',DATABASE_URL:url.href,VENUE_ID:ids.venue,AUTH_REQUIRED:'true',COOKIE_SECURE:'false',NODE_ENV:'test',API_RATE_LIMIT:'5000'},stdio:['ignore','pipe','pipe']});
   server.stdout.setEncoding('utf8').on('data',x=>output+=x); server.stderr.setEncoding('utf8').on('data',x=>output+=x);
   const until=Date.now()+20000;

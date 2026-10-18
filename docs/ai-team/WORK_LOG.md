@@ -5023,3 +5023,1164 @@ ode --check dist/portal.js`, `git diff --check` — прошли. Code-health ba
 - Added platform-only DELETE with exact word/slug/acknowledgement, row lock, all direct FK occupancy guards (including inactive data), transactional audit. Only subscription metadata may cascade. No production company deleted.
 - UI: nested confirmation dialog, final confirmation, request race protection and pending guards.
 - QA: platform-empty-delete-qa.cjs reused local QA PostgreSQL; browser deletion, reload, persisted audit, invalid auth/confirmation and inactive venue protection PASS. Syntax, platform-saas-contract, diff check PASS. code-health final review: no blockers. No schema migration.
+
+## 2026-10-08 — локальный аудит ролей, POS и склада
+- Исходное состояние: checkout 802d5e63; существующие untracked deploy/AlphaSat/tmp сохранены. Продуктовый код не изменялся, публикация не выполнялась.
+- Три независимых субагента: роли/API, рабочее место/склад, среда/регрессии. Локальные Docker PostgreSQL 31930/31931, приложение 31932; guards PASS. Повторный seed остановился на уже открытой синтетической смене без сброса базы.
+- Edge: пять ролей, выбранные экраны 1366×768 и 1920×1080; синтетический заказ 200 ₽ создан кальянщиком, сохранён после reload и виден управляющему. Заказ оставлен неоплаченным.
+- Подтверждены ROLE-01/02/05 через API, ROLE-03/04 через Edge. Чужая и архивная custom role отклоняются 400: кандидат ROLE-06 опровергнут. Изменение custom scopes действует в той же серверной сессии.
+- 155 static/memory suites: 146 PASS, 9 FAIL; guards отдельно. Четыре PostgreSQL suites PASS, три FAIL на cleanup (подробности baseline/domain). npm audit --omit=dev: 0 известных уязвимостей. Несогласованная cache revision 464/470 требует устранения перед выпуском.
+- Отчёт docs/qa/AUDIT_2026_10_08_REPORT.md и шесть заданий FIX_TASKS подготовлены. Полное покрытие не заявляется: отрицательные сценарии оплаты, двухсессионный каталог, все возвраты/брони/финансы и UI-матрица требуют продолжения. Приоритет исправлений: контракт прав → интерфейс персонала → каталог/оплата/склад → независимая приёмка.
+
+## 2026-10-08 — завершение диагностического аудита
+- Роли: расширенная матрица owner/admin/manager/bartender/hookah; непустые права меняются в активной сессии, пустой system override и profile/custom расхождения подтверждены. Foreign/archived role guards PASS.
+- Edge: D02 цена каталога200 после owner275, фактическая новая строка275; цена восстановлена200. D01 UI скрывает product_recipe_required, платежей нет. Заказ475 закрыт200 cash+275card, стол освобождён; owner возврат25 с источникаcard выплаченcash без товара, reload/API одна запись. D08 неверная подпись остатка, D09 двойные исходные оплаты и неоформленный refund dialog.
+- D10/P1: отправка кальянщику формирует ready, новый заказ409; послеin_progress переводит весь заказready. Подтверждено source+actual staff API, восстановленоopen. Edge недоступен перед последним login, этот сценарий не заявляется браузерным.
+- PG full recipe372 PASS (всего5 полныхPG PASS); API prefix refunds PASS; prepayment cleanup-only FAIL выявил obsolete legacy fixture, отдельный continuation сохранившегося хвоста PASS. D06 fixed-time SQL predicate3assertions подтвердил timezone различие. Одноразовые ownedDB удалены; guards/immutable product protections не выключались.
+- REPORT/FIX_TASKS/PROGRESS обновлены, ROLES_FINAL/FINANCE_FINAL/BROWSER_FINAL/COVERAGE_FINAL/STRUCTURE добавлены. Code-health независимо сверил counts и границы;6network/SaaS source suites PASS отдельно. PDF output/pdf/hookah-audit-2026-10-08.pdf:5 светлых страниц, Poppler render и визуальный осмотр всех страниц, D10 включён.
+- Продукт/миграции/исходные scripts не менялись; git diff --check PASS. Диагностический аудит завершён с явной матрицей покрытия, не означает production readiness. Остаточные приёмочные сценарии перечислены. Следующий пакет FIX-01→02→03.1(передача работ)→03.2(каталог)→04→06, QA-A…F отдельно. Никакой публикации.
+
+## 2026-10-08 — FIX-01 выполнен локально
+- Причины ROLE01/02/05: empty-array fallback, неявный приоритет, неполные SQL sources/profile; дополнительный swallowed override error мог восстановить базу. Новый effective-permissions.js общий resolver с policy metadata, явной presence семантикой и system ceiling. SQLlogin/session/profile согласованы, session JOIN в active venue, custom JOIN organization/venue/active. Ошибки fail closed; trustedPIN предпочитает свежий req.user, memory staff scopes перечитываются.
+- Персональный null reset принимается APIowner-only и хранится[]; явные system/custom[] deny. Точные no-config defaults сохранены. Role helper permissions gated соответствующими orders/settings. Новых миграций и изменений финансов/склада/UI нет. DockerCOPY новой зависимости добавлен после code-health review.
+- PASS: durable PGmatrix926assertions, resolver20unit+Dockercontract, existing scoped-role PostgreSQL, trustedPIN, preferences concurrency, syntax, diffcheck. Matrix включает same-token/relogin/profile, owner exceptions, foreign/archive, activevenue, источники прав unavailable и recovery. Owned disposableDB cleanup PASS. Исходные9baseline FAIL вне пакета.
+- System_architect/security и code_health baseline/final выполнены, итоговых блокеров нет. Контракт EFFECTIVE_PERMISSIONS_CONTRACT, отчёты FIX_01_QA/FIX_01_RESULT, решение записано. Старый собственный localserver остановлен и запущен новый31932; owner/bartender login-session-profile smoke PASS, smoke logout выполнен.
+- Продуктовый diff: server.js/db.js/effective-permissions.js/Dockerfile; durable regression scripts добавлены. GitHub/production не публиковались, чужие deploy/AlphaSat/tmp сохранены. Дальше FIX-02(UIправ/гости), серверный этап не означает завершение всей функции интерфейса.
+
+
+## 2026-10-08 — FIX-02 выполнен локально
+- Субагенты: system_architect/security/design contract и staff-card, frontend staff app, code_health/QA baseline-final; координатор portal/login/bootstrap, интеграция и Edge. Навигационный контракт сохранён в FIX_02_UI_PERMISSION_CONTRACT.md.
+- Первопричина: объединение base+workspace/scopes, cached-role bootstrap и захваченные старыми обработчиками permissions. Новый portal-session.js ждёт server session до classic portal.js (глобалы расширений сохранены), защищает direct/hash routes, singleflight focus/visible/30s, fail-closed/retry и reload при смене подписи. UI aliases не расширяют серверный Set. Guests orders|staff|staff_view. Staff app revalidates/clears sensitive state, guards late reads and duplicate listeners. Login stores exactpermissions+policy.
+- Owner staff-card показывает server effective source/ceiling/blocked, policy пояснения; кадровые create/edit guards согласованы с server1042/1043. Навигация по capabilities для дополнительно выданных направлений. Dynamic hash active link обновляется. Docker/static allowlist и source/dist assets синхронизированы, portal472/app204/login99/card12/bootstrap1.
+- Во review устранены: canonical finance nested routes, late script.onload после503, late401 старого токена, hard-role navigation, staff create button при неподходящей должности. 12 связанных suites PASS,84 role/target cases,syntax/diff PASS. Полные926PG FIX01 повторно не запускались; audit baseline failures вне этапа.
+- Edge5ролей на1366/1920: бармен/кальянщик guests; manager read-only inventory/staff и deniedpermissions; scopedadmin no base union+deniedinventory; owner roles/effectivecard/inventory. Grant/revoke/restore синтетического бармена в открытой вкладке PASS, personal[] восстановлен. Контролируемая остановка собственного31932 -> закрытый UI+retry -> восстановленный склад PASS. Сервер оставлен работающим, вкладки закрыты, viewport reset.
+- Отчёты FIX_02_RESULT/FIX_02_QA и PROGRESS обновлены. Production/GitHub не публиковались. Следующий этап FIX-03.1 (направления исполнения заказа), затем03.2каталог. Риск: permission-change reload сбрасывает несохранённый ввод портала, повторной отправки форм нет.
+
+
+## 2026-10-08 — FIX-03.1: построчное приготовление
+- Архитектор/data/backend согласовали отдельную order_item_execution и миграцию099; frontend/domain реализовали очередь и выбор строк; code_health/QA провели baseline/final и targeted проверки. Координатор интегрировал модуль, Docker, assets, локальную миграцию и Edge.
+- Отдельное исполнение сохраняет immutable pricing guard после частичной оплаты. Parent order lock сериализует dispatch/progress с финансовыми изменениями. Права orders+station/tasks_manage, tenant JOIN, явные IDs и expectedStatus, безопасные повторы.
+- PG123 assertions, unit19, UI VM и12FIX02 suites PASS; disposable DB cleanup PASS. Edge выявил DTO без seller name и перекрытие очереди floor; исправлено. Проверены1366/1920, разные сессии сотрудников, reload, частичная/общая готовность и новая строка послеready.
+- API/MIGRATIONS/SITE_TREE/VISUAL_PAGE_RULES обновлены; source/dist CSS404 portal473 app205. Миграция только31930 synthetic; production/GitHub не затрагивались. СледующийFIX03.2. Отчёт docs/qa/FIX_03_1_RESULT.md.
+
+## 2026-10-08 — FIX-03.2: актуальность каталога рабочего места
+- Причина D02: staff UI повторно показывал локальный список после изменения каталога. При открытии меню, возврате к нему и раз в 60 секунд при видимой вкладке выполняется `GET /api/products`; запросы объединяются и проверяются по revision сессии, точки и запроса. Обмен no-store, сервер сверяет expectedVenueId; ошибка блокирует выбор до успешного retry.
+- Новая позиция заказа принимает имя/цену сервера. Поиск, открытый заказ и сохранённые строки не заменяются. Ошибка product_not_found инициирует reload каталога и сообщает, успешен ли он. Обновлены API.md и dist через штатную синхронизацию (app206).
+- Три focused catalog suites PASS, node syntax/diff check PASS. Code-health engineer подтвердил source/tenant/no-store контракт; его замечание P2 по тексту после неудачного retry устранено и покрыто проверкой.
+- Edge подтвердил двухсессионную актуальность цены: бармен увидел 200 ₽, владелец изменил цену на 225 ₽ отдельной авторизованной локальной сессией, открытый каталог сохранял прежний снимок до повторного открытия, после которого бармен увидел 225 ₽. Цена восстановлена до 200 ₽, временная учётная запись отключена, сессии завершены. Изменение позиции, связанной с открытым заказом, сервер отклонил. Подробность — `docs/qa/FIX_03_2_RESULT.md`.
+- Production/GitHub не публиковались; оплата и складские движения не создавались.
+
+## 2026-10-08 — FIX-04.1: причины отказа оплаты
+- D01: payment catch терял серверные причины stock/recipe. Общий staffStockErrorMessage для оплаты и закрытия переводит11ошибок, направляет к управляющему; после сверки показывает paid/remaining без утверждения об отмене предыдущих частей. Close notice12секунд. Сервер/миграции/права/платёжные guards не менялись, app207/dist синхронизированы.
+- Архитектор с finance/warehouse/security подтвердил контракт; code_health baseline/final без блокеров. Клиентский runtime:11причин, partial сохранение, same-key retry, pending/stale PASS. PG387 assertions PASS (пополнение/добавление техкарты→retry, duplicate rejection); disposable cleanup PASS. Order transaction и catalog refresh регрессии PASS.
+- Edge: бармен missing recipe cash/card+close; кальянщик shortage card+close cash. Эмуляция1366/1920, скриншоты output/qa/fix-04-1. После отказов PostgreSQL open/payments0/cogs0/movements0, snapshot склада неизменен. Новый QA-заказ отменён, QAСтол3 свободен; существующий заказ QAСтол2 сохранён. Вкладка закрыта, viewport reset.
+- Отчёт FIX_04_1_RESULT, архитектурный контракт и PROGRESS обновлены. Отдельно зафиксирован существующий риск nested stock.cost в API missing; UI его не выводит, серверный DTO этим пакетом не менялся. Далее FIX-04.2 (Итого/Оплачено/Осталось). GitHub/production не публиковались.
+
+## 2026-10-08 — FIX-04.2: суммы оплаты в заказе
+- D08: основная карточка использовала pricing.due в подписи «К оплате» и не показывала paid/remaining. Теперь выводит серверное `Итого / Оплачено / Осталось` через существующий GET `/api/orders/:id/payments`; summary endpoint остаётся источником скидок/VIP, а due из платежного snapshot — ценой. После POST partial и повторного открытия UI перечитывает/рендерит сохранённый результат.
+- GET-ответ защищён order/venue/revision; поздний ответ не трогает другой заказ/точку. При payment read error paid/remaining отсутствуют, total при наличии pricing остаётся; при полном отказе отображается тире. Отсутствующий remaining вычисляется только из серверных due+paid. Код серверных платежей/БД не менялся.
+- Finance и system architect согласовали контракты. Code-health final без блокеров. Runtime suites суммы (475/200/275, 475/475/0, reload/reopen, errors/null, races) и payment pending PASS. Node syntax, diff check, source/dist SHA256 PASS. Edge bartender QA open order: 110/0/110; hard reload и повторный выбор — те же серверные значения. Реальная оплата в Edge не отправлялась; 475/200/275 проверено виртуальной цепочкой клиента.
+- FIX_04_2_RESULT/PROGRESS обновлены. app210. Снимок output/qa/fix-04-2/order-summary-after-reload.png. Далее FIX-04.3. Production/GitHub не затрагивались.
+
+## 2026-10-08 — FIX-04.3: диалог истории возвратов
+- D09 был причиной композиции шаблона: при отсутствии формы `${paymentRowsSection}` вставлялась дважды. В `portal.js` удалён внешний повтор; секция остаётся один раз внутри формы либо один раз в read-only ветви. Добавлен regression guard в `scripts/pos-order-refunds-ui-contract.mjs`.
+- `style.css`: добавлено scoped-оформление `.order-refund-dialog` и строк оплаты/истории в тёмной теме, с viewport scroll, focus/backdrop и узкой перестройкой строки. API/БД/права не менялись; pending intent, payload и idempotency key оставлены как были.
+- System architect и code_health final: контракт соблюдён, блокеров нет. `node --check portal.js`, `node --check dist/portal.js`, UI contract, `git diff --check`, source/dist SHA256 parity — PASS. Portal rev474, CSS rev405.
+- `pos-order-refunds-postgres-qa.mjs` не выполнился: не задан MIGRATIONS_PG_TEST_DATABASE_URL и disposable QA container; браузерная проверка размеров 1366/1920 не подтверждена. Зафиксировано в `docs/qa/FIX_04_3_RESULT.md`; не заявлять E2E/визуальный QA как пройденный.
+- Production/GitHub не публиковались. Далее FIX-04.4 (D06).
+
+## 2026-10-08 — FIX-04.4: единый календарь брони и освобождения стола
+- D06: пять order-release SQL сравнивали даты в timezone соединения БД; отмена брони сравнивала с датой отменяемой брони, а POST/PATCH валидировали время через timezone Node. Новый reservation-calendar.js задаёт единый валидный timezone точки→организации→Asia/Yekaterinburg для создания/чтения/валидации/освобождения и обновляет статус существующим transaction client. Некорректные legacy timezone пропускаются через pg_timezone_names; постоянный venue SQL-параметр позволяет разрешать пояс один раз за запрос.
+- server.js/db.js: создание/перенос/отмена брони и delete/status/transfer/payment/close заказов, floor/guards/история/счётчик используют один календарь. Memory использует день выбранной точки; blocked сохранён, active order выше confirmed today, прошлые/будущие брони не резервируют сегодня. Новый модуль включён в Dockerfile, API.md обновлён. Миграций нет.
+- Архитектор + code_health baseline/final пройдены; замечание invalid legacy timezone исправлено. Финальный отдельный HTTP/PostgreSQL suite: 2203 assertions PASS (6 timezone конфигураций, UTC/Honolulu соединения, обе стороны полуночи, 5 release paths, create/edit/cancel, active/blocked/foreign guards). Старый server/db через test-only loader воспроизвёл D06 free вместо reserved. Clock только в дочернем QA-процессе; все fresh DB удалены, CLEANUP PASS.
+- Syntax, scoped diff, order-close-transaction, finance-timezone, venue-timezone-validation и reservation-legacy-cancel-warning PASS. Соседние FAIL не скрыты: reservation-form-qa содержит устаревший permission regex; floor-management-memory-qa задаёт сегодняшние20:00 в прошлом, одинаково FAIL на baseline/current. Их ремонт — FIX-05. Memory DST не заявляется эквивалентным PostgreSQL; визуальных изменений нет.
+- Отчёт docs/qa/FIX_04_4_RESULT.md и PROGRESS обновлены. GitHub/production не публиковались. Далее FIX-05; перед выпуском остаётся визуальная приёмка FIX-04.3.
+## 2026-10-08 — FIX-05: ремонт тестовых сценариев
+- Исправлены QA fixtures реальных свободных столов через floor API, DOM mocks счётчика остатков и навигации, visual lifecycle contract и cache revision contract. Проверки не ослаблялись; продуктовый код/БД не менялись.
+- QA-E whitelist ограничен восемью утверждёнными полями только текущей открытой смены; проверены отсутствие scope, закрытая история и изоляция с реальной второй точкой.
+- QA-F: три PG suites используют guarded runner для закрытия дочернего процесса, закрытия pool и удаления только принадлежащей runner одноразовой БД с запросом-проверкой отсутствия. Ошибки функционального тела и shutdown агрегируются отдельно. Staff identity 134 assertions PASS; audit privacy PASS; оба cleanup PASS. Guard self-check 42 PASS.
+- Результат: docs/qa/FIX_05_RESULT.md. `local-full-qa --static` остановился на baseline `dashboard-overnight-employee-demo-qa` (17/18); memory остановился на сохранённой notifications isolation assertion (9/10). В prepayment после исправления cleanup проявился legacy gross report defect (500 ₽ не попадает в gross). Оба продуктовых finding вынесены отдельно; проверки оставлены строгими.
+- Проверки: QA-A–E focused suites (исключения с описанными продуктовым FAIL), PG scoped suites/guards, `node --check`, `git diff --check`. `--all` не запускался; browser/mobile исключены из локальной автоматизации. GitHub/production не публиковались.
+
+## 2026-10-08 — FIX-05.1: изоляция уведомлений по точкам
+- Воспроизведён исходный FAIL notifications-api: memory request user является копией, а выбор точки не обновлял token-сессию. server.js сохраняет выбранный venueId только в предъявленной memory-сессии после проверки цели и пользователя; PostgreSQL/resolver/API-права сохранены.
+- notifications-api QA расширен: cookie/Bearer, повторный session read, два токена владельца, архивная/неизвестная точка и отсутствие settings. Полный memory notification suite PASS; guarded PostgreSQL notifications PASS (switch A/B, чужой event404, read-all изоляция, receipts после restart, source503); одноразовая база удалена runner с проверкой отсутствия.
+- network-selection, session-authority, network-tenant-contract, network-mutation-boundary, syntax и scoped diff PASS. Архитектор/security и code-health baseline/final: блокеров нет. Точный продуктовый delta — 4 строки server.js; исходное грязное дерево сохранено.
+- Отчёт FIX_05_1_RESULT.md, PROGRESS обновлены. Браузер/UI не затронуты; общая изоляция floor/orders memory не заявляется. Legacy gross/static mock остаются отдельными задачами. GitHub/production не публиковались.
+
+## 2026-10-08 — FIX-05.2: legacy gross/net в сверке
+- До правки guarded prepayment воспроизвёл 500 вместо1000 gross. Причина: SQL рассчитывал legacy_gross/legacy_paid, но не включал их в итоговые COALESCE. Две формулы server.js восстановлены: canonical→order snapshot→persisted legacy facts, только для NULL; ноль сохраняет приоритет.
+- API.md уже устанавливал этот контракт сверки; FINANCE_MODEL уточняет отличие от начисленного финансового отчёта. Исторические snapshots/данные не меняются, скидки не восстанавливаются по текущим акциям. Finance/architect и code-health baseline/final пройдены без блокеров.
+- Полный reservation-prepayment-postgres QA PASS с новыми случаями zero/stored snapshot precedence, unpaid legacy, period boundaries, foreign venue, повторным чтением, сохранением canonical facts и точным восстановлением fixture baseline; runner-owned DB drop/absence PASS.
+- Пять focused suites reconciliation/finance/timezone/memory, syntax и scoped diff PASS. Дополнительный paid-order-balance PG FAIL: cleanup FK policies/promotions/venues маскирует возможный функциональный результат, PASS не заявлен. Его файл не изменялся; временную БД удалил guarded runner. Отдельный QA-долг вместе со static mock.
+- FIX_05_2_RESULT/PROGRESS/FIX_05_RESULT обновлены. GitHub/production/рабочие данные не затронуты; браузерный QA и FIX-06 не заявляются выполненными.
+
+## 2026-10-08 — FIX-05.3: оставшиеся тесты
+- Актуализированы извлечённые portal API mocks и узкие source-contract assertions под текущий `hasPortalPermission`, bootstrap session check, trusted PIN response и DOM API. Проверки прав/ошибок не удалялись; role guest route допускает staff_view/orders в соответствии с реальным серверным чтением.
+- Полный static PASS 137/137; полный memory PASS 23/23. Все затронутые точечные проверки проходят, включая 36 employee-report сценариев.
+- Guarded paid-order-balance PostgreSQL suite: cleanup PASS; functional FAIL сохранён на БД snapshot групповой скидки: `group_discount_base/group_discount_amount` после закрытия `0/0`, при `discountTotal=20` и ожидаемых group values `200/20`. Это отдельный продуктовый дефект; продуктовый код не менялся. Ответное поле тестируется через реальный `discountTotal`, group-specific metadata — отдельной SQL assertion.
+- Code-health final review: mock contracts сохраняют проверки разрешений, tenant, pending/retry и ошибки. `git diff --check` PASS. FIX_05_3_RESULT и progress обновлены; GitHub/production не менялись.
+
+## 2026-10-08 — FIX-05.4: сохранение групповой скидки после оплаты
+- Причина: canonical pgOrderPricing пропускал groupDiscountBase/Amount; окончательная оплата записывала SQL NULL. Number(null) в прежней проверке отображал симптом как 0/0.
+- server.js восстанавливает поля из frozen group identity, canonical subtotal/discount/source. Группа проиграла акции/manual → amount=0; группы нет → null. Текущие политики и изменяемые поля orders не используются. Нет миграций, изменения guards/транзакций или массового восстановления истории.
+- Новый pg-order-pricing-snapshot suite воспроизвёл дефект до изменения и проверяет 5 frozen cases после него. Добавлен в static allowlist. Paid-order PG снова проверяет API base/amount и неизменность непустого canonical header/lines при закрытии.
+- Full guarded paid-order-balance и reservation-prepayment PG PASS, owned DB cleanup PASS; static 138/138 PASS; syntax/scoped diff PASS. Finance/system architecture согласовали контракт, code_health проверил baseline и финальный точный diff относительно tmp/fix05-4-baseline. Замечание о невакуумной проверке snapshot учтено.
+- Отчёты FIX_05_4_RESULT, FIX_05_RESULT, FIX_05_3_RESULT и progress обновлены. Следующий этап FIX-06; браузерная приёмка и публикация не выполнялись.
+
+## 2026-10-08 — FIX-06: приёмка в Edge
+- Изолированная QA PostgreSQL31930/app31932; проверены guards и свежесть backend, перезапущен только подтверждённый локальный Node. Product code/миграции не менялись.
+- Edge: владелец создал/назначил custom role; grant/revoke finance_read в действующей сессии бармена, прямой stock deny бармен/кальянщик; каталог300→310 и сохранение исторической строки310 после возврата каталога300.
+- Барный заказ098f6fc6: guest7, dispatch→in_progress→ready,100cash/reload/210card/closed. Кальян1fdb757c: полный цикл1200cash. Read-only SQL и независимый code-health review подтвердили точные платежи, canonical totals, COGS16/130, списания3/2 и неизменность repeat captures после reload.
+- Управляющий видит склад только для чтения и оба закрытых заказа. История100cash+210card без дублирования секции;1366×768/1920×1080 измерены, скриншоты сохранены. Визуальное ограничение FIX-04.3 закрыто для проверенного диалога просмотра.
+- Связь Edge4 потеряна на подтверждении архивирования роли; повторное подключение Edge3 тоже timeout. Не выполнены заключительный admin/negative/mixed проход и подтверждённый reset viewport. Полная приёмка не объявлена завершённой. Отчёт FIX_06_RESULT.md, progress обновлён; scoped diff check PASS.
+- Cleanup read-only подтверждение: bartender custom_role_id=NULL, lemon300, временная роль FIX06 Заказы активна/0 назначений (архивирование не сохранилось). Тестовые продажи оставлены доказательствами. GitHub/production не публиковались.
+
+## 2026-10-08 — FIX-06: продолжение после восстановления Edge
+- Новая вкладка Edge3 восстановила управление. Admin login/dashboard/floor PASS; повторный missing-recipe close отказ понятен, независимый SQL baseline/after unchanged (open110, payments/movements/costs/snapshots0).
+- Fresh mixed827c4509: admin создал2 non_stock позиции100+100; repeat dispatch не создал работу. Бармен видит только чай, завершение оставляет whole in_progress; кальянщик видит только кальян, завершение переводит whole ready. Cash200, reload table4free/close disabled PASS.
+- Независимый reviewer сохранил mixed-partial и подтвердил archive FIX06 role=false/assigned0. Его финальный ход прервался по лимиту; координатор сам выполнил guarded REPEATABLE READ READ ONLY mixed-after: closed200,2ready,1paid200,1snapshot20000,1cost0,0stock, monetary lines unchanged. Не выдаётся за независимый final review.
+- Viewport reset успешен. Новых продуктовых правок нет. FIX_06_RESULT/PROGRESS обновлены: основная локальная приёмка PASS с явными ограничениями (shortage/forced foreign station/concurrent POST не повторены); далее пользовательское тестирование. Публикации нет.
+
+## 2026-10-08 — состав релизного пакета FIX-01…06
+- Создана отдельная локальная clone tmp/release-fix01-06/base802d5e63;160 delta файлов,8 AlphaSat исключены,3 platform cache-only включены для общей CSS405. Основное дерево/индекс и сторонние изменения сохранены.
+- Архитектор согласовал узкое cache-only исключение; boundary exact3 HTML, CRLF normalization, exact-path shared governance. Code-health final: self+32negative PASS,954-file scoped secret/artifact scan без найденных совпадений.
+- На составе: static138,memory23,platform/deploy/boundary PASS; guarded migrations без098 и paid-order PG PASS с owned DB cleanup. Архив tmp/FIX-01-06-candidate.tar.gz,954 файла проверены распаковкой/SHA256; manifest и отчёт docs/release/FIX_01_06_PACKAGE.md.
+- Это незакоммиченный кандидат. GitHub/production не публиковались; будущий commit archive/remote CI/server backup/deploy остаются отдельными шагами.
+
+## 2026-10-08 — коммит, PR и CI FIX-01…06
+
+По отдельному разрешению пользователя создан и отправлен коммит ce4684e4fafbe358e4f589b71cd9aceb4f60a05d, ветка codex/release-fix01-06.
+PR: https://github.com/falex2006/HOOKAH-POS/pull/5
+
+- GitHub CRM contracts (run 37827169706): success.
+- GitHub AI team contracts (run 37827169698): success.
+- Реальный base…head boundary и финальный diff --check: PASS. Независимый code-health review состава: PASS.
+- Перед коммитом удалены только хвостовые пробелы/пустые EOF в четырёх QA документах; исторический candidate manifest сохранён отдельно.
+- Итоговый архив: tmp/FIX-01-06-ce4684e4.tar.gz. Создан git archive с core.autocrlf=false для точных байтов Git и Linux.
+- SHA256 архива: b1a69fcdfc9f58dd66246ee3b11822aa7bb9b281270283333bde22fc3b071661.
+- Все 954 файла архива побайтово сверены через Git blob hashes с деревом commit: PASS. Итоговый manifest: docs/release/FIX_01_06_COMMIT_MANIFEST.json.
+- Merge, серверные миграции и deployment не выполнялись. Следующий этап: согласованный merge и подготовка серверного выпуска по DEVELOPMENT_WORKFLOW.md. Основной рабочий checkout и его индекс сохранены.
+
+## 2026-10-08 — merge FIX-01…06 и server preparation
+- PR5 merged: 1ceb09c9; exact merge archive 954 blobs PASS.
+- Server SSH/HTTPS/health PASS, backup + guarded restore PASS, own temporary DB removed. Production remains 802d5e63.
+- Release review found verify-backup ownership trap and deploy-before-099 risks; COOKIE_SECURE=false despite valid HTTPS. Deployment not run. Details: docs/release/FIX_01_06_SERVER_PREPARATION.md.
+
+
+## 2026-10-09 — FIX-01…06 deployed
+- PR6 release safety merged; deployed main92d957ec, secure cookie enabled, owned restore7 cases/migrate failure retry/CI PASS.
+- Fresh server backup+restore, migrations099, healthy CRM/DB, platform auth/Secure/logout and anonymous deny PASS; duplicate release skip PASS.
+- Tenant admin login using env DEMO password401; full production tenant role/order smoke remains unconfirmed; no password reset or production sales. Report docs/release/FIX_01_06_DEPLOYED.md.
+
+
+## 09.10.2026 — production Edge smoke кальянщика
+- Действующая пользовательская сессия: зал/заказы/каталог PASS, inventory+finance direct-route deny PASS, reload session PASS. Записей в бизнес-данные не выполнялось; другие роли и полный цикл заказа остаются отдельной приёмкой.
+
+
+## 09.10.2026 — owner Edge smoke
+- Owner dashboard/personnel/roles/inventory/finance load PASS. Custom-role assignment explains prior hookah finance deny. Dialog cancelled, no permissions/business data changes. PIN auto-lock appeared; no bypass. Full mutation acceptance remains unclaimed.
+
+
+## 09.10.2026 — единый каркас сотрудника
+- Исправлено расхождение app/portal sidebar: flat staff shell, задачи, guarded orders deep link, existing header handlers. Права и данные не менялись.
+- Architect/code-health signoff; Edge staff routes+admin groups PASS; regression and existing contracts PASS. CSS406/portal475/app211 synced.
+- Интегрировано в основной локальный проект. Сервер не обновлялся этой правкой; report docs/qa/STAFF_SHELL_PARITY_RESULT.md.
+
+## 09.10.2026 — время за столом и основные действия
+- app.js: занятые/ожидающие оплату карточки получают «За столом: N мин / N ч M мин» от сохранённого openedAt/createdAt активного заказа. При нескольких активных заказах используется самый ранний валидный timestamp; неизвестное время явно обозначено, будущее ограничено нулём. Отдельного таймера кальяна/напоминаний нет.
+- Обновляется только текст/доступное имя каждые30сек при видимой странице и после получения заказов/отрисовки зоны. Перезагрузка использует timestamp из API, не локальный момент входа.
+- Убраны верхние дубли new-order/add-position и их forwarding. Нижняя primary с прежними guards сохранена; бронирование/перенос/закрытие карточки не затронуты.
+- Свободные столы: статичная зелёная рамка/точка со статусом, без анимации. Source/dist синхронизированы CSS407/app212, main и isolated clone.
+- Автоматические тесты и браузерная приёмка этого изменения не запускались; выполнено read-only code review. Публикация не выполнялась.
+
+## 09.10.2026 — заметный указатель для бармена/кальянщика
+- Вариант2: SVG40px красная стрелка с белой обводкой; hand/text варианты для действий/ввода. Нативные disabled/inert/busy/grab состояния сохранены.
+- Только base roles bartender/hookah_master: app class toggle по сессии, снятие при очистке доступа; portal после verified bootstrap. Только hover:hover и pointer:fine, без overlays/анимации/изменения кликов.
+- Source/dist main+clone синхронизированы CSS408/app213/portal476. Браузерная проверка и автотесты не запускались. На сервер не опубликовано.
+
+
+- Code review замечания CSS specificity устранены: низкоспецифичные :where для hand/text, disabled/busy/inert правила имеют приоритет; draggable перед state overrides. Проверка в браузере остаётся следующим шагом.
+
+
+## 09.10.2026 — Staff UI published
+PR7 merged; production dae502de healthy. Verified backup restore, CI,960-file archive, Edge hookah_master timers/cursor/menu and single order action. See docs/release/STAFF_UI_PRODUCTION_RESULT.md. Production bartender sign-in and Fold not repeated.
+
+
+## 09.10.2026 — Company page published
+PR8 merged; main e52ff5fd deployed. CI/backup restore/HTTPS/health PASS. Edge owner confirmed title, form, hidden dashboard, single8s perimeter pulse.964-file archive verified. Source mirrored without unrelated staging. See docs/release/COMPANY_PAGE_PRODUCTION_RESULT.md.
+
+
+## 09.10.2026 — Numeric table timer published
+PR9/main34cb701a deployed. Numeric HH:MM badge no visible label; guards unchanged. CI/QA/backup restore/HTTPS PASS, Edge measured badges inside all3 occupied tables. docs/release/TABLE_TIMER_PRODUCTION_RESULT.md.
+
+
+## 09.10.2026 — Reservations polish
+Scoped reservations workspace: compact form, wider readable cards, explicit date/search labels, responsive stacking at1200px. Fixed edit→New reset, pending guards, failed-edit caption and selected-table/capacity refresh without changing saved deposit. API, permission and financial handlers unchanged; no migrations. Code-health baseline/final PASS. Nine relevant syntax/contracts/VM checks PASS. Edge disposable memory API: create, edit22:00, reload persisted, New reset and selected table PASS; desktop1366, light/dark and narrow390 no horizontal overflow. Production data untouched during QA. Assets CSS411/portal478/app214.
+
+Reservations deployed: PR10, main98c97102, both CI workflows PASS,966 archive blobs verified, VPS backup restore/health/auth checks PASS. Production owner page visually confirmed in Edge; existing reservation unchanged. Details docs/release/RESERVATIONS_PRODUCTION_RESULT.md.
+
+## 09.10.2026 — Read-only Edge hookah master UX audit
+User requested inspection/recommendations, not implementation. Actual signed-in hookah master reviewed /, /?view=orders, /admin#tasks, /clients plus existing guest card, /reservations, /finance and /finance/report. No booking/order/payment/status changes; returned to floor. Findings: truncated full staff name and inconsistent shell scale; overloaded order panel with nested scroll and two more-action menus; queue1300min versus HH:MM table; preparations and general orders need clearer separation; guests overemphasize analytics and expose technical UUID history; task refresh missing in code, worker may cancel/reopen own task but cannot delete without management permission; financial turnover caption mismatches payments-by-day semantics. Wallet topup permission orders|finance intentional; full ledger separately restricted, leaving receipt verification usability gap. Direct /finance/report actual production renders correct personal report (rejected code-only concern). Recommend first package shared short-name header and readable order panel, then tasks refresh/actions and role-specific guest/finance simplification. Native system_architect agent performed independent read-only source checks. No tests/deploy/code edits this audit.
+
+## 09.10.2026 — Employee header and order panel
+Approved first UX package: shared display-only employee name helper, full-name title and identity retained, management names unchanged, ambiguous free-form names retained. Shared helper served by exact static allowlist and Docker COPY. Removed duplicate table-context transfer menu; all six original More actions retained. Readable order row grid/44px quantity controls/financial explanation lines; scoped light-dark CSS and wider desktop order column. No API or schema/permission changes except public static asset declaration. Architect and code-health reviews PASS. Edge local hookah-master login, Roman POS/tasks parity, real transfer to table2, reopening/reload and total1500 preserved; production orders never used for mutations. Relevant header/shell/design/name/financial-summary and pending contracts PASS. Assets CSS412/portal479/app215.
+
+Employee header/order panel deployed: PR11, main f8b97198, CI PASS,970 archive blobs verified, backup restore+health+auth PASS. Actual hookah-master Edge shows Roman and unchanged1500 existing order. Remaining audit improvements are next packages. Result docs/release/STAFF_WORKSPACE_PRODUCTION_RESULT.md.
+
+## 2026-10-09 — Дизайн плиток столов
+- Цель: крупное имя, ясные статусы, оборудование слева снизу, время справа снизу. Подробное задание: docs/design/TABLE_TILES_DESIGN_PROMPT.md.
+- Реализация: app.js (разметка оборудования, вместимость брони, полный заголовок, проверка вместимости геометрии), style.css (сетка, SVG-бейджи, пять состояний, выделение, тёмная/светлая темы), синхронизация опубликованных копий CSS413/app216.
+- Участники: design_lead/frontend — table_tiles_design; code_health_engineer — table_tiles_health; координатор — интеграция и визуальный просмотр.
+- Независимый обзор выявил специфичность цветов светлой темы; исправлено. node --check app.js и git diff --check завершились успешно. Автоматические тесты не запускались; перед публикацией требуется релизная приёмка.
+- В Edge просмотрен реальный локальный POS с временными данными memory API: свободные, бронь, занятые, TV/PS5, время 00:00→00:02. Снимки tmp/table-tiles-design-dark.jpg, tmp/table-tiles-design-equipment.jpg, tmp/table-tiles-design-light.jpg. Светлая тема включалась временно в локальном HTML, исходник восстановлен до sync. Отдельная проверка всех размеров/геометрий не выполнялась.
+- Данные сервера, API, роли, деньги, вычисление таймера не менялись. Изменения перенесены точным проверенным патчем из изолированной копии, прочие изменения рабочего дерева сохранены. GitHub/VPS в этом этапе не публиковались.
+
+## 2026-10-09 — Оставшиеся пакеты рабочего места
+Реализованы очередь часов/минут, задачи (серверный запрет отмены исполнителем + защищённое автообновление), операционный порядок гостей/защита истории и точные финансовые подписи. Подробно docs/qa/STAFF_REMAINING_PACKAGES_RESULT.md. Участники remaining_health, remaining_tasks_contract, remaining_portal; финальный review без блокеров. Синтаксис и diff check успешны, Edge локальные задачи/гость просмотрены; автоматическая и PostgreSQL приёмка не выполнялись. CSS414/portal480/app217. Изолированный diff перенесён проверенным патчем без посторонних изменений. Публикация не выполнялась.
+
+## 2026-10-09 — Рабочие пакеты опубликованы
+PR12 объединён; VPS df337cfa86e2e1cb0c767ffbadff9e49750bcf9a. CI PASS, архив974 файла совпал, backup restore PASS, CRM/DB healthy, auth smoke PASS. Edge под реальным кальянщиком: плитки, оборудование, время и загрузка задач подтверждены. Production заказы/задачи не изменялись. Подробно docs/release/STAFF_REMAINING_PRODUCTION_RESULT.md.
+
+### 2026-10-09 — Плотность столов рабочего поста
+
+Причина: фиксированные две колонки и высота карточек скрывали нижние столы на ноутбуке. Добавлены автоматическая сетка и компактный ползунок 70–130% с «Вместить». Настройка изолирована по подтверждённому сотруднику и точке; API, БД и сохранённая геометрия не меняются. Роли: frontend/design — table_density_impl, baseline/final code_health — table_density_health, интеграция и Edge QA — координатор.
+
+Edge: все 10 столов помещаются при 1366×768, 1390×747 и 1920×1080. Проверены 130%, сохранение после reload, возврат в авто, выбор занятого стола, переход в заказы и обратно. При ширине 390px горизонтального переполнения нет; вертикальная прокрутка ожидаема. CSS415/app218 синхронизированы. Автоматические проверки и публикация фиксируются в релизном результате.
+Edge: все 10 столов помещаются при 1366×768, 1390×747 и 1920×1080. Проверены 130%, сохранение после reload, возврат в авто, выбор занятого стола, переход в заказы и обратно. При ширине 390px горизонтального переполнения нет; вертикальная прокрутка ожидаема. CSS415/app218 синхронизированы. Автоматические проверки и публикация фиксируются в релизном результате.
+
+Коррекция реального экрана: при1389×709 минимальная высота118px ещё давала прокрутку. Уменьшена до108px без уменьшения названия22px/таймера18px. Edge override1390×710: последний стол691.6px, внутреннего переполнения0. QA480pxfits/420pxoverflow PASS, CSS416/app219.
+
+### 2026-10-09 — Курсор и единственный зал
+
+Запрос: форма курсора из примера с красным свечением; убрать название единственного зала и занятое им место. Root cause: display:flex перекрывал hidden табов. Исправлен scoped CSS hidden; стартовое и ошибочное состояния тоже скрыты. При двух залах переключение сохраняется. Стрелка SVG48px с тёмной серединой, светлым округлым контуром и красным glow, hotspot10,9; ограничения ролей бармен/кальянщик и специальные состояния сохранены.
+
+Edge локально: один зал display:none/height0, workspace начинается под шапкой; красный SVG присутствует в computed cursor; два зала видны, переключение в пустой второй зал PASS. Нативное изображение курсора скриншотом не подтверждено. Code health baseline/final и focused QA, header contract, синтаксис и source/dist PASS. CSS417/app220. API/БД не меняются.
+
+Production cursor/zone:e5dae4c4, архив976файлов PASS, backup restore/health/session smoke PASS. Edge кальянщик1389×710:10столов видны, низ694.73px, табы высота0, cursor red SVG применяется. Отчёт docs/release/CURSOR_ZONE_PRODUCTION_RESULT.md.
+
+### 2026-10-09 — Полный комплект курсоров
+
+По уточнению пользователя приведены все6состояний (arrow/hand/text/grab/wait/not-allowed) к общему48px SVG стилю: тёмная середина, светлый контур, красное свечение. Нативные semantic fallback, роли бармен/кальянщик, fine-pointer media и порядок состояний сохранены. Нет изменений API/БД/разметки. CSS418, app220. Code health baseline/final PASS; decoded SVG/source-dist/roles/state tests и syntax/diff PASS. SVG комплект отрендерен Sharp и визуально проверен (tmp/staff-cursor-set.png); это preview ассетов, не снимок системного курсора.
+
+### 2026-10-09 — Бронирование в пошаговом диалоге
+
+Страница теперь содержит список, поиск/дату и одну заметную CTA. Существующая форма переиспользована в native dialog:гость→визит→подтверждение. Сохранены POST/PATCH/финансовые действия и права. Явная валидация открывает ошибочный шаг; pending блокирует повтор/закрытие, ошибка сохраняет данные; успех закрывает окно и показывает дату записи. tableId-only открывает создание, reservationId/action=seat сохраняют старые сценарии.
+
+Роли: system_architect — reservation_modal_contract (контракт принят после guard fix); frontend/design — reservation_dialog_impl; code health — cursor_zone_health. Edge в локальной memory среде с временным управляющим:создание будущей брони, редактирование2→3гостя, reload/дата, обязательное имя, вместимость6, Escape/dropdown, закрытие/фокус и возврат черновика PASS. 1366×710:шаг2height588px без scroll;390×844 горизонтального overflow нет. Actual production кальянщик проверяется отдельно без тестовых броней.
+
+reservation-form-qa, reservations-polish-qa, reservation-wizard-qa, design419, header-shell, syntax/diff/source-dist PASS. CSS419/portal481. Миграций/серверных правок нет. Детальный контракт docs/design/RESERVATION_DIALOG.md.
+
+Production2786added:978файлов архива совпали, backup restore/health/session smoke PASS. Edge кальянщик список/CTA/native dialog/close/focus/table options PASS. Отчёт docs/release/RESERVATION_DIALOG_PRODUCTION_RESULT.md.
+
+### 2026-10-09 — Аудит единого интерфейса и план без реализации
+
+По отдельному запросу пользователя выполнено только исследование и сохранение документов. Базовая копия tmp/release-fix01-06: c79c0065, дерево совпадает с merge2786added (git diff --stat пуст). Три независимых read-only исследования: design_audit_tokens (design lead/visual), design_audit_shell (system architect), design_audit_dialogs (QA/code health). Найдены расхождения CSS-токенов/правил, shell-геометрии, state навигации, modal lifecycle/draft/pending и уведомлений; последствия без runtime доказательств обозначены как риски.
+
+Edge: отдельная вкладка, текущая роль кальянщика; зал осмотрен, снимок evidence/floor.png. При переходе к бронированиям после начального AX произошёл redirect login; остальные роли/страницы не объявлены live-проверенными. Не выполнялись вход, записи данных, продуктовые тесты или изменения сайта.
+
+Результат: docs/design/UNIFIED_UI_2026-10-09/{README,AUDIT,STANDARD,PLAN,PROMPTS,PROGRESS}.md — 10 этапов, 22 самостоятельных подэтапа с моделью/уровнем, зависимостями, границами и критериями. STANDARD — предложение, не внедрённая норма. Первое будущее задание UI-01.1 (Astra High); Fold отложен. GitHub/VPS не публиковались. Проверка ссылок/структуры документации выполняется отдельно от тестов продукта.
+
+### 2026-10-09 — Статус приготовления в карточке стола
+
+В карточке выбранного стола выделены три этапа исполнения: «Отдан в работу» (позиции переданы, но ещё не начаты), «В процессе» и «Готово» (готовы все позиции). Новый заказ остаётся «Открыт»; закрытие/отмена заказа сохраняют финансовый приоритет. Добавлены отдельная разметка статуса и проверка агрегирования. Схема БД, API, платежи и расчёт заказа не меняются.
+
+Проверки и полный пользовательский путь фиксируются после синхронизации публикационных копий. Параллельно уточняется окно времени действия минимального чека для отдельных столов; до ответа владельца интервал не меняется.
+
+### 2026-10-09 — Уточнение характера дизайна
+Пользователь потребовал избежать шаблонного нейросетевого оформления. Требование конкретизировано в UNIFIED_UI_2026-10-09/STANDARD.md, вынесено в README и включено в 22 задания PROMPTS.md. Только документация; интерфейс и публикация не затронуты.
+
+### 2026-10-09 — Пошаговый сценарий нового заказа сотрудником
+
+В каталоге явно объясняется автосохранение заказа, после добавления окно остаётся открытым для следующих позиций, а отдельная кнопка и Escape возвращают в карточку заказа с фокусом на действии добавления. Карточка показывает ближайший шаг; сообщения передачи и принятия уточняют направление, стол и число позиций. API и финансовая логика не менялись. В Edge осмотрен текущий production интерфейс под владельцем; активные заказы не менялись. В изолированной локальной копии Edge показал новую последовательность: выбор тестового стола, добавление двух позиций без закрытия каталога, обновление подсказки и возврат в карточку. Тестовые клики выполнялись на локальном стенде поверх PIN-экрана; отправка не завершилась из-за расхождения идентификаторов точки в memory demo API (`venue-territory` и UUID). Релиз и production-записи не затронуты.
+
+### 2026-10-09 — Сумма активного заказа на плитке стола
+
+Занятые столы и столы, ожидающие оплату, показывают строку «Заказ · сумма» между названием и статусом. Расчёт идёт по позициям и не включает депозит, минимум или платежи. Свободные/забронированные/закрытые столы сумму не показывают. Сумма обновляется вместе с активными заказами, входит в доступное имя; таймер и его обновление сохранены. CSS сохраняет отдельные строки в компактном карточном режиме. API и база данных не менялись.
+
+Проверки: `staff-table-elapsed-qa.mjs`, `staff-table-density-qa.mjs`, статус карточки и preparation UI, каталог сотрудника, синтаксис JS, `git diff --check` — PASS. `dist` синхронизирован; app.js rev221, style.css rev420. В Edge обновлена локальная копия; API-бэкенд отклонил локальную сессию, затем статическая демо-сессия открылась без настроенного зала и тестовых заказов. Встроенный browser-evaluate не имел доступа к localStorage, поэтому визуальный пример активной плитки не был подготовлен. Production не менялся; сервер демо остановлен.
+
+### 2026-10-09 — Временное окно минимального чека
+
+По уточнению владельца окно действует с 18:00 до 09:00 следующего дня. Добавлены nullable время начала/окончания к столу, настройки при создании и редактировании, возврат значений из `GET /api/floor` и миграция 100. Заказ применяет минимум по локальному времени создания в часовом поясе заведения; бронь сверяется со временем её начала. Дневное бронирование не требует ночной минимум. Значение от клиента для заказа игнорируется, применённая сумма остаётся снимком в заказе. Для новых столов форма задаёт 18:00–09:00 по умолчанию; существующие столы автоматически не менялись. Контракт записан в `docs/architecture/TABLE_MINIMUM_SCHEDULE_CONTRACT.md`.
+
+Проверки: `table-minimum-schedule-qa.mjs` (16 assertions), сценарии статуса заказа, подготовки строк, добавления позиции, синтаксис изменённых JS и `git diff --check` — PASS. Выпуск не выполнялся: полный накопленный diff ещё требует выделения релизного набора на актуальном `origin/main` и прохождения GitHub CI/backup gate.
+
+Дополнение: контрактный аудит выявил, что форма бронирования всегда требовала депозит по столу вне зависимости от выбранного времени. Исправлен расчёт минимума в форме: scheduled minimum активен с 18:00 до 09:00, на границе 09:00 отключается; существующие столы без расписания сохраняют поведение «весь день». При смене времени брони пересчитываются минимальная сумма и подсказка. `reservation-wizard-qa.mjs` расширен граничными проверками; `reservation-wizard-qa.mjs`, `table-minimum-schedule-qa.mjs`, `order-card-preparation-status-qa.mjs`, `order-preparation-ui-qa.mjs`, `node --check portal.js` и синхронизация `dist/` — PASS. Production health (`https://212.192.0.58/api/health`) отвечает `status: ok`; Edge перенаправляет экран бронирований на вход, поэтому проверка под ролью сотрудника не выполнена. Production остаётся на `2786added`; локальная ветка отстаёт от `origin/main` на 29 коммитов и содержит большое количество перекрывающихся изменений, поэтому расписание не публиковалось.
+
+### 2026-10-09 — UI-01.1 «Правила и карта системы»
+
+Принят локальный документальный контракт UI v1.0. System architect, design lead и product analyst запускались как нативные субагенты GPT-6 Astra / High; координатор свёл пакет и проверки. Исходники: dirty HEAD `802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf`, свежий `origin/main` после fetch — `2e6f557934fe29a9a227dda73277f6c3f99af939`. Прежние незакоммиченные продуктовые изменения сохранены; локальный снимок не объявлен production.
+
+D07/D08/D15 закрыты на уровне документации: согласованы wizard брони, пять колонок выбранной таблицы персонала и view/cardScale, две темы, приоритет desktop и Fold в UI-10.1. Реестр содержит 14 страниц, 7 inventory views, 14 admin hashes и payroll; добавлены отсутствовавшие permissions/notifications/help без изменения прав. Созданы route×role, каталог 18 семейств компонентов и 8 исключений; обновлены VISUAL_PAGE_RULES.md, DESIGN_TOKENS.md, SITE_TREE.md, site-map.json и STANDARD.md. Старый SITE_MAP и связанные отчёты помечены историческими; предметные спецификации брони/плиток подчинены общим правилам. Полный состав и доказательства: docs/design/UNIFIED_UI_2026-10-09/PROGRESS.md.
+
+Проверки: статическое соответствие реестра маршрутам/views/hashes и серверным defaults — PASS; JSON/уникальность/наличие страниц — PASS; локальные ссылки основного пакета — PASS; git diff --check — PASS (только LF/CRLF warnings); независимое продуктовое ревью — GO после исправления будущего этапа персонала на UI-08.1. Продуктовые тесты и браузерные сценарии не запускались: этап документальный.
+
+Неподтверждённые сценарии: визуальные размеры/контраст/полнота light theme, PIN/top layer, sidebar D03, reservations-only и finance-only. Обещанные ранее ограниченные selector API не найдены ни в root, ни в свежем upstream; фактические зависимости записаны в матрице. Продуктовый код, API/БД, права, данные и dist этим этапом не изменялись. Коммит, GitHub/VPS публикация не выполнялись. Следующий отдельный запуск: UI-01.2 «Визуальная база всех ролей», GPT-6.1 Sol / Medium; автоматически не начат.
+
+### 2026-10-09 — UI-01.2 «Визуальная база всех ролей»: частичный материал, внешний блокер
+
+Статус **INCOMPLETE / BLOCKED_ENV_BROWSER, не принят, PASS 0**. Нативные исполнители GPT-6.1 Sol / Medium применили роли QA, design lead и system architect; подготовили среду, матрицу и независимые reviews. Координатор выполнил временный login owner и частичный сбор Edge. Модель основного чата текстом не переключалась.
+
+Создана свежая PostgreSQL в контейнере hookah-ui012-20261009 и loopback стенд 31952/31953/31954 с AUTH_REQUIRED=true, DEMO_MODE=false. Девять синтетических аккаунтов: platform_owner и owner/manager/hookah_master/bartender в long/empty tenants; auth checks 9×200, ожидаемые session roles, unauthenticated401. Fixture: 8 столов, 12 товаров, 12 гостей, 12 задач; финансовые действия не проводились. 215 runtime/assets/schema файлов mirror побайтно равны dirty root HEAD 802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf по SHA256; production данные/секреты не копировались. Private credentials хранятся только в игнорируемом tmp/ui012-baseline.
+
+Пакет: docs/design/UNIFIED_UI_2026-10-09/UI_01_2_BASELINE.md, UI_01_2_COVERAGE_PLAN.md, UI_01_2_COVERAGE.csv, UI_01_2_RUNTIME_REVIEW.md, UI_01_2_VISUAL_REVIEW.md, UI_01_2_EVIDENCE_CHECK.json, evidence/UI-01.2; обновлён PROGRESS.md. Сохранены72 уникальные пары JPG/JSON, только owner/dark/baseline по метаданным. Индекс пересобран по актуальным файлам без счёта повторных попыток, добавлены реальные JPEG dimensions и hashes. Матрица: 6480 уникальных cases, 72 CAPTURED_NOT_ACCEPTED, 6408 BLOCKED_ENV_BROWSER; evidence refs существуют. Не переносить это на полноту ролей/тем/состояний.
+
+Независимый просмотр подтвердил разные sidebar 210/280 px и header 68 px на выбранных settled снимках 1920; owner floor: 8 столов и empty queue; orders: 0; clients: 12 cards, reservations empty на день. Выявлены late paint/предыдущий hash, скрытые controls/PIN в AX, help с открытым notification overlay и 12 JPEG с размерами, отличными от CSS viewport. Нужна согласованная пересъёмка, поэтому не принят ни один runtimecase. Stock query→/inventory является ожидаемой нормализацией. Контраст/font face/browser zoom неизвестны. Actual 1528×828, DPR 1.25; css zoom 1 не является browserzoom.
+
+Блокер: batch вызов Edge превысил 60 s и сбросил REPL; два повторных getTab и инвентаризация не смогли загрузить browser request-header policy/Statsig. Дальнейший браузерный сбор/cleanup недоступен. Последние actual captures были после viewport.reset, но финальный viewport и закрытие временной вкладки не подтверждены. Стенд/fixtures сохранены, proxy normal. Требуется восстановить подключение Edge к Codex, затем продолжить UI-01.2: все пять ролей/permissions, clean baseline всех 36 поверхностей, light, три размера, keyboard/focus, empty/loading/error/long-content и окна компонентов. Backend login не заменяет UI coverage.
+
+Проверки: node tmp/ui012-baseline/finalize-evidence.cjs — 6480 unique IDs, 72 mapped, refs exist, 215/215 mirror/root hashes совпадают; git diff --check по документальному scope —PASS с предупреждением LF/CRLF. Продуктовые тесты не запускались. Продуктовые JS/CSS/dist/API/права, production сессии и данные не менялись. Коммит/GitHub/VPS публикации нет. UI-02.1 не начат; продолжение UI-01.2 — GPT-6.1 Sol / Medium, следующий этап после приёмки — GPT-6.1 Sol / High.
+
+### 2026-10-09 — UI-01.2 R2: Edge восстановлен, проверка визуальной базы
+
+Браузерный блокер R1 снят после включения пользователем VPN. Проверены реальные сессии пяти ролей; owner baseline34 бизнес-поверхности dark/light×три размера, manager и сотрудники actual dark/light. Текущий индекс и точные counts: evidence/UI-01.2/r2/processor-check.json; статус этапа остаётся IN_PROGRESS/NOT_ACCEPTED, PASS0. Старый R1 finalizer не запускался; новый processor сохраняет исторический индекс, origin/hash/integrity и явные pending statuses.
+
+Подтверждены недостаточный computed contrast light, тёмный POS при requested light, Export CSV clipping1366, разорванные recipesfilters, stuckloadingguests после controlled503 и platform inline denial с pending shift. Actual CSS1528×780 DPR1.25, browserzoom неизвестен. Масштабированные1366raster пересняты через документированный fullPage+viewportclip. Filledpasswordcaptureguard, loginfailureguard и before/after scrollcomparison добавлены только во временную ignored instrumentation. Независимые design/QA/health reviews находятся рядом с UI_01_2_BASELINE_R2.md.
+
+После исходной baseline один раз созданы43fixturemutations в отдельном local longtenant: новый зал6столов, товары/нулевойstock/recipe metadata,3unpaidorders6preparationpositions6futurebookings. Затем UI bartender добавил1nonstockпозицию, dispatch/take/ready; hookah_master take/ready. Карточка стол1 прошла отдан→процесс→готово,3позицииready,total307,paid0,столoccupied. ReadonlyDB подтверждает payments0/stockmovements0. Светлаяprefs employees PATCH выполнена через их собственныеverifiedsessions; tenant/permissions и owner/managerprefs unchanged. Доказательства: effective-permissions.json, theme-fixture-proof.json, controlled-states.ndjson, components JPG/JSON.
+
+Продуктовые исходники/dist/productionнеизменялись, GitHub/VPSнепубликовались; UI-02.1 не начат. Остаток: размеры и остальные состояния других ролей, emptytenant, полные dialogs/keyboard, финансовые/historylongregions и итоговаяприёмка. Стенд сохранён, proxy normal, viewportresetподтверждён.
+
+## 2026-10-09 — UI-01.2 R3
+
+Координатор завершил manager allowed baseline29 dark/light на1366/1920 и bartender11 на1920light. Индекс588 matrix +11 supplementary, 6480 исходных cases, 1608 ограниченных N/A, PASS0. Независимый health review дал GO_APPLY_SAMPLES; исправлен P2 candidate proxy provenance failure до замены bytes/headers, 31 static checks и mock success/failure PASS. Внешние ignored proxy/controller применены только local31952; expenses/payroll true200→3 synthetic zero/cancelled rows, никаких финансовых действий/постингов. Proxy normal после capture.
+
+R3-E06: payroll main scroll981→142 при screenshot, document scroll0; bitmap региона не соответствует DOM. Повторный login, reset viewport и новая local вкладка не восстановили соответствие. Два текущих SHA отклонены processor. Ignored helperv7 проверяет nestedScroll; visual acceptance ещё требует пересъёмки. Root/mirror215 hashes без изменений, health ok, viewport reset. Итог/доказательства docs/design/UNIFIED_UI_2026-10-09/UI_01_2_CHECKPOINT_R3.md. Продукт/dist/БД схема/production неизменны; UI-02.1 и GitHub/VPS публикация не начаты.
+
+R3-E07 после независимого design review: manager clients1920light фактическиdark (bitmap/metrics/after), один current SHA исключён CAPTURE_REJECTED_THEME. Processor теперь guarded current-hash matcher для theme review; integrity priority сохранён. Counts588:578pending-review,6theme-defect,1rejectedtheme,2raster,1focus,1608NA,4284pending, PASS0. Неподтверждённый requestedlight не выдаётся за product themebug.
+
+## 2026-10-09 — UI-01.2 R4: IAB и полная коллекция baseline
+
+По предложению пользователя проверка перенесена в Codex In-app Browser. Документированные viewport overrides 1366×768/1920×1080 и измеренное actual окно; native screenshot для nested-scroll financial regions, single fullPage+viewport clip для остальных. Ignored helperv8/v9 проверяет document и nested scroll до/после, filledpassword запрещён; metadata хранит browser context. Продуктовый код не менялся. Два ошибочно названных supplementary state captures и один без surface перенесены в ignored invalid-metadata-captures; правильные матричные кадры пересняты, не объявлены PASS.
+
+Processor теперь связывает 1139 captures, включая все1080baseline slots (216накаждуюроль), 6480уникальныхcases/tuples/180role-routepairs. Counts1123pending-review/11theme-defect/4rejectedstate/1rejectedfocus/1608NA/3733pending, PASS0. Refs/origin/raster integrity проверены; актуальные finance/payroll/managerclients SHA заменили исторические raster/theme rejects. Независимый designreview подтвердил current IAB серии сотрудников и отдельные financial replacements, ограничения мелкого текста финансовых native frames сохранены.
+
+После проверки исходного floor POST контракта code_health добавлены4новыхfixtures в существующий отдельный localR2зал: PS5+TV/TV/none, вместимость1–5/3/2/7, zero minimum, без изменения старыхстолов. Ownowner auth/tenant/venue и повторныйGET проверены; доказательство r4-table-amenities-fixture-proof.json. Ownmanager/bartender/hookah prefs менялись только в изолированныхаккаунтах, провереныreadback/identity/permissions в r4-theme-fixture-proof.ndjson. Первыйbartenderверификатор ожидал flatresponse вместо preferences wrapper после успешногоPATCH; повторныйsamePATCH/readback проверен и описан. Platform GETpreferences404 остановилпопыткудоPATCH; настройкиplatformнеизменялись.
+
+Publiclogin captures обозначеныrole-intent, неsessionpermissionproof. /platform собственнаяфиксированнаяпалитра EX07 — отдельныйsource/UIcandidate; tenantguards не наследуютисключение. Rootplatformrestriction с pending shift неPASS. Source-specific четырепсевдоemptyregion исключены currentSHAstate matcher. Proxy samples толькоsyntheticGET, копияprovenanceR4сохранена; proxy normal. Override после серий сброшен.
+
+Текущийотчёт UI_01_2_CHECKPOINT_R4.md; PROGRESS указательобновлён. R4gate предлагаетсяархитекторомдля1080baseline+конечныхstate/componentrepresentatives, exhaustive6480сохраняетсяUI09.1; gate ещёNOTADOPTED, приёмкаNOTACCEPTED. Dialog/error/keyboard/sessionbridges и независимыеsignoffs остаютсяобязательными. Source215root/mirror unchanged поhealth; UI02.1/GitHub/VPS не запускались.
+
+R4 финальный срез после login representatives: 1145captures,1129pendingreview/3727pending/11theme/4state/1focus/1608NA,PASS0. 1080baseline сохранены. Publiclogin30кадров пересняты после lateautofill с очищеннымиполями; ignoredv10 identicalBoolean credentialpresence guards до screenshot и до write, раскрытыеpasswordполя и scoped publicusername включены. Health подтвердил syntax и отсутствие product изменений. Actualkeyboard log не копировался в последнююпересъёмку: заново Tab/ShiftTab с текущимSHA1337D928…; триerrorкадра от одного реальногоUIsubmit несуществующейsyntheticrecord, authproxy неинжектировался, поляпередкадрамиочищены. Finalhealth: все1145JPG/JSONhashes совпали сmanifest,215root/mirror0changes,mode normal. Предложенный representative ledger сохраняет716inventoryIDs и explicitmapping в42visualgroups/198visualstateobligations,0accepted; полныйendpoint/lifecycle/persistence regression имеет владельцаUI09.1. Предложениеещёнеadopted,missingvisualstatesнепринимаютсякакbacklogPASS.
+
+R4 компонентное дополнение: после исчезновения tab1 документированный список вкладок IAB был пуст, создан tab2 в том же браузере, owner повторно вошёл в local fixture. Проверены reservation шаги1→2→3→Back2→Back1, requiredguesterror, customtablepicker, длинный guest/comment, фокусNext и Escape возвратNew. Submit брони не выполнялся. FirstfullPage modalfocus consistencyfalse заменёнnative currentconsistenttrue; полныйTabcycle послеNext→BODY остаётсяunproven, неproductdefect. Личные locksettings: PINempty, Tab/ShiftTab, expandedinterval, Escapeизactualoption→closeonlylist→focusintervaltrigger, второйEscape→closedialog→focusopen-security-settings; noSave/noPIN/securityprefs changes. ПервуюEscapeпопытку сretargettrigger не трактовали какbug; повторили изactualfocusedoption.
+
+Теперь1151mappedcaptures/1080baseline;1135pendingreview,3721pendingcapture,11theme,4state,1focus,1608NA,PASS0. Components-r4 хранит5supplementaryJPG/JSONpairs с собственными границами доказательства; они неавтоматическиmatrix PASS. Визуальныйreview7reservationframes выполнен; lowerpickerrows/fullTabcycle и независимоеBackpreservation ещёнеприняты. Proxy normal, override reset, product/code diff отсутствует. CheckpointR4 обновлён, приёмкаNOTACCEPTED.
+
+## 2026-10-09 — UI-01.2 R5: конечные формы и клавиатура
+
+- Продолжена исходная визуальная база локального изолированного окружения. Продуктовые файлы/БД/финансовые операции не изменялись этим пакетом. Первопричина instrumentation P2: исторический R2-E03 применялся к любому новому platform keyboard raster; ignored processor исправлен exact key+SHA matcher, integrity имеет приоритет, old JPG/JSON сохранены history-r5.
+- Новый platform keyboard1366 independent direct review; 19 supplementary native1366 JPG/JSON пар (company/task/staff/help/POS/payment), consistent=true, 20 новых кадров напрямую осмотрены design reviewer с SHA. Никакой full stage PASS не присваивался.
+- Реальный Escape каталога возвращает focus на Add; payment Escape оставляет окно открытым (R5-V03), Close теряет focus в BODY (R5-V04). Владельцы frontend/system_architect, UI07.1/UI04.1. Draft task/company/staff/help не сохранялись; платежи/заказы/права/PIN не менялись. Staff view возвращён к tiles M. Browser viewport reset, proxy normal.
+- D-UI012-R5 ввёл scope1080baseline+42groups/198 visual obligations с independent architect/QA/design scope signatures. Exhaustive6480 IDs/statuses сохранены UI09.1 backlog. Scope adoption не означает stage acceptance/equivalence/product PASS.
+- Проверки: node --check processor PASS; processor1151mapped,1136pendingreview,11theme,4rejectedstate,3721pendingcapture,1608regionNA; PASS0; raster/origin mismatches0, references exist. 19suppl отдельно от matrixcount.
+- Результат: UI_01_2_CHECKPOINT_R5.md; UI_01_2_BASELINE_GATE_R5.md; независимые HEALTH/CONTRACT/VISUAL_REVIEW_R5; PROGRESS обновлён. UI01.2 остаётся INCOMPLETE, UI02.1 не начат, deploy отсутствует. Остаток9пакетов в CONTRACT_R5: ownbridges/reconcile, guards/PIN/lower scroll/grid/feedback/control variants и итоговая приёмка.
+
+## 2026-10-09 — UI-01.2 R6: визуальная база завершена
+
+Принят исследовательский baseline с документированными дефектами, по независимым design / system architect / QA / code health GO. Исходный HEAD 802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf. 1 080 baseline slots; 198/198 terminal dispositions (174 reviewed, 14 source defects, 10 narrow source N/A), pending 0. 2 614 evidence files сверены, SHA/missing 0; 254 final visual byte bindings подтверждены. 16 source-rendered статических превью отдельно обозначены, scripts/API/новые credentials отсутствуют. Нативные подсказки входа/скидки фактически просмотрены в оригиналах; пользовательское R7 исключение осталось неиспользованным.
+
+Продуктовые 215 root/mirror файлов неизменны относительно исходного среза задачи; прежний WIP сохранён. Все 6 480 IDs/статусы регрессии UI09.1 сохранены, product/runtime PASS 0. R6 не сохранял заказы/платежи/права/PIN/новые аккаунты; feedback справки сохранялся только в тестовом localStorage без отправки. Proxy normal, real session latency 0, viewport reset, preview service stopped. Production/GitHub не публиковались; продуктовые тесты не запускались. Итог: docs/design/UNIFIED_UI_2026-10-09/UI_01_2_CHECKPOINT_R6.md. Следующий UI02.1 CSS/токены, GPT-6.1 Sol / High, ещё не начат.
+
+## 2026-10-09 — UI-02.1: CSSOM и семантическая карта
+
+Intake HEAD 802d5e635d99e81d1c4cd15e0f35a961d3a9f9cf, 200 прежних dirty paths. Первопричина D01: повреждённая прелюдия без /* отбрасывала staff token rule в CSSOM. Координатор исправил комментарий, объявил 20×2 semantic values и root-resolved compatibility aliases, мигрировал 31 --text consumer (23 fallback/8 inherit). Файлы: style.css, только dist/style.css, DESIGN_TOKENS.md, scripts/ui-semantic-token-contract.mjs; отчёт/ревью/PROGRESS/PLAN/evidence. API/БД/tenant/roles/расчёты не менялись.
+
+Нативные независимые design lead/system architect/code health выполнили intake и final GO; frontend и QA — координатор. Четыре focused contracts, node --check, scoped git diff --check PASS. CSS source/dist SHA4a2ddc09acc9060c857f38f2d2107484361e0e81aea47ae0dbbfd377fef27b46. 42 raster-consistent/stable JPG/JSON пары; 29 финальных карт CSSOM; 9 runtime observations / 1 631 refs / undefined0. UTF-8 ошибка промежуточной записи обнаружена и устранена, прочие исходные glyphs восстановлены, финальные кадры пересняты.
+
+Статус ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT. Старый light/contrast debt сохранён для профильных этапов; полный мобильный/Fold/role-state регрессионный прогон не заявляется. QA data proxy normal, session delay0, viewport reset, исходный CSS frozen QA snapshot восстановлен. Продуктовые данные не сохранялись; только theme preference собственного временного владельца переключалась и возвращена dark. Production/GitHub не публиковались. Детали: docs/design/UNIFIED_UI_2026-10-09/UI_02_1_RESULT.md. Далее UI-02.2, GPT-6.1 Sol / High, не начат.
+
+## 2026-10-09 — Склад: исправление отправки новой позиции
+
+На VPS воспроизведён submit новой складской позиции: Console показала `TypeError` чтения `.value` у `null` в `portal.js?rev=481:4185`; запрос `POST /api/inventory/items` не отправлялся. Обработчик безусловно читал необязательные элементы связки с каталогом табака и алкоголя, которых нет в текущей форме. В `portal.js` и `dist/portal.js` заменены эти обращения на nullable reads, чтобы отсутствующий селектор передавался как `null`. Тестовая запись в VPS не создана; production assets не развёрнуты.
+
+Code health проверил scoped diff; `node --check` для обоих скриптов, `scripts/inventory-form-pending-qa.mjs`, `scripts/inventory-hierarchy-contract.mjs` и `git diff --check -- portal.js dist/portal.js` прошли. Остаётся опубликовать совместный source/dist пакет и повторить POST + повторное отображение на VPS.
+
+## UI-02.2 — 2026-10-09 — общие контролы, типографика и фокус
+
+Причина: актуальные D09/D16/D17 — несогласованные размеры, локальные effects и неявная шкала текста. Координатор frontend + независимые design_lead/qa_engineer/code_health_engineer baseline/final reviews. Предшествующий UI-02.1 принят; фактический выбор модели в UI не подтверждён.
+
+Результат ACCEPTED_SCOPED_WITH_DOCUMENTED_LIMITATIONS: append-only `.ui-components`, 44/48px controls, static Manrope weights/type scale, native состояния/labels/help, focus-visible, motion tokens/manual+OS declarations. Local-only эталон и preview CLI без production routes/API/storage. Исправлены подтверждённые legacy clashes busy pseudo/hidden label/disabled opacity/focus border в opt-in family. Source/dist CSS byte-equal; original553632-byte prefix preserved,9332bytes added. Изменены style.css/dist/style.css, DESIGN_TOKENS, COMPONENT_CATALOG, три reference assets+README, четыре scripts, phase result/reviews/progress/plan/evidence. UI022 CSS SHA1fd697d80716cc9de52ac13048b6e5eca2dc5ac3ad96a25d68649eae63707bba.
+
+Проверки: node scripts/{ui-component-primitives-contract,ui-semantic-token-contract,local-design-contract,header-shell-contract,dashboard-kpi-design-contract}.mjs PASS; node scripts/ui-component-evidence-check.cjs PASS; newscript/reference JS syntax+scoped diff PASS. 51 source-bound JPG/JSON; raster actualclip51/51, QA independent1377 observations, textmin5.814/bordermin3.752/focusmin6.499/hit44×44. Dark/light1366/1920/actual1280 +390 narrow; keyboard/hover/busy duplicateguard/terminal/indeterminate/longvalue done. Design/QA/codehealth GO scoped.
+
+Сохранённые границы: native OS reduced-motion unforced(false), actual manual0ms/animationnone и parsedCSSOM equivalence; отдельное QA обязательство перед UI09.1. Native collapsed select длинную подпись сокращает, value intact. Legacy screens/roles ещё не мигрировали, fullAPI/business/runtime/Fold вне проверки. Concurrent portal.js/distportal.js changes unknownorigin preserved/excluded, wholeworkspaceequality notclaimed. API/DB/migrations/tenant/permissions/routes не менялись этимпакетом. Viewport reset, loopback-only preview31957 active. GitHub/VPS no publication. Подробности docs/design/UNIFIED_UI_2026-10-09/UI_02_2_RESULT.md. Next UI03.1 GPT6.1Sol/High separately, notautostarted.
+
+
+## UI-03.1 — 2026-10-09 — единая оболочка сотрудника и портала
+
+D02 перепроверен на16 свежих baseline кадрах: employee меню210→244/header68→72; management меню210→245.95/280. Frontend координатор, независимые architect/design/QA/code health. Статус ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT. App: косметический marker подтверждённой роли (+233 bytes); CSS: точный префикс562964 +1618 bytes, scoped >900px; source/dist byte-equal. Общие geometry/padding/brand,44px avatar/profile, venue/title flex. Из771 intake существующих product paths изменены только app/style и два dist mirrors; portal/header-shell/API/DB/grants/routes сохранены.
+
+10 source contracts, saved-evidence, syntax/diff checks PASS. 126 final JPG/JSON,1260 hash refs и native raster/CSS clip PASS. Основная матрица80:72allowed/8denied;46 supplemental. Реально проверены menu clicks, focus, PIN settings открытие/закрытие, profile Enter/отмена, loading/error/recovery, пустые данные и drawer Escape. Итог/ревью/manifest: docs/design/UNIFIED_UI_2026-10-09/UI_03_1_RESULT.md.
+
+Границы: ≤900px остаются старые geometry/hidden identity/32–36px targets/menu occlusion; POS light — static class fixture, portal темы реальные. Admin/developer и другие роли source-only; worker reservations denied. Live PIN/shift/logout/receipts/payment mutations не заявляются выполненными. Private fixtures не включены в evidence. Faults normal, исходные themes восстановлены, viewport reset, собственный proxy остановлен. Предыдущий WIP и concurrent portal сохранены. GitHub/VPS публикации нет; UI-03.2 Sol/High запускается отдельным поручением.
+
+
+## UI-03.2 — 2026-10-09 — навигация и сохранение контекста
+
+**ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT.** D03: один versioned disclosure object на verified user+venue, manual single/null reload, лёгкая route/hash/query/history синхронизация, transient multi-search с восстановлением выбора и permission∩interface preferences. Legacy flags ignored; source/dist portal equal300a7d89. SITE_TREE обновлён, API/DB/grants/CSS/оболочка UI031 не менялись.
+
+12 source contracts, VM56, saved-evidence115пар/1150refs, syntax8/scoped diff PASS; independent architect/QA/design/health GO scoped. Проверены owner60desktop dark/light cells, manager sequence+role restrictions, worker flat/denied, реальная смена пользователей/точек, query/history, actual1366×768DPR1.25, narrow drawer, пустые/loading/error/recovery. Четыре narrow native viewport raster отличаются на1px, явно отдельно от111exact fullPage. [Итог](UI_03_2_RESULT.md), [ревью](UI_03_2_REVIEWS.md).
+
+Остаются прежние light sidebar/business contrast и closed narrow→desktop inert; native BFCache hit не подтверждён. Stale paint/resize кадры заменены, исключены вdiagnostic. Исходные themes/currentvenue restored, Finance visibility effectivelytrue (merge оставил явный флаг только disposable fixture),faults normal,viewport reset,ownproxy stopped. GitHub/VPS публикации нет. Следующий отдельный **UI-04.1 «Общий контракт окон, полей и сообщений», GPT-6.1 Sol / High**; автоматически не запускался.
+
+Причина: независимые per-group user-only flags, stale siblings/search visibility и URL active state. Минимальный controllerportal+mirror, три старых navigation contracts, newVM/measure/checker, SITE_TREE и пакетdocs. Команды: node scripts/ui-navigation-context-contract.mjs; node scripts/ui-navigation-evidence-check.cjs; 12 source scripts listed evidence/source-checks.log; node --check8files; git diff --check scoped. Intake774 missing0, чужой WIP сохранён. Миграций/API/server изменённыхнет.
+
+
+## 2026-10-10 — UI-04.1: общий контракт окон, полей и сообщений
+
+Причина D04/D11/D12; реализован ui-dialog.js/mirror, scoped CSS, app/portal adapters, один нефинансовый new-task пилот. Server только точный static путь; API/БД/auth/финансовые handlers прежние. Native PIN опыт → bounded custom overlay, полный PIN/stack UI-04.3. 74 actual-source checks,23focusedcontracts,11syntax,diff,4mirrors PASS;98finalпар/1044refs,5acceptedPOST201/readback. Baseline777 сохранён,7существующих изменений. Architect/health SOURCE GO и independent QA/design GO. Старые capture/theme/icon revisions диагностические, итоговаяматрица переснята. Inherited PIN regex FAIL документирован, expiry/auth не менялись. Ownerpreferences восстановлены, viewportreset, owntab8/proxy31960закрыты, старые31952/31953/31957сохранены;19синтетических задач остаютсяdisposable. Полные файлы/команды/риски: docs/design/UNIFIED_UI_2026-10-09/UI_04_1_RESULT.md и evidence/UI-04.1/checks.json. Локально ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT; публикации нет. СледующийUI-04.2/GPT-6.1Sol/Medium отдельно.
+
+
+## 2026-10-10 — UI-04.2 ordinary редакторы и бронь
+
+ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT: zone/table/network/task edit + mounted reservation3steps shared lifecycle. Draft/error/pending/context, optional table schedule null/null, stable focus after readback. API/DB/financial handlers preserved. Product portal.js/style.css/ui-dialog.js + mirrors; scoped tests/QA docs. Focused14syntax10contracts/diff/parity3PASS;98finalpairs294refs; real20accepted7finalentities, manager and worker restrictions, independent architect/health/QA GO. Исторический отчёт docs/design/UNIFIED_UI_2026-10-09/UI_04_2_RESULT.md. Production не публиковался. Пользователь разрешил автоматически перейти к UI-04.3 после полного завершения042.
+
+
+## 2026-10-10 — UI-04.3
+
+UI-04.3 принят scoped: native PIN/top layer, draft/pending/scroll/focus, verified identity+epoch и auth401→login. VM25/default74/mounted16,36finalpairs108bindings,4roles,8owner matrix,real API+owned expiry,independent reviewsGO. Автоматический UI042→043 завершён; UI051 не запускался. Proxy/tab cleanup выполнен,production не публиковался. См. docs/design/UNIFIED_UI_2026-10-09/UI_04_3_RESULT.md.
+
+
+## 2026-10-10 — UI-05.1
+
+UI-05.1 accepted scoped: C14/C15 floor/order/catalog/preparation presentation, compact empty CTA, verified theme, loading/denied separation and busy catalog position fix.27commands/2mirrors PASS;56pairs112refs626targets,17sourcecases;39actualwrites/readback/3orders10items/2450longready,0money/stock. Independent architect/design/QA/health GO. PIN overlay pixels and legacy light/Fold limitations explicit. Own proxy31963/tab13 closed,viewport reset,old environment preserved; no publication. See docs/design/UNIFIED_UI_2026-10-09/UI_05_1_RESULT.md.
+
+
+## 2026-10-10 — UI-05.2
+
+**ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT.** Гости, задачи, доставка и список броней используют существующие C14/C15 primitives. Доставка открывается одной CTA в прикреплённой форме; список виден первым, черновик/фокус сохраняются, закрытие блокируется в pending. Для гостей разделены loading/error/empty/filter-empty и retry; generation/current-list/context guard исправляет воспроизведённую гонку старой ошибки. Светлые task headings/guest segment surfaces приведены к семантическим токенам с достаточной специфичностью.
+
+PASS: 24 focused/syntax/evidence/API/diff команд, 2 exact mirrors, 18 actual-source presentation checks; 64 final JPG/JSON пар / 128 current-source bindings / 403 целей ≥44px. Desktop1366×768/1920×1080, actual560×764DPR1.25, narrow390×844, обе темы; owner/manager/worker и реальный denied сотрудник. 5 synthetic entities / 8 принятых API операций / 8 последующих real GET, PG tenant/fields/status и нулевые financial/stock journals подтверждены. Independent architect/health/design/QA GO scoped.
+
+Empty final pixels — явно помеченные read-response fixtures после authenticated upstream200, БД не очищалась; actual first-empty DB pixels сохранены только diagnostic при прежнем SHA. Long — длинные строки гостя/задачи/адреса и две доставки, без заявления нагрузочной приёмки. Прежние/переходные кадры не перепривязаны. Fold/UI-10.1, финансовые редакторы/PIN полная повторная приёмка и legacy delivery detached read остаются вне scope. Задачи/доставка сохраняют прежний local theme boot; фактическая тема записана в каждой паре.
+
+Own proxy31964/tab14 закрыты, viewport сброшен, fixture themes восстановлены; прежние preview/backend/Edge сохранены. GitHub/VPS публикации нет. Далее отдельный **UI-06.1 «Каталог, техкарты и справочники», GPT-6.1 Sol / Medium**; автоматически не запущен.
+
+Changed portal.js/style.css +dist mirrors; focused scripts boundary/presentation/saved evidence; no migrations/API changes. Rootcause: list obscured by delivery form, missing clientreaderror state and legacy contrast specificity. Intake/final health, architect and design/QA reviews archived; accepted readguard narrowed to new stale error regression. [Result](../design/UNIFIED_UI_2026-10-09/UI_05_2_RESULT.md).
+
+## 2026-10-10 — Автоматическое продолжение UI / UI-06.1 intake
+
+Пользователь разрешил автоматически выполнять следующие этапы по порядку с GPT-6.1 Sol / Medium. Создан heartbeat текущего чата hookah-pos-ui ACTIVE (проверка продолжения каждые30минут), без отдельного чата/проекта. Локальная очередь UI061→062→071→072→081→082→083→091→092; переход только после приёмки. Публикация/UI093 и Fold/UI101 сохраняют отдельные условия плана. Исторические промпты запрета автопереходов переопределены этим запросом. Выбранная модель задана нативными параметрами трём baseline агентам и frontend; переключение основного чата не утверждается.
+
+UI061 начат: actual intake HEAD802d5e6, восьмифайловые снимки/SHA/status tmp/ui061/intake, существующий WIP сохранён. Baseline architect+warehouse/design+QA/health отчёты сохранены. 13/14focused suites PASS, прежний tobacco direct-value regex FAIL задокументирован, syntax/diff/mirrors PASS. Архитектор одобрил scoped read state/context guards, inventory-gated photo DOM и keyboard, сохраняя API/units/costs/writes/cascade. ui061_frontend выполняет ограниченные product edits portal/style +dist; итоговый diff, UI/API/role/currentpixels QA ещё предстоит. Активный checkpoint: docs/design/UNIFIED_UI_2026-10-09/AUTO_CONTINUATION.md. Новая приёмка/публикация не заявлена.
+
+## Уточнение автоматического порядка — 2026-10-10
+
+Пользователь исправил интерпретацию: автоматически выполнять только непрерывную последовательность этапов, которым именно в плане назначена GPT-6.1 Sol / Medium, без замены моделей и без пропусков. В текущей позиции это только UI-06.1. После его полной приёмки остановиться перед UI-06.2 (GPT-6 Luna / Medium); не перескакивать к UI-07.2. Предыдущая запись о всей очереди UI061→092 ошибочна и отменена. Автоматизация hookah-pos-ui и AUTO_CONTINUATION.md исправлены; UI-06.1 остаётся в работе.
+
+
+## UI-06.1 — итог 2026-10-10
+
+Принят scoped с документированным долгом. Первопричины: read-state перерисовка/устаревший GET, readonly фото, контраст и flex стоимость; первоначально зависшие child loaders при parent error. Исправлены portal/style +точныеdist, права/API/units/payload/frozen business сохранены.35VM,12focused независимоPASS;52Edgeпары и9GUI/GET/PG;5roles30reads20write403,11journals0;health/architect/QA GO. Прежний tobacco regex FAIL явно отделён. Архив и границы: docs/design/UNIFIED_UI_2026-10-09/UI_06_1_RESULT.md. WIP сохранён, без commit/deploy/миграций. Автоочередь заканчивается послеUI061, UI062LunaMedium не начат. Помощники SolMedium, переключение основного чата не заявлено.
+
+
+## 2026-10-10 — UI-06.2
+
+ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT; три inventory views, source portal40794456/stylec2fd3213, 19 checks/8VM/35regression/13 frozen spans, 52 pairs, GUI3→GET3→PG cost25/stock450+100, role15/denied12. Read-error поиск остатков ранее убирал retry; исправлен short-circuit при state != loaded и добавлена regression. Semantic light inputs/summary исправлены; desktop themes reviewed. Архив docs/design/UNIFIED_UI_2026-10-09/evidence/UI-06.2/acceptance. Production/GitHub не публиковались; UI071SolHigh не запущен. Узкая оболочка, readonly quantity affordance, initial action и Edge detached cleanup документированы.
+
+
+## 2026-10-10 — UI-07.1 завершён
+
+ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT. Диагноз: разные critical shells, async shared-module open race, native close/observer event-order и detached cleanup, late context continuation и light token specificity. Роли: frontend handoff; независимые architect, code_health baseline/final, QA/design; finance/warehouse проверка координатора. Gates discovery→contract→implementation→independent review→QA→local acceptance пройдены; source4+dist4, QA scripts/fixtures и docs. Backend/API/DB schema/permissions/lock unchanged against intake;20frozenPASS,36source/3event-order,legacy74/16 иfocusedregressionsPASS. Real isolated mixed500,refund150,stock10,guest50,session-loss100/rem400;8proofchecks/6GET/6write403;40finalpairs160bindings/4servedassets/keyboard. SourceCSSc61 +UTF8base equality; независимые GO scoped. Архив docs/design/UNIFIED_UI_2026-10-09/evidence/UI-07.1/acceptance. Forced context/rights E2E и inherited ambiguous-movement/key durability/rolematrix debts явно записаны. Own tab/proxy/backend cleanup verified;PGfixture retained. Без commit/GitHub/VPS/migrations; STOP UI072SolMedium.
+
+
+## 2026-10-10 — UI-07.2
+
+**ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT**. [RESULT](UI_07_2_RESULT.md), [REVIEWS](UI_07_2_REVIEWS.md). Scoped semantic finance/report/category/payroll, loading/error/retry/stale protection, keyboard cancellation. 11 focused suites,12 QA conservation,42 final pairs; real API/PG,16 denied actions403,12 journals unchanged. Protected7/source outside finance/CSS outside block unchanged; source/dist exact. Own31969/31970 stopped,IAB closed/viewport reset,PG31954 retained. Full role×theme×state/Edge/WCAG/Fold and recorded GUI cancel PATCH response not claimed. No commit/GitHub/VPS. STOP UI081 — GPT-6.1 Sol / High;15/22 closed,6 remain before publication plus separate Fold.
+
+
+## 2026-10-10 — UI-08.1
+
+**ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT**. [RESULT](UI_08_1_RESULT.md), [REVIEWS](UI_08_1_REVIEWS.md). 14admin hashes, scoped semantic themes/C11roles/read states; staff3views/5columns/scale retained.9/10focused (inherited CRLF harness FAIL),22VM,12QA,69final current pairs/84historical functional pairs;3GUIwrites/API/PG,16denials403,employee restored,12journals unchanged. Protected8/source boundaries/CSS outside block exact,source/dist equal. Own31971/31972 stopped,IAB closed/viewport reset,PG31954 retained. No commit/GitHub/VPS. STOP UI082 — GPT-6.1 Sol / High;16/22closed,5remain beforepublication plus separateFold. QA formalfile historic; finalfeedback and coordinatorclosure explicit.
+
+
+## 2026-10-10 — UI-08.2
+
+**ACCEPTED_SCOPED_WITH_DOCUMENTED_DEBT**. [RESULT](../design/UNIFIED_UI_2026-10-09/UI_08_2_RESULT.md), [REVIEWS](../design/UNIFIED_UI_2026-10-09/UI_08_2_REVIEWS.md). Сеть/интеграции/вход/отдельная платформа: семантические темы, pending/reset/error/retry и guards поздних ответов. 7/7 focused,18 VM,23 scope guards;46 current JPEG/JSON пар и53 historical functional. 49 isolated API/PG checks,3 GUI PATCH по одному/3 GET/PG,12 journals unchanged. Auth/server/DB/role spans сохранены; source/dist/HTTP6+alias exact. Own31973/31974 stopped,IAB9/10 closed,viewport reset,themes dark restored,PG31954 retained. No commit/GitHub/VPS. STOP UI083 — GPT-6 Luna / Medium;17/22 закрыты,4 до публикации плюс Fold отдельно.
+## 2026-10-10 — UI-08.3
+
+Root cause: global legacy busy spinner was animated under reduced-motion, while platform modal inherited an old shared border/surface selector whose effect depended on later platform overrides. Added OS and explicit reduced-motion handling and separated modal animation from shared surface declarations; platform, Company and legacy editor appearance rules remain. Updated component catalog and EX-05. No routes, roles, API, database or cursor rules changed. Focused cascade, primitive, cursor, source-dist checks pass; the browser matrix is itemized in `docs/design/UNIFIED_UI_2026-10-09/UI_08_3_RESULT.md`. No release or deployment.
+
+### Follow-up test harness fixes
+
+Narrowed `ui-component-primitives-contract.mjs` to the UI-02.2 block using the UI-03.1 marker, so unrelated later `!important` rules no longer fail that contract. Added `dataset` and DOM attribute methods to the floor table VM mock consumed by `staff-cursor-zone-qa.mjs`. Both contracts now pass; product files unchanged. `node --check` and `git diff --check` pass.
+
+## 2026-10-11 — UI-09.1 scoped desktop acceptance
+
+[Результат](../design/UNIFIED_UI_2026-10-09/UI_09_1_RESULT.md), [ревью](../design/UNIFIED_UI_2026-10-09/UI_09_1_REVIEWS.md). Minimal intake-relative CSS readability/token fixes, contract scope corrections, one-line platform retry stale-error cleanup; mirrors and dedicated regression guards PASS. Code health, architect, design/QA delegated; independent scopes and proof boundaries recorded. 13roles/402API GET,700server-role-asserted images; actual598×764/1366/1920/two themes observations and keyboard/error/retry/narrow representatives. Isolated order1200₽ UI queued→in_progress→ready/reload verified PG execution; one new order only, previous orders and11 financial/stock journals unchanged. Full Cartesian/Edge/WCAG/OS motion and inherited debts unverified, no blanket PASS or release approval. Own runtime/tab/viewport cleaned, fixture dark restored; no GitHub/VPS. Next UI092 Sol/High not started. Large preexisting WIP preserved.
+
+
+## 2026-10-11 — UI-09.2 release package
+
+[Результат](../release/UI_09_2/RESULT.md), [manifest](../release/UI_09_2/manifest.json), [backup/rollback](../release/UI_09_2/BACKUP_ROLLBACK.md). PREPARED_WITH_RELEASE_CONDITIONS; candidate11b81f6a/treec70e4ad4 on clean managed worktree, base cached origin2e6f5579. Bounded UI delta avoids inherited backend/schema/AlphaSat WIP; focused checks caught/catalog dependencies restored with exact provenance, EOF-only QA hygiene. 38inputs/88paths,19checks/36syntax/55mirrors PASS; freshrepro exacttree and syncidempotent. 1009archiveblobs exact, extraction/repeatedexport SHAae1d4e0f exact; defaultautocrlf export rejected, corrected explicit false. Coordinator integrated system_architect/code_health/QA then release_manager reviews; no shared product edits. Main899tracked hashes/index preserved; only append stage records. Node20Docker/freshcandidatebrowser/security/CI/VPS/backuprestore gates remain. Restore script existing cleanup risk requires unique verified-absent test DB or separate ownership fix before UI093. No GitHub/VPS publication or production data actions. STOP before separately authorized UI093 Sol/High.
+
+
+## 2026-10-11 — Fold исключён из текущего плана
+
+По прямой команде пользователя UI-10 / UI-10.1 Galaxy Fold исключён из активного плана, очереди и условий выпуска. Не запускать и не возвращать без нового отдельного поручения. В активном плане 21 подэтап; после UI-09.2 остаётся UI-09.3 и ранее записанные условия выпуска. PLAN/README/PROMPTS/AUTO_CONTINUATION обновлены; прошлые отчёты, frozen inputs, candidate commit и архив UI092 сохранены. Публикация этой командой не запускалась.
+
+
+## 2026-10-11 — UI-09.3 завершён
+
+
+## 2026-10-11 — Исправлена блокировка архивации категории неактивными товарами
+
+Причина на сервере: `DELETE /api/product-categories/:id` считал привязкой любой товар с таким названием категории, даже если товар уже неактивен. В тестовом заведении четыре товара «Сет шотов …» уже были неактивны; у них нет строк заказов, рецептур, карточек техкарт, связей с акциями или комиссионных правил. Складских ингредиентов с этой категорией не найдено. Архивация категории является мягкой и сохраняет товарные записи и аудит.
+
+Исправлен usage guard в PostgreSQL и memory-ветках: блокируют только активные товары; ingredient guard и tenant scope сохранены. Добавлен регрессионный сценарий: активный товар блокирует архивирование, после мягкой деактивации товара категория архивируется. `node --check server.js`, `node --check scripts/inventory-crossflow-postgres-e2e-qa.mjs` и `git diff --check` прошли. Интеграционный QA не запускался: в сессии нет выделенной локальной PostgreSQL QA-базы и ownership lock. Из-за большого незакоммиченного WIP фикс оставлен только в рабочем дереве; GitHub и production не менялись.
+
+## 2026-10-11 — План гибкой системы лояльности и отложенный запуск
+
+По прямому запросу пользователя сохранены docs/requirements/FLEXIBLE_LOYALTY_PLAN_2026-10-11.md, FLEXIBLE_LOYALTY_START_PROMPT.md и FLEXIBLE_LOYALTY_ROADMAP.json. План: 12 этапов, 47 подэтапов, все ожидают реализации. Включены композиция программ, модель расчёта, UI и кнопки, жизненный цикл, уведомления, данные/API, связь с финансами/зарплатой/складом, миграции, приёмка и единый локальный выпуск. Старт только после прямой команды пользователя «начинаем»; GitHub/VPS отдельно. Архитектор и UX-дизайнер провели независимое чтение текущих контрактов, замечания включены в план. Приложение, данные, контейнеры и активные программы не менялись; тесты приложения не запускались. Запись памяти добавлена по явной просьбе пользователя. Новый реестр не наследует готовность старой системы; автоматический расчёт прогресса предусмотрен после старта.
+
+## 2026-10-12 — Локальная игровая страница Earthworm Jim
+
+Создан изолированный модуль `earthworm-jim/` с EmulatorJS Sega Mega Drive, выбором пользовательского ROM в браузере, раскладкой WASD/Space/J/K/Enter/Esc, fullscreen и pixelated-масштабированием для 4K. ROM и серверный доступ к нему в репозиторий не добавлялись. Встроенный `server.mjs` по умолчанию слушает только `127.0.0.1` и отдаёт whitelist из трёх файлов; внешний bind включается явно через `HOST=0.0.0.0`. Проверки: `node --check` двух JS-файлов, `git diff --check`, smoke HTTP 200/404, traversal 404, CDN loader HEAD 200 и визуальный локальный browser preview. VPS/GitHub/основной CRM-маршрут не менялись.
+## 2026-10-13 — График сотрудников
+
+- Причина: добавить управляемый недельный график сотрудников с отдельным правом владельца.
+- Изменение: добавлены право `staff_schedule`, пункт `/admin#staff-schedule`, недельный экран с сохранением/очисткой смен, tenant-scoped API и memory parity.
+- Файлы: `server.js`, `portal.js`, `API.md`, `SITE_TREE.md`.
+- Миграции: не требуются — используется существующая `staff_schedules` из `migrations/021_staff_time_payroll.sql`.
+- Проверки: выполняются после синхронизации исходников и `dist`; production не затрагивался.
+
+## 2026-10-14 — payroll sale-credit source: реализация и pure gate
+
+Координатор разрешил новый payroll-owned sale-credit module, единственный consumer hunk components.payrollSaleCredit и bounded contract/QA. System_architect и code_health baseline выполнены: readiness SHA256 CCF8997C78E3F20873F5137959C1AB7F62C7662AB6B106158D35B755545B1F06, canonical reader 911AB43D40ABCD66E9DE5F21C63766006264DEBD76B7972A601E0D2E17079351. Canonical reader не изменялся.
+
+Добавлен payroll-sale-credit-source.js: применение только сохранённых line_seller_snapshot/immutable_line_snapshot к уже прочитанному canonical090 результату той же RR read-only транзакции. Все merchandise lines учитываются независимо от commission eligibility; BigInt conservation, deterministic code-unit ordering, minimum adjustment venue-only, detached DTO. Unknown/cross-venue/legacy/incomplete дают null totals и пустые trusted aggregates. Полная корректная пустая выборка допускает наблюдаемый 0. Source watermark включает canonical hash, policy и observation context; canonical watermark сохранён отдельно.
+
+Область строго pre_refund_sale_credit/current_venue_timezone/current_eligibility_observation; historical eligibility/date assignment not_attested. Existing membership читает текущие users/organization memberships, timezone исторически не зафиксирован. Full employee net/refund recognition/margin/department остаются unsupported, officialReady=false. Нет ledger/calculator/writer, финансовых проводок или POS/API/UI изменений.
+
+Фактические проверки PASS: node scripts/payroll-sale-credit-source-contract.mjs; node scripts/payroll-canonical-pricing-source-contract.mjs (300 independent discount oracles); node scripts/payroll-source-policies-contract.mjs; node --check нового module/readiness/двух QA; scoped git diff --check. Новый scripts/payroll-sale-credit-source-postgres-contract.mjs создан, но PostgreSQL gate на момент записи НЕ выполнен. Final health review продолжается. Координатор владеет регистрацией нового suite в shared guarded runner и отдельной fresh payroll_sale_credit_qa_* базой; отдельные контейнеры и persistent DB запрещены. Dockerfile root не меняет: новый runtime require должен быть адресно включён владельцем упаковки после review. Commit/publish/production отсутствуют; полный goal и #21 не завершены.
+
+### Sale-credit PG gate — preflight отказ
+
+Первый разрешённый запуск через общий wrapper `node scripts/local-full-pg-regression.cjs payroll-sale-credit-source-postgres-contract.mjs` после проверки отсутствия lock завершился exit1 до suite: `Owned disposable QA container could not be inspected` (1 !== 0). PostgreSQL fixture не стартовала, PG PASS/число assertions не заявлены. После отказа lock отсутствует. Отдельный контейнер и прямой запуск suite не выполнялись; восстановление runner-owned окружения и повторный слот переданы координатору. Independent final code_health по module/readiness: no findings; pure/syntax/scoped diff PASS. Пакет до PG и runtime упаковки остаётся неполностью принятым, officialReady=false.
+
+### Sale-credit PG fixture isolation repair
+
+Первый реальный прогон общего runner упал на pre-090 capability assertion: actual available вместо unsupported. Координатор подтвердил причину — runner заранее создаёт текущие canonical090 таблицы в public; search_path собственная схема,public позволял fallback после удаления своих таблиц. Исправлен только scripts/payroll-sale-credit-source-postgres-contract.mjs: Client и Pool search_path ограничены собственной схемой, pg_catalog implicit; добавлен явный to_regclass IS NULL assertion с причиной до replay090. Product code неизменен. Actual syntax/pure PASS; независимый health review isolation/cleanup PASS, no findings. Повторный PG прогон выполняет координатор; его PASS на момент записи не подтверждён. Координатор отдельно подтвердил удаление первой random payroll_sale_credit_qa_* БД и отсутствие locks.
+
+### Sale-credit PG gate — изолированный повтор прошёл
+
+После аудита причины ложного pre-090 результата тестовый `search_path` ограничен только собственной временной схемой (PostgreSQL автоматически добавляет `pg_catalog`); публичная схема runner больше не является fallback. Добавлена точная проверка отсутствия canonical 090 таблицы до миграции, после чего реальная миграция 090 применяется в owned fixture. Новый зарегистрированный suite выполнен один раз общим guarded runner: `PASS PostgreSQL payroll-sale-credit-source-postgres-contract.mjs`. Покрыты настоящий 090 reader, изоляция tenant/периода, RR read-only snapshot и concurrent commit, eligibility/membership observation, unknown/cross-venue/legacy блокировки, downstream official readiness remains false и отсутствие записей payroll/expenses/runs. `finally` удалил собственную схему; wrapper удалил случайную БД; runner locks отсутствуют. Отдельный disposable контейнер/production/persistent DB не использовались. Этот PG gate закрыт для sale-credit source, но этап #21 остаётся частичным: официальный payroll lifecycle, historical eligibility/date authority и полноценное признание возвратов не входят в адаптер. Runtime Docker packaging нового модуля проверяется отдельно; release/deploy не выполнялись.
+
+### Sale-credit actual PostgreSQL gate — PASS
+
+После schema-only isolation исправления координатор запустил только общий guarded wrapper. Подтверждён command exec750eed2f: exit0, `PASS PostgreSQL payroll-sale-credit-source-postgres-contract.mjs`; текущий suite log сообщает PASS для real090, merchandise/noncommission/minimum conservation, tenant/midnight, sameRR source/current membership, unknown/legacy, downstream unsupported и no postings. Собственная схема удаляется suite finally с проверкой отсутствия; wrapper управляет отдельной random payroll_sale_credit_qa_* БД и cleanup. Lock отсутствует; дополнительная explicit no-leftover DB проверка запрошена координатору, root напрямую к БД не подключался. Число assertions suite не выводит, произвольное число не заявляем.
+
+Координатор добавил новый runtime module в основной Dockerfile COPY; targeted COPY check PASS. Полный local-deploy-contract остановился на отдельной ранее существовавшей недостающей зависимости table-minimum-schedule.js; полная готовность образа/деплой не заявляются. API contract обновлён координатором; protected POS/Finance/UI и ledger writes не менялись. Бounded sale-credit source имеет pure+actualPG доказательство только current observation/pre-refund scope; officialReady=false и полный payroll goal остаются незавершёнными.
+### 2026-10-15 — Связь премикса с готовым складским компонентом
+
+Причина: карту премикса и позицию, куда поступает выпуск, можно было выбирать отдельно при каждом приготовлении; результат мог оказаться в другом остатке и расход продажной техкарты терял предсказуемую связь.
+
+Изменено локально: миграция 101 добавляет постоянную привязку карты к выходному ингредиенту, безопасно восстанавливает только однозначные старые партии и ставит tenant/recipe guards. Неоднозначную старую карту можно привязать для будущего выпуска, не меняя прошлые партии; существующую установленную привязку после выпуска менять нельзя. API создания и редактирования карты требует привязки; выпуск выводит складской результат из карты и отклоняет подмену. UI редактора предлагает позицию результата, показывает готовый премикс среди ингредиентов техкарты продажи и блокирует ручную смену позиции в форме выпуска. Партия показывает складской результат. Продажа продолжает списывать уже произведённый запас и не расходует сырьё повторно.
+
+Файлы: `server.js`, `portal.js`, `migrations/101_premix_recipe_output_binding.sql`, `MIGRATIONS.md`, `docs/ai-team/DECISIONS.md` и связанные локальные QA-сценарии.
+
+Проверки PASS: синтаксис JS/MJS; `inventory-premix-load-state-qa`, `demo-premix-unit-runtime-qa`, `recipe-depletion-runtime-qa` (98 checks), `premix-contract`, `recipe-chain-contract-qa` (18 checks), `recipe-directory-contract`, `role-api-matrix-runtime-qa`; scoped `git diff --check`.
+
+Ограничение проверки: guarded PostgreSQL/browser acceptance остановился до теста на проверке среды (`Owned disposable QA container could not be inspected`), миграция 101 не применялась к локальной PostgreSQL. Production, GitHub и VPS не менялись.
+
+## 2026-10-15 — Локальная браузерная проверка техкарт и премиксов
+
+Изолированный Playwright Chromium прогон на временном сервере `127.0.0.1`, `DATABASE_URL=''`, пустое состояние памяти приложения; production/VPS и рабочая БД не затронуты. В браузере созданы складские позиции и продажная/премикс техкарты, премикс-карта изменена и перечитана, выпускающий сценарий списал 500 мл сырья и добавил 1000 мл результата, складская позиция переименована без изменения остатка, отдельная позиция и обе техкарты удалены. Проверено отсутствие горизонтальной прокрутки на ширинах 1366 и 1024 px. Итоговый прогон: 31 проверка PASS; браузерных ошибок, console errors и неуспешных API-ответов не обнаружено. Скриншоты: `tmp/premix-browser-1792040313385/`.
+
+Найдены и локально исправлены две UI-проблемы: при открытии премикс-карты её уже назначенный результат исключался из списка редактирования; при точной средней себестоимости (например, 0,025 ₽) шаг поля закупочной цены блокировал сохранение других изменений. Добавлена регрессионная браузерная проверка `scripts/premix-position-browser-qa.cjs`. PostgreSQL acceptance не выполнялся: ранее защищённый локальный QA runner не смог подтвердить владение одноразовым контейнером/БД; изменения GitHub/VPS не выполнялись.
+
+### Локальный аудит премиксов и техкарт — 2026-10-15
+Проведён браузерный сценарий создания/редактирования позиции и техкарты премикса, проверки обязательных полей и ошибок, пополнения ингредиента, производства партии и срока годности; интерфейс корректно сохранил состав, стоимость и дату партии. Дополнительный API repro выявил дефект: `multiplier: 0` трактовался как значение по умолчанию `1`, из-за чего запрос мог списать ингредиент и выпустить партию. Исправлено в серверном и demo пути: дефолт применяется только при отсутствии поля; нулевой объём/количество и прошедший срок отклоняются до изменения остатков. Регрессии покрыты; `recipe-depletion-runtime-qa.mjs` — 107 проверок PASS, `demo-premix-unit-runtime-qa.mjs` PASS; синтаксис JS и scoped `git diff --check` PASS. Дополнительные контракты премикса, жизненного цикла партии, создания техкарты, цепочки рецептов и pending-состояний прошли. PostgreSQL runtime gate в этой работе не запускался; сроки годности отображаются в локальном часовом поясе устройства, единая часовая зона заведения не определена. Никаких изменений VPS/GitHub не выполнялось.
+
+### Продолжение локального аудита техкарт и премиксов — 2026-10-15
+Сквозная проверка выявила и исправила дефект конкурентного редактирования: выпуск PostgreSQL теперь начинает транзакцию до чтения карты и удерживает `FOR SHARE` до сохранения партии. Редактирование карты сериализуется через `FOR UPDATE`; партия и фактическое списание используют один зафиксированный состав. Добавлен PostgreSQL runtime regression, который удерживает блокировку, запускает выпуск, меняет состав и проверяет, что выпуск ждёт и списывает именно сохранённый состав.
+
+Уточнена форма выпуска: поле фактического выхода показывает единицу выбранной техкарты и объясняет, что число относится ко всему выпуску при количестве партий больше одной; пустое поле оставляет расчётный выход. Браузерный сценарий проверяет это вместе с созданием/редактированием/повторной загрузкой карт, успешным выпуском, складским остатком, блокировкой изменения результата уже выпущенной карты, удалением и адаптивностью на 390, 700, 768, 1024, 1366 и 1920 px.
+
+Итоговые проверки этого этапа: PostgreSQL `recipe-depletion-pg-runtime-qa.mjs` PASS с чистым удалением выделенной одноразовой БД; Playwright `premix-position-browser-qa.cjs` PASS (93 проверки), включая преобразование срока годности из браузерного поля в API; ошибки страницы и неожиданные console/API ошибки отсутствуют; memory API ранее прошёл 136 проверок, demo premix/unit runtime и связанные контракты PASS. Production, GitHub, VPS и постоянная QA база не менялись.
+
+Ограничения доказательства: проверена прикладная логика премиксов и техкарт в памяти и на одноразовой PostgreSQL, а визуальный прогон охватывает указанные размеры и основные сценарии. Это не доказывает отсутствие всех возможных дефектов, не проверяет браузерные движки помимо Chromium, локальные настройки часового пояса в реальном заведении или производственные данные.
+## 2026-10-17 — Ручные обязательства и регулярные расходы
+
+Причина: справочник финансовых статей не покрывал обязательства вроде аренды, плановые платежи, частичную оплату и последующее изменение тарифа без переписывания истории.
+
+Изменено локально: документирован единый контракт финансовых источников; добавлена аддитивная миграция 103 для разовых обязательств, версий месячных правил, строк и ссылок на фактические `expenses`; добавлены API для черновика/подтверждения, частичных оплат и идемпотентной генерации периодов; в финансовую страницу добавлена форма для обязательств и правил. POS, закупки и payroll оставлены на действующих источниках фактов. Переименование категории больше не обновляет историческую подпись ручных расходов.
+
+Проверки PASS: синтаксис `server.js`, `portal.js`, `finance-payables.js` и PostgreSQL API QA; `finance-categories-ui-contract.mjs`, `finance-api-consistency-contract.mjs`, `finance-expense-payroll-status-contract.mjs`, `migrations-contract.mjs` (105 файлов), `postgres-qa-safety-contract.mjs` и scoped `git diff --check`. Guarded PostgreSQL migration/API QA и браузерное acceptance не запускались: `MIGRATIONS_PG_TEST_DATABASE_URL` и `TEST_DATABASE_URL` отсутствуют. Миграция не применялась; GitHub, VPS и production не менялись.
+
+Ограничения: POS доходы пока группируются по текущим меню/снимкам заказа и не имеют настраиваемой исторической карты на финансовые income categories. Закупки и начисления зарплаты остаются в собственных отчётных контурах; новый реестр их не повторяет. Это локальный непубликованный этап, не подтверждение production readiness.
+
+## 2026-10-17 — Классификация признанной POS-выручки
+
+Для закрытых POS-чеков добавлена эффективная помесячная карта из замороженной категории строки меню в доходную финансовую статью. Snapshot раскладки записывается в транзакции закрытия из canonical pricing snapshot; надбавка минимального чека хранится отдельной строкой. Новый экран справочника позволяет назначать категории на текущий/будущий месяц и смотреть суммы по дате закрытия. Старые чеки без snapshot показаны как legacy coverage; возвраты строк раскрываются отдельно, без неутверждённого вычета из выручки. Архивированная статья перестаёт участвовать в будущей классификации, уже созданные snapshots сохраняют подпись и категорию.
+
+Проверки PASS: `node --check` для `server.js`, `portal.js`, `finance-income.js`; UI/API financial contracts; миграционный контракт (106 файлов); scoped `git diff --check`. Независимый code-health review не выявил блокирующих ошибок и предложил разрешить текущий месяц для новых соответствий — это исправлено, существующие закрытия не пересчитываются. Guarded PostgreSQL/browser acceptance пока не пройден: целевой контейнер disposable QA отсутствует. Миграция 104 не применялась; публикация/production не выполнялись.
+
+Ограничения следующего этапа: управляемое сторно/корректировки и PG/browser runtime proof остаются незавершёнными. Статические проверки не подтверждают готовность финансового модуля.
+
+## 2026-10-17 — Раздельный реестр финансовых источников
+
+Добавлен read-only `GET /api/finance/unified-report`: закрытая POS-выручка с классификационными снимками и legacy непокрытие; фактические денежные расходы; входящие платежи с отдельным cash-equivalent признаком; возвратные выплаты; payroll accrual с календарной дневной долей; обязательства с оплаченной суммой/остатком; проведённые закупочные поступления. Даты подписаны по их основанию. Источники не складываются в выдуманный общий итог/прибыль, возвраты не сторнируют POS recognition, payroll accrual отделён от фактической зарплатной оплаты. Реестр фильтруется по датам, источнику, статусу, статье где она есть и поиску; каждый раздел ограничен 500 строками с индикатором усечения. Payroll-детали ограничены permission `finance`.
+
+Также исправлен стык финансовых route handlers: успешный `json()` ранее возвращал `undefined`, из-за чего сервер мог продолжать маршрутный dispatch; финансовая маршрутизация теперь получает явный handled-флаг. Уточнены счётчики статей по отдельным источникам и блокируется архивация статьи с действующим/будущим POS mapping до его переназначения.
+
+Проверки: syntax `server.js`, `portal.js`, `finance-unified-report.js`, income/payables; единый report contract, POS income contract, category UI, API consistency, expense/payroll status и migration contract — PASS. PostgreSQL/browser acceptance не пройдены: disposable QA container не обнаружен, никаких миграций или публикаций не выполнялось. Итоговый code-health review подтвердил report-контракт после исправления тестовых путей/handled-маркера; до guarded runtime QA финансовый поток остаётся незавершённым.
+
+## 2026-10-17 — Прогноз новой ставки регулярного платежа
+
+До записи очередной версии тарифа API теперь строит прогноз на ближайшие 12 месяцев: показывает прежнюю сумму, новую сумму и разницу, перечисляет уже созданные документы как сохраняемые без изменений, включая частичные оплаты, а созданные далее месяцы маркирует как будущие черновики. Существующие документы вне горизонта также перечисляются отдельно; для бессрочного правила UI ясно обозначает ограничение 12 месяцами. Ставка и месяц вводятся до просмотра, сохранение версии возможно только после явного подтверждения прогноза. Строки аренды и признак переменной суммы сохраняются при изменении тарифа; генерация появляется только для активного правила, приостановленное можно возобновить, завершённое больше не предлагает новую ставку. Прогноз и генератор одинаково исключают неполный последний месяц, а версия после даты окончания отклоняется. API-контракт описан в `API.md`, статический сценарий добавлен в оба acceptance allowlist.
+
+QA этого среза ещё выполняется; миграций не требуется. Контейнер `hookah-full-regression-qa-20261001`, который принимает только guarded runner, сейчас отсутствует, остальные остановленные QA-контейнеры не являются взаимозаменяемой целью. Production и публикация не затронуты.
+
+
+Допроверка тарифа и архивирования: версия ставки теперь отклоняется, если месяц её начала выходит за дату окончания правила; статья не архивируется при наличии активного или приостановленного регулярного правила. Добавлены соответствующие регрессионные проверки. `node --check` для `finance-payables.js` и `server.js`, recurring-preview contract, categories UI contract и `git diff --check` — PASS. Полный PostgreSQL/browser прогон остаётся заблокирован отсутствующим целевым disposable-контейнером; попытку создать его отклонил AutoReview.
+
+
+### Сквозное завершение регулярного правила
+
+Устранён тупик управления архивом: финансовый интерфейс теперь позволяет явно завершить активное или приостановленное правило после подтверждения, с повторным чтением списка. Возобновление правила блокирует категорию и проверяет её активность под блокировкой; устаревшее правило с архивной статьёй можно завершить, но нельзя возобновить до восстановления статьи. Проверки: recurring status/preview contract, categories UI contract, unified report, POS income, API consistency, syntax и scoped `git diff --check` — PASS. Guarded PostgreSQL/browser runtime по-прежнему не пройден из-за недоступного целевого контейнера и отклонённой AutoReview попытки его provision.
+
+### Сквозная проверка аренды и оплат
+
+Расширен защищённый PostgreSQL/Playwright сценарий: реальная авторизация; создание правила аренды в UI; однократная генерация и безопасный повтор с тем же ID и `created=false`; подтверждение обязательства, две частичные оплаты, сверка append-only ссылок и идемпотентный повтор; перезагрузка страницы с проверкой сохранённого состояния; просмотр прогноза и сохранение новой ставки без переписывания прошлого; пауза/завершение правила и архивация категории через UI с подтверждением. Устранены гонки ожидания между ответом API и обновлением строки интерфейса.
+
+Локальные синтаксические проверки сценария и модуля, recurring preview contract, categories UI contract и migrations contract (106 файлов) — PASS. Сквозной сценарий ещё не исполнен: runner сообщает отсутствие выделенного контейнера `hookah-full-regression-qa-20261001` и не обнаружена его конфигурация; запуск сценария напрямую завершается защитой из-за отсутствующего runner URL. Provision контейнера не выполнялся. Production, GitHub и VPS не затронуты.
+
+### Восстановление legacy POS-выручки в финансовых отчётах
+
+Обнаружен дефект по `FINANCE_MODEL`: закрытый старый чек без `final_total_snapshot` попадал в отчёты как 0 ₽, хотя сохранённые позиции и утверждённые скидки позволяют воспроизвести сумму. Общий `orderPricingSqlCtes`, ранее использовавшийся финансовой кассой, вынесен в `pos-order-pricing-sql.js` и переиспользован в unified report и POS income coverage. Теперь используется сохранённый итог, если он присутствует (включая подтверждённый 0); иначе вычисляется безопасный минимум из сохранённых строк, утверждённых скидок и минимума чека. Возвраты и не-POS движения не затронуты.
+
+Добавлены регрессионные контракты и авторизованные PostgreSQL/browser fixtures: legacy чек на 1 000 ₽ с утверждённой скидкой 100 ₽ должен читаться как 900 ₽ в обоих отчётах; явный нулевой снимок при наличии строк остаётся 0 ₽. Fixture строки включены в зависимый cleanup внутри disposable runner.
+
+`node --check` по серверу, общему SQL модулю, income/report и QA; finance income/unified/recurring/categories/API/payroll contracts; migration contract (106 файлов); scoped `git diff --check` — PASS. Runtime PostgreSQL/browser пока не исполнен: guarded runner не обнаружил принадлежащий ему контейнер `hookah-full-regression-qa-20261001`; обходная инициализация не выполнялась. Миграции не менялись.
+
+Проверка итогового diff заметила, что shift-cash QA harness раньше извлекал pricing CTE из server.js; переведён на экспортируемый общий модуль, поэтому его dynamic wrapper остаётся совместимым. В rent browser QA усилено доказательство: точные API-итоги 900 ₽/0 ₽, видимые строки на `/finance/report`, сводка категории на `/finance/categories` и повторный запрос соседнего дня с нулём. Все локальные синтаксические проверки, income/unified контракты и scoped diff-check после этих дополнений — PASS. Guarded runtime всё ещё не может стартовать без закреплённого одноразового контейнера.
+
+Статическая архитектурная проверка QA заметила ошибку границ следующего дня до runtime запуска; исправлен фильтр `from=to=2020-01-16`, listener проверяет обе даты, UI подтверждает нулевые записи и 0.00 ₽. Кодовая и архитектурная повторные проверки PASS.
+
+### Явная связь статей с зарплатой и закупками
+
+Начата целостная проработка связей категорий. Финансовый и архитектурный аудиты подтвердили: payroll accrual/expense и purchase receipt/payment — независимые факты с разными датами и смыслом; профильные источники пока не имеют стабильной категории, старые связи по названиям запрещены. Зафиксировано решение: статья зарплатного черновика фиксируется при утверждении и копируется в единственную связанную выплату; закупочная накладная получает одну статью до проведения, платежи наследуют её, а receipt/acquisition не становится расходом P&L. Смешанные назначения разделяются документами; legacy остаётся неклассифицированным.
+
+Добавлена additive migration `105_finance_source_category_links.sql`: nullable tenant-scoped category IDs и name snapshots для payroll entries и purchase documents, RESTRICT FK, индексы и DB guards на вид/активность категории и неизменность классификации после проведения. Исторические данные не backfill-ятся. Архитектурная модель и решение обновлены. `node scripts/migrations-contract.mjs` — PASS (107 replay-safe migration files). API/UI/writer/report integration, category usage counters, code-health итоговая проверка и guarded PG/browser QA ещё не завершены. Миграции в БД не применялись, production не затронут.
+
+Интеграция завершена по исходному коду: finance-пользователь может выбрать/снять статью в payroll draft и purchase draft; inventory-only запрос без поля продолжает работать, с полем требует finance. При утверждении/проведении категория сверяется; позже выплата наследует снимок даже после архива, а payment остаётся единственным денежным событием. GET DTO/readback, раздельные category counters, unified report data/filter, архив/удаление и документация связаны. Подтверждение архива больше не обещает неверный числовой счётчик разных типов операций.
+
+Проверки PASS: `node --check` server/db/portal/report и новых contracts; finance unified report, category schema, category UI, purchase payments, payroll expense status, POS income mappings, recurring preview; migration contract (107 файлов); scoped `git diff --check`. Проверка итогового diff выполнена code-health; отмеченная UX-неточность исправлена. PostgreSQL/browser acceptance не запускался: `node scripts/local-full-pg-regression.cjs --guard` сообщает `LOCAL FULL PG TARGET: FAIL; inspect private configuration and owned container`; прямой DB обход не выполнялся. Поэтому миграция не доказана реальной установкой, UI→API→DB→reload остаётся непроверенным; production и публикация не затронуты.
+
+#### Продолжение — UX черновика и денежная классификация дохода вне POS
+
+После статического аудита исправлен сценарий дохода: форма больше не проводит запись автоматически. Она сохраняет черновик; из строки списка доступны редактирование, отдельное подтверждённое проведение и отмена. Перечитывание после ошибки поступления помогает сверить фактический остаток. Guarded browser harness дополнен сценарием сохранения черновика, изменения суммы до проведения и явного подтверждения проведения.
+
+Поступление банковским переводом теперь корректно отмечается как полученные деньги наряду с наличными, картой и QR; метод «другое» остаётся неклассифицированным. Документация поясняет, что отдельные таблицы являются фактами своего источника, а unified report — только read-only проекцией, не дополнительной кассой. Также зафиксировано ограничение: корректировка проведённых документов/поступлений и возврат пока не реализованы; исходную запись не менять, дальнейшие факты по ошибочной операции остановить и передать финансовому администратору.
+
+Проверки после правок: `node --check` portal/report/module/browser QA, other-income contract, unified-report contract, migration contract (108 файлов), `git diff --check` — PASS. Независимый итоговый code-health review выполняется. Guarded PostgreSQL target отсутствует (`LOCAL FULL PG TARGET: FAIL; inspect private configuration and owned container`), поэтому UI→API→DB→reload и миграция в PostgreSQL остаются не подтверждены; provisioning, обход guard, production и публикация не выполнялись. Пакет и общий финансовый goal не объявляются принятыми до закрытия корректировок/сторно и runtime QA.
+
+Итоговый code-health review выявил retry-гонку: после потери HTTP-ответа UI мог перерисовать поступление с новым idempotency key; если сервер уже записал полную сумму, форма ещё и исчезала из-за нулевого остатка. Исправлено: pending key и payload сохраняются в sessionStorage до подтверждённого ответа, переживают перезагрузку страницы, блокируют изменение данных в ожидании сверки и оставляют действие повтора доступным при нулевом остатке. Guarded browser QA теперь перехватывает ответ после успешной записи, возвращает смоделированную сетевую ошибку, обновляет страницу, повторяет тот же запрос и проверяет ровно одну строку в БД. Удалена проверка суммы, подавлявшая ошибку через `catch`; теперь сумма утверждается по API DTO. Дополнительно ранний отказ при несовпадении payload восстанавливает кнопку отправки. Статические контракты и синтаксис повторно проходят; для реального прогона browser QA всё ещё отсутствует целевой одноразовый PostgreSQL runner.
+
+#### Продолжение — согласование прочего дохода и отчетных статусов
+
+Уточнено описание прочих бизнес-доходов: документирует отдельные append-only сторно признания и возвраты фактически полученной суммы, включая то, что они меняют разные финансовые стороны и не сверяются с кассой/сменой. Удалено прежнее противоречивое утверждение, будто эти операции ещё не подключены.
+
+Проверены отчётные поля: документы показывают текущее чистое признание, поступления и возвраты остаются отдельными денежными событиями, превышение поступлений над чистым признанием явно выявляется. Фильтры по «получено» для документной выборки теперь опираются на чистые поступления и чистое признание с учётом корректировок. Срезы сохраняют собственные даты событий; корректировка не переносит дату первоначального дохода.
+
+Проверки: `node --check` для модуля прочих доходов, unified report, portal и guarded browser harness; contracts прочих доходов, unified report, API consistency и migrations (109 файлов) — PASS. `git diff --check` выполняется отдельно. PostgreSQL guard снова сообщает `LOCAL FULL PG TARGET: FAIL; inspect private configuration and owned container`; целевой контейнер не создавался и обход guard не выполнялся, поэтому миграция и browser/UI→DB→reload не подтверждены runtime.
+
+Итоговый разбор отчётной математики выявил и закрыл две дополнительные границы периода: строка признания теперь остаётся исходной валовой суммой на дату признания, а корректировка идёт отдельно отрицательной суммой на собственную дату; строка получения денег остаётся валовой квитанцией, а возврат отражается отдельным отрицательным денежным событием. Иначе в обоих случаях срезы периода и суммирование давали бы двойной/искажённый эффект. Остаток к получению и фильтры статуса согласованы с чистыми признанием и поступлениями, а признак превышения признания учитывает возвраты.
+
+Граничный фильтр полностью сторнированных документов также уточнён: при нулевом чистом признании запись не называется ни «получено», ни «не получено»; статусы оплаты применяются только при положительном остатке признанного дохода. Контракт закрепляет это поведение.
+
+#### Продолжение — надёжный повтор оплаты аренды и граница признания
+
+Исправлен guarded browser-сценарий: перед заполнением формы частичной оплаты он раскрывает её `details`, включая восстановленную форму после перезагрузки. Контракт повторного запроса моделирует потерю ответа после успешного серверного commit, сохраняет исходный ключ и payload и проверяет идемпотентный повтор без второй записи. Code-health подтвердил продуктовые правки по scope/PG date/cents и обнаружил этот пробел в самом сценарии; исправление внесено.
+
+Статическая проверка: `node --check scripts/payables-browser-postgres-qa.mjs`, `node scripts/finance-recurring-preview-contract.mjs` и scoped `git diff --check` — PASS. `node scripts/local-full-pg-regression.cjs --guard` снова остановлен проектным guard (`LOCAL FULL PG TARGET: FAIL; inspect private configuration and owned container`); реальный browser/PostgreSQL путь не заявляется.
+
+Следующий финансовый дефект: выплата обязательства аренды создаёт `expenses.source='manual'`, а текущий P&L считает такие расходы по дате оплаты. Поэтому октябрьская аренда, выплаченная в ноябре, сейчас относится к ноябрю; простое добавление признания по периоду без исключения связанной оплаты задвоит P&L. Finance domain рекомендует отдельное неизменяемое событие явного признания, связанное с существующим обязательством, при сохранении `expenses` как денежного факта; утверждение документа само по себе услуги/признание не доказывает. Разработка этого нового жизненного цикла ожидает завершения сквозного контракта архитектора и отдельной миграции; старые approved не следует автоматически считать признанными.
+
+#### Продолжение — признание обязательств и отчётное покрытие
+
+Закреплён отдельный append-only факт признания обязательства и отдельные сторно: выплаты остаются денежными расходами, связанные платежи исключаются из P&L, а утверждение обязательства не считается признанием услуги. Завершён UI/API путь с идемпотентными событиями, историей автора/даты/основания и отменой только неоплаченного обязательства после полного сторно.
+
+Повторный финальный разбор нашёл и исправил три пробела: покрытие неполноты теперь ищет неопознанные обязательства также по дате связанной выплаты (включая старую аренду, оплаченную в следующем месяце); карточка выводит историю признания/сторно после повторной загрузки; окончательный HTTP 4xx освобождает форму для исправления, тогда как неоднозначные сетевые ошибки сохраняют ключ повтора. При неполном покрытии API отдаёт `totalExpenses: null` и отдельно `knownTotalExpenses`, чтобы частичный итог не выдавался за полный.
+
+Проверки после изменений: finance payable recognition, unified report, finance API consistency, recurring preview, migration contracts (110 replay-safe файлов), синтаксис затронутых JS и source/dist portal parity — PASS. Повторный code-health, system architecture и browser QA не завершились из-за лимита usage на их стороне; выводы архитектора до ошибки учтены. `local-full-pg-regression --guard` ранее остановлен проектной конфигурацией (`LOCAL FULL PG TARGET: FAIL; inspect private configuration and owned container`); миграция и UI→API→PostgreSQL→reload runtime не подтверждены. Production не затрагивался.
+
+P&L проверен на календарной полноте: дни без POS-продаж раньше отсутствовали в итоговом массиве дней, из-за чего расходы и признания в такие даты не входили в агрегат. Календарь теперь строится по объединению дат продаж, ручных/связанных расходов, признаний, выплат, зарплаты и себестоимости; добавлена регрессия в контракт признания.
+
+#### Продолжение — историческая POS-выручка без статьи
+
+В income-category report добавлено отдельное покрытие закрытых POS-заказов с canonical pricing snapshot, но без финансового category snapshot. Ранее такие чеки не попадали ни в распределённые суммы, ни в legacy-группу «без ценового снимка», поэтому классификационная неполнота скрывалась. Старые источники не распределяются автоматически: API возвращает count и gross recognized amount отдельно, UI явно показывает их рядом с остальными неполнотами. Обновлены API/архитектурное описание и контракт.
+
+#### Продолжение — закрытие пробелов классификации POS
+
+В ходе повторных finance/architecture/code-health аудитов выявлены и закрыты: источники доходных статей теперь включают активные категории POS-товаров без продаж; одинаковый source/effective month допускает append-only исправление с `supersedes_mapping_id`, а прежние POS snapshots остаются прежними; повтор того же mapping идемпотентен. Категориальный и единый отчёты раскрывают priced legacy чеки по заказу, а coverage учитывает отсутствующий snapshot и unmapped allocations новых чеков (только нераспределённая сумма для partially mapped checks). Исторические данные не backfill-ятся по текстовым названиям.
+
+Добавлены migration 109, route contract на source-before-sale/повтор/исправление, расширены POS/unified report contracts и документация API/архитектуры. Локальные статические contracts, `node --check`, миграционный контракт (111 файлов), local design contract и portal source/dist parity — PASS. Guarded PostgreSQL/browser end-to-end остаётся не подтверждён; migration/runtime/tenant-isolation QA требуется на disposable guarded target.
+
+Следующая проверка обнаружила гонку: `created_at DEFAULT now()` отражает начало транзакции, а не момент получения advisory lock, и старый запрос мог перезаписать более новую версию. Migration 110 добавляет монотонный revision на источник/месяц; API назначает его под lock, а expectedMappingId отклоняет stale retry. Unified POS-строки теперь раскрывают товар, source key/station, статью и сумму каждой allocation, чтобы нераспределённые позиции можно было локализовать прямо в отчёте. Контракты и code-health/architect повторная проверка выполняются; guarded PostgreSQL/browser runtime по-прежнему не подтверждён.
+
+Повторная сверка отчётных требований выявила, что категорийный POS-итог не раскрывал чеки. Добавлено раскрытие по ID статьи и тому же периоду через unified report; строки заказа показывают чеки и allocation-суммы, из которых складывается агрегат. API/архитектурная документация и контракт обновлены. Runtime браузера/PostgreSQL ещё не выполнен.
+
+Review drilldown выявил ещё два скрытых ограничения: первые 500 чеков могли отображаться как полный список, а сумма allocation без категории не имела ссылки на документы. UI теперь предупреждает об ограничении и предлагает сузить период; legacy чеки без снимка цены/статьи раскрываются отдельно; `unmappedOnly=true` возвращает только NULL-category allocations для сверки нераспределённого итога. Оба ограничения проходят контракт; фактический UI→API→PostgreSQL reload пока не подтверждён.
+
+Финальный архитектурный review дополнительно нашёл, что status-фильтр legacy выдавал обе группы старых чеков сразу. SQL теперь сравнивает derived status каждой строки с запрошенным значением; соответствие статуса и его документной выборки закреплено контрактом.
+
+#### Продолжение — явная область финансового отчёта
+
+Проверено, что unified report получает `venueId` только из активной сессии, а роли и system overrides разрешаются отдельно для выбранного заведения. Сырой `venueId` из URL нельзя безопасно принять: membership сейчас организационное, а список и переключение заведений ограничены административным `settings` и не дают finance-only пользователю право на каждую точку. Отчёт теперь возвращает `venue: {id,name,timeZone}`, а UI явно подписывает активное заведение; `API.md` фиксирует, что сетевого выбора точек пока нет и требует самостоятельного контракта доступа.
+
+Добавлен регрессионный контракт: URL `venueId` не переопределяет доверенный ID сессии; все SQL остаются привязаны к нему. Реальный multi-venue доступ намеренно не включён, поскольку без target-venue authorization это было бы расширением доступа к финансам.
+
+#### Продолжение — фильтр отчёта по заведению с адресной проверкой прав
+
+Реализован отдельный read-only контур выбора заведения для unified report без переключения активной сессии. `GET /api/finance/report-venues` ищет активные точки текущей организации через действующее membership/subscription и для каждой заново вычисляет эффективные права по её system-role override и custom role. Операционные роли исключены; список отдаёт только точки с `finance_read`/`finance`. Отчёт принимает `venueId` только после серверного разрешения; каждый существующий query получает этот проверенный ID и локальный timezone. Зарплатные данные раскрываются только если целевая точка разрешает `finance`. Категории также загружаются через тот же target-venue guard, чтобы ID статьи и счётчик относились к выбранной точке.
+
+UI финансового отчёта теперь даёт выбрать только доступную точку, показывает timezone и загружает её категории/данные с защитой от устаревших ответов при быстром переключении. Активный `auth_sessions.active_venue_id` не меняется. API.md описывает адресную проверку и сохраняет раздельные источники/суммы без сетевого суммирования.
+
+Добавлены unit contracts на разрешение target-policy, custom-role scope, system ceiling и operational-role denial; unified report контракт проверяет успешную авторизованную точку, запрет неразрешённой точки до SQL и finance-only payroll на target. Статические контракты не являются доказательством guarded PostgreSQL/browser runtime; этот runtime QA остаётся обязательным для полной приёмки.
+
+Review follow-up: code-health and architecture review found a stale-response race while target-venue categories loaded. The selector now invalidates any in-flight report and replaces visible rows with a loading state synchronously before awaiting category data; it only proceeds if the same venue remains selected. The target-access contract is now in both local acceptance allowlists. Static UI contract asserts this ordering. Existing browser/PostgreSQL runtime remains blocked by the project guard because no owned disposable target is configured.
+
+#### Продолжение — выбор заведения в POS-классификации
+
+Расширен только read-only POS-отчёт на странице категорий: список доступных заведений использует существующий адресный `finance_read`/`finance` resolver; сводка и раскрытие чеков передают один и тот же `venueId`, а все исходные SQL-срезы ограничены им. Выбор не меняет активную точку и не влияет на CRUD категорий или редактор соответствий, которые остаются в контексте активной точки. UI показывает, что область выбора касается только этого отчёта, и отбрасывает устаревшие ответы сводки и раскрытия.
+
+Добавлен `scripts/finance-income-report-venue-contract.mjs` и включён в local acceptance/static QA. Контракт проверяет target access до SQL, единый venue scope всех пяти подзапросов, DTO точки, передачу выбранной точки в drilldown и stale-response guards. `API.md` описывает optional `venueId` и отсутствие сетевого суммирования категорий.
+
+Проверки: `node --check` затронутых JS/MJS, новый venue contract, unified report contract и income mapping route contract — PASS; `portal.js` синхронизирован в `dist/portal.js`. Guarded PostgreSQL/browser E2E не запускался: настроенный проектом disposable target всё ещё отсутствует; полноценный POS refund recognition остаётся отдельным незакрытым финансовым контрактом.
+
+#### Продолжение — раскрытие POS-возвратов в финансовом отчёте
+
+Финансовый отчёт получил отдельную read-only секцию `posRefundItems` рядом с денежными `refundTenders`. Запись на refund header не размножается по tender строкам: показывает payout total отдельно от возвращённых замороженных строк, стоимости и исходной категории (выплатные allocations остаются в `refundTenders`). Для строк передаются product snapshot, количество, source item ID и последовательность 092; старая последовательность 091 явно `legacy_unsequenced`. Если атрибуция неизвестна, стоимость остаётся null. Finance projection не раскрывает seller identity или source-payment IDs и не расширяет права существующего order/refund API.
+
+Эти строки сверочные: они не являются расходом, сторно выручки или записью payroll. `refundTenders` остаются единственным денежным оттоком этой операции; P&L recognition date, обработка goodwill/no-item payout и правила закрытого периода всё ещё ждут Finance/Product решения. Контракт Finance обновлён по фактическому наличию ledger 088 и line journals 091/092; `API.md` документирует отчётный DTO и уточняет текущий POS refund endpoint.
+
+Проверки: `node --check` для report/UI/contracts и `finance-unified-report-contract`, `finance-income-report-venue-contract`, `payroll-order-refund-evidence-contract`, `pos-order-refunds-ui-contract` — PASS; исходник и опубликованная копия синхронизированы. PostgreSQL/browser refund QA не запускался в этом пакете из-за отсутствующего настроенного изолированного PG target; runtime/production не заявлены.
+
+Review follow-up: Finance, system_architect and code_health independently confirmed the payout/item-value split, event-date/tenant scope, per-category item filter, NULL-vs-zero handling and omission of source payment IDs. Category-filtered POS refund lines return only matched item values with `payoutAmount:null`; payout tenders remain unclassified. Refined static contracts pass. `MIGRATIONS_PG_TEST_DATABASE_URL` is currently unconfigured, so authenticated disposable PostgreSQL and browser runtime proof remains outstanding.
+
+#### Продолжение — прозрачные счётчики категорий
+
+Счётчики справочника явно определены как число связанных записей по источникам за всё время, а не как единый финансовый итог; подпись сообщает, что учитываются черновики/отменённые записи и что один расходный платёж может быть связан также с обязательством, закупкой или зарплатной выплатой. В API добавлен отдельный `recurringRuleCount`; резервный/demo ответ возвращает ту же схему источников (недоступная зарплатная детализация остаётся `null`, а не нулём). UI называет расходы «расходными записями» и показывает регулярные правила отдельно.
+
+Проверки `node --check` для server/portal/dist, finance category UI contract, source-category schema contract, POS income category contract и `git diff --check` — PASS; `portal.js` и `dist/portal.js` совпадают. Guarded PostgreSQL API/browser acceptance не запускался: `MIGRATIONS_PG_TEST_DATABASE_URL` не настроен.
+#### Продолжение — период и база дат в отчёте категории
+
+На карточке категории переход теперь прямо обозначен как отчёт за текущий месяц; в группах унифицированного финансового отчёта указана дата/период, по которому источник попадает в выбранный интервал (закрытие, платёж, возврат, услуга, срок, проведение, признание). Суммы с частично неизвестными значениями помечаются как известная часть; неизвестный и потенциально усечённый раздел дополнительно сохраняет предупреждение «показанная часть (до 500 строк)». Предупреждение о несложении срезов теперь охватывает оплаты обязательств наряду с закупками и зарплатой.
+
+Проверки `finance-categories-ui-contract`, `finance-unified-report-contract`, `finance-income-report-venue-contract`, `finance-source-category-schema-contract`, `finance-income-categories-contract`, синтаксис `portal.js`/`dist/portal.js` и `git diff --check` — PASS; файлы совпадают по SHA-256. Guarded PostgreSQL/browser E2E не запускался: `MIGRATIONS_PG_TEST_DATABASE_URL` не настроен.
+
+#### Продолжение — восстановление защиты сторно признанной аренды
+
+Review migration 111 found that replacing the payable immutability trigger had dropped migration 108's cancellation guard for recognized balances. Restored the guard: an approved payable can be cancelled only after the net recognized amount is fully reversed, while the existing payment-link block remains. Added a regression assertion against the replacement trigger so future changes cannot silently remove this protection.
+
+Проверки: finance payable recognition contract, recurring preview contract, migration contract (113 replay-safe files), syntax checks for changed JS/MJS, and git diff --check — PASS. PostgreSQL/browser runtime was not run because the guarded disposable DB and Playwright runtime are not configured.
+
+#### Продолжение — точный replay выплат обязательств
+
+Повтор ключа платежа теперь считается тем же запросом только при совпадении целевого обязательства, суммы, даты, способа, вложения и описания (включая серверный fallback описания). Проверены оба пути: обычный повтор и запрос, обнаруженный после ожидания блокировки. Расширен guarded browser/PostgreSQL сценарий: изменённые memo и attachment для уже использованного ключа должны получать 409, а исходная запись остаётся единственной. API contract обновлён.
+
+Проверки: syntax, finance payable recognition contract, recurring preview contract, migrations contract, targeted git diff --check — PASS. Runtime browser/PostgreSQL остаётся непрогнанным без настроенной изолированной тестовой среды.
+
+Contract review follow-up: UUID matching is now case-insensitive, consistent with PostgreSQL UUID semantics; guarded browser QA adds an uppercase-path replay case. Static payable contract asserts normalization in both replay branches.
+
+#### Продолжение — срок действия регулярной аренды
+
+Сквозной разрыв был в создании правила: база уже имела nds_on, чтение/прогноз/генератор его поддерживали, но форма не отправляла дату, а API молча создавал бессрочное правило. Добавил необязательное ndsOn в форму и POST payload; API строго валидирует календарную дату и запрет срока раньше startsOn, сохраняет её в существующее поле, аудитирует и возвращает в ответе. Пустая дата остаётся NULL для совместимости. UI, API и FINANCE_MODEL теперь явно сообщают политику: создаются только полные календарные месяцы, последний неполный пропускается без автоматической пропорции и оформляется отдельным обязательством. Контракт и guarded browser сценарий покрывают readback и отсутствие начисления за неполный финальный месяц.
+
+Проверки: recurring preview/create contract, payable recognition contract, migration contract (113 replay-safe migrations), syntax JS/MJS, git diff --check, portal/dist SHA-256 parity — PASS. PostgreSQL/browser runtime не запускался: project-owned disposable target и Playwright package не настроены.
+
+#### Продолжение — безопасное изменение срока регулярной аренды
+
+Для действующего или приостановленного правила добавлен предпросмотр изменения договорной даты: показывает изменяющиеся полные месяцы на ближайшие 12 месяцев и уже созданные документы, которых касается новая граница, с их суммой, оплатой и остатком. Подтверждение использует fingerprint предпросмотра и блокирует правило и связанные документы; если состояние изменилось, возвращает конфликт и требует обновить предпросмотр. Изменение меняет только `ends_on`: документы, оплаты и признания остаются нетронутыми; продление не запускает генерацию автоматически. Для приостановленного правила текст предпросмотра не обещает генерацию до возобновления.
+
+Проверки: recurring preview/create/update contract, payable recognition contract, migrations contract (113 files), syntax JS/MJS, targeted `git diff --check`, `portal.js`/`dist/portal.js` SHA-256 parity — PASS. Guarded PostgreSQL/browser runtime не запускался: `MIGRATIONS_PG_TEST_DATABASE_URL` и `PLAYWRIGHT_PACKAGE_PATH` не настроены.
+
+Review follow-up: уточнена подпись затронутых документов — показывает, останутся ли они за сроком или войдут в него; для paused-правила UI поясняет, что генерация возможна после возобновления. Контракт дополнен сокращением срока по уже созданным частично оплаченным и неоплаченным документам, а также проверкой paused preview. Все повторные статические проверки прошли.
+
+#### Продолжение — согласованный снимок unified financial report
+
+Unified report раньше запускал секции через отдельные `pool.query`, поэтому параллельная запись могла попасть в одни разделы ответа и отсутствовать в других. Теперь проверка доступа к целевому заведению остаётся до соединения; затем название и timezone точки, все источники и coverage читаются одним checked-out клиентом в `REPEATABLE READ READ ONLY`. Сервер отправляет успешный ответ после `COMMIT`; ошибка чтения даёт 503 без частичного отчёта, выполняет `ROLLBACK` и освобождает соединение. Бизнес-смысл и признание POS-возвратов не менялись.
+
+Контракт проверяет транзакционный режим, отсутствие обходных `pool.query`, commit-before-response, tenant authorization до получения соединения, а также rollback/release при ошибке. Проверки: finance unified report contract, syntax и `git diff --check` — PASS. PostgreSQL concurrency/runtime и браузерный reload не подтверждены; guarded test target требует отдельной доступной конфигурации.
+
+#### Продолжение — покрытие POS-возвратов в финансовой аналитике
+
+Проверка `/api/analytics` обнаружила, что чистая прибыль считалась полной при POS-возвратах, хотя их P&L-признание не утверждено. Добавлено venue-scoped покрытие по локальной дате закрытия продажи, локальной дате события выплаты и legacy `payments.status='refunded'`. API сохраняет оплаченные продажи как gross-диагностику, сообщает число затронутых заказов, возвратных выплат, выплатную сумму и legacy/неатрибутированные случаи; выплаты не вычитаются из прибыли. Пока есть такие события, дневная и итоговая чистая прибыль `null`, а `knownNetProfit` остаётся предварительной величиной до политики признания. Финансовая страница и dashboard показывают объяснение; график прибыли не подменяет неизвестное нулём. API contract дополнен проверками источников, tenant/date scope, fail-closed прибыли и UI-сигнала. `portal.js` синхронизирован с `dist/portal.js`.
+
+Проверки: `node --check server.js`, `node --check portal.js`, `node --check dist/portal.js`, `node scripts/finance-api-consistency-contract.mjs` — PASS. `finance-shift-analytics-postgres-qa.mjs` не запустился: отсутствует изолированный `MIGRATIONS_PG_TEST_DATABASE_URL`; production/browser runtime не проверялся.
+Guarded PostgreSQL QA дополнен реальными fixtures: legacy `refunded` не реконструируется и блокирует прибыль; POS refund header с двумя tender-строками не размножает/не уменьшает продажи, отдельно сообщает сумму выплаты и скрывает прибыль. Сценарий добавлен в `scripts/finance-shift-analytics-postgres-qa.mjs`, но не исполнен без изолированной БД.
+
+#### Продолжение — счёт оплаты обязательства и поставщицкий возврат
+
+Аудит показал, что расход по наличной оплате обязательства виден в cash flow, но не уменьшает ожидаемую POS-кассу и не попадает в снимок закрытия смены. Также нет общего каталога счетов. Зафиксирован контракт следующего этапа в `docs/requirements/FINANCE_ACCOUNTS_AND_SUPPLIER_RETURNS_CONTRACT.md`: один venue-scoped каталог поверх исходных денежных журналов, явный счёт для каждого partial payment, POS shift только для явно выбранной кассы, неизвестная legacy coverage без догадок. Разведены возврат денег поставщиком и безналичный зачёт; оба требуют отдельного append-only события и не переписывают исходную P&L.
+
+Предыдущая запись описывала только спецификацию; этот этап её реализует. Миграция 112 добавляет venue-scoped каталог счетов и явную ссылку/снимок источника в `expenses`, не угадывая источник старых строк. Оплаты обязательств требуют активный счёт и проверяют допустимую пару «тип счёта — способ». Для POS-кассы наличная оплата привязана к текущей открытой смене; общий lock с закрытием смены обеспечивает либо включение платежа в close snapshot, либо отказ без частичной записи. Внешние наличные и безналичные счета смену не меняют. Cash flow остаётся на единственной записи `expenses`; payable link только связывает её с обязательством. UI ведёт каталог, выбор счёта, историю и пояснение legacy coverage. Возврат поставщика и зачёт остаются контрактом будущего этапа.
+
+Проверки: `node --check` всех затронутых JS/MJS, `scripts/migrations-contract.mjs`, `scripts/finance-account-contract.mjs`, `scripts/finance-payable-recognition-contract.mjs`, `scripts/finance-unified-report-contract.mjs`, `scripts/finance-recurring-preview-contract.mjs` и `git diff --check` — PASS. Guarded PostgreSQL/browser QA добавлен/расширен, но не исполнен: `MIGRATIONS_PG_TEST_DATABASE_URL` не настроен; поэтому транзакционное и UI runtime принятие не заявляется.
+
+#### Продолжение — источник денег ручных расходов
+
+Подключён оставшийся ручной writer: форма расхода выбирает активный счёт и допустимый метод; API повторно проверяет категорию и счёт внутри venue, создаёт одну запись `expenses` со снимком счёта и UUID idempotency key. Точный повтор возвращает прежнюю запись; отличающийся payload при том же ключе даёт 409. POS-касса наличными принимает только текущую локальную дату и блокирует строку открытой смены; same lock у close serializes гонку. Наличность смены и снимок закрытия учитывают direct cash expense один раз, payable expense исключён из direct-среза и продолжает иметь отдельную запись snapshot. Внешняя наличная/безналичная касса не влияет на смену. История расхода показывает account name snapshot и unknown статус legacy.
+
+Добавлены регрессии в `scripts/acceptance-33-expense-document-postgres-browser-qa.mjs` и `scripts/shift-cash-postgres-e2e-qa.mjs`: exact retry key, изменённый replay conflict, UI account/method selection, account readback, external cash без shift, POS cash attribution и однократный payout snapshot. Проверки синтаксиса и finance account contract прошли; guarded PostgreSQL/browser runtime пока недоступен без настроенного `MIGRATIONS_PG_TEST_DATABASE_URL`/owned test environment. `portal.js` синхронизирован с `dist/portal.js`.
+
+Уточнение проверки ручного расхода: попытка с неизвестным результатом теперь сохраняется в sessionStorage со всем исходным payload, включая документ, восстанавливается после перезагрузки и повторяется с тем же ключом; форма блокирует редактирование до ответа. Категория UUID приводится к нижнему регистру до сравнения повтора. Browser QA #33 проверяет reload, сохранённый документ, точный replay и uppercase UUID. Финальный code-health review: новых P1/P2 нет. Статические contracts, синтаксис и source/dist parity — PASS; PostgreSQL/browser runtime по-прежнему не запускался, так как нет runner-owned DB/Playwright env.
+
+## 2026-10-17 — счета прочих поступлений и возвратов
+
+Подключены фактические квитанции прочих доходов и связанные денежные возвраты к venue-scoped `finance_accounts`: account ID, исторический снимок имени и shift ID сохраняются в append-only событиях; legacy источники не backfill-ятся. Для POS cashbox наличных нужна текущая локальная дата и единственная открытая смена под блокировкой. Поступления увеличивают ожидаемую кассу, возвраты уменьшают её; close snapshot включает каждое событие ровно один раз. Доход признаётся только исходным документом, возврат остаётся денежным оттоком. Идемпотентность учитывает account identity и сохраняет успешный повтор после закрытия счёта/смены. QR сохранён для электронного счёта.
+
+Обновлены форма, история источников, unified report coverage, API и архитектурный контракт. Добавлены guarded PostgreSQL/browser сценарии на cash receipt + refund, закрытие смены, readback, точные повторы и конфликт изменённого account. Локальные статические контракты проходят; PostgreSQL/browser runtime не запускались, потому что изолированная тестовая среда не настроена. Общая account coverage остаётся неполной до подключения POS tender, зарплатных и закупочных writers.
+
+Code-health review 추가 조치: source balance trigger가 unique-key conflict보다 먼저 오류를 낼 수 있는 동일 키 동시 요청을 처리하도록 catch 이후 prior-event replay를 추가했다. Guarded PostgreSQL/browser QA에는 full-balance receipt와 refund의 병렬 동일 요청 및 단일 event 보장을 추가했다.
+
+## 2026-10-17 — счета в оплатах закупок
+
+Подключён новый writer оплаты накладной к существующему реестру `finance_accounts`: API требует выбранный счёт, проверяет его заведение/активность/разрешённый способ оплаты внутри транзакции и сохраняет ID, снимок названия и `shift_id` в единственную строку `expenses`. Идемпотентность теперь сравнивает счёт; точный повтор работает после закрытия смены, а повтор с другим счётом конфликтует. Только наличная оплата через POS-кассу за текущую локальную дату получает одну открытую смену под блокировкой; внешние счета остаются вне смены. В UI добавлены выбор счёта, совместимые способы оплаты и показ счёта/смены в истории. Старые операции не атрибутируются задним числом.
+
+Отчёт cash outflow и закрытие смены продолжают читать ту же строку `expenses`, без второго события; категория закупки наследуется из накладной, а приход и оплата не превращаются в двойной P&L расход. Обновлены API/архитектурный контракт и контракты repository/API/UI. Статические проверки выполняются далее; guarded PostgreSQL/browser acceptance зависит от runner-owned DB и Playwright.
+
+Финальная локальная проверка этого этапа: purchase repository runtime, purchase API document-validation, purchase payment contract (23 checks), finance account contract, unified finance report contract и migration contract (115 migrations) — PASS; `node --check` для затронутых JS/MJS файлов — PASS; `git diff --check` — PASS; `portal.js` и `dist/portal.js` синхронны. Code-health review сначала выявил reload-idempotency gap; исправление включено, а browser QA теперь моделирует commit с потерянным ответом, полный reload и exact replay. Guarded PostgreSQL/browser QA обновлено, но пока не запущено: `MIGRATIONS_PG_TEST_DATABASE_URL`, `LOCAL_FULL_PG_OWNED_DATABASE` и `PLAYWRIGHT_PACKAGE_PATH` не настроены.
+
+## POS tender account attribution — local implementation
+
+Добавлена миграция 114: новые денежные POS payments и строки выплат POS-возврата сохраняют account ID/name snapshot; кассовые tender операции обязаны ссылаться на открытую смену того же заведения, card/QR остаются вне наличности, а бонус/депозит/зачёт брони не получают денежный счёт. Изменены POS payment/close API и форма выбора счёта, возвратная форма и unified cash report; неизвестные исторические строки остаются `unknown_legacy`, без backfill по методу. Незавершённая split-оплата замораживает тело и idempotency keys в `sessionStorage`, фиксирует подтверждённый индекс и допускает exact replay после потери ответа.
+
+Проверки: `finance-account-contract`, `finance-unified-report-contract`, `pos-order-refunds-ui-contract`, `migrations-contract` (116 файлов), `staff-partial-payment-pending-qa`, синтаксис затронутых JS/MJS и `git diff --check` — PASS; `app.js`/`dist/app.js` и `portal.js`/`dist/portal.js` синхронизированы. Read-only code-health review подтвердил account invariants; финальный проход выявил несовпадение shift ID для card/QR между writer и триггером, после чего оба writer и SQL guards согласованы, а review подтвердил исправление. Дополнительно исправлен late response после закрытия окна: он обновляет/очищает durable intent, не мутируя отсутствующее UI state. Guarded PostgreSQL сценарии обновлены, но не запускались без runner-owned DB и Playwright.
+
+## 2026-10-17 — проверка диапазона журнала расходов
+
+Code-health и finance-domain аудит подтвердил, что `/api/expenses` сейчас создаёт сразу проведённый неизменяемый денежный факт; черновики, пользовательская коррекция и сторно остаются отдельным незакрытым этапом, исходный расход нельзя редактировать напрямую. В этой итерации закрыт узкий API дефект чтения: некорректная дата и перевёрнутый диапазон ранее доходили до SQL и могли возвращаться как ошибка БД. Теперь `GET /api/expenses` отклоняет такие фильтры с 400 `invalid_expense_date_range` до запроса к базе; API.md и контракт обновлены. Регрессия ограничена чтением списка и не меняет денежные записи.
+
+Проверки: `finance-expense-date-range-contract.mjs`, `finance-api-consistency-contract.mjs`, `node --check server.js`, `git diff --check` — PASS. PostgreSQL route QA не запускался: `MIGRATIONS_PG_TEST_DATABASE_URL` не задан. Следующий жизненный этап ручного расхода требует draft → post, неизменяемой коррекции с причиной/автором и отдельного фактического денежного возврата; до него нельзя считать ручное редактирование проведённой операции поддержанным.
+
+Архитектурный контракт ручных расходов расширен: серверный черновик переживает reload и отделён от денежного факта; проведение создаёт единственную связанную запись `expenses`; ошибка учёта исправляется append-only событием, фактический возврат денег — отдельным cash-in на дату поступления. Добавлены tenant/RBAC, идемпотентность, optimistic concurrency и отчётная раздельность. Решение записано в `docs/ai-team/DECISIONS.md`; миграция, API и UI ещё впереди, поэтому это контракт, не реализация или runtime acceptance.
+
+
+## 2026-10-17 — проверка финансового bootstrap PostgreSQL
+
+Runtime-проверка выявила, что `schema.sql` для нового Docker-тома не содержал базовые источники, на которые опирается финансовая схема: payroll, expenses, сменную атрибуцию POS-платежей, supplier documents, payment method и finance category. Добавлены точные блоки исходных миграций `021`, `022`, `038`, `039`, `042`, `044` перед финансовым слоем `103–114`, а также составной индекс `users(venue_id,id)` для tenant-scoped FK. Исправлен синтаксис `CASE` в проверке POS income snapshot из миграции `104`; bootstrap и migration replay теперь компилируют эту функцию в PostgreSQL. Контракт миграций проверяет ровно одно вхождение, возрастание версии и отсутствие постороннего текста между зеркальными SQL-блоками. `MIGRATIONS.md` дополнен описаниями миграций `111` и `113`.
+
+Проверки на отдельном временном PostgreSQL 16: `schema.sql` — PASS; все 116 миграций применены и повторно применены с `psql --single-transaction` — PASS; временные контейнеры удалены. `seed.sql` отдельно завершился ошибкой существующего guard `ingredient venue must belong to an organization`; это не исправлялось в этой финансовой итерации. Runner и миграция `110` выдают предупреждение о повторном `BEGIN`: оба migration прохода прошли, но это предупреждение остаётся на проверку. Production и volume проекта не затрагивались.
+
+## 2026-10-17 — POS income snapshot integrity and historical date basis
+
+Closed three PostgreSQL boundary gaps in migration 115: source mappings now require the canonical category-name snapshot, only active income categories can be used by newly sealed POS snapshots, and referenced category rows are locked in deterministic order while sealing so archival cannot race a new close. Existing mappings and completed snapshots remain historical evidence; old snapshots retain their saved venue date and receive a NULL timezone snapshot on upgrade rather than an inferred value. The POS income report UI clarifies that it uses the local close date saved at close and timezone edits do not recalculate past dates. `schema.sql` mirrors migration 115.
+
+PostgreSQL QA now covers forged category names, archived mapped categories, actual close-writer output, report readback after changing the venue timezone, discount/minimum allocation, and date/timezone forgery. A separate upgrade QA applies/replays migration 115 over a pre-115 schema containing a legacy snapshot, then applies and replays all 117 migration files over a clean pre-115 schema. Both PostgreSQL suites pass on a disposable PostgreSQL 16 container. Static finance and migration contracts, route/API contracts, syntax checks, source/dist parity, and scoped `git diff --check` pass. Code-health review is GO; finance-domain review found no calculation issue. Production and project databases were not touched.
+Upgrade-audit follow-up: migration 104 could leave a committed `building` row after an interrupted writer. Migration 115 now fails closed before schema changes when one exists (`finance_pos_income_snapshot_legacy_building_rows_require_repair`). Upgrade QA proves the failed transaction leaves the pre-115 schema intact; after reconciling the saved source line and sealing the old row through its legacy lifecycle, migration 115 and its replay pass without fabricating the old timezone. The full legacy-upgrade, snapshot-integrity PostgreSQL suites and static contracts were rerun and pass.
+A final concurrency audit found a race between the legacy-row preflight and active snapshot writers. Migration 115 now takes `ACCESS EXCLUSIVE` on the snapshot table before scanning and holds it through trigger installation and transaction commit. The upgrade QA uses a second PostgreSQL session to verify an attempted insert waits for that lock; both PostgreSQL suites were rerun against a fresh disposable PostgreSQL 16 container and pass. The container was stopped and removed after verification.
+## 2026-10-17 — ручные расходы: draft → post локально реализован
+
+Ручная форма теперь сохраняет расход как постоянный серверный черновик и показывает раздельные действия «Сохранить черновик» и «Провести». Изменение возможно только пока черновик открыт; проведение создаёт ровно один неизменяемый `expenses` и связывает его с черновиком. Добавлены venue-scoped ссылки, optimistic version, idempotency создания/проведения, сверка состояния для восстановления потерянного ответа, запрет операционным сотрудникам, отдельный контрагент в истории и отчётной строке. Категория не меняет направление при наличии черновиков; API заранее возвращает конфликт использования. Старый `/api/expenses` оставлен для совместимых клиентов; его manual/other денежные факты защищены от правки и удаления с узким исключением перехода payroll.
+
+Проверки: `migrations-contract` (118 файлов, чистый schema/migration mirror), `finance-unified-report-contract`, `finance-api-consistency-contract`, `node --check` затронутого JS и `git diff --check` — PASS; `portal.js` и `dist/portal.js` имеют одинаковый SHA256. Изолированный PostgreSQL 16 QA на чистой схеме проверил повтор migration 116, создание/редактирование/отмену, RBAC и tenant scope, точные повторы, проведение, переименование категории/счёта перед проведением, неизменяемость старого ручного расхода и поддельную связь draft→expense — PASS. Временный контейнер удалён; production и БД проекта не затрагивались. Следующий этап — append-only исправление уже проведённой ошибки и отдельный фактический возврат денег; здесь они не реализованы.
+
+Review follow-up: изменение типа и архив статьи имеют явный конфликт, пока на ней есть черновики; UI объясняет, что сначала нужно перенести или отменить черновики. Потерянный ответ проведения автоматически сверяется по сохранённым ключу/версии при повторе и после reload; список черновиков сразу очищается после восстановленного проведения.
+
+## 2026-10-17 — повторы создания обязательств и регулярных правил
+
+Аудит выявил, что успешный POST без ответа и повторное нажатие создавали бы второй ручной долг или правило. Добавлена миграция 119 с общим tenant-scoped журналом ключа, fingerprint нормализованных данных и сохранённого ответа. `/api/finance/payables` и `/api/finance/recurring-rules` резервируют ключ и создают entity в одной транзакции: точный replay возвращает исходный ID и ответ, изменённый payload с тем же ключом завершается 409. UI сохраняет точную попытку до отправки, восстанавливает её после reload, допускает только повтор тех же данных при неопределённом результате и очищает ключ после readback. Уникальность естественных атрибутов документов не менялась; месячная генерация остаётся отдельно идемпотентной.
+
+Проверки: `finance-create-idempotency-contract.mjs` проверяет обе POST-ветки, exact replay, изменённый payload, tenant scope и UI восстановление; `migrations-contract.mjs` проверяет 119 файлов и точное зеркало миграции в `schema.sql`. Ещё предстоят повтор тестов после исправлений, синхронизация `portal.js` с `dist/portal.js` и code-health review итогового diff. PostgreSQL runtime этой миграции пока не подтверждён.
+
+Итог локальной проверки этапа создания: `finance-create-idempotency-contract.mjs`, `finance-recurring-preview-contract.mjs`, `finance-unified-report-contract.mjs`, `finance-api-consistency-contract.mjs`, `finance-expense-drafts-ui-contract.mjs`, `migrations-contract.mjs` (119 файлов), `node --check` по затронутым JS/MJS, `git diff --check` и равенство SHA256 `portal.js`/`dist/portal.js` — PASS. На отдельном PostgreSQL 16 успешно применены `schema.sql`, затем все 119 миграций два раза подряд; временный контейнер удалён. Полный браузерный payables QA не запускался: в среде не задан runner-owned `MIGRATIONS_PG_TEST_DATABASE_URL` и Playwright QA окружение.
+
+Review follow-up: code-health проверка поймала случай потери подтверждения непосредственно на `COMMIT`. Обе POST-ветки теперь отвечают `503 finance_create_result_unknown` при неопределённом результате commit; UI сохраняет исходный ключ для такого ответа. Fault-injection контракт имитирует уже сохранённую транзакцию с потерянным ack для ручного обязательства и регулярного правила, затем доказывает exact replay и один созданный entity для каждого. После исправления `finance-create-idempotency-contract.mjs`, `finance-recurring-preview-contract.mjs` и синтаксис `finance-payables.js`/`portal.js` проходят. Browser/PostgreSQL UI acceptance по-прежнему ожидает runner-owned QA environment.
+
+Последний review follow-up: расширил fault injection на потерю acknowledgement и при первоначальном COMMIT, и при COMMIT точного replay для обеих операций. Любая неопределённость в этих четырёх ветках теперь возвращает `503 finance_create_result_unknown`, поэтому браузер сохраняет тот же ключ до успешного readback. Контракт подтверждает два 503 подряд после сохранения сущности, затем 200 с исходным ID и ровно одну запись.
+
+## 2026-10-17 — append-only коррекция проведённого ручного расхода
+
+Добавлены чтение истории и POST коррекции для несвязанных `manual|other` расходов. Разрешены только сумма и активная расходная статья; исходный `expenses` и выплата неизменны. Суммовая дельта влияет на P&L по исходной дате, перенос статьи раскрывается двумя взаимопогашающимися строками. После доменного и архитектурного аудита закреплено разделение учётного и денежного факта: cash flow, ожидаемая наличность и снимок смены продолжают учитывать первоначальную выплату без коррекции. Возврат от поставщика не включён.
+
+Миграция 120 добавляет append-only журнал с точными снимками, проверкой версии/источника, hash идемпотентности и запретом UPDATE/DELETE. API требует `finance` для записи; `finance_read` читает детализацию. UI показывает исходное и эффективное значение, причину, историю и подтверждение знаковой дельты; повторяет только сохранённый запрос и сверяет запись чтением. Unified report и карточка расходов показывают эффективную статью/сумму и отдельный источник коррекции. API-контракт и решение внесены в `API.md`, `FINANCE_UNIFIED_MODEL.md` и этот журнал.
+
+Проверки: JS syntax, correction handler contract, integration contract (включая запрет cash effect и snapshot mutation), unified-report, API consistency, category UI, expense drafts UI/scoped portal parity, migrations contract (120 файлов), scoped `git diff --check` — PASS. Отдельная PostgreSQL 16 QA на одноразовой localhost-only БД применила `schema.sql` и migration 120 повторно, затем проверила POST/GET, точный replay, tenant boundary, неизменность исходной строки и append-only триггеры — PASS. Браузерный E2E и production не запускались; сервисные данные не затрагивались. Следующие отдельные этапы — фактический возврат поставщика и связанные с ним cash/account contracts.
+
+## 2026-10-18 — подготовлен отдельный контракт возвратов поставщиков
+
+По результатам аудита текущих связей закупок, расходов и обязательств подготовлен черновик отдельного append-only контракта возврата денег и зачёта кредит-ноты. Возврат привязан к точной исходной оплате с лимитом и защитой от гонки; денежное поступление, изменение P&L/COGS и уменьшение задолженности разведены как разные факты. Документ фиксирует существующие ограничения: у закупки нет стабильного ID поставщика, покупка и обязательство не имеют прямой связи, а текущий складской реверс не покрывает возврат по уже оплаченной закупке.
+
+Код возврата не менялся. До реализации нужно утвердить продуктовые решения по области источников, идентификации поставщика, влиянию на P&L/COGS и возвратам наличными в POS/закрытых сменах. Контракт и готовый промпт следующего этапа находятся в `docs/requirements/FINANCE_SUPPLIER_RETURNS_CONTRACT_DRAFT.md`.
+
+## 2026-10-18 — связь категорий с историей исправлений расходов
+
+Найден пропуск в защите направления статьи: категория могла встречаться только в снимках append-only исправления A→B и не считаться использованной. Добавлена миграция 122: она блокирует конкурентные изменения, проверяет все legacy-снимки без их переписывания, создаёт generated UUID-ссылки и tenant-scoped RESTRICT FK для статей «до/после», а для новых событий требует существующую статью типа «расход». DB guard запрещает смену направления обеих исторических статей. API заранее возвращает 409 `finance_category_has_operations`; счётчик каталога показывает ссылки в исправлениях. UI оставляет форму открытой, откатывает тип к сохранённому и объясняет, что нужна новая статья; переименование и архивирование остаются допустимыми.
+
+Повторный PostgreSQL browser QA также воспроизвёл гонку загрузки справочника счетов и списка поставок после перезагрузки. Повторный рендер финансовой формы теперь выполняется после загрузки счетов, поэтому точный retry сохраняет отображённый счёт.
+
+Проверки: migrations/category/source-category/API/correction/payable-recognition/recurring/unified-report contracts, syntax checks, `git diff --check` и scoped source/dist category parity — PASS. Изолированные PostgreSQL QA для `finance-categories-postgres-api-qa.mjs` (correction-only reference, 409, rename/archive/restore), `finance-expense-corrections-postgres-qa.mjs` (A→B→C, SQL guard, запрет доходной статьи, append-only и replay миграции) и `payables-browser-postgres-qa.mjs` — PASS через owner-scoped disposable runner. Code-health review финального DB/UI diff — GO. Production, публикация и SaaS не затрагивались.
+
+## 2026-10-18 — учёт выплат зарплаты по счёту и кассовой смене
+
+Выплата утверждённого начисления теперь требует активный счёт и разрешённый для него способ оплаты. Для кассы проверяется локальная дата заведения и блокируется единственная открытая смена; выплата, привязанный расход и payroll-статус фиксируются одной транзакцией, без повторного расхода. Ранее связанный, но неатрибутированный/несовпадающий расход отклоняется как конфликт вместо угадывания или дублирования. Зарплатный реестр возвращает снимок счёта, способа и смены после обновления.
+
+Свод ожидаемой наличности смены теперь вычитает также наличные платежи по обязательствам (включая аренду); закрывающий ledger по-прежнему разносит их в отдельное событие без двойного вычитания. POS-снимок дохода берёт timestamp закрытия без потери PostgreSQL микросекунд. При рендере зарплатной строки во время незавершённого платежа все конфликтующие действия и параметры остаются отключёнными.
+
+В QA обновлены фикстуры PostgreSQL для источника POS-категории, опубликования прочего дохода, назначения организации и передачи счёта платежу. Проверки: payroll lifecycle PostgreSQL API, shift-cash PostgreSQL E2E, payables PostgreSQL/browser E2E (включая реальное проведение зарплатной выплаты из UI), payroll UI, income mapping, payroll expense status, purchase payment, unified report, migration (122 файла), категории и source-category schema contracts, синтаксис JS/MJS, равенство SHA256 `portal.js`/`dist/portal.js`, scoped `git diff --check` — PASS. Code-health повторно подтвердил блокировку повторного действия при рендере во время запроса — GO. Первая ошибка browser QA была в тестовом локаторе строки после её штатной перерисовки; локатор уточнён по периоду, повторный полный browser QA — PASS. Только локальная разработка; публикация и production не затрагивались.
+
+## 2026-10-18 — версия ставки аренды: снимок предпросмотра и защита от гонки
+
+Подтверждение новой версии регулярной аренды теперь связано с полным снимком прогноза. API добавляет историю версий и предпросмотр полного кандидата; SHA-256 отпечаток учитывает параметры правила, предыдущую версию, все затронутые обязательства, их строки и оплаты, в том числе за горизонтом прогноза. При сохранении сервер блокирует правило и документы, повторно проверяет снимок и сохраняет версию в одной транзакции. Если прогноз устарел, возвращает 409 без новой версии. Существующие документы остаются неизменными. Создание версии идемпотентно: точный повтор возвращает сохранённый результат; миграция 123 расширяет общий tenant-scoped журнал и guard неизменяемых ссылок.
+
+UI показывает прогноз до подтверждения, повторно спрашивает подтверждение после изменения документов и сверяет созданную версию через API. Для окончательного серверного отказа сохранённая попытка очищается; сетевой неопределённый результат, конфликт ключа и ошибка readback после успешного POST сохраняют исходную попытку для безопасной сверки. История ставок и номер привязанной версии также доступны в интерфейсе/обязательствах.
+
+Затронуты `finance-payables.js`, `portal.js`, `dist/portal.js`, `API.md`, `migrations/123_finance_recurring_version_preview_idempotency.sql`, `schema.sql`, `scripts/migrations-contract.mjs`, `scripts/finance-recurring-preview-contract.mjs`, `scripts/payables-browser-postgres-qa.mjs` и этот журнал. Runtime миграция применена в составе runner-owned одноразового PostgreSQL QA; production не затрагивался.
+
+Проверки: `node --check` по backend, portal и browser QA; `finance-recurring-preview-contract.mjs`; `finance-create-idempotency-contract.mjs`; `migrations-contract.mjs` (123 файлов); `git diff --check`; PostgreSQL браузерный сценарий через `node scripts/local-full-pg-regression.cjs payables-browser-postgres-qa.mjs`; SHA256 `portal.js` и `dist/portal.js` — PASS.
+
+Остаются отдельными следующими этапами: автоматический catch-up регулярных обязательств, правила отображения просрочки вне выбранного периода и возврат/зачёт уже оплаченного обязательства. Публикация и production-изменения не выполнялись.
+
+## 2026-10-18 — видимость просроченных обязательств
+
+Открытые утверждённые обязательства с прошедшим сроком оплаты теперь доступны при любом выбранном периоде. `GET /api/finance/payables` сохраняет `items` в границах срока из фильтра и при `includeOverdue=true` добавляет отдельный список задолженности вне периода, дату среза по часовому поясу заведения и сводный остаток. Просрочка учитывает только положительный непогашенный баланс; погашенные, черновики, отменённые и чужие обязательства исключены. Одна транзакционная картина данных используется для списка и суммы.
+
+UI показывает справочную сумму просрочки и отдельные заголовки для старых долгов и выбранного периода; задолженность внутри периода не дублируется. Unified report и состав `items` по выбранному диапазону не расширяются просрочкой. API-контракт описан в `API.md`; PostgreSQL/browser QA проверяет tenant scope, частичную/полную оплату, статусы, локальную дату, отсутствие дублей и неизменность отчётного диапазона. QA-селекторы панелей и аренды уточнены после добавления строк задолженности.
+
+Проверки: `node scripts/local-full-pg-regression.cjs payables-browser-postgres-qa.mjs`, финансовые recurring/create-idempotency и migrations contracts (123), синтаксис JS/MJS, SHA256 source/dist для portal и стилей, `git diff --check` — PASS. Изменения остались локальными; публикация и production не затрагивались.
+## 2026-10-18 — подтверждённое восстановление пропущенных периодов аренды
+
+Добавлен read-only `generate-preview` для выбранного диапазона до 24 месяцев. Он показывает по каждому полному периоду действующую версию ставки, строки, срок, уже существующий документ или причину исключения, и суммирует только кандидаты на новые черновики. При подтверждении сервер в одной транзакции блокирует правило и существующие документы, пересчитывает fingerprint, отказывает при устаревшем preview и создаёт только отсутствующие черновики. Уникальность периода остаётся дополнительной защитой от дублей. Новая миграция 124 расширяет tenant-scoped idempotency-журнал; ответ и ключ сохраняются для точного повтора при потерянном ACK.
+
+UI перед записью требует явного подтверждения и подчёркивает, что создание не означает оплату или признание расхода. Точный ключ и payload сохраняются в sessionStorage до POST; после неопределённого ответа UI предлагает повтор исходного запроса и сверяет возвращённые ID чтением обязательств. Ошибка устаревшего предпросмотра требует заново проверить список. Намеренные интервалы паузы не хранятся исторически, поэтому автоматический catch-up не включён: пользователь должен разбивать диапазон вокруг согласованной паузы. Это ручная ограниченная процедура, не фоновой планировщик.
+
+Документация обновлена в `API.md`, `docs/requirements/FINANCE_MODEL.md` и `MIGRATIONS.md`; `schema.sql` зеркалирует миграцию 124. PostgreSQL/browser QA симулирует ситуацию, когда транзакция успешно фиксируется, а клиент получает 503; точный повтор через UI возвращает исходный результат, а в базе остаётся один документ. Также проверяются tenant scope, диапазон, исключение неполного месяца, stale preview, разные версии ставок, отсутствие оплат и draft-статус.
+
+Проверки: `node --check finance-payables.js`, `node --check portal.js`, `node --check dist/portal.js`, `node --check scripts/payables-browser-postgres-qa.mjs`; `finance-recurring-preview-contract.mjs`; `finance-create-idempotency-contract.mjs`; `migrations-contract.mjs` (124 migration files); PostgreSQL browser QA `node scripts/local-full-pg-regression.cjs payables-browser-postgres-qa.mjs`; SHA256 `portal.js` = `dist/portal.js`; `git diff --check` — PASS. Только локальная разработка и disposable QA; production не изменён.
+
+
+## 2026-10-18 — полнота источников и раскрытие непризнанных обязательств в unified report
+
+Единое сообщение отчёта заменено на список независимых предупреждений: теперь одновременно видны неполные договорные расходы, недоступные для чтения начисления зарплаты, неклассифицированные продажи POS, legacy-события без счёта, неподключённое признание POS-возвратов и ограничение в 500 строк. Утверждённые, но не признанные обязательства выводятся отдельной раскрываемой группой с ID, названием, контрагентом, периодом услуг, статьёй и суммой; она использует те же venue/date/category/search фильтры, что и сводка. Для агрегата покрытия исправлено расхождение: поиск теперь применяется к счётчику и сумме так же, как к списку документов.
+
+Проверки: unified-report contract (включая поиск и покрытие UI), focused Playwright browser QA (все одновременные предупреждения, раскрытие обязательства, truncation), синтаксис JS/MJS, SHA256 source/dist для portal.js — PASS. Изменены только представление отчёта и фильтрация read-only aggregate; денежные проводки, расчёты источников, роли и маршруты не затронуты. Локально, без публикации.
+
+## 2026-10-18 — фактические возвраты по ручным расходам
+
+Добавлен отдельный append-only журнал для частичных/полных денежных возвратов по точному несвязанному `manual|other` расходу. API выдаёт историю finance_read и принимает запись только finance; проверяет точный ключ идемпотентности, причину, фактическую дату, совместимый активный счёт и остаток исходной выплаты. Суммирование сериализовано блокировкой source expense; БД запрещает редактирование/удаление, превышение исходной суммы, ложный snapshot счёта и некорректную привязку POS cashbox к смене. Исходный расход и коррекции остаются нетронутыми.
+
+POS cash receipt входит в ожидаемую кассу и ledger закрытия один раз. Unified report выделяет `expenseRefunds` / `expense_refund` по дате получения, показывает предупреждение и сумму/count покрытия, игнорирует фильтр категории. Общая аналитика сохраняет известные промежуточные суммы, но отдаёт `totalExpenses=null` и `netProfit=null`, пока P&L-политика не утверждена. UI содержит форму, безопасный повтор с прежним payload и ключом, сверку readback и историю; `dist/portal.js` синхронизирован.
+
+Проверки: `finance-expense-refunds-contract.mjs`, PostgreSQL QA через `local-full-pg-regression.cjs finance-expense-refunds-postgres-qa.mjs` (migration replay, concurrent cap, idempotency, append-only, tenant isolation, POS shift), unified report contract, migrations contract, API consistency contract и JS syntax — PASS. Локально, без публикации.
+
+## 2026-10-18 — проверена граница отмены финансового обязательства
+
+Расширен PostgreSQL/browser сценарий аренды: частично и полностью оплаченные обязательства нельзя отменить; отказ сохраняет статус, исходные payment links и денежные расходы. Обязательство с положительным признанием также нельзя отменить до полного сторно; после полного append-only сторно неоплаченное обязательство допускает отмену, сохраняя обе записи истории и не создавая денежного события. Это дополняет существующие ограничения БД и закрывает непроверенные переходы без изменения финансовой логики.
+
+Проверки: `node --check scripts/payables-browser-postgres-qa.mjs`, scoped `git diff --check`, `node scripts/local-full-pg-regression.cjs payables-browser-postgres-qa.mjs` — PASS. Только disposable PostgreSQL/browser QA; production и публикация не затрагивались.
+
+## 2026-10-18 — актуализирован контракт покрытия финансовой аналитики
+
+Контракт признания обязательств больше не ожидал старое условие, при котором только нераспознанные обязательства блокировали официальный расход. Теперь он проверяет действующий агрегат неполноты, который также учитывает ещё не рассчитанный P&L эффект возвратов ручных расходов, и отдельно подтверждает, что неполное покрытие расхода или POS-возврата удерживает `netProfit` равным `null`.
+
+Проверки: `node --check scripts/finance-payable-recognition-contract.mjs`, `git diff --check`, `node scripts/finance-payable-recognition-contract.mjs` — PASS. Исправлен только контракт; код аналитики не менялся.
+
+## 2026-10-18 — повторно проверены ссылки и счётчики финансовых статей
+
+На актуальном рабочем дереве повторно прошли PostgreSQL/browser проверки каталога статей и существующий полный rent/browser QA, который проверяет отдельные связи статьи с POS-признанием, оплатами закупок, начислениями зарплаты, обязательствами, регулярными правилами и прочим доходом. Интерфейс каталога прошёл проверки создания, дубликата, редактирования, архива/восстановления, повторной загрузки и ширин 320/768/1440 px. Контракт разделяет счётчики источников, а `operationCount` не подменяет их одной суммой.
+
+Проверки: `finance-categories-browser-qa.mjs`, `local-full-pg-regression.cjs finance-categories-postgres-api-qa.mjs`, `local-full-pg-regression.cjs payables-browser-postgres-qa.mjs`, `finance-source-category-schema-contract.mjs`, `finance-categories-ui-contract.mjs` — PASS. Демо и disposable QA; production не затрагивался.
+
+## 2026-10-18 — спроектирован следующий балансовый слой финансов
+
+Проверка текущей модели подтвердила, что взносы владельца, займы, переводы между счетами и начальные остатки прямо исключены из business-income API, а account coverage ещё не даёт доказуемого остатка. Подготовлен отдельный проектный контракт: он разделяет денежный поток, долг/капитал, перевод между своими счетами и P&L; фиксирует отдельную область гостевых депозитов, клиентских авансов и supplier advances; задаёт append-only lifecycle, tenant/account/shift границы, требования к отчёту и критерии будущей приёмки.
+
+Код и БД не менялись: очередность подтипов, изъятия владельца, контрагентная модель, валюты и открывающие остатки требуют продуктового решения. Контракт и промпт реализации добавлены в `docs/requirements/FINANCE_BALANCE_EVENTS_CONTRACT_DRAFT.md`, базовый master prompt получил финансовые инварианты и ссылку на следующий слой.
+
+Проверки: ручная сверка с `FINANCE_MODEL.md`, `FINANCE_UNIFIED_MODEL.md`, `FINANCE_ACCOUNTS_AND_SUPPLIER_RETURNS_CONTRACT.md`, `API.md` и профильными решениями; проверка ссылок/дублей по поиску; `git diff --check` — PASS. Runtime QA не запускался: изменений исполняемого кода нет.
+
+## 2026-10-18 — разделены оплаченные и признанные продажи в аналитике
+
+Причина: `/api/analytics` использовал сумму платежей как основу чистой прибыли, хотя финансовые отчёты признают закрытый чек по замороженной финальной цене. Теперь `totalRevenue` / `days[].revenue` сохраняют совместимость как оплаченные продажи, добавлены отдельные `totalRecognizedRevenue` / `days[].recognizedRevenue`, безопасный fallback по сохранённым строкам и покрытие для неоценённых старых чеков. При отсутствии ценовых доказательств признанная сумма и официальная прибыль остаются неизвестными. Главная сводка, финансовый экран и график показывают incomplete вместо ложного нуля и больше не выводят прибыль из оплаченных сумм.
+
+Проверка включает snapshot заказа 700 ₽ при оплате 200 ₽ и старый закрытый чек без суммы/строк; PostgreSQL QA непосредственно утверждает формулу известной прибыли как признанная выручка минус известные расходы и COGS. Официальный `netProfit` остаётся `null`, пока зарплатный source contract сообщает `officialReady:false`; UI объясняет неполноту и не рисует ложный ноль. Устаревший fixture приведён к текущим account guards и append-only cleanup на disposable DB.
+
+Также зафиксировано решение пользователя по аренде: статус «Пауза» блокирует обычную генерацию; после возобновления можно явно восстановить пропущенные полные месяцы через предпросмотр и подтверждение. Автооплаты и автопризнания нет.
+
+Изменены: `server.js`, `portal.js`, синхронный `dist/portal.js`, `scripts/finance-api-consistency-contract.mjs`, `scripts/finance-shift-analytics-postgres-qa.mjs`, `API.md`, `docs/requirements/FINANCE_MODEL.md`, `docs/requirements/FINANCE_MASTER_WORK_PROMPT.md`. Проверки: JS syntax, `finance-api-consistency-contract.mjs`, `finance-unified-report-contract.mjs`, `local-full-pg-regression.cjs finance-shift-analytics-postgres-qa.mjs`, `git diff --check`, SHA256 parity portal/dist — PASS. Локально; production/deploy не затрагивались. Открытый продуктовый вопрос: единый снимок или live-подгрузка для отчётов свыше 500 строк.
+
+## 2026-10-18 — выбрана и внесена в финансовый контракт стратегия больших отчётов
+
+Пользователь выбрал фиксированный серверный снимок единого отчёта на 15 минут, с последовательной подгрузкой строк и детализаций из одного материализованного набора. Master prompt и архитектурный контракт уточнены: единая MVCC-точка чтения, стабильная сортировка/курсор, повторная проверка актуальных прав к заведению, TTL-ошибка вместо тихой пересборки и явное сохранение incomplete/unknown coverage. Текущая транзакция одного API-запроса не объявляется 15-минутным snapshot: отдельная серверная проекция и API ещё должны быть реализованы и проверены.
+
+Обновлённый browser QA ручного расхода приведён к текущему циклу «черновик → проведение»: выбор действия «Провести расход», раскрытие финансовых секций, повтор с тем же ключом после временной ошибки, проверка раздельных полей контрагента/описания, openable-документ после reload и чтение для `finance_read` без права записи. Ошибочные ожидания старого прямого POST удалены; добавлены ограниченный тайм-аут API-ожидания и явная уборка черновиков/счетов/смен QA-fixture.
+
+Проверки: `node scripts/local-full-pg-regression.cjs acceptance-33-expense-document-postgres-browser-qa.mjs` — PASS; `finance-account-contract.mjs`, `finance-expense-drafts-ui-contract.mjs`, `finance-api-consistency-contract.mjs`, `finance-unified-report-contract.mjs`, JS syntax и scoped `git diff --check` — PASS. Все runtime-операции — только disposable PostgreSQL/browser; production не затрагивался.
+
+## 2026-10-18 — выбран полный scope балансовых событий
+
+Пользователь ответил «все» на выбор балансового сценария. В scope входят четыре класса: невозвратный вклад владельца; получение займа и возврат principal; атомарный внутренний перевод между счетами; подтверждённый opening balance. Это не означает включение событий в P&L или создание параллельного реестра гостевых депозитов/авансов. До реализации применяются консервативные границы контракта: RUB, без изъятия капитала владельцем в первом пакете, текстовый snapshot кредитора/основания без лишних персональных данных; процент/комиссия отдельно от principal; POS cashbox — только текущая открытая смена с попаданием в её cash snapshot; opening balance создаётся finance-пользователем с документом/основанием. Полный остаток счёта остаётся скрытым при неполном coverage.
+
+## 2026-10-18 — защита и проверка фиксированных снимков финансового отчёта
+
+Продолжена реализация выбранного 15-минутного серверного снимка: добавлены создание и постраничная выдача секций из сохранённого набора; лимиты — 50 000 строк и 32 MiB, срок — ровно 15 минут. API-документация уточняет POST/GET, Idempotency-Key, конфликт, лимиты, истечение и совместимый legacy GET.
+
+Независимый архитектурный аудит выявил P1: payroll-детали и агрегат неполной привязки счёта могли выдаваться из снимка, созданного при более широком праве; целевой venue permission мог отличаться от активного. Исправлено: права сверяются по выбранному заведению на каждой странице, payroll-bearing cash outflows и coverage блокируются для finance_read, агрегат legacy расходов не включает payroll без finance. Повтор POST после downgrade не возвращает предыдущий payroll-снимок. Контракт тестирует downgrade целевого права и повтор с тем же ключом.
+
+Проверки: `node --check finance-unified-report.js`; `node scripts/finance-unified-report-snapshot-contract.mjs`; `node scripts/finance-unified-report-contract.mjs`; `node scripts/migrations-contract.mjs`; `git diff --check` по изменённым файлам — PASS. Ранее миграция 126 применялась к отдельному ephemeral PostgreSQL и повторно выполнялась успешно. Отдельный реальный API/browser сценарий для создания снимка, конкурентного replay и проверки UI ещё требуется; contract на mock pool его не заменяет.
+
+Балансный аудит подтверждает безопасный порядок: сначала вклады владельца и тело займа, затем атомарные переводы, отдельно — подтверждённый opening balance. Для первого вертикального этапа зафиксированы GET/POST документов, append-only cash events и обязательная интеграция POS cashbox со сменным snapshot; проценты, изъятие капитала, исправление проведённых фактов, переводы и opening balance остаются за границей этого этапа. Полный остаток счёта запрещён до инвентаризации всех писателей и полного coverage. Код балансовых событий в этом этапе пока не добавлен.
+
+### Уточнение статуса по продолжению реализации 2026-10-18
+
+Продолжена реализация первого пакета поверх указанного контракта: migration 127 добавляет tenant-scoped документы вкладов/займов и append-only события principal; API поддерживает черновик, отмену пустого документа, точный idempotent replay и конфликт при повторном ключе с другим содержимым. Триггеры сериализуют лимит займа и верхнюю границу возврата principal, фиксируют активный счёт/название snapshot, связывают POS наличные с текущей датой и единственной открытой сменой, не допускают редактирование/очистку журнала. POS-взносы и получения займа добавлены в ожидаемую наличность, погашение — в выплаты, все три события отдельными source tags попадают в immutable close ledger.
+
+В отчёте добавлен отдельный поток financingEvents с внешним денежным знаком и `pnlEffect=none`; в финансовом интерфейсе — создание документа, запись движения и ленивая загрузка истории. Взнос, principal и repayment не записываются в expenses/other income, не распределяются по категориям и не трактуются как остаток счёта. Переводы, opening balance, проценты, возврат вклада и компенсирующие события остаются следующими отдельными этапами.
+
+Добавлена disposable PostgreSQL QA: replay миграции 127, права чтения/записи, tenant isolation, точные и изменённые idempotency replay, конкурирующее получение principal, верхняя граница repayment, неизменяемость, вклад, привязка POS cash к смене и текущей локальной дате. Проверки `finance-funding-postgres-qa.mjs` прошли через `local-full-pg-regression.cjs`; report/migrations/API/account контракты и JS syntax прошли. Browser QA финального экрана и реального маршрута пока не запускался; текущая проверка UI ограничена syntax, static contract и source/dist parity. Production, deploy и live data не затрагивались.
+
+### Итоговая проверка первого вертикального этапа — 2026-10-18
+
+После независимого code-health review закрыт кассовый runtime-пробел: `shift-cash-postgres-e2e-qa.mjs` через guarded runner проверяет взнос владельца и погашение principal через POS-кассу, ожидаемую наличность смены, close snapshot/readback и гонку проведения funding-события с закрытием смены. Добавлен успешный сценарий редактирования черновика до первого события. Funding-контракт проверяет собственный маркер sessionStorage funding-попыток, фильтр и предупреждение о первых 500 документах, редактирование черновика и адаптивную ширину формы.
+
+Устранено UX-залипание после определённого ответа 4xx: событие гарантированно отклонено, сохранённая попытка очищается, поля снова доступны для исправления. При неопределённом сетевом результате прежний payload/key остаётся для точного безопасного повтора. При конфликте ключа UI сначала перечитывает историю документа и показывает её; только явное подтверждение пользователя очищает старую попытку и создаёт новый ключ. Если readback не удался, отправка остаётся заблокированной.
+
+Итоговые проверки: `finance-funding-contract.mjs`, `finance-unified-report-contract.mjs`, `finance-unified-report-snapshot-contract.mjs`, `finance-api-consistency-contract.mjs`, `migrations-contract.mjs`, `finance-account-contract.mjs`; `finance-funding-postgres-qa.mjs` и `shift-cash-postgres-e2e-qa.mjs` через `local-full-pg-regression.cjs`; JS syntax, source/dist parity и scoped `git diff --check` — PASS. Code-health review — GO. Отдельный browser E2E именно funding-формы не выполнялся; экран покрыт статическим контрактом и CSS-проверками. Этап завершён локально, без публикации/деплоя.
+
+### Итоговая проверка переводов и начальных позиций — 2026-10-18
+
+Завершён следующий слой балансовых событий поверх вкладов и тела займа: атомарный перевод с двумя неизменяемыми ногами, частичная/полная отмена в пределах исходной суммы, подтверждённая signed/zero начальная позиция и append-only корректировки с датой/основанием. Перевод наличных через POS-кассу учитывается со знаком в ожидаемой наличности и неизменяемом снимке закрытия смены; начальная позиция POS-кассы запрещена, поскольку исходную наличность фиксирует открытие смены. В unified report переводы остаются нейтральны к P&L и внешнему денежному потоку; opening balance показан как позиция на конец выбранной даты отдельно от движения. Неполное покрытие остатков явно остаётся incomplete.
+
+Добавлены конкурентные проверки: две параллельные частичные отмены одного перевода не могут превысить оригинал; гонка перевода POS-наличных с закрытием смены сериализуется, ожидаемая сумма и снимок включают событие ровно один раз, если перевод успел до закрытия. Проверка отчёта подтверждает, что начальная позиция, действующая до начала выбранного периода, всё ещё отображается as-of конца периода.
+
+Проверки: `node scripts/local-full-pg-regression.cjs finance-balance-events-postgres-qa.mjs` — PASS; `node scripts/local-full-pg-regression.cjs shift-cash-postgres-e2e-qa.mjs` — PASS; migrations, funding, unified report и 501-row snapshot contracts — PASS; JS syntax — PASS; `git diff --check` — PASS (git сообщил только существующие предупреждения о нормализации LF/CRLF). Финальный code-health review — GO. Runtime тесты выполнялись guarded runner на disposable PostgreSQL; production/deploy не затрагивались.
+
+Границы следующего этапа: полноценный баланс/банковская сверка и выписка по одному счёту остаются запрещены до полного аудита писателей и coverage; единый отчёт пока не поддерживает account-фильтр. Отдельный browser E2E именно новых форм переводов/opening ещё не запускался; UI покрыт source/dist, syntax и статическими контрактами, а связка API→PostgreSQL проверена runtime QA.
+
+
+### Browser/PostgreSQL приёмка снимков отчёта и балансовых форм — 2026-10-18
+
+Закрыт локальный этап связки UI → authenticated API → PostgreSQL → повторное чтение для серверного снимка единого отчёта и форм переводов/начальных позиций. Реальный прогон обнаружил и помог исправить два продуктовых дефекта: обращение формы регулярного платежа к отсутствующим pendingPayload/pending прерывало рендер финансов; при reload сохранённый ключ снимка перезаписывался новым до восстановления попытки. Теперь ключ читается первым, а POST снимка разрешён только после успешного сохранения и обратного чтения ключа. При недоступном browser storage UI объясняет ошибку и не отправляет запрос. Подписи кнопок балансовых форм возвращаются в обычное состояние после подтверждённого успеха или определённого отказа 4xx.
+
+Расширен scripts/payables-browser-postgres-qa.mjs: настоящий сервер сохраняет снимок на 501 строку, затем тест моделирует потерю ответа; после reload повтор получает тот же ID/ключ/набор, в PostgreSQL остаётся один снимок, UI подгружает страницы 500 + 1. Проверены блокировка POST при отказе storage, конфликт изменённых фильтров, ограничения finance_read и чужого заведения. Перевод 123,45 проходит потерю ответа и повтор после reload с исходным ID и body.idempotencyKey, одной записью и двумя legs; начальная позиция −25,50 отклоняет повторную позицию счёта, корректировка +5,50 даёт −20 и сохраняет историю после reload; частичное сторно 23,45 подтверждено UI и БД. В тесте обновлены фактические маршруты, custom select, подписи, денежный формат и ожидания асинхронного DOM.
+
+Итог: node scripts/local-full-pg-regression.cjs payables-browser-postgres-qa.mjs — PASS (включая уже существующие сценарии регулярной аренды, закупок и зарплатных связей). finance-account-contract.mjs, finance-unified-report-snapshot-contract.mjs, finance-unified-report-contract.mjs, finance-funding-contract.mjs, finance-api-consistency-contract.mjs; JS syntax, source/dist parity и scoped git diff --check — PASS. Независимые architect/code-health проверки выполнены; замечания текущего этапа закрыты. Рабочее дерево содержит предшествующие изменения: общий diff не является объёмом только этой задачи. Новых миграций/API на этом этапе нет. Всё локально на guarded disposable PostgreSQL; публикация и production не выполнялись.
+
+Границы доказательства: runtime проверены перечисленные сценарии. TTL и отзыв прав того же пользователя остаются покрыты отдельным контрактом, а не новым браузерным сценарием; реальная роль finance_read проверена браузером. Отдельная browser-приёмка формы вкладов/займов, возврат/зачёт оплаченного обязательства, явная настройка неполного месяца и полный coverage для остатков/сверки остаются за границей этого этапа. Общая финансовая цель не завершена; official P&L не объявляется полным.
+
+
+### Явный расчёт аренды за неполный месяц — 2026-10-18
+
+Предыдущий этап завершился проверенным прогрессом: browser/PG приёмка отчётных снимков и балансовых форм. Следующий пробел исходной цели закрыт локально: правило принимает точную дату начала и явный partialMonthPolicy, full_months_only по умолчанию или calendar_days. Единый finance-recurring-calculation.js применяется в preview, генерации и сравнении ставок/сроков. Календарные дни включительны, округление HALF_UP производится для каждой строки в BigInt-копейках, итог — сумма строк. Due date не раньше начала услуги; договорный срок может быть позже окончания услуги. Версии ставок остаются месячными. У созданного обязательства сохраняется неизменяемое происхождение расчёта; переменный черновик можно уточнить до фактического счёта и подтвердить без повторного prorating.
+
+Migration 129 добавляет immutable policy правила и nullable immutable proration_snapshot обязательства; schema.sql содержит идентичный блок. Старые правила получают прежний full-month default, документы не переоцениваются. Dockerfile включает новый runtime helper. UI содержит выбор режима, точную дату, расчёт дней/ставки/строк в подтверждении и сохранённое происхождение в документе после reload. End-date preview включает изменившиеся границы договора за пределами обычного горизонта 12 месяцев. API и domain/architecture документы обновлены. Политика фиксируется при создании правила; её ретроактивное переключение не поддерживается.
+
+Проверки: finance-recurring-calculation-contract.mjs — PASS (високосный февраль, один день, обе границы в одном месяце, default skip, точные большие суммы, отдельное округление строк, сроки оплаты); finance-recurring-preview-contract.mjs, finance-create-idempotency-contract.mjs, finance-payable-recognition-contract.mjs, finance-timezone-contract.mjs, finance-api-consistency-contract.mjs, finance-account-contract.mjs, migrations-contract.mjs — PASS. Guarded runner migrations-pg-upgrade-qa.mjs — PASS, в том числе восстановление pre-129 структуры внутри rollback-only QA schema и двукратный upgrade с сохранением прежних дат/default. Guarded runner payables-browser-postgres-qa.mjs — PASS после последних правок.
+
+Новый browser scenario: UI создаёт аренду 15.02.2032–10.03.2032 с месячными строками 60000 + 5000; preview и сохранённый февраль дают 33620,69 за 15/29 дней. Проверены reload, immutable policy/origin guards, exact replay, конкурентная генерация с одним ключом, stale preview при смене последнего дня, новая ставка в частичном финальном месяце, сохранение истории и уточнение переменного счёта до 33600 без повторного уменьшения. На ширинах 320/768 отсутствует горизонтальное переполнение. Полная прежняя browser-регрессия аренды/платежей/снимков/балансов также прошла. Syntax, portal/dist equality и scoped diff check — PASS; git сообщает только нормализацию LF/CRLF. Часть файлов предшествующей финансовой реализации остаётся untracked: diff check не заменяет их syntax/runtime проверки.
+
+Finance и architect read-only аудиты использованы. Делегированные code-health и последующая migration-работа завершились ошибкой лимита агента до реализации; координатор выполнил миграцию и финальное source review самостоятельно. Независимый финальный GO не заявляется. Работа только локальная, production/публикация не затронуты. Общая цель остаётся активной: следующие крупные пробелы — возврат/зачёт оплаченных обязательств, полный coverage для баланса/сверки и дальнейшая приёмка финансирования/связанных источников.
+
+
+### 2026-10-18 — payable refund PostgreSQL acceptance increment
+
+Extended `scripts/finance-expense-refunds-postgres-qa.mjs` against migration 130: exact payable association and separate recognition effect, refund reopening payment capacity (100 paid, 30 returned, 30 repaid), concurrent refund cap, cancellation blocked while net cash remains, complete return then cancellation, idempotent replay after cancellation, unchanged gross payment history (130) and equal refund history (130). Guarded command `node scripts/local-full-pg-regression.cjs finance-expense-refunds-postgres-qa.mjs`: PASS. Previous process handle was missing; its retained log also recorded PASS. New run completed with exit 0. This proves these API/database paths only; payable refund browser flow, recognition reversal interaction and report integration still require acceptance. Independent final role review remains unavailable from the prior quota failure; coordinator performed this incremental verification. Goal remains active; no publication.
+
+
+### 2026-10-18 — separate recognition reversal and browser refund acceptance
+
+Extended guarded refund PostgreSQL scenario with recognition 100, cash return 130 across original and replacement payments, cancellation rejection while recognition remains, partial reversal 40 still blocking cancellation, final reversal 60 allowing cancellation. Guarded refund suite: PASS. Added authenticated browser scenario for payable refund 30, simulated committed-but-lost response, reload/readback recovery without duplicate receipt, net debt and replacement payment, and unified-report linkage. Browser discovered optional document reference incorrectly required by the portal form adapter. Set explicit required:false and the supported maxlength spelling in source/dist. Screenshot output now uses a unique runner artifact folder after Windows failed to overwrite a previous PNG. Browser retry is pending at this entry; no browser PASS is claimed here. Syntax, refund contract, migration contract and scoped diff checks pass. Independent final reviewer still unavailable as previously recorded. No publication.
+
+Final retry: `node scripts/local-full-pg-regression.cjs payables-browser-postgres-qa.mjs` completed exit 0 / PASS. New scenario exercised the actual refund dialog with blank optional document, POST commit with simulated 503, reload/readback recovery, one persisted receipt, gross100/refund30/net70/debt30, overpayment31 rejected and repayment30 accepted, paid badge after reload, and unified expense-refund report exact payable link/effect with no manual-refund incompleteness warning. Existing full payables/partial-rent/snapshot/balance regression passed in the same run. Cancellation plus partial/full recognition reversals were proved by the separate guarded PostgreSQL suite, not by UI cancellation in this increment. Full goal remains active; credit allocation, full balance coverage and broader integration acceptance remain.
+
+
+### 2026-10-18 — payable offset contract and dependency audit
+
+Reviewed current payable/refund implementation, finance architecture/model, balance contract and role profiles. Native agents still report the previously recorded quota error; no independent GO claimed. Added FINANCE_PAYABLE_OFFSETS_CONTRACT.md with conservation formula, chained allocation/reversal, explicit counterparty agreement, compatibility fields, lock order, UI/API/readback/RBAC contract and eight acceptance scenarios. Identified affected consumers in finance-payables.js (generation preview, end-date preview, list, payment cap), migration130 guards (refund/payment/cancel) and unified report. Linked contract into master goal prompt and recorded decisions. This is a completed design/dependency increment only: no offset runtime or migration claimed, goal remains active. No publication or production writes.
+
+
+### 2026-10-18 — offset database implementation and concurrency acceptance
+
+Added migration131/schema: append-only non-cash payment allocations, original expense provenance, chained movements, bounded reversal, ordered original/source/destination payable locks before expense, allocation/debt/date/status guards, repayment/cancellation/refund integration. Refund readback and cap now expose only the original payable allocation. Also detect a newly attached source link after waiting for an expense lock and fail with retryable serialization error instead of misclassifying the receipt. Guarded `finance-expense-refunds-postgres-qa.mjs` PASS: 60→20 transfer, onward10, reversal blocked until chain restored, reversal cap, two concurrent40 allocations with exactly one success, refund cap20, cancelled source with chain still valid, target cancellation rejection, immutable history, total conservation, and concurrent refund15 vs offset15 from20 with exactly one success and remaining5. Migration replay twice and fresh schema checked. Syntax/refund contract/migration contract PASS; trailing blank line fixed after diff check. Agent quota limitation remains, coordinator review only. API/UI offsets and all settledAmount projections remain incomplete; no creation endpoint enabled, no deployment, goal active.
+
+
+### 2026-10-18 — settlement projections across debts and payment caps
+
+Connected finance_payable_settled_amount to payable list balances/status/overdue, recurring generation and end-date previews, and unified obligation rows. Retained direct gross/net payment fields; added settledAmount and explicit incoming/outgoing allocation totals. Payment API now validates remaining settlement debt and returns separate direct-payment vs settlement totals, including zero direct payments with incoming credit. Portal cancellation/status use settledAmount and cards explain non-cash incoming/outgoing allocations. Updated stale source contract that still expected gross paid<=0 cancellation. Guarded refund/offset PostgreSQL suite PASS: target total65, direct payment0, allocation30, debt35; report debt35; payment35.01 rejected, payment35 accepted with direct paid35/net35/settled65/debt0. Syntax, recurring-preview, create-idempotency, recognition and refund contracts PASS; scoped diff check PASS. Full existing browser regression pending; it does not yet create offsets through UI. Offset creation API/form and separate offset report section remain to implement. Coordinator review only due previously recorded agent quota; no publication.
+
+Full `payables-browser-postgres-qa.mjs` regression completed exit 0 / PASS after settlement projection changes. This confirms existing rent/partial-month/refund/snapshot/balance flows remain working; offset creation UI is still absent and is not covered by this PASS.
+
+
+### 2026-10-18 — payable offset API
+
+Added finance-payable-offsets.js, server routing and Docker inclusion. GET returns repeatable-read history with both document parties and remaining original-payment allocations; POST creates a non-cash offset; reversal POST derives reversed parties and original expense from the immutable event. Finance read/write and operational-role boundaries enforced. Normalized exact-decimal payload hash and per-venue/key transaction advisory lock serialize same-key attempts before ordered document locks; exact retry survives later cancellation. Guarded refund/offset PostgreSQL suite PASS: concurrent same-key201/200 same ID, changed amount409, source10/target20 readback after allocation20, reversal201/replay200/over-reversal409, original retry after target cancellation200, foreign-venue read404 and finance_read write403. Existing offset/refund/settlement tests also PASS. Syntax and scoped diff checks PASS. These tests exercise handlers against real PostgreSQL; HTTP browser creation/storno not yet tested. UI and distinct non-cash report section remain. Coordinator review only, prior agent quota limitation; no deployment.
+
+
+### 2026-10-18 — offset creation/storno UI and non-cash report section
+
+Added payable-card actions for offset creation, history and reversal; choose exact payment/destination, show source/destination debt preview, require agreement/reason, confirm non-cash effect, persist exact intent before POST, recover committed lost-ack by history readback after reload. Pending replay remains independent of current document status. Added payable_offset source/payableOffsets section with original expense and both documents/counterparties, actual date, reversal provenance and explicit zero cash/recognition effect; source/category/search/date/status filters use existing snapshot machinery. First full guarded browser run PASS: original debt0→20 and target65→45 after offset20, simulated503 after commit, reload with one offset, reversal20 restoring0/65, authenticated report returns2 events, 320/768 fit. Added further visible snapshot-report rendering assertion; final run pending. Syntax, recognition/API-consistency contracts and diff check PASS. Goal remains active; no publication. Independent review unavailable as previously recorded.
+
+Final browser rerun completed exit0/PASS: visible source filter payable_offset creates snapshot201 and renders both offset/reversal rows, original expense ID and zero cash-effect text; responsive checks also pass on report view. Current creation/storno/refund/partial-rent/snapshot/balance regression passed. This evidence does not establish complete account balance coverage or full financial-goal completion.
+
+
+### 2026-10-18 — funding browser acceptance and packaging dependency audit
+
+Added finance-funding-browser-scenario.mjs to the guarded full browser fixture: owner contribution500, loan limit100, document committed503 then reload/exact200, receipt100 committed503 then reload/exact200, repayment40, outstanding60, history, funding report3 events with pnlEffect none, no expenses created, exactly2 documents. First full run PASS. Added explicit funding POST→GET readback validation using event ID; API exact replay now returns createdEventId too. Fixed document-form definitive4xx to clear rejected attempt and unlock fields; uncertain responses retain exact intent. Added browser rejection of oversized principal, correction then normal retry. Final browser run pending. Funding/API contracts PASS; funding migration mirror assertion now ignores Windows/Linux line-ending differences only. Source/dist synchronized. Docker audit found six required finance server modules plus ui-dialog absent from COPY; added exact files and verified existence/inclusion. Docker image build not performed and no deployment claimed. Prior role quota limitation persists; coordinator review. Goal remains active.
+
+Final funding acceptance: guarded full browser suite PASS after waiting for POST→GET verification before starting the next event. Rejected oversized loan principal400 unlocks fields; corrected document then lost-ack/reload replay succeeds; receipt exact replay exposes createdEventId, GET verifies exact event, repayment leaves principal60. Restored create-button label after successful retry. Separate guarded finance-funding-postgres-qa.mjs PASS. Existing finance/offset/refund/rent/snapshot/balance regression remains PASS. No image build/deployment claimed.
+
+
+### 2026-10-18 — local Docker build and runtime dependency verification
+
+Read DEVELOPMENT_WORKFLOW and .dockerignore. Built local image hookah-finance-local-qa:20261018-offsets-funding. Static dependency walk found additional missing table-minimum-schedule.js; added exact COPY and rebuilt successfully. New scripts/docker-runtime-dependencies-contract.mjs checks all44 literal local server dependencies and ui-dialog inclusion (PASS); it does not claim dynamic-import or general browser-asset coverage. Final image manifest sha256:490ddbe8e6c84f2f7f972ffd659bf7ef3638cb373253875491434386117372d4. Ran disposable --rm container with --network none, no mounts/ports/DB credentials: loaded13 finance modules, confirmed dialog/pricing dependency and checked server syntax (PASS). This is image packaging/module-load proof, not server/DB/production health. No publish/deploy.
+
+Next evidence-backed gap: server.js cash-source unions include guest_deposit_receipts, reservation_pre_payment_receipts and external reversal ledgers, while finance-unified-report.js has no corresponding guest/prepayment sections. These money movements must be exposed separately from recognition and from later internal wallet/prepayment application. Account attribution cannot be inferred from payment method. Goal remains active; next work is source-level coverage and unified drilldown for these existing ledgers, not a second guest/deposit register.
+
+
+### 2026-10-18 — guest deposit / booking advance cash report
+
+Reused four existing receipt/external-return ledgers in finance-unified-report.js; added guest_advance source and signed guestAdvanceCashEvents rows to source/dist portal. Excluded wallet refunds, internal applications and legacy booking amount fields. Tenant-safe joins, venue-local created_at boundaries, explicit current guest name and absent account attribution. No new ledger/migration and no inferred account mapping. Internal aggregate helper is always removed from public items, including empty test-double responses.
+
+Guarded finance-expense-refunds-postgres-qa.mjs passed with four events net225 and excluded internal/legacy movements, category-filter disclosure and out-of-period exclusion. Unified-report contract, snapshot contract, API consistency, syntax and scoped diff checks PASS. Browser helper added to existing guarded payables suite: frozen total22500, four visible events, negative refunds25/50, source provenance, explicit missing account warning, 320/768 widths and authenticated readback. Initial browser run failed solely because assertion expected ASCII hyphen while UI used Unicode minus; assertion now accepts the two valid signs and exact displayed decimal amounts. Final guarded browser run (session85154) completed exit0/PASS: all four events, frozen total22500, negative refund signs, provenance, coverage warning, authenticated readback and responsive assertions passed. Coordinator fallback review; independent role quota limitation as previously recorded. Local image predates this report change; no publish/deploy.
+
+
+### 2026-10-18 — completion audit and all-unknown snapshot section
+
+Fresh guarded finance-categories-postgres-api-qa PASS. Fourteen targeted finance contracts audited: thirteen initially passed; categories UI contract still expected pre-snapshot 500-row wording/count. Updated assertions to frozen totals/full count and fixed a real presentation omission: all-unknown paged sections now show loaded/full row count. Dynamic execution of the actual summary expression verifies501 all-unknown rows and mixed-known frozen total independent of the visible page. Categories UI and unified-report contracts, portal syntax and scoped diff check PASS. No new migration/API. Source/dist portal synchronized. Prior full browser PASS predates this small summary-label correction; no new browser run claimed. Added FINANCE_COMPLETION_AUDIT.md mapping original requirements to specific evidence and remaining unverified source navigation/runtime/package gates. Existing agents still errored usage-limit; coordinator fallback, no independent GO. Goal active; no publication.
+
+
+### 2026-10-18 — fresh runtime audit: drafts, POS classification, expense corrections
+
+Initial guarded draft run was rejected because the suite was absent from the launcher's explicit allowlist. Inspected draft/income-integrity scripts: both validate loopback QA identity, use a unique schema, and clean only that schema. Added these two exact filenames and per-run owned fresh orders_qa database allocation; container/URL/identity/cleanup restrictions unchanged. Runner guard42 checks PASS. Sequential guarded runs all terminal exit0/PASS: finance-expense-drafts-postgres-qa (versions, permissions, tenant, one posted expense, POS shift), finance-income-snapshot-integrity-postgres-qa (exact category/item snapshots, minimum adjustment, terminal/building integrity, rollback), finance-expense-corrections-postgres-qa (migration replay, A→B→C history, direction guards, idempotency, tenant, immutable source). Scoped diff check PASS.
+
+Source-navigation inspection found an actual remaining requirement: current expense rows and unified report do not provide a verified original purchase/payroll/POS document action. Updated FINANCE_COMPLETION_AUDIT with existing source API/RBAC/venue contracts and the cross-venue hazard. No new source route or permission bypass added in this step. Existing agent quota fallback remains; no independent GO. Full goal remains active, no publication.
+
+
+### 2026-10-18 — expense original source viewer
+
+Added payrollEntryId from existing same-venue lateral linkage to GET expenses (payroll rows remain finance-only). Current-venue expense rows now offer original purchase/payroll read-only views using existing domain GET handlers and permissions. No new ledger, writes or permission widening. Source ID must match returned document; context checked after fetch and shared UI load; error403/404 distinguished, missing legacy linkage explicit. Native readOnly applied to viewer textarea because shared field renderer does not implement the readOnly descriptor. Source/dist synchronized.
+
+New finance-expense-source-contract executes actual UI opener with stubs: exact endpoints, readOnly, context race, ID mismatch,403 propagation, invalid source/ID rejection PASS. Categories UI/unified report contracts and syntax/scoped diff PASS. Full guarded browser extended for actual purchase/payroll source open, document ID/readOnly and320/768; first run stopped at preexisting asynchronous category select before this scenario. Helper now waits for requested option to be attached before opening the dropdown, preventing initial async refresh from closing it. Rerun90804 reached the new scenario, then failed because the expense disclosure was closed before clicking its date filter. Test now opens the actual journal disclosure. Rerun93258 completed exit0/PASS: real purchase/payroll source documents open from expense rows, correct IDs/readOnly verified,320/768 fit. Multi-venue report/POS source navigation remains outstanding. Coordinator fallback; no publication.
+
+
+### 2026-10-18 — selected-venue source document API
+
+Added read-only GET /api/finance/source-documents/{purchase|payroll|pos}/:id in the existing report handler with an injected domain reader. It requires current finance access, non-operational role, valid IDs, a fresh authorized selected venue, target financial permission plus inventory/inventory_read for purchase, finance for payroll, orders for POS. No implicit session venue switch. Source ID checked before response. Server reuses purchase repository, same-venue payroll lookup and existing POS pricing resolver after same-venue order validation. No new ledger or migration. Contract PASS for target rights, no unauthorized reader calls, foreign target rejection,403/404, ID mismatch and GET-only; unified report/snapshot contracts and syntax PASS. Endpoint browser/PG integration and common report buttons not yet implemented/accepted; expense viewer PASS above does not prove this new endpoint. Goal active; no publication.
+
+
+### 2026-10-18 — report source actions
+
+Moved the source viewer to shared portal scope and reused it for expense and report rows; moved its payroll-status formatter to shared scope too. Report buttons carry document ID and frozen report venue ID; selected venue and opener/context are rechecked after async reads and UI load. Response venue and source ID must match. Purchase receipt rows use documentId, payroll rows payrollEntryId, POS rows orderId. POS displays pricing summary and item quantities/unit prices from the existing resolver, not an invented net line amount. Viewer labels data as current source, separate from report snapshot. Existing domain permission failures remain explicit.
+
+Extended dynamic viewer contract for selected venue, POS content and venue mismatch; source API, unified-report, payroll-status and category UI contracts PASS. Full guarded browser source scenarios added for purchase/payroll/POS, selected venue response, wrong venue403 and missing source404. Run4838 pending. During review fixed test's missing randomUUID import and shared formatter scope; current running test may predate the import fix, so terminal result must be inspected before claiming acceptance. No publication; goal active.
+
+
+### 2026-10-18 — current image and category UI final checks
+
+Full browser run4838 successfully opened purchase/payroll/POS report sources, then stopped at missing randomUUID import in the test (source line1200). Import had already been fixed on disk; final full rerun14640 pending. No failed run promoted to suite PASS.
+
+Built local hookah-finance-local-qa:20261018-source-viewer, manifest list sha256:429c476775e8f2f7b6979bb768f519b9497ea5ca413879df1d84114db6d4e1d9. Disposable --rm --network none node entrypoint, no ports/mounts/database credentials: nine finance modules loaded, server/portal syntax and report source button presence PASS. Static literal dependency walk44 modules/shared dialog PASS. This proves package module load, not deployed server health.
+
+Fresh finance-categories-browser-qa PASS in its isolated ephemeral loopback demo server: create/duplicate/edit error retry/archive/restore/reload, stale GET/error retry and three widths. This is UI/demo evidence; PostgreSQL persistence/races/tenant are separately proven by the guarded category API suite already recorded. No production changes.
+
+
+### 2026-10-18 — final local finance acceptance
+
+Guarded payables-browser-postgres-qa rerun14640 completed exit0/PASS after the explicit randomUUID import fix. This final run includes original rent60000/20000+40000/new65000, pauses/catch-up, partial month, recognition/reversals, refunds/offsets, funding, balance events, source category snapshots, guest advances, stable report paging and source viewers. Expense viewers and report purchase/payroll/POS viewers read actual protected APIs; report source response venue matches selection; inaccessible random venue403 and absent source404 verified. Fresh category demo UI and guarded category/draft/correction/POS-integrity suites, relevant contracts and current local image checks are recorded above. Updated FINANCE_COMPLETION_AUDIT.md to the final evidence state.
+
+Local acceptance does not assert complete historical account attribution, official profit where source coverage is unknown, production health, independent agent GO, commit, publication or deployment. Existing incomplete-data indicators remain intentional contract behavior; no inferred legacy account/category links were added. Original dirty unrelated work preserved. No required local implementation items remain in the original goal's accepted scope.

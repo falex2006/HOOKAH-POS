@@ -127,6 +127,12 @@ try {
   const archiveCategory = await request(base, ownerToken, organizationId, '/api/product-categories', 'POST', {
     name: `QA archive category ${venueId.slice(0, 8)}`, department: 'hookah',
   }, 201);
+  const archiveGuardProduct = await request(base, ownerToken, organizationId, '/api/products', 'POST', {
+    name: `QA inactive category product ${venueId.slice(0, 8)}`, category: archiveCategory.name, price: 10,
+  }, 201);
+  await request(base, ownerToken, organizationId, `/api/product-categories/${archiveCategory.id}`, 'DELETE', undefined, 409);
+  const deactivatedGuardProduct = await request(base, ownerToken, organizationId, `/api/products/${archiveGuardProduct.id}`, 'DELETE');
+  assert.equal(deactivatedGuardProduct.active, false, 'the category guard fixture is inactive before category archival'); checks++;
   await request(base, ownerToken, organizationId, `/api/product-categories/${archiveCategory.id}`, 'DELETE', undefined, 200);
   const archivedCategories = await request(base, ownerToken, organizationId, '/api/product-categories?status=archived');
   assert.ok(archivedCategories.items.some(item => item.id === archiveCategory.id && item.active === false), 'category delete archives the unused category and survives a fresh read'); checks++;

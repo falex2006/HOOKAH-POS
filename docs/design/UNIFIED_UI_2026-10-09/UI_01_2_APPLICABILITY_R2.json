@@ -1,0 +1,2051 @@
+{
+  "version": "UI-01.2-R2-qa-v1",
+  "createdAtUtc": "2026-10-09T08:49:26.8820358Z",
+  "scope": "Read-only source/evidence; no browser/network/private credentials",
+  "provenance": "Root source215/215 mirror verification reported by coordinator, not rerun here; dirty HEAD/upstream in coverage plan",
+  "surfaceCount": 36,
+  "roleSurfaceCount": 180,
+  "runtimePass": 0,
+  "naPolicy": "Region/state-specific conditional source applicability; requires UI/permission evidence and signoff; no whole-route exclusion or hidden supported-theme defect",
+  "equivalencePolicy": "Preserve all 180 role-route and 6480 matrix rows; link references only, never infer RBAC/behavior/theme/viewport from similar appearance",
+  "surfaces": [
+    {
+      "url": "/",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#tables",
+        "#queue-list",
+        "#order-total",
+        "#preparation-list"
+      ],
+      "readApis": [
+        "/api/floor",
+        "/api/orders",
+        "/api/products"
+      ],
+      "readyCriterion": "Tables/queue/order/preparation loaded separately; no selected table is valid baseline",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "POS panels only; no cross-route business equivalence",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "ALLOW",
+          "boundary": "Employee shell; floor/orders; action permissions separately checked",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "ALLOW",
+          "boundary": "Employee shell; floor/orders; action permissions separately checked",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/login",
+      "sourceRegionKind": "auth",
+      "minimalLinkedRegions": [
+        "#login-form",
+        "#login-message"
+      ],
+      "readApis": [
+        "/api/session"
+      ],
+      "readyCriterion": "Public login form after session check; setup/reset distinct; auth redirect not deny",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_NO_COLLECTION: empty input/disabled integration/missing venue is not empty DB; dependent collections still required",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "One unauthenticated form image can link all role-intent cells, never role authorization",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "PUBLIC",
+          "boundary": "Public auth surface; authenticated redirect must be recorded separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "PUBLIC",
+          "boundary": "Public auth surface; authenticated redirect must be recorded separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "PUBLIC",
+          "boundary": "Public auth surface; authenticated redirect must be recorded separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "PUBLIC",
+          "boundary": "Public auth surface; authenticated redirect must be recorded separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "PUBLIC",
+          "boundary": "Public auth surface; authenticated redirect must be recorded separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        }
+      ],
+      "themePolicy": "EX07_SEPARATE_SURFACE_REQUIRES_SOURCE_AND_UI_SIGNOFF_NO_ASSUMED_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        ".page-title",
+        "#dashboard-insights",
+        "#shift-control"
+      ],
+      "readApis": [
+        "/api/finance/summary",
+        "/api/shifts",
+        "/api/staff",
+        "/api/venue"
+      ],
+      "readyCriterion": "Venue/date/shift resolved; explicit no-shift versus unknown metrics",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Shell C01 same role/theme/viewport only; each focused region separately",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "SHELL",
+          "boundary": "Tenant shell allowlist; every hash checked separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "SHELL",
+          "boundary": "Tenant shell allowlist; every hash checked separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "SHELL",
+          "boundary": "Tenant shell allowlist; every hash checked separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "SHELL",
+          "boundary": "Tenant shell allowlist; every hash checked separately",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/orders",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#orders-rows",
+        "#orders-count"
+      ],
+      "readApis": [
+        "/api/orders?scope=all"
+      ],
+      "readyCriterion": "Rows or explicit no-orders after response; count resolved",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Baseline explicit empty region may cover empty state",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "ALLOW",
+          "boundary": "Employee shell; floor/orders; action permissions separately checked",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "ALLOW",
+          "boundary": "Employee shell; floor/orders; action permissions separately checked",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/clients",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#clients-list",
+        "#clients-count",
+        "#clients-groups"
+      ],
+      "readApis": [
+        "/api/clients",
+        "/api/discount-groups"
+      ],
+      "readyCriterion": "Cards/count/groups loaded; selected guest ledger/history separate reads",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Long visible cards can cover long-content, header name alone cannot",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "ALLOW",
+          "boundary": "Employee shell; floor/orders; action permissions separately checked",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "ALLOW",
+          "boundary": "Employee shell; floor/orders; action permissions separately checked",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/reservations",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#reservation-list",
+        "#reservation-list-date",
+        "#reservation-dialog"
+      ],
+      "readApis": [
+        "/api/reservations",
+        "/api/floor",
+        "/api/clients"
+      ],
+      "readyCriterion": "Selected-date list loaded; empty date distinct from empty DB; dialog must explicitly open and selectors resolve",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Filtered no-results baseline covers filtered-empty only; wizard separate",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/delivery",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#delivery-list",
+        "#delivery-form"
+      ],
+      "readApis": [
+        "/api/deliveries"
+      ],
+      "readyCriterion": "Queue loaded or explicit empty; form action states separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty queue baseline can cover empty same region",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#inventory-rows",
+        "#stock-visible-count",
+        "#inventory-kpi-value-1"
+      ],
+      "readApis": [
+        "/api/inventory"
+      ],
+      "readyCriterion": "Stock load settled; explicit empty or rows; KPI known",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Equivalent stock query after URL normalization at same tuple",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "Read permission only; no finance/inventory writes",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/finance",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#finance-chart",
+        "#finance-result-panel",
+        "#payment-list",
+        "#expense-list",
+        "#payables-list"
+      ],
+      "readApis": [
+        "/api/analytics?days=all",
+        "/api/finance/summary",
+        "/api/expenses",
+        "/api/finance/purchase-payables"
+      ],
+      "readyCriterion": "Independent regions settled; employee own-today branch separately scoped",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty specific list baseline only; not all finance regions",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "Read permission only; no finance/inventory writes",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "OWN_TODAY",
+          "boundary": "Own current-day payments; no general ledger or payroll",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "OWN_TODAY",
+          "boundary": "Own current-day payments; no general ledger or payroll",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/finance/categories",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#finance-category-list",
+        "#finance-category-form"
+      ],
+      "readApis": [
+        "/api/finance/categories"
+      ],
+      "readyCriterion": "Categories loaded; filter state recorded; editor open separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty categories baseline can cover empty same region",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/finance/report",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#report-kpis",
+        "#report-payments",
+        "#loyalty-reconciliation-results"
+      ],
+      "readApis": [
+        "/api/finance/report",
+        "/api/loyalty/reconciliation"
+      ],
+      "readyCriterion": "Report date/type loaded; reconciliation independently settled; staff branch separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Known zero report not reconciliation or loading/error proof",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "Read permission only; no finance/inventory writes",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "OWN_TODAY",
+          "boundary": "Own current-day payments; no general ledger or payroll",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "OWN_TODAY",
+          "boundary": "Own current-day payments; no general ledger or payroll",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/integrations",
+      "sourceRegionKind": "configuration",
+      "minimalLinkedRegions": [
+        "#telegram-integration-status",
+        "#telegram-integration-note"
+      ],
+      "readApis": [
+        "/api/integrations"
+      ],
+      "readyCriterion": "Подключено or В разработке after success; Статус недоступен error; Проверяем pending",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_NO_COLLECTION: empty input/disabled integration/missing venue is not empty DB; dependent collections still required",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Disabled config baseline not empty dataset; shared diagnostic status only if identical",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/network",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#network-list",
+        "#network-count",
+        "#network-form"
+      ],
+      "readApis": [
+        "/api/network/venues"
+      ],
+      "readyCriterion": "Venue list/current marker/count settled; read error not empty",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty list baseline only if valid fixture permits it",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/platform",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#platform-kpis",
+        "#companies-body",
+        "#plan-cards",
+        "#health"
+      ],
+      "readApis": [
+        "/api/session",
+        "/api/platform/overview",
+        "/api/platform/organizations",
+        "/api/platform/plans",
+        "/api/health"
+      ],
+      "readyCriterion": "Platform role and overview/org/plans/health independently resolved; click-open modals separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "No tenant shell equivalence; EX07 needs source/UI signoff",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Separate SaaS shell; platform API; no tenant portal",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        }
+      ],
+      "themePolicy": "EX07_SEPARATE_SURFACE_REQUIRES_SOURCE_AND_UI_SIGNOFF_NO_ASSUMED_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory?view=products",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#visual-catalog",
+        "#product-search",
+        "#product-form"
+      ],
+      "readApis": [
+        "/api/products",
+        "/api/inventory",
+        "/api/product-categories"
+      ],
+      "readyCriterion": "Catalog loaded; supporting stock/categories/editor reads separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty catalog baseline can cover empty; form explicit opener",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "inventory_read only; inventory writes and inventory_categories not granted",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory?view=recipes",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#recipe-grid",
+        "#recipe-count",
+        "#recipe-form"
+      ],
+      "readApis": [
+        "/api/recipes",
+        "/api/products",
+        "/api/inventory"
+      ],
+      "readyCriterion": "Recipe grid/count loaded; selected cost/ingredients separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty recipe grid baseline only; wizard separate",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "inventory_read only; inventory writes and inventory_categories not granted",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory?view=stock",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#inventory-rows",
+        "#stock-visible-count",
+        "#inventory-kpi-value-1"
+      ],
+      "readApis": [
+        "/api/inventory"
+      ],
+      "readyCriterion": "Final /inventory expected; stock response settled",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Exact canonical inventory equivalent same role/theme/viewport/fixture, preserve both IDs",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "inventory_read only; inventory writes and inventory_categories not granted",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory?view=auto-orders",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#auto-order-list",
+        "#auto-order-history-list",
+        "#auto-order-low-count"
+      ],
+      "readApis": [
+        "/api/inventory/auto-orders",
+        "/api/inventory"
+      ],
+      "readyCriterion": "Recommendations/history independently loaded",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty recommendation baseline does not imply empty history",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "inventory_read only; inventory writes and inventory_categories not granted",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory?view=movements",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#purchase-document-list",
+        "#movement-history-list",
+        ".inventory-movement-journal-switch"
+      ],
+      "readApis": [
+        "/api/inventory/purchase-documents",
+        "/api/inventory"
+      ],
+      "readyCriterion": "Documents default settled; operations explicit switch; action editor separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Documents and operations inner journals need separate proof",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "inventory_read only; inventory writes and inventory_categories not granted",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory?view=premixes",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#premix-batches",
+        "#premix-empty-guidance",
+        "#premix-form"
+      ],
+      "readApis": [
+        "/api/inventory/premixes",
+        "/api/recipes",
+        "/api/inventory"
+      ],
+      "readyCriterion": "Batch list/prerequisites resolved; form recipe/output readiness separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty batches baseline covers empty only; production pending/error separate",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "inventory_read only; inventory writes and inventory_categories not granted",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/inventory?view=directories",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#inventory-department-list",
+        "#inventory-subdepartment-list",
+        "#product-category-list"
+      ],
+      "readApis": [
+        "/api/inventory/departments?status=all",
+        "/api/inventory/subdepartments?status=all",
+        "/api/product-categories?status=all"
+      ],
+      "readyCriterion": "Cascade three levels loaded with selected parent; no parent distinct from no children",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Per-level empty proof only; tobacco/alcohol catalogs independently read",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "READ",
+          "boundary": "inventory_read only; inventory writes and inventory_categories not granted",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#staff",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#staff",
+        ".staff-directory-table"
+      ],
+      "readApis": [
+        "/api/staff"
+      ],
+      "readyCriterion": "Directory resolved; cards/list/table explicit; five table columns; scale cards only",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Shell shared only; records/view/scale separate",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#permissions",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#staff",
+        "[data-role-profile]"
+      ],
+      "readApis": [
+        "/api/staff/roles",
+        "/api/staff/system-roles",
+        "/api/staff"
+      ],
+      "readyCriterion": "Owner-only roles loaded; empty custom roles distinct from populated system roles",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty custom-role subregion baseline may cover empty; click editors separate",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "owner-only role editor; role_editor is frontend predicate, not server permission",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "DENY",
+          "boundary": "owner-only role editor; role_editor is frontend predicate, not server permission",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "owner-only role editor; role_editor is frontend predicate, not server permission",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "owner-only role editor; role_editor is frontend predicate, not server permission",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "owner-only role editor; role_editor is frontend predicate, not server permission",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#tasks",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#tasks-list",
+        "#tasks-refresh",
+        "#task-status-filter"
+      ],
+      "readApis": [
+        "/api/tasks",
+        "/api/staff"
+      ],
+      "readyCriterion": "Task read settled/status cleared; own/manage scope known; assignment staff dependency separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty scoped tasks baseline covers empty; scope not inferred across roles",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "OWN_TASKS",
+          "boundary": "Own tasks/status only; no staff_manage/tasks_manage",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "OWN_TASKS",
+          "boundary": "Own tasks/status only; no staff_manage/tasks_manage",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#loyalty",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#loyalty-program-list",
+        "#promotion-list",
+        "#loyalty-settings-form"
+      ],
+      "readApis": [
+        "/api/discount-groups",
+        "/api/loyalty/promotions?includeArchived=true",
+        "/api/loyalty/settings",
+        "/api/products",
+        "/api/venue"
+      ],
+      "readyCriterion": "Program/promotion/settings independent resolved",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "One empty list not all loyalty; editor action separate",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#shift-control",
+      "sourceRegionKind": "configuration",
+      "minimalLinkedRegions": [
+        "#shift-control"
+      ],
+      "readApis": [
+        "/api/shifts"
+      ],
+      "readyCriterion": "Explicit current-venue open/closed/no active shift; unknown not zero",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_NO_COLLECTION: empty input/disabled integration/missing venue is not empty DB; dependent collections still required",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Same closed-shift component dashboard/focused hash with own URL proof",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "ALLOW",
+          "boundary": "orders/floor gate; shift actions checked by API",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "ALLOW",
+          "boundary": "orders/floor gate; shift actions checked by API",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#settings",
+      "sourceRegionKind": "static_index",
+      "minimalLinkedRegions": [
+        ".page-title",
+        ".settings-hub"
+      ],
+      "readApis": [
+        "/api/session/preferences",
+        "/api/venue"
+      ],
+      "readyCriterion": "Static settings cards visible after bootstrap; focused linked panels separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_STATIC_REGION: no collection; shell/auth not excluded",
+        "loading": "CONDITIONAL_NA_STATIC_READ: no independent async region; bootstrap/action pending still required",
+        "error": "CONDITIONAL_NA_STATIC_READ: no remote read; feedback validation/storage/action errors still applicable",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Static index baseline equivalence; N/A only nonexistent index collection/read",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#company",
+      "sourceRegionKind": "configuration",
+      "minimalLinkedRegions": [
+        "#company",
+        "#company-form",
+        ".purchase-reversal-settings"
+      ],
+      "readApis": [
+        "/api/venue",
+        "/api/venue/purchase-reversal-policy"
+      ],
+      "readyCriterion": "Identity/policy loaded; manager identity write denied; fields permission-aware",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_NO_COLLECTION: empty input/disabled integration/missing venue is not empty DB; dependent collections still required",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Not settings index; missing venue not empty success",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "settings read allowed; canManageVenueIdentity writes denied for manager",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#venue-layout-settings",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#venue-layout-settings",
+        ".floor-editor-panel"
+      ],
+      "readApis": [
+        "/api/floor"
+      ],
+      "readyCriterion": "Room/table data loaded; current-venue precondition; selected room explicit",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Editor empty not equivalent employee floor; shared API not same UI",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#lock-security",
+      "sourceRegionKind": "configuration",
+      "minimalLinkedRegions": [
+        "#lock-security"
+      ],
+      "readApis": [
+        "/api/session/preferences"
+      ],
+      "readyCriterion": "Preference controls initialized; not actual PIN overlay; save pending/error separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_NO_COLLECTION: empty input/disabled integration/missing venue is not empty DB; dependent collections still required",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "C03-C06 geometry only; PIN trap not inferred",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#settings-dashboard-modules",
+      "sourceRegionKind": "configuration",
+      "minimalLinkedRegions": [
+        "#settings-dashboard-modules"
+      ],
+      "readApis": [
+        "/api/session/preferences"
+      ],
+      "readyCriterion": "Selected preference toggles initialized; async save separate",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_NO_COLLECTION: empty input/disabled integration/missing venue is not empty DB; dependent collections still required",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty collection N/A; pending/error save applicable",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#audit",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#audit"
+      ],
+      "readApis": [
+        "/api/audit?limit=300"
+      ],
+      "readyCriterion": "Records or explicit empty after read; focused region and scroll settled",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty audit baseline may cover empty; diagnostics not equivalent",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#diagnostics",
+      "sourceRegionKind": "configuration",
+      "minimalLinkedRegions": [
+        "#diagnostics",
+        "#audit"
+      ],
+      "readApis": [
+        "/api/integrations",
+        "/api/audit?limit=300"
+      ],
+      "readyCriterion": "Telegram diagnostic status and audit independently resolved",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_NO_COLLECTION: empty input/disabled integration/missing venue is not empty DB; dependent collections still required",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Same Telegram C08/C14 status only with actual equivalence, not whole page",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#notifications",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#notification-panel",
+        "#notification-bell"
+      ],
+      "readApis": [
+        "/api/notifications"
+      ],
+      "readyCriterion": "Overlay visible; data category/scope confirmed; employee API denied not empty",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Bell/hash open notification region may share raster with own URL proof",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Hash gate only; per-action settings/staff/sensitive API rights apply",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "SHELL_API_DENIED",
+          "boundary": "Hash opens bell shell; employee event API denied",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "SHELL_API_DENIED",
+          "boundary": "Hash opens bell shell; employee event API denied",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/admin#help",
+      "sourceRegionKind": "static_local",
+      "minimalLinkedRegions": [
+        "#help",
+        "#help-feedback-form"
+      ],
+      "readApis": [
+        "none:static-local"
+      ],
+      "readyCriterion": "Knowledge visible without unintended notification overlay; local feedback not support delivery",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "CONDITIONAL_NA_STATIC_REGION: no collection; shell/auth not excluded",
+        "loading": "CONDITIONAL_NA_STATIC_READ: no independent async region; bootstrap/action pending still required",
+        "error": "CONDITIONAL_NA_STATIC_READ: no remote read; feedback validation/storage/action errors still applicable",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Immutable help content can link roles only with own allowed shell proof; validation/focus separate",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "Help feedback is local crm_help_feedback; not a support submission",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "ALLOW",
+          "boundary": "Help feedback is local crm_help_feedback; not a support submission",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "ALLOW",
+          "boundary": "Help feedback is local crm_help_feedback; not a support submission",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "ALLOW",
+          "boundary": "Help feedback is local crm_help_feedback; not a support submission",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    },
+    {
+      "url": "/finance#payroll",
+      "sourceRegionKind": "collection",
+      "minimalLinkedRegions": [
+        "#payroll-register",
+        "#payroll-message",
+        "#payroll-filter-user"
+      ],
+      "readApis": [
+        "/api/payroll/rules",
+        "/api/payroll/entries",
+        "/api/staff"
+      ],
+      "readyCriterion": "Source rules/entries/staff reads settled; warning about no planned shifts/no approved source snapshot is distinct workflow state; register explicit no-accruals may prove empty only after successful read; staff own-today early return distinct",
+      "stateApplicability": {
+        "baseline": "REQUIRED: ready region plus own URL/shell/theme/raster",
+        "empty": "REQUIRED: settled empty region; unknown/zero/no-results distinguished",
+        "loading": "REQUIRED: controlled pending read or form action",
+        "error": "REQUIRED: read/action failed; auth and deny distinct",
+        "long-content": "REQUIRED: long actual region data/overflow, not header name alone",
+        "keyboard-focus": "REQUIRED: Tab/ShiftTab visible focus; dialogs/select/tabs actually opened"
+      },
+      "componentEquivalenceCandidate": "Empty register after successful reads only; schema/staff warning not empty data",
+      "roles": [
+        {
+          "role": "owner",
+          "defaultAccess": "ALLOW",
+          "boundary": "finance payroll read/write; entries require database, otherwise payroll_requires_database",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "manager",
+          "defaultAccess": "PAYROLL_API_DENIED",
+          "boundary": "finance_read shell allowed; finance payroll API denied",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "hookah_master",
+          "defaultAccess": "OWN_TODAY_NO_PAYROLL",
+          "boundary": "Employee renderer returns own current-day payments before payroll workspace",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "bartender",
+          "defaultAccess": "OWN_TODAY_NO_PAYROLL",
+          "boundary": "Employee renderer returns own current-day payments before payroll workspace",
+          "contentStatePolicy": "Actual accessible shell/data states required; denied nested workspace separately explained"
+        },
+        {
+          "role": "platform_owner",
+          "defaultAccess": "DENY",
+          "boundary": "Default real-session page/hash gate; see ROUTE_ROLE_MATRIX v1.0",
+          "contentStatePolicy": "CONDITIONAL_NA_DENIED_CONTENT_ONLY_AFTER_VALID_SESSION_DENIAL; baseline/focus required"
+        }
+      ],
+      "themePolicy": "DARK_AND_LIGHT_SUPPORTED; LIGHT_FAILURE_SUPPORTED_THEME_DEFECT_NOT_NA",
+      "evidenceStatus": "SOURCE_APPLICABILITY_ONLY_NO_RUNTIME_PASS"
+    }
+  ]
+}

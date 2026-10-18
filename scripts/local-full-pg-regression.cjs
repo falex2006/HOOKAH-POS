@@ -14,9 +14,12 @@ const suites = new Set([
   'staff-pin-card-postgres-browser-qa.mjs',
   'owner-pin-lock-postgres-browser-qa.mjs',
   'postgres-qa.mjs', 'payroll-lifecycle-migration-preflight.mjs', 'migrations-pg-upgrade-qa.mjs',
+  'finance-expense-drafts-postgres-qa.mjs', 'finance-income-snapshot-integrity-postgres-qa.mjs',
+  'finance-funding-postgres-qa.mjs',
+  'finance-balance-events-postgres-qa.mjs',
   'migrations-pg-runtime-qa.mjs', 'migrations-pg-041-recovery-concurrency-qa.mjs',
   'venue-inventory-departments-postgres-qa.mjs', 'purchase-payment-postgres-api-qa.mjs',
-  'guest-loyalty-postgres-api-qa.mjs', 'finance-categories-postgres-api-qa.mjs',
+  'guest-loyalty-postgres-api-qa.mjs', 'finance-categories-postgres-api-qa.mjs', 'finance-expense-corrections-postgres-qa.mjs', 'finance-expense-refunds-postgres-qa.mjs',
   'loyalty-promotions-postgres-qa.mjs',
   'loyalty-journey-browser-qa.mjs',
   'payroll-lifecycle-postgres-api-qa.mjs', 'tasks-postgres-e2e-qa.mjs', 'delivery-persistence-qa.mjs',
@@ -36,6 +39,7 @@ const suites = new Set([
   'orders-attention-postgres-browser-qa.mjs', 'alcohol-catalog-api-qa.mjs', 'alcohol-catalog-schema-pg-qa.mjs',
   'acceptance-47-pos-journey-postgres-qa.mjs',
   'recipe-sale-manual-movement-race-postgres-qa.mjs',
+  'payroll-sale-credit-source-postgres-contract.mjs',
   'acceptance-27-purchase-reversal-postgres-qa.mjs',
   'acceptance-27-purchase-reversal-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs',
   'acceptance-22-purchase-fields-postgres-qa.mjs',
@@ -177,6 +181,8 @@ async function runSuite(value) {
   fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, id: lockId })); fs.closeSync(lock);
   const ownedDatabases = new Set();
   let app;
+  let suiteFailure = null;
+  const cleanupFailures = [];
   const inherited = { ...process.env };
   for (const key of Object.keys(inherited)) if (/DATABASE_URL|^PG[A-Z_]+$|^SAAS_OWNER_|(?:PASSWORD|TOKEN|PASSPORT_KEY|SESSION_SECRET)$/.test(key)) delete inherited[key];
   const env = { ...inherited, DATABASE_URL: '', NODE_ENV: 'test', HOST: '127.0.0.1', DEMO_MODE: 'false',
@@ -184,7 +190,7 @@ async function runSuite(value) {
     RECIPE_DEPLETION_PG_TEST_DATABASE_URL: urlFor(c), SHIFT_NOTIFICATIONS_TEST_DATABASE_URL: urlFor(c),
     MIGRATIONS_PG_TEST_DOCKER_CONTAINER: c.regressionContainer };
   async function freshDatabase(database) {
-  assert.match(database, /^(?:postgres_qa_[a-f0-9]+|orders_qa_[a-f0-9]+|alcohol_api_qa_[a-f0-9]+|inventory_qa_[a-f0-9]+|promotions_qa_[a-f0-9]+|shifts_qa_[a-f0-9]+|reservations_qa_[a-f0-9]+|audit_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|loyalty_qa_[a-f0-9]+|tobacco_auth_qa_[a-f0-9]+|payables_qa_[a-f0-9]+|territory_qa)$/);
+  assert.match(database, /^(?:postgres_qa_[a-f0-9]+|orders_qa_[a-f0-9]+|payroll_sale_credit_qa_[a-f0-9]{16}|alcohol_api_qa_[a-f0-9]+|inventory_qa_[a-f0-9]+|promotions_qa_[a-f0-9]+|shifts_qa_[a-f0-9]+|reservations_qa_[a-f0-9]+|audit_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|loyalty_qa_[a-f0-9]+|tobacco_auth_qa_[a-f0-9]+|payables_qa_[a-f0-9]+|finance_categories_qa_[a-f0-9]+|finance_corrections_qa_[a-f0-9]+|finance_refunds_qa_[a-f0-9]+|territory_qa)$/);
     await verifyTarget(c);
     const admin = new Pool({ connectionString: urlFor(c), max: 1 });
     try {
@@ -237,6 +243,10 @@ async function runSuite(value) {
     if (name === 'shift-notifications-e2e-qa.mjs') env.SHIFT_NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('shifts_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'notifications-postgres-qa.mjs') env.NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('notifications_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('postgres_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'payroll-sale-credit-source-postgres-contract.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'payroll_sale_credit_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
     if (name === 'recipe-depletion-pg-runtime-qa.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'inventory_qa_' + crypto.randomBytes(8).toString('hex');
       env.RECIPE_DEPLETION_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
@@ -279,6 +289,22 @@ async function runSuite(value) {
     }
     if (name === 'payables-browser-postgres-qa.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'payables_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (['finance-expense-drafts-postgres-qa.mjs', 'finance-income-snapshot-integrity-postgres-qa.mjs'].includes(name)) {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (name === 'finance-categories-postgres-api-qa.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'finance_categories_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (name === 'finance-expense-corrections-postgres-qa.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'finance_corrections_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (name === 'finance-expense-refunds-postgres-qa.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'finance_refunds_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
     if (name === 'alcohol-catalog-api-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('alcohol_api_qa_' + crypto.randomBytes(8).toString('hex'));
@@ -340,21 +366,34 @@ async function runSuite(value) {
       assert.ok(base, 'Owned SaaS QA app did not start');
       await execute(name, { ...env, DATABASE_URL: saasDatabaseUrl, MIGRATIONS_PG_TEST_DATABASE_URL: saasDatabaseUrl, SAAS_OWNER_EMAIL: email, SAAS_OWNER_PASSWORD: password }, c, [base], [password]);
     } else await execute(name, env, c);
+  } catch (error) {
+    suiteFailure = error;
   } finally {
     if (app?.pid) {
       const close = app.exitCode === null && app.signalCode === null ? new Promise(resolve => app.once('close', resolve)) : Promise.resolve();
-      killOwnedChild(app); await close;
+      try { killOwnedChild(app); await close; } catch (error) { cleanupFailures.push(error); }
     }
-    try {
-      for (const database of ownedDatabases) {
+    for (const database of ownedDatabases) {
+      try {
         await verifyTarget(c);
         const pool = new Pool({ connectionString: urlFor(c), max: 1 });
-        try { await pool.query('DROP DATABASE "' + database + '"'); if (/^inventory_qa_[a-f0-9]+$/i.test(database) || name === 'owner-pin-lock-postgres-browser-qa.mjs' || name === 'staff-pin-card-postgres-browser-qa.mjs') console.log('CLEANUP PASS: dropped fresh QA database ' + database); } finally { await pool.end(); }
-      }
-    } finally {
-      if (JSON.parse(fs.readFileSync(lockPath, 'utf8')).id === lockId) fs.unlinkSync(lockPath);
+        try {
+          await pool.query('DROP DATABASE "' + database + '"');
+          const remaining = await pool.query('SELECT 1 FROM pg_database WHERE datname=$1', [database]);
+          assert.equal(remaining.rowCount, 0, 'Owned disposable QA database is absent after DROP DATABASE');
+          if (['staff-identity-postgres-qa.mjs', 'audit-privacy-postgres-qa.mjs', 'reservation-prepayment-postgres-qa.mjs', 'paid-order-balance-postgres-qa.mjs'].includes(name)) console.log('CLEANUP PASS: guarded runner verified drop of its owned disposable database ' + database);
+          else if (/^inventory_qa_[a-f0-9]+$/i.test(database) || name === 'owner-pin-lock-postgres-browser-qa.mjs' || name === 'staff-pin-card-postgres-browser-qa.mjs') console.log('CLEANUP PASS: dropped fresh QA database ' + database);
+        } finally { await pool.end(); }
+      } catch (error) { cleanupFailures.push(error); }
     }
+    try { if (JSON.parse(fs.readFileSync(lockPath, 'utf8')).id === lockId) fs.unlinkSync(lockPath); }
+    catch (error) { cleanupFailures.push(error); }
   }
+  if (suiteFailure && cleanupFailures.length) {
+    throw new Error(`Suite failure: ${safeText(suiteFailure.message, c)}; owned database/process cleanup failure(s): ${cleanupFailures.map(error => safeText(error.message, c)).join(' | ')}`);
+  }
+  if (suiteFailure) throw suiteFailure;
+  if (cleanupFailures.length) throw new Error(`Owned database/process cleanup failure(s): ${cleanupFailures.map(error => safeText(error.message, c)).join(' | ')}`);
 }
 function checkGuards() {
   const c = { database: 'hookah_local_qa', regressionPort: 31931, regressionContainer: 'hookah-full-regression-qa-20261001', dbPort: 31930, appPort: 31932, dbUser: 'qa_user', dbPassword: 'synthetic-qa-credential-only' };

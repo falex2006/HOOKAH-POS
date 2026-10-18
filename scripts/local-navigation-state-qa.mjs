@@ -16,19 +16,20 @@ function slice(source, startMarker, endMarker) {
 function element(textContent, href) {
   const classes = new Set(['active']);
   const attributes = new Map([['aria-current', 'page']]);
+  const dataset = {};
   const handlers = new Map();
-  return { textContent, href, classes, attributes, handlers,
+  return { textContent, href, classes, attributes, handlers, dataset,
     classList: { add: name => classes.add(name), remove: name => classes.delete(name), toggle: (name, force) => force ? classes.add(name) : classes.delete(name) },
-    setAttribute: (name, value) => attributes.set(name, value), removeAttribute: name => attributes.delete(name),
+    setAttribute: (name, value) => attributes.set(name, value), getAttribute: name => attributes.get(name) || null, removeAttribute: name => attributes.delete(name),
     addEventListener: (name, callback) => handlers.set(name, callback) };
 }
 const route = slice(app, 'const preserveWorkspaceRoute=', '\n');
 const sidebarHandler = slice(app, "document.querySelectorAll('aside nav button').forEach((button)=>button.addEventListener", 'let staffShiftActionPending=');
 for (const search of ['', '?venue=venue-a&venueId=123&workspace=desk&mode=legacy&operator=old']) {
   const buttons = ['Рабочий зал','Заказы','Задачи','Бронирования','Склад','Финансы'].map(text => element(text));
-  const queues = [], notices = [], scrolls = [];
+  const queues = [], notices = [], scrolls = [], windowScrolls = [];
   const location = { origin: 'http://127.0.0.1:31932', href: '/' };
-  const context = { URL, location, queryParams: new URLSearchParams(search), window: { location },
+  const context = { URL, location, queryParams: new URLSearchParams(search), staffSessionPermissions: {}, hasStaffPermission: () => true, setStaffWorkspaceView: () => {}, window: { location, scrollTo: options => windowScrolls.push(options) },
     document: {
       querySelectorAll: selector => { assert.equal(selector, 'aside nav button'); return buttons; },
       querySelector: selector => ({ scrollIntoView: options => scrolls.push({ selector, options }) }),
@@ -47,13 +48,22 @@ for (const search of ['', '?venue=venue-a&venueId=123&workspace=desk&mode=legacy
   for (const key of ['venue','venueId','workspace']) check(next.searchParams.get(key), new URLSearchParams(search).get(key), 'Workspace parameter preserved: ' + key);
   buttons[1].handlers.get('click')();
   check(queues, ['all'], 'Orders retains the active order queue');
-  check(scrolls.map(entry => entry.selector), ['.queue'], 'Orders scrolls its queue');
+  check(windowScrolls.at(-1)?.top, 0, 'Orders returns the workspace to the top');
+  check(windowScrolls.at(-1)?.behavior, 'smooth', 'Orders keeps the established smooth scroll behavior');
   for (const [index, expected] of [[3,'/reservations'],[4,'/inventory'],[5,'/finance']]) {
     buttons[index].handlers.get('click')();
     check(new URL(location.href, location.origin).pathname, expected, 'Existing route preserved: ' + expected);
   }
+  buttons[0].dataset.staffRoute = 'Задачи';
   buttons[0].handlers.get('click')();
-  check(scrolls.at(-1).selector, '.tables', 'Working floor retains its own scroll target');
+  check(new URL(location.href, location.origin).pathname, '/admin', 'Explicit staffRoute dataset controls navigation');
+  buttons[1].setAttribute('aria-label', 'Бронирования');
+  buttons[1].handlers.get('click')();
+  check(new URL(location.href, location.origin).pathname, '/reservations', 'Navigation falls back to the accessible aria-label');
+  buttons[0].dataset.staffRoute = '';
+  buttons[0].handlers.get('click')();
+  check(windowScrolls.at(-1)?.top, 0, 'Working floor returns to the top');
+  check(windowScrolls.at(-1)?.behavior, 'smooth', 'Working floor keeps the established smooth scroll behavior');
 }
 
 // SaaS platform navigation is audited in its own workspace. This local POS

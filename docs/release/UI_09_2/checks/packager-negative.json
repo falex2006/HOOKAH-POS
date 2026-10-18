@@ -1,0 +1,17 @@
+[
+  {
+    "name": "no candidate",
+    "status": 1,
+    "pass": true
+  },
+  {
+    "name": "main shared checkout",
+    "status": 1,
+    "pass": true
+  },
+  {
+    "name": "dirty isolated candidate",
+    "status": 1,
+    "pass": true
+  }
+]

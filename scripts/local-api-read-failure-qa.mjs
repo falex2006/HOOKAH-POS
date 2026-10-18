@@ -20,8 +20,8 @@ try {
     const call = async (repositories, denied = false) => {
       let response;
       const deny = () => { if (denied) response = { status: 403, data: { error: 'forbidden' } }; return denied; };
-      await new Function('pathname','req','res','repositories','venueDbId','denyUnless','denyUnlessAny','hasPermission','json','products','staff','clients','process', `return (async()=>{${implementation}})();`)(
-        route, { method: 'GET' }, {}, repositories, 'synthetic-local-venue', deny, deny,
+      await new Function('pathname','url','req','res','repositories','venueDbId','currentVenueId','denyUnless','denyUnlessAny','hasPermission','json','products','staff','clients','process', `return (async()=>{${implementation}})();`)(
+        route, new URL('http://localhost/api/products?expectedVenueId=synthetic-local-venue'), { method: 'GET' }, { setHeader() {} }, repositories, 'synthetic-local-venue', 'synthetic-local-venue', deny, deny,
         () => !denied,
         (_res, status, data) => { response = { status, data }; }, [{ id: 'must-not-leak-demo-product' }], [{ id: 'must-not-leak-demo-staff' }], [{ id: 'must-not-leak-demo-guest' }], process
       );

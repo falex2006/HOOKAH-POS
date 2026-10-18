@@ -470,13 +470,26 @@ try {
     name: 'QA premix output', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
   }, 201);
   const premixRecipe = await req(base, '/api/recipes', 'POST', {
-    name: 'QA weighted-cost premix', recipeType: 'premix',
+    name: 'QA weighted-cost premix', recipeType: 'premix', outputIngredientId: premixOutput.id,
     ingredients: [
       { ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' },
       { ingredientId: secondStockItem.id, name: secondStockItem.name, quantity: '200 мл' },
     ],
     yieldQuantity: 1200, yieldUnit: 'мл', portionCount: 1,
   }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    name: 'QA duplicate output must fail', recipeType: 'premix', outputIngredientId: premixOutput.id,
+    ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' }],
+    yieldQuantity: 1000, yieldUnit: 'мл', portionCount: 1,
+  }, 409);
+  const wrongPremixOutput = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA wrong premix output', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
+  }, 201);
+  const beforeWrongOutput = { source: await getBalance(stockItem.id), expected: await getBalance(premixOutput.id), wrong: await getBalance(wrongPremixOutput.id) };
+  const wrongOutputResult = await req(base, '/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: wrongPremixOutput.id, multiplier: 1 }, 409);
+  assert.equal(wrongOutputResult.error, 'premix_output_binding_mismatch', 'API rejects a caller-substituted output item');
+  assert.deepEqual({ source: await getBalance(stockItem.id), expected: await getBalance(premixOutput.id), wrong: await getBalance(wrongPremixOutput.id) }, beforeWrongOutput,
+    'a rejected output substitution creates no stock movement'); checks += 3;
   const premixBatch = await req(base, '/api/inventory/premixes/produce', 'POST', {
     recipeId: premixRecipe.id, outputItemId: premixOutput.id, multiplier: 1,
     actualOutput: 1100, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -486,9 +499,28 @@ try {
   assert.equal(Number(premixBatch.outputQuantity), 1100, 'actual yield is posted to stock separately from the planned recipe yield');
   assert.equal(Number((await client.query('SELECT cost FROM ingredients WHERE id=$1', [premixOutput.id])).rows[0].cost), 0.0479,
     'premix output persists sub-kopeck unit cost so later recipes do not round each ml to a kopeck');
+  await req(base, `/api/recipes/${premixRecipe.id}`, 'PATCH', { outputIngredientId: wrongPremixOutput.id }, 409);
   assert.equal(await getBalance(premixOutput.id), 1100, 'actual premix output quantity is added to the stock ledger');
   assert.equal(await getBalance(stockItem.id), 1000, 'premix production consumes its first component exactly once');
   assert.equal(await getBalance(secondStockItem.id), 1400, 'premix production consumes its second component exactly once'); checks += 7;
+  const raceOldSource = await req(base, '/api/inventory/items', 'POST', { name: 'QA race old source', unit: 'мл', itemType: 'ingredient', cost: 1, department: 'bar' }, 201);
+  const raceNewSource = await req(base, '/api/inventory/items', 'POST', { name: 'QA race new source', unit: 'мл', itemType: 'ingredient', cost: 2, department: 'bar' }, 201);
+  const raceOutput = await req(base, '/api/inventory/items', 'POST', { name: 'QA race output', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar' }, 201);
+  for (const item of [raceOldSource, raceNewSource]) await req(base, '/api/inventory/movements', 'POST', { itemId: item.id, delta: 100, unit: 'мл', reason: 'Recipe edit race fixture' }, 201);
+  const raceRecipe = await req(base, '/api/recipes', 'POST', { name: 'QA recipe edit race', recipeType: 'premix', outputIngredientId: raceOutput.id, yieldQuantity: 10, yieldUnit: 'мл', portionCount: 1, ingredients: [{ ingredientId: raceOldSource.id, name: raceOldSource.name, quantity: '10 мл' }] }, 201);
+  await client.query('BEGIN');
+  const lockedRaceRecipe = await client.query('SELECT id FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 FOR UPDATE', [raceRecipe.id, venueId]);
+  assert.equal(lockedRaceRecipe.rowCount, 1, 'concurrency fixture holds the intended recipe row'); checks++;
+  let raceSettled = false;
+  const racingProduction = req(base, '/api/inventory/premixes/produce', 'POST', { recipeId: raceRecipe.id, outputItemId: raceOutput.id, multiplier: 1 }, 201).then((value) => { raceSettled = true; return { value }; }, (error) => { raceSettled = true; return { error }; });
+  await delay(250);
+  assert.equal(raceSettled, false, 'premix production waits for the locked recipe row instead of racing past an edit'); checks++;
+  await client.query('UPDATE inventory_recipe_cards SET ingredients=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify([{ ingredientId: raceNewSource.id, name: raceNewSource.name, quantity: '10 мл', unit: 'мл' }]), raceRecipe.id, venueId]);
+  await client.query('COMMIT');
+  const raceOutcome = await racingProduction; if (raceOutcome.error) throw raceOutcome.error; const raceBatch = raceOutcome.value;
+  assert.equal(raceBatch.ingredients[0].ingredientId, raceNewSource.id, 'production batch records the formula committed by the concurrent edit');
+  assert.equal(await getBalance(raceOldSource.id), 100, 'concurrent edit race does not consume the superseded ingredient');
+  assert.equal(await getBalance(raceNewSource.id), 90, 'concurrent edit race consumes the ingredient saved in the batch snapshot'); checks += 3;
   const premixHistory = await req(base, '/api/inventory/premixes');
   const listedPremixBatch = premixHistory.items.find((entry) => entry.id === premixBatch.id);
   assert.equal(Number(listedPremixBatch.remainingQuantity), 1100);
@@ -506,9 +538,16 @@ try {
   const cancellableOutput = await req(base, '/api/inventory/items', 'POST', {
     name: 'QA premix cancellable output', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
   }, 201);
+  const cancellableRecipe = await req(base, '/api/recipes', 'POST', {
+    name: 'QA cancellable weighted-cost premix', recipeType: 'premix', outputIngredientId: cancellableOutput.id,
+    ingredients: [
+      { ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' },
+      { ingredientId: secondStockItem.id, name: secondStockItem.name, quantity: '200 мл' },
+    ], yieldQuantity: 1200, yieldUnit: 'мл', portionCount: 1,
+  }, 201);
   await req(base, '/api/inventory/movements', 'POST', { itemId: stockItem.id, delta: 1000, unit: 'мл', reason: 'QA premix source top-up' }, 201);
   await req(base, '/api/inventory/movements', 'POST', { itemId: secondStockItem.id, delta: 200, unit: 'мл', reason: 'QA premix source top-up' }, 201);
-  const cancellableBatch = await req(base, '/api/inventory/premixes/produce', 'POST', { recipeId: premixRecipe.id, outputItemId: cancellableOutput.id, multiplier: 1, expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() }, 201);
+  const cancellableBatch = await req(base, '/api/inventory/premixes/produce', 'POST', { recipeId: cancellableRecipe.id, outputItemId: cancellableOutput.id, multiplier: 1, expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() }, 201);
   await client.query('UPDATE inventory_premix_batches SET expires_at=now()-interval \'1 day\' WHERE id=$1', [cancellableBatch.id]);
   const expiredIssue = await req(base, '/api/inventory/movements', 'POST', { itemId: cancellableOutput.id, delta: -1, unit: 'мл', reason: 'QA expired issue' }, 409);
   assert.equal(expiredIssue.error, 'expired_premix_stock', 'expired tracked stock cannot be consumed'); checks++;
@@ -929,6 +968,52 @@ try {
     { status: 'closed', payments: 1, cost_snapshots: 1, depletions: 1 }, 'one same-order close commits exactly one payment, cost snapshot, and recipe debit');
   assert.equal(Number(duplicateCloseFacts.depleted), 1, 'the single same-order recipe movement records one portion'); checks += 2;
   assert.equal(duplicateRaceStartBalance - await getBalance(raceStock.id), 1, 'concurrent duplicate close depletes exactly one recipe portion'); checks++;
+
+  // FIX-04.1: repair the actual rejection cause, then retry the same order.
+  // Keep this after finance totals: these recoveries intentionally add paid sales.
+  async function paymentStockFacts(orderId) {
+    const result = await client.query(`SELECT o.status,
+      (SELECT COUNT(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT COALESCE(SUM(p.amount),0)::numeric FROM payments p WHERE p.order_id=o.id) AS paid,
+      (SELECT COUNT(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs,
+      (SELECT COUNT(*)::int FROM stock_movements m WHERE m.order_id=o.id AND m.direction='out') AS depletions
+      FROM orders o WHERE o.id=$1 AND o.venue_id=$2`, [orderId, venueId]);
+    return result.rows[0];
+  }
+  const cardShortageBefore = await paymentStockFacts(shortageOrderId);
+  const cardShortage = await req(base, `/api/orders/${shortageOrderId}/close`, 'POST', { paymentMethod: 'card' }, 409);
+  assert.equal(cardShortage.error, 'insufficient_recipe_stock');
+  assert.deepEqual(await paymentStockFacts(shortageOrderId), cardShortageBefore,
+    'card close with stock shortage leaves the prior partial payment and stock effects unchanged'); checks += 2;
+  await req(base, '/api/inventory/movements', 'POST', {
+    itemId: stockItem.id, delta: 4000, unit: 'мл', reason: 'FIX-04.1 repair shortage before retry',
+  }, 201);
+  const repairedStockBefore = await getBalance(stockItem.id);
+  await req(base, `/api/orders/${shortageOrderId}/payments`, 'POST', { amount: 60, method: 'card' }, 201);
+  const recoveredShortage = await paymentStockFacts(shortageOrderId);
+  assert.deepEqual(recoveredShortage, { status: 'closed', payments: 2, paid: '90.00', cogs: 1, depletions: 1 },
+    'replenishment permits retry: exactly the prior cash payment plus the new card payment and one depletion');
+  assert.equal(repairedStockBefore - await getBalance(stockItem.id), 4000,
+    'repair retry consumes one recipe portion after rejected attempts'); checks += 2;
+  await req(base, `/api/orders/${shortageOrderId}/payments`, 'POST', { amount: 60, method: 'card' }, 409);
+  assert.deepEqual(await paymentStockFacts(shortageOrderId), recoveredShortage,
+    'duplicate final card payment creates no second payment or depletion'); checks++;
+
+  await req(base, '/api/inventory/movements', 'POST', {
+    itemId: raceStock.id, delta: 1, unit: 'шт', reason: 'FIX-04.1 stock for repaired recipe',
+  }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    productId: unconfiguredProduct.id, name: unconfiguredProduct.name,
+    ingredients: [{ ingredientId: raceStock.id, name: raceStock.name, quantity: '1 шт' }],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  }, 201);
+  await req(base, `/api/orders/${unconfiguredPaymentId}/payments`, 'POST', { amount: 100, method: 'cash' }, 201);
+  const recoveredRecipe = await paymentStockFacts(unconfiguredPaymentId);
+  assert.deepEqual(recoveredRecipe, { status: 'closed', payments: 2, paid: '150.00', cogs: 1, depletions: 1 },
+    'binding a valid recipe permits final cash retry without repeating the earlier partial payment'); checks++;
+  await req(base, `/api/orders/${unconfiguredPaymentId}/payments`, 'POST', { amount: 100, method: 'cash' }, 409);
+  assert.deepEqual(await paymentStockFacts(unconfiguredPaymentId), recoveredRecipe,
+    'duplicate final cash payment cannot repeat payment or depletion'); checks++;
 
   console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase/payment→stock→pack/bottle conversions→tobacco and cocktail recipes→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {

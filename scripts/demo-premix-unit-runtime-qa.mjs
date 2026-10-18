@@ -11,8 +11,8 @@ assert.ok(routeStart >= 0 && routeEnd > routeStart, 'actual demo premix producti
 
 const parserSource = portal.slice(parserStart, parserEnd);
 const routeSource = portal.slice(routeStart, routeEnd);
-const execute = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'demoAllocatePremixConsumption', `${parserSource}\nreturn (async () => { ${routeSource} })();`);
-const produce = (state, payload) => execute('/api/inventory/premixes/produce', 'POST', payload, new Set(['inventory']), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' }, () => []);
+const execute = new Function('path', 'method', 'input', 'portalPermissions', 'hasPortalPermission', 'demoState', 'demoSave', 'portalUser', 'demoAllocatePremixConsumption', `${parserSource}\nreturn (async () => { ${routeSource} })();`);
+const produce = (state, payload, allocate = () => []) => { const permissions = new Set(['inventory']); return execute('/api/inventory/premixes/produce', 'POST', payload, permissions, (permission) => permissions.has(permission), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' }, allocate); };
 const stateFor = (recipe, inventory) => ({ recipes: [recipe], inventory, premixBatches: [], movements: [], audit: [] });
 
 const itemRouteStart = portal.indexOf("if (path === '/api/inventory/items' && method === 'POST')");
@@ -23,16 +23,25 @@ const demoVisibleAlcoholLink = (value) => {
   assert.ok(value === undefined || value === null || value === '', 'this fixture does not exercise alcohol catalog links');
   return null;
 };
-const createDemoItem = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'Date', 'demoVisibleAlcoholLink', `return (async () => { ${portal.slice(itemRouteStart, itemRouteEnd)} })();`);
+const createDemoItem = new Function('path', 'method', 'input', 'portalPermissions', 'hasPortalPermission', 'demoState', 'demoSave', 'portalUser', 'Date', 'demoVisibleAlcoholLink', `return (async () => { ${portal.slice(itemRouteStart, itemRouteEnd)} })();`);
 const demoItems = { inventory: [], audit: [] };
-const demoItemArgs = ['/api/inventory/items', 'POST', { name: 'QA premix source', unit: 'мл' }, new Set(['inventory']), demoItems, () => {}, { name: 'QA' }, FrozenDate, demoVisibleAlcoholLink];
+const demoItemPermissions = new Set(['inventory']);
+const demoItemArgs = ['/api/inventory/items', 'POST', { name: 'QA premix source', unit: 'мл' }, demoItemPermissions, (permission) => demoItemPermissions.has(permission), demoItems, () => {}, { name: 'QA' }, FrozenDate, demoVisibleAlcoholLink];
 const firstDemoItem = await createDemoItem(...demoItemArgs);
 const secondDemoItem = await createDemoItem(...demoItemArgs);
 assert.notEqual(firstDemoItem.id, secondDemoItem.id, 'rapid demo inventory creates retain distinct IDs in one millisecond');
 assert.equal(demoItems.inventory.length, 2);
 
 // Ingredient quantity is converted into the stock item's unit before debit/costing.
-const gramsState = stateFor({ id: 'recipe-g', name: 'Тест, г → кг', recipeType: 'premix', ingredients: [{ ingredientId: 'sugar', name: 'Сахар', quantity: '1000 г' }], yieldQuantity: 1, yieldUnit: 'шт' }, [
+const zeroMultiplierState = stateFor({ id: 'recipe-zero', name: 'Тест нулевого количества партий', recipeType: 'premix', outputIngredientId: 'out-zero', ingredients: [{ ingredientId: 'source-zero', name: 'Сырьё', quantity: '1 мл' }], yieldQuantity: 2, yieldUnit: 'мл' }, [
+  { id: 'source-zero', name: 'Сырьё', unit: 'мл', onHand: 10, cost: 1 },
+  { id: 'out-zero', name: 'Премикс', unit: 'мл', onHand: 0, cost: 0 },
+]);
+await assert.rejects(produce(zeroMultiplierState, { recipeId: 'recipe-zero', outputItemId: 'out-zero', multiplier: 0 }), /invalid_premix_production/);
+assert.deepEqual(zeroMultiplierState.inventory.map((item) => item.onHand), [10, 0], 'zero batch count changes no stock');
+assert.equal(zeroMultiplierState.premixBatches.length, 0, 'zero batch count creates no batch');
+
+const gramsState = stateFor({ id: 'recipe-g', name: 'Тест, г → кг', recipeType: 'premix', outputIngredientId: 'out-g', ingredients: [{ ingredientId: 'sugar', name: 'Сахар', quantity: '1000 г' }], yieldQuantity: 1, yieldUnit: 'шт' }, [
   { id: 'sugar', name: 'Сахар', unit: 'кг', onHand: 2, cost: 250 },
   { id: 'out-g', name: 'Сироп', unit: 'шт', onHand: 0, cost: 0 },
 ]);
@@ -43,7 +52,7 @@ assert.equal(gramsBatch.ingredients[0].unit, 'кг');
 assert.equal(gramsBatch.totalCost, 250, 'cost is based on the converted stock quantity');
 
 // Ingredient debit and batch yield are both converted independently (mL → L).
-const litersState = stateFor({ id: 'recipe-ml', name: 'Тест, мл → л', recipeType: 'premix', ingredients: [{ ingredientId: 'juice', name: 'Сок', quantity: '500 мл' }], yieldQuantity: 1500, yieldUnit: 'мл' }, [
+const litersState = stateFor({ id: 'recipe-ml', name: 'Тест, мл → л', recipeType: 'premix', outputIngredientId: 'out-l', ingredients: [{ ingredientId: 'juice', name: 'Сок', quantity: '500 мл' }], yieldQuantity: 1500, yieldUnit: 'мл' }, [
   { id: 'juice', name: 'Сок', unit: 'л', onHand: 2, cost: 120 },
   { id: 'out-l', name: 'Премикс', unit: 'л', onHand: 0.25, cost: 0 },
 ]);
@@ -54,9 +63,24 @@ assert.equal(litersBatch.totalCost, 60);
 assert.equal(litersBatch.outputQuantity, 1.5, '1500 mL yield must be recorded as 1.5 L');
 assert.equal(litersState.inventory[1].onHand, 1.75);
 assert.equal(litersBatch.outputUnit, 'л');
+assert.equal(litersState.inventory[1].cost, 34.2857, 'premix output average cost includes prior stock and this batch');
+assert.equal(litersBatch.batchUnitCost, 40, 'batch cost per output unit uses converted output quantity');
+
+// A late lot-allocation rejection must not mutate stock, output cost, audit or persistence.
+const expiredState = stateFor({ id: 'recipe-expired', name: 'Тест отказа просроченного сырья', recipeType: 'premix', outputIngredientId: 'out-expired', ingredients: [{ ingredientId: 'expired-source', name: 'Сырьё', quantity: '1 мл' }], yieldQuantity: 100, yieldUnit: 'мл' }, [
+  { id: 'expired-source', name: 'Сырьё', unit: 'мл', onHand: 2, cost: 20 },
+  { id: 'out-expired', name: 'Премикс', unit: 'мл', onHand: 100, cost: 10 },
+]);
+await assert.rejects(produce(expiredState, { recipeId: 'recipe-expired', outputItemId: 'out-expired', multiplier: 1 }, () => { throw new Error('expired_premix_stock'); }), /expired_premix_stock/);
+assert.deepEqual(expiredState.inventory.map((item) => item.onHand), [2, 100], 'rejected expired lot changes no ingredient or output stock');
+assert.equal(expiredState.inventory[1].cost, 10, 'rejected expired lot leaves output average cost unchanged');
+assert.equal(expiredState.movements.length, 0);
+assert.equal(expiredState.premixBatches.length, 0);
+assert.equal(expiredState.audit.length, 0);
+assert.equal(expiredState.saved || 0, 0, 'rejected expired lot is not persisted');
 
 // Incompatible units fail closed before stock, output, audit, or batch mutation.
-const mismatchState = stateFor({ id: 'recipe-bad', name: 'Тест несовместимых единиц', recipeType: 'premix', ingredients: [{ ingredientId: 'powder', name: 'Порошок', quantity: '2 шт' }], yieldQuantity: 1, yieldUnit: 'л' }, [
+const mismatchState = stateFor({ id: 'recipe-bad', name: 'Тест несовместимых единиц', recipeType: 'premix', outputIngredientId: 'out-bad', ingredients: [{ ingredientId: 'powder', name: 'Порошок', quantity: '2 шт' }], yieldQuantity: 1, yieldUnit: 'л' }, [
   { id: 'powder', name: 'Порошок', unit: 'кг', onHand: 4, cost: 30 },
   { id: 'out-bad', name: 'Жидкость', unit: 'л', onHand: 0, cost: 0 },
 ]);

@@ -5,17 +5,18 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '403';
-const portalRevision = '464';
+const cssRevision = '420';
+const portalRevision = '487';
+const portalSessionRevision = '1';
 const lockRevision = '22';
-const appRevision = '203';
+const appRevision = '221';
 const platformRevision = '8';
 const platformCssRevision = '3';
 const staffProfileRevision = '6';
-const loginRevision = '98';
+const loginRevision = '99';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
-const staffAdminCardRevision = '11';
+const staffAdminCardRevision = '12';
 const payrollSchemeUiRevision = '17';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
@@ -76,7 +77,9 @@ const htmlFiles = [
 ];
 
 for (const path of htmlFiles) {
-  const html = readFileSync(path, 'utf8')
+  const sourceHtml = readFileSync(path, 'utf8');
+  const usesPortal = /(?:portal|portal-session)\.js\?rev=/.test(sourceHtml);
+  const html = sourceHtml
     .replace(/<!-- Hookah POS brand icons -->[\s\S]*?<!-- \/Hookah POS brand icons -->\s*/g, '')
     .replace('</head>', `${brandHead}</head>`)
     .replace(/(\/assets\/brand\/hookah-pos-[a-z-]+\.svg)(?:\?rev=\d+)?/g, `$1?rev=${brandRevision}`)
@@ -87,7 +90,7 @@ for (const path of htmlFiles) {
     })
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
     .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
-    .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`)
+    .replace(/(?:portal|portal-session)\.js\?rev=\d+/g, `portal-session.js?rev=${portalSessionRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
     .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
     .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
@@ -99,10 +102,23 @@ for (const path of htmlFiles) {
     .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`)
     .replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
   const versionedHtml = html.replace(/purchase-document-validation\.js\?rev=\d+/g, `purchase-document-validation.js?rev=${purchaseDocumentValidationRevision}`);
-  writeFileSync(path, versionedHtml.replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`));
+  let outputHtml = versionedHtml.replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`);
+  if (usesPortal || /app\.js\?rev=/.test(outputHtml)) {
+    outputHtml = outputHtml.replace(/<script src="\/staff-display-name\.js\?rev=\d+"><\/script>/g, '');
+    outputHtml = outputHtml.replace(/<script src="\/(?:app|portal-session)\.js\?rev=\d+"><\/script>/, (tag) => '<script src="/staff-display-name.js?rev=1"></script>' + tag);
+  }
+  if (usesPortal) {
+    outputHtml = outputHtml.replace(/<html([^>]*)>/, (_, attrs) => `<html${attrs.replace(/ data-portal-access="[^"]*"/g, '')} data-portal-access="checking">`);
+    if (!outputHtml.includes('id="portal-session-style"')) outputHtml = outputHtml.replace('</head>', '<style id="portal-session-style">html[data-portal-access="checking"] body> :not(#portal-session-guard):not(script):not(style){display:none!important}#portal-session-guard{max-width:600px;margin:12vh auto;padding:32px;color:#202632;background:#f7f9fc;border:1px solid #dfe5ec;border-radius:16px;font:16px/1.6 system-ui}#portal-session-guard a{color:#2359a8}#portal-session-guard button{padding:10px 16px;cursor:pointer}</style></head>');
+    outputHtml = outputHtml.replace(/<script src="\/staff-admin-card\.js\?rev=\d+"><\/script>/g, '');
+  }
+  writeFileSync(path, outputHtml);
 }
 cpSync(resolve(root, 'notification-center.js'), resolve(root, 'dist', 'notification-center.js'));
 cpSync(resolve(root, 'shift-close-contract.js'), resolve(root, 'dist', 'shift-close-contract.js'));
+const portalBootstrap = readFileSync(resolve(root, 'portal-session.js'), 'utf8').replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`);
+writeFileSync(resolve(root, 'portal-session.js'), portalBootstrap);
+cpSync(resolve(root, 'portal-session.js'), resolve(root, 'dist', 'portal-session.js'));
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
@@ -123,3 +139,5 @@ cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'asset
 cpSync(resolve(root, 'assets', 'login-background.mp4'), resolve(root, 'dist', 'assets', 'login-background.mp4'));
 cpSync(resolve(root, 'assets', 'brand'), resolve(root, 'dist', 'assets', 'brand'), { recursive: true });
 cpSync(resolve(root, 'header-shell.js'), resolve(root, 'dist', 'header-shell.js'));
+
+cpSync(resolve(root, 'staff-display-name.js'), resolve(root, 'dist', 'staff-display-name.js'));

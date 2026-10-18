@@ -1,0 +1,92 @@
+[
+  {
+    "file": "scripts/ui-semantic-token-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui-role-shell-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui-component-primitives-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui-navigation-context-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui-dialog-lifecycle-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui-dialog-mounted-form-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui042-ordinary-editor-contract.mjs",
+    "bytesExact": false,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui042-table-schedule-contract.mjs",
+    "bytesExact": false,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui043-lock-lifecycle-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui051-presentation-contract.mjs",
+    "bytesExact": false,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui052-presentation-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui061-source-runtime-qa.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui062-source-runtime-qa.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui071-source-runtime-qa.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui083-effects-cascade-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui091-desktop-readability-contract.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/ui091-platform-retry-qa.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  },
+  {
+    "file": "scripts/staff-cursor-zone-qa.mjs",
+    "bytesExact": true,
+    "assertionsPreserved": true
+  }
+]

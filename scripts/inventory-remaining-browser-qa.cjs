@@ -66,7 +66,7 @@ const assert = require('node:assert/strict');
       await page.screenshot({ path: `${folder}/premix-empty-${width}.png`, fullPage: true });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'page width');
     }
-    const recipe = await post('/api/recipes', { name: 'QA Premix recipe', recipeType: 'premix', yieldQuantity: 1, yieldUnit: 'шт', portionCount: 1, ingredients: [{ ingredientId: items[0].id, quantity: 1, unit: 'шт' }] });
+    const recipe = await post('/api/recipes', { name: 'QA Premix recipe', recipeType: 'premix', outputIngredientId: items[1].id, yieldQuantity: 1, yieldUnit: 'шт', portionCount: 1, ingredients: [{ ingredientId: items[0].id, quantity: 1, unit: 'шт' }] });
     for (const width of [1920, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
       await page.goto(base + '/inventory?view=premixes', { waitUntil: 'networkidle' }); await closeMenu();
