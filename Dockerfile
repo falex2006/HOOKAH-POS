@@ -9,6 +9,7 @@ COPY assets ./assets
 COPY notification-center.js ./
 COPY finance-payable-recognition.js finance-report-venue-access.js finance-other-income.js finance-expense-drafts.js finance-expense-corrections.js finance-expense-refunds.js ui-dialog.js ./
 COPY audit-privacy.js ./
+COPY payroll-snapshot-persistence.js payroll-typed-snapshot-serializer.js payroll-milestone-storage-serializer.js ./
 COPY effective-permissions.js order-preparation.js reservation-calendar.js ./
 COPY staff-schedule-domain.js staff-schedule-access.js staff-schedule-service.js staff-schedule-routes.js staff-schedule-personal.js ./
 COPY staff-schedule-ui.js staff-schedule-ui.css staff-schedule-personal-ui.js ./

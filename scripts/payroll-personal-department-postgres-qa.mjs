@@ -43,6 +43,10 @@ try {
     return { org, venue: venueId };
   };
   const local = await organization('local'), foreign = await organization('foreign'), venue = local.venue;
+  // These are real tenant-scoped departments, not arbitrary saved-key fallbacks.
+  await db.query(`INSERT INTO inventory_departments(venue_id,code,name,is_active)
+    VALUES($1,'bar','Бар',true),($1,'hookah','Кальяны',true)
+    ON CONFLICT(venue_id,code) DO UPDATE SET name=EXCLUDED.name,is_active=true`, [venue]);
   const users = {};
   for (const [key, role, membership, tenant] of [['owner', 'owner', 'owner', local], ['a', 'bartender', 'member', local], ['b', 'bartender', 'member', local], ['reader', 'manager', 'member', local], ['foreignOwner', 'owner', 'owner', foreign]]) {
     const login = `payroll-department-${process.pid}-${key.toLowerCase()}`;

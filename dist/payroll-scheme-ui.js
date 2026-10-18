@@ -70,7 +70,7 @@
   const editorDepartmentPath = path => path === 'department' || path === 'cap.department';
   // Editor and submit-time impact/risk checks must accept the same paths.
   const EDITOR_OVERRIDE_PATH = /^(mode|applyMilestones|milestoneEligibility|department|perShiftCents|stableRateBps|targetCents|teamWeight|baseRateBps|bonusRateBps|excessRatePolicy|lossPolicy|itemRuleBasis|bracketRatesBps\.\d+|cap\.(rateBps|basis|department)|milestoneBonusesCents\.\d+)$/;
-  const EDITOR_DEPARTMENT_HELP = 'Для лимита по личному обороту цеха сначала используется «Цех лимита» (cap.department), а если он не задан — «Цех сотрудника» (department). Каждый параметр наследуется отдельно: цех лимита роли имеет приоритет даже над личным цехом сотрудника. Смена цеха может увеличить сумму выплаты при прежнем проценте. Эти настройки не меняют цех проданных строк и не подтверждают работу в смене.';
+  const EDITOR_DEPARTMENT_HELP = 'Для лимита по личному обороту цеха сначала используется «Цех лимита», а если он не задан — «Цех сотрудника». Каждый параметр наследуется отдельно: цех лимита роли имеет приоритет даже над личным цехом сотрудника. Смена цеха может увеличить сумму выплаты при прежнем проценте. Эти настройки не меняют цех проданных строк и не подтверждают работу в смене.';
   const editorValue = (text, type) => {
     if (type === 'milestoneEligibility') return editorMilestoneEligibilityValue(text);
     if (type === 'departmentKey') return text === '' ? undefined : editorDepartmentKey(text);
@@ -214,9 +214,9 @@
   const editorRoleImpactHtml = (entries, changedPath) => {
     const groups = new Map();
     for (const item of entries.slice(0, 200)) { const list = groups.get(item.employeeId) || []; list.push(item); groups.set(item.employeeId, list); }
-    const heading = changedPath === undefined ? 'Персональные значения, перекрывающие параметры роли' : `Персональные значения для ${changedPath}`;
+    const heading = changedPath === undefined ? 'Персональные значения, перекрывающие параметры роли' : `Персональные значения для «${editorParameterLabel(changedPath)}»`;
     if (!entries.length) return `<p>${escapeHtml(changedPath === undefined ? 'Персональных значений этой роли в периоде версии нет.' : 'Персональных значений для этого параметра в периоде версии нет.')}</p>`;
-    return `<p>${escapeHtml(heading)}. Изменение роли не заменяет эти личные значения; итог выплаты зависит и от других правил.${entries.length > 200 ? ` Показаны первые 200 из ${entries.length} периодов; полный список — в карточках личных параметров.` : ''}</p><ul>${[...groups].map(([id, items]) => `<li>${escapeHtml(id)}<ul>${items.map((item) => `<li>${escapeHtml(item.path)}: ${escapeHtml(['money', 'rate'].includes(editorOverrideType(item.path)) ? editorFormat(item.value) : String(item.value))} · ${escapeHtml(item.from)} — ${escapeHtml(item.to === '9999-12-31' ? 'без даты окончания' : item.to)}</li>`).join('')}</ul></li>`).join('')}</ul>`;
+    return `<p>${escapeHtml(heading)}. Изменение роли не заменяет эти личные значения; итог выплаты зависит и от других правил.${entries.length > 200 ? ` Показаны первые 200 из ${entries.length} периодов; полный список — в карточках личных параметров.` : ''}</p><ul>${[...groups].map(([id, items]) => `<li>${escapeHtml(editorEmployeeLabel(id))}<ul>${items.map((item) => `<li>${escapeHtml(editorParameterLabel(item.path))}: ${escapeHtml(['money', 'rate'].includes(editorOverrideType(item.path)) ? editorFormat(item.value) : editorDepartmentPath(item.path) ? editorDepartmentLabel(item.value) : String(item.value))} · ${escapeHtml(item.from)} — ${escapeHtml(item.to === '9999-12-31' ? 'без даты окончания' : item.to)}</li>`).join('')}</ul></li>`).join('')}</ul>`;
   };
   const editorPersonalCapIncreases = (definition) => {
     const normalized = structuredClone(definition);
@@ -283,8 +283,8 @@
       if(!context.roleId||['ambiguous','missing_role'].includes(context.origin))return `На ${context.date}: ${context.origin==='ambiguous'?'назначения ролей пересекаются — проверьте даты':'роль не определена'}. Наследуемое значение не определено.`;
       const labels={role:'роль',scheme:'схема',role_mode:'режим роли',legacy_default:'прежнее правило',absent:'не задано'},type=editorOverrideType(item.path||'');
       const value=context.value===undefined?'не задано (при наследовании личный параметр отсутствует)':typeof context.value==='boolean'?(context.value?'начислять':'не начислять')
-        :type==='milestoneEligibility'?EDITOR_MILESTONE_LABELS[context.value]:['money','rate'].includes(type)?editorFormat(context.value):String(context.value);
-      return `На ${context.date} · роль: ${context.roleId} · наследуемое значение: ${value} · источник: ${labels[context.origin]}. ${editorDepartmentPath(item.path)?'Показано наследование именно этого параметра; при расчёте цех лимита имеет приоритет над цехом сотрудника.':'Пустое личное значение не равно нулю.'}`;
+        :type==='milestoneEligibility'?EDITOR_MILESTONE_LABELS[context.value]:['money','rate'].includes(type)?editorFormat(context.value):type==='departmentKey'?editorDepartmentLabel(context.value):String(context.value);
+      return `На ${context.date} · роль: ${editorRoleLabel(context.roleId)} · наследуемое значение: ${value} · источник: ${labels[context.origin]}. ${editorDepartmentPath(item.path)?'Показано наследование именно этого параметра; при расчёте цех лимита имеет приоритет над цехом сотрудника.':'Пустое личное значение не равно нулю.'}`;
     }catch(error){return `Наследование не определено: ${error.message}`;}
   };
   const editorMilestoneThresholds = (definition) => {
@@ -313,6 +313,52 @@
     ['teamFund.targetCents', 'Ориентир фонда', 'money'], ['teamFund.baseRateBps', 'База фонда, %', 'rate'], ['teamFund.bonusRateBps', 'Повышенная ставка фонда, %', 'rate'],
     ['teamFund.excessRatePolicy', 'Ставка фонда сверх ориентира', 'select', ['replace_base', 'add_to_base']], ['teamFund.distributionPolicy', 'Распределение фонда', 'select', ['approved_minutes', 'configured_weights']]
   ];
+  const editorStatusLabel = status => ({ draft:'Черновик', active:'Активна', retired:'Заменена новой версией', archived:'В архиве', ready:'Сценарий рассчитан', blocked:'Расчёт заблокирован' })[status] || String(status || '');
+  const editorParameterLabel = path => {
+    const field = EDITOR_FIELDS.find(row => row[0] === path);
+    if (field) return field[1];
+    const threshold = /^(bracketRatesBps|milestoneBonusesCents)\.(\d+)$/.exec(path);
+    return threshold ? `${threshold[1] === 'bracketRatesBps' ? 'Ставка, %' : 'Премия'} при обороте от ${editorFormat(Number(threshold[2]))}` : `Сохранённый параметр: ${path}`;
+  };
+  const editorParameterOptions = (definition, current = '') => {
+    const paths = new Set(EDITOR_FIELDS.map(row => row[0]).filter(path => EDITOR_OVERRIDE_PATH.test(path)));
+    for (const role of Object.values(definition?.roleParameters || {})) {
+      for (const group of ['bracketRatesBps', 'milestoneBonusesCents']) {
+        for (const key of Object.keys(role[group] || {})) if (/^\d+$/.test(key)) paths.add(`${group}.${key}`);
+      }
+    }
+    if (current) paths.add(current);
+    return [...paths].map(value => ({ value, label: editorParameterLabel(value) }));
+  };
+  const editorEmployeeOptions = (staff, definition, current = '') => {
+    const byId = new Map();
+    for (const row of staff || []) if (typeof row?.id === 'string' && row.id && !byId.has(row.id)) byId.set(row.id, row);
+    const ids = new Set([...byId.keys(), ...(definition?.roleAssignments || []).map(row => row.employeeId), ...(definition?.employeeOverrides || []).map(row => row.employeeId)]);
+    if (current) ids.add(current);
+    const names = new Map();
+    for (const row of byId.values()) { const name = row.name || row.login || row.id; names.set(name, (names.get(name) || 0) + 1); }
+    return [...ids].filter(id => typeof id === 'string' && id).map(value => {
+      const row = byId.get(value);
+      if (!row) return { value, label: `Сотрудник вне справочника · ${value}` };
+      const name = row.name || row.login || value;
+      const duplicate = names.get(name) > 1 ? ` · ${row.login || value}` : '';
+      return { value, label: `${name}${duplicate}${row.role ? ` · ${editorRoleLabel(row.role)}` : ''}${row.active === false ? ' · неактивен' : ''}` };
+    });
+  };
+  const editorDepartmentOptions = (departments, current = '') => {
+    const rows = new Map();
+    for (const row of departments || []) {
+      const key = row?.code ?? row?.id;
+      try { editorDepartmentKey(key); } catch (_) { continue; }
+      if (!rows.has(key)) rows.set(key, { value:key, label:`${row.name || key} · ${key}${row.active === false ? ' · в архиве' : ''}` });
+    }
+    if (current && !rows.has(current)) rows.set(current, { value:current, label:`Сохранённый цех · ${current}` });
+    return [...rows.values()];
+  };
+  const editorOptionsHtml = (options, current, placeholder) => `<option value="">${escapeHtml(placeholder)}</option>${options.map(row => `<option value="${escapeHtml(row.value)}"${row.value === current ? ' selected' : ''}>${escapeHtml(row.label)}</option>`).join('')}`;
+  let ownerStaff = [], ownerDepartments = [];
+  const editorEmployeeLabel = id => editorEmployeeOptions(ownerStaff, null, id).find(row => row.value === id)?.label || id;
+  const editorDepartmentLabel = key => editorDepartmentOptions(ownerDepartments, key).find(row => row.value === key)?.label || key;
   const SOURCE_POLICY_SALES = ['line_seller_snapshot', 'order_responsible_snapshot', 'explicit_line_allocation'];
   const SOURCE_POLICY_DISCOUNTS = ['immutable_line_snapshot', 'eligible_gross_proportional_fixed_order'];
   const SOURCE_POLICY_REFUNDS = ['recognized_event_date', 'original_sale_period_correction'];
@@ -497,7 +543,7 @@
         const shifts = row.qualifyingShiftIds.slice(0, renderBudget.milestoneShiftIds);
         renderBudget.milestoneShiftIds -= shifts.length;
         const hiddenShifts = row.qualifyingShiftIds.length - shifts.length;
-        return `<li data-milestone-decision-row><strong>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</strong> · ${escapeHtml(row.roleId)} · ${escapeHtml(row.date)}<p>Порог ${money(row.thresholdCents, currency)} · оборот до пересечения ${money(row.previousTurnoverCents, currency)} → ${money(row.cumulativeTurnoverCents, currency)}</p><p>${escapeHtml(policies[row.eligibility])} · ${escapeHtml(reasons[row.reason])} · заявленная премия ${money(row.declaredBonusCents, currency)} · премия сценария до лимитов ${money(row.awardedAmountCents, currency)}</p><p>Утверждённые минуты сценария: ${escapeHtml(row.approvedWorkedMinutes)} · смены: ${shifts.length ? shifts.map(escapeHtml).join(', ') : 'нет'}${hiddenShifts ? ` · Скрыто ${hiddenShifts} ссылок на смены` : ''}</p></li>`;
+        return `<li data-milestone-decision-row><strong>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</strong> · ${escapeHtml(editorRoleLabel(row.roleId))} · ${escapeHtml(row.date)}<p>Порог ${money(row.thresholdCents, currency)} · оборот до пересечения ${money(row.previousTurnoverCents, currency)} → ${money(row.cumulativeTurnoverCents, currency)}</p><p>${escapeHtml(policies[row.eligibility])} · ${escapeHtml(reasons[row.reason])} · заявленная премия ${money(row.declaredBonusCents, currency)} · премия сценария до лимитов ${money(row.awardedAmountCents, currency)}</p><p>Утверждённые минуты сценария: ${escapeHtml(row.approvedWorkedMinutes)} · смены: ${shifts.length ? shifts.map(escapeHtml).join(', ') : 'нет'}${hiddenShifts ? ` · Скрыто ${hiddenShifts} ссылок на смены` : ''}</p></li>`;
       }).join('');
       const hidden = day.milestoneDecisions.length - shown.length;
       return `<section data-milestone-decisions><h4>Решения о пороговых премиях</h4><p class="muted">Сценарные суммы до применения лимитов. Источник посещаемости и право на выплату этим объяснением не подтверждены.</p>${rows ? `<ul>${rows}</ul>` : '<p>Нет решений по порогам в пределах отображения.</p>'}${hidden ? `<p>Скрыто ${hidden} решений по общему лимиту отображения.</p>` : ''}</section>`;
@@ -521,7 +567,7 @@
         const targetDetail = target?.status === 'blocked' ? `<small>Личный дневной план: ${escapeHtml(blockerLabels[target.blocker] || target.blocker || 'расчёт заблокирован')}</small>`
           : target ? `<small>Личный дневной план ${money(target.targetCents, currency)} · комиссионная база ${money(target.basisCents, currency)} · сверх плана ${money(target.excessCents, currency)} · ${target.excessRatePolicy === 'add_to_base' ? 'повышенная ставка добавляется к базовой' : 'повышенная ставка заменяет базовую сверх плана'} · базовая часть ${money(target.baseCommissionCents, currency)} · часть сверх плана ${money(target.excessCommissionCents, currency)}</small>` : '';
         const fundDetail = Number.isSafeInteger(row.teamFundCents) && row.mode === 'team_fund' ? `<small>Доля командного фонда до лимитов: ${money(row.teamFundCents, currency)}</small>` : '';
-        return `<tr><td>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</td><td>${escapeHtml(row.roleId || '')}</td><td>${money(row.basePayCents, currency)}</td><td>${money(row.commissionCents, currency)}${targetDetail}${marginDetail}</td><td>${money(row.milestoneBonusCents, currency)}</td><td>${money(row.capCents, currency)}</td><td>${money(row.capReductionCents, currency)}</td><td><strong>${money(row.amountCents, currency)}</strong>${fundDetail}</td>${baselineCells}</tr>`;
+        return `<tr><td>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</td><td>${escapeHtml(editorRoleLabel(row.roleId || ''))}</td><td>${money(row.basePayCents, currency)}</td><td>${money(row.commissionCents, currency)}${targetDetail}${marginDetail}</td><td>${money(row.milestoneBonusCents, currency)}</td><td>${money(row.capCents, currency)}</td><td>${money(row.capReductionCents, currency)}</td><td><strong>${money(row.amountCents, currency)}</strong>${fundDetail}</td>${baselineCells}</tr>`;
       }).join('');
       const shifts = employeeShown.flatMap((row) => (row.shiftDetails || []).map((shift) => `<tr><td>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</td><td>${escapeHtml(shift.shiftId)}</td><td>${escapeHtml(shift.workedMinutes)} / ${escapeHtml(shift.plannedMinutes)} мин</td><td>${money(shift.amountCents, currency)}</td></tr>`)).join('');
       const lineSource = day.lines || [];
@@ -534,7 +580,7 @@
           : line.teamFundSource?.included ? 'Вклад в общий фонд; доля сотрудника показана отдельно'
           : Number.isInteger(line.appliedRateBps) ? `${(line.appliedRateBps / 100).toLocaleString('ru-RU')}%` : '—';
         const costDetail = line.costSnapshot ? `<small>Себестоимость ${money(line.costSnapshot.costCents, currency)} · маржа строки ${money(line.signedMarginCents, currency)} · снимок ${escapeHtml(line.costSnapshot.id)} / ${escapeHtml(line.costSnapshot.version)}${line.marginPoolExcluded ? ' · строка исключена из маржинального плана позиционной ставкой от выручки' : ''}</small>` : '';
-        return `<tr><td>${escapeHtml(line.lineId)}</td><td>${escapeHtml(employeeNames.get(line.employeeId) || line.employeeId)}</td><td>${escapeHtml(line.menuItemId || '—')}</td><td>${escapeHtml(line.department)}</td><td>${money(line.commissionBaseCents, currency)}${costDetail}</td><td>${escapeHtml(rateLabel)}</td><td>${money(line.commissionCents, currency)}</td></tr>`;
+        return `<tr><td>${escapeHtml(line.lineId)}</td><td>${escapeHtml(employeeNames.get(line.employeeId) || line.employeeId)}</td><td>${escapeHtml(line.menuItemId || '—')}</td><td>${escapeHtml(editorDepartmentLabel(line.department))}</td><td>${money(line.commissionBaseCents, currency)}${costDetail}</td><td>${escapeHtml(rateLabel)}</td><td>${money(line.commissionCents, currency)}</td></tr>`;
       }).join('');
       const omittedEmployees = employeeSource.length - employeeShown.length;
       const omittedLines = lineSource.length - lineShown.length;
@@ -549,10 +595,10 @@
       const omitted = pools + (omittedEmployees || omittedLines ? `<p class="muted">Детализация ограничена: скрыто ${omittedEmployees} дневных строк сотрудников и ${omittedLines} строк продаж. Общие суммы выше рассчитаны полностью.</p>` : '');
       return `<details class="finance-scheme-day"><summary>${escapeHtml(day.date)} · выручка ${money(day.venueTurnoverCents, currency)} · накопительно ${money(day.cumulativeVenueTurnoverCents, currency)}</summary><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>Роль</th><th>Оклад</th><th>Комиссия</th><th>Премия</th><th>Лимит</th><th>Срезано</th><th>Итого</th>${baselineResult ? '<th>База</th><th>Δ к базе</th>' : ''}</tr></thead><tbody>${employeeRows || `<tr><td colspan="${baselineResult ? 10 : 8}">Нет начислений за день</td></tr>`}</tbody></table></div>${renderMilestoneDecisions(day)}<h4>Утверждённые смены</h4><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>ID смены</th><th>Факт / план</th><th>Начислено</th></tr></thead><tbody>${shifts || '<tr><td colspan="4">Подтверждённые смены отсутствуют.</td></tr>'}</tbody></table></div><h4>Строки продаж и комиссия</h4><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>ID строки</th><th>Сотрудник</th><th>Позиция</th><th>Цех</th><th>База комиссии</th><th>Ставка</th><th>Комиссия</th></tr></thead><tbody>${lines || '<tr><td colspan="7">Детализация отсутствует или ограничена общим лимитом отображения.</td></tr>'}</tbody></table></div>${omitted}</details>`;
     }).join('');
-    return `${renderBlockers(result)}${renderCriticalErrors(result, employeeNames, currency)}<p><strong>${escapeHtml(result.periodFrom)} — ${escapeHtml(result.periodTo)} · ${escapeHtml(result.status)}</strong> · месячная база ${money(result.monthTurnoverCents, currency)}</p><p class="muted">Сценарная проверка по приписанному обороту сотрудника; это не официальный payroll-run и не подтверждение права на выплату.</p><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>Смены</th><th>Приписанный оборот</th><th>Оклад</th><th>Комиссия</th><th>Премии</th><th>Срезано cap</th><th>Итого</th></tr></thead><tbody>${(result.employees || []).map((row) => `<tr><td>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</td><td>${escapeHtml(row.shifts)}</td><td>${money(row.personalRevenueCents, currency)}</td><td>${money(row.basePayCents, currency)}</td><td>${money(row.commissionCents, currency)}</td><td>${money(row.milestoneBonusCents, currency)}</td><td>${money(row.capReductionCents, currency)}</td><td><strong>${money(row.amountCents, currency)}</strong>${row.teamFundCents ? `<small>Командный фонд за период до лимитов: ${money(row.teamFundCents, currency)}</small>` : ''}</td></tr>`).join('') || '<tr><td colspan="8">Нет сотрудников в расчёте</td></tr>'}</tbody></table></div><h4>Детализация по дню и чеку</h4>${daily || '<p class="empty">Нет дневных данных.</p>'}`;
+    return `${renderBlockers(result)}${renderCriticalErrors(result, employeeNames, currency)}<p><strong>${escapeHtml(result.periodFrom)} — ${escapeHtml(result.periodTo)} · ${escapeHtml(editorStatusLabel(result.status))}</strong> · месячная база ${money(result.monthTurnoverCents, currency)}</p><p class="muted">Сценарная проверка по приписанному обороту сотрудника; это не официальный payroll-run и не подтверждение права на выплату.</p><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>Смены</th><th>Приписанный оборот</th><th>Оклад</th><th>Комиссия</th><th>Премии</th><th>Уменьшено лимитом</th><th>Итого</th></tr></thead><tbody>${(result.employees || []).map((row) => `<tr><td>${escapeHtml(employeeNames.get(row.employeeId) || row.employeeId)}</td><td>${escapeHtml(row.shifts)}</td><td>${money(row.personalRevenueCents, currency)}</td><td>${money(row.basePayCents, currency)}</td><td>${money(row.commissionCents, currency)}</td><td>${money(row.milestoneBonusCents, currency)}</td><td>${money(row.capReductionCents, currency)}</td><td><strong>${money(row.amountCents, currency)}</strong>${row.teamFundCents ? `<small>Командный фонд за период до лимитов: ${money(row.teamFundCents, currency)}</small>` : ''}</td></tr>`).join('') || '<tr><td colspan="8">Нет сотрудников в расчёте</td></tr>'}</tbody></table></div><h4>Детализация по дню и чеку</h4>${daily || '<p class="empty">Нет дневных данных.</p>'}`;
   };
   const renderPreview = (payload, previewInput) => {
-    const names = new Map((previewInput.employees || []).filter((employee) => employee && typeof employee === 'object').map((employee) => [employee.id, employee.name || employee.fullName || employee.id]));
+    const names = new Map((previewInput.employees || []).filter((employee) => employee && typeof employee === 'object').map((employee) => [employee.id, employee.name || employee.fullName || editorEmployeeLabel(employee.id)]));
     const policyNotice = payload.result?.sourcePolicyEvaluation?.state === 'selected_not_applied'
       ? '<div class="warning-message" role="note" data-source-policy-preview-notice><strong>Выбранные правила источников ещё не применены</strong><p>Расчёт использует входные данные сценария. Источники и выполнение выбранных правил ещё не подтверждены. Результат не является официальным начислением и не сохраняется.</p></div>' : '';
     return `${policyNotice}${renderDetails(payload.result || {}, names)}`;
@@ -574,14 +620,14 @@
     return `${notice}${renderPreview(payload, previewInput)}`;
   };
   const renderComparison = (payload, previewInput) => {
-    const names = new Map((previewInput.employees || []).filter((employee) => employee && typeof employee === 'object').map((employee) => [employee.id, employee.name || employee.fullName || employee.id]));
+    const names = new Map((previewInput.employees || []).filter((employee) => employee && typeof employee === 'object').map((employee) => [employee.id, employee.name || employee.fullName || editorEmployeeLabel(employee.id)]));
     const baseline = (payload.results || []).find((entry) => entry.scheme.versionId === payload.baselineVersionId)?.result;
     const currency = payload.currency || payload.results?.[0]?.result?.currency || 'RUB';
     const summaryByVersion = new Map((payload.comparisons || []).map((item) => [item.versionId, item]));
     const summaries = (payload.results || []).map((entry) => { const item = summaryByVersion.get(entry.scheme.versionId) || {}; return `<tr><td>${escapeHtml(entry.scheme.name)}</td><td>${escapeHtml(entry.scheme.versionNo)}</td><td>${escapeHtml(item.status || entry.result.status)}</td><td>${money(item.totalCents, currency)}</td><td>${money(item.deltaToBaselineCents, currency)}</td></tr>`; }).join('');
     const versions = (payload.results || []).map((entry) => {
       const renderBudget = { employeeDays: MAX_COMPARE_EMPLOYEE_DAYS, lines: MAX_COMPARE_LINES };
-      return `<details class="finance-scheme-version"><summary>${escapeHtml(entry.scheme.name)} · версия ${escapeHtml(entry.scheme.versionNo)} · ${escapeHtml(entry.result.status)}</summary>${renderDetails(entry.result, names, entry.scheme.versionId === payload.baselineVersionId ? null : baseline, renderBudget)}</details>`;
+      return `<details class="finance-scheme-version"><summary>${escapeHtml(entry.scheme.name)} · версия ${escapeHtml(entry.scheme.versionNo)} · ${escapeHtml(editorStatusLabel(entry.result.status))}</summary>${renderDetails(entry.result, names, entry.scheme.versionId === payload.baselineVersionId ? null : baseline, renderBudget)}</details>`;
     }).join('');
     return `<p>Сравнение использует один входной сценарий для всех версий. Валюта: ${escapeHtml(currency)}.</p><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Схема</th><th>Версия</th><th>Статус</th><th>Итого</th><th>Δ к базовой версии</th></tr></thead><tbody>${summaries}</tbody></table></div>${versions}`;
   };
@@ -686,7 +732,7 @@
           <label>Причина выбора<textarea data-source-policy-reason rows="2" maxlength="1000"></textarea></label><button type="button" class="button" data-source-policy-apply>Применить правила к черновику</button><p data-source-policy-message role="status" aria-live="polite"></p>
         </fieldset>
         <details data-scheme-advanced><summary>Расширенная конфигурация JSON</summary><label>Конфигурация версии <textarea data-scheme-definition rows="18" spellcheck="false" required></textarea></label></details>
-        <p class="muted">Обязательные поля: mode, effectiveFrom, roleParameters, roleAssignments, employeeOverrides, itemRules. Сотрудников назначайте по UUID из списка персонала. Денежные суммы задаются в копейках, ставки — в basis points. Явный ноль отличается от наследования.</p>
+        <p class="muted">Обязательные поля: mode, effectiveFrom, roleParameters, roleAssignments, employeeOverrides, itemRules. В расширенной конфигурации используются идентификаторы сотрудников из списка персонала. Денежные суммы задаются в копейках, ставки — в basis points. Явный ноль отличается от наследования.</p>
         <p class="muted">Режим personal_target — личный дневной план. В параметрах роли задайте perShiftCents, targetCents, baseRateBps, bonusRateBps и excessRatePolicy: replace_base заменяет ставку сверх плана, add_to_base добавляет её. План начинается заново каждый день; обе части округляются отдельно до копейки. Позиционная замена исключает строку из плана, добавочная ставка сохраняет её в плане.</p>
         <p class="muted">Режим team_fund — один командный фонд за день. В roleParameters задайте teamFund: poolId, targetCents, baseRateBps, bonusRateBps, excessRatePolicy, departments и distributionPolicy. approved_minutes распределяет по утверждённым минутам; configured_weights — по teamWeight активных сотрудников независимо от выхода в этот день. Общие параметры одного poolId должны совпадать у всех ролей. Лимиты применяются после распределения; срезанная сумма не переходит другим сотрудникам.</p>
         <p class="muted">Режим margin_target — процент от дневной маржи продаж сотрудника: комиссионная база минус полная себестоимость строки. Задайте параметры личного плана, lossPolicy: offset_daily_losses и itemRuleBasis: net_revenue. В каждой строке sales нужен costSnapshot с id, version, currency и costCents — полной себестоимостью оставшегося количества после возвратов. Убытки уменьшают общую дневную маржу; текущая себестоимость меню не подставляется. Позиционные ставки явно остаются от выручки: replacement исключает строку из маржинального плана, additive сохраняет её и может платить комиссию даже при отрицательной марже дня.</p>
@@ -738,7 +784,7 @@
         const rows = editorPersonalCapIncreases(definition);
         personalCapBox.hidden = rows.length === 0;
         personalCapBox.dataset.state = 'valid';
-        personalCapList.innerHTML = `<p>Личный процент лимита выше роли. При разных базах проценты не определяют сравнение итоговой суммы. Сервер повторно проверит выбор.</p><ul>${rows.slice(0, 200).map((row) => `<li>${escapeHtml(row.employeeId)} · ${escapeHtml(row.roleId)} · ${escapeHtml(editorFormat(row.roleRateBps))}% → ${escapeHtml(editorFormat(row.personalRateBps))}% · ${escapeHtml(row.effectiveFrom)} — ${escapeHtml(row.effectiveTo || 'без окончания')}</li>`).join('')}</ul>${rows.length > 200 ? `<p>Всего периодов: ${rows.length}. Остальные перечислены в личных параметрах.</p>` : ''}`;
+        personalCapList.innerHTML = `<p>Личный процент лимита выше роли. При разных базах проценты не определяют сравнение итоговой суммы. Сервер повторно проверит выбор.</p><ul>${rows.slice(0, 200).map((row) => `<li>${escapeHtml(editorEmployeeLabel(row.employeeId))} · ${escapeHtml(editorRoleLabel(row.roleId))} · ${escapeHtml(editorFormat(row.roleRateBps))}% → ${escapeHtml(editorFormat(row.personalRateBps))}% · ${escapeHtml(row.effectiveFrom)} — ${escapeHtml(row.effectiveTo || 'без окончания')}</li>`).join('')}</ul>${rows.length > 200 ? `<p>Всего периодов: ${rows.length}. Остальные перечислены в личных параметрах.</p>` : ''}`;
       } catch (error) {
         personalCapBox.hidden = false; personalCapBox.dataset.state = 'invalid'; personalCapField.disabled = true;
         personalCapList.textContent = `Не удалось проверить личные лимиты: ${error.message}`;
@@ -901,7 +947,7 @@
     };
     const gridControl = (role, path, type, value, choices = []) => {
       if (type === 'departmentKey' && value !== undefined) editorDepartmentKey(value);
-      const attrs = `data-grid-role="${escapeHtml(role)}" data-grid-path="${escapeHtml(path)}" data-grid-type="${type === 'select' ? 'text' : type}" aria-label="${escapeHtml(`${role}: ${path}`)}"`;
+      const attrs = `data-grid-role="${escapeHtml(role)}" data-grid-path="${escapeHtml(path)}" data-grid-type="${type === 'select' ? 'text' : type}" aria-label="${escapeHtml(`${editorRoleLabel(role)}: ${editorParameterLabel(path)}`)}"`;
       const formatted = ['money', 'rate'].includes(type) ? editorFormat(value) : type === 'departments' && Array.isArray(value) ? value.join(', ') : value ?? '';
       if (path === 'milestoneEligibility') {
         const inherited=gridSource.milestoneEligibility===undefined?'all_active':gridSource.milestoneEligibility;
@@ -913,6 +959,7 @@
         const inherited = editorRoleMilestonesDefault(gridSource, role);
         return `<select ${attrs}><option value="" ${value === undefined ? 'selected' : ''}>Наследовать: ${inherited ? 'начислять' : 'не начислять'} (схема / режим)</option><option value="true" ${value === true ? 'selected' : ''}>Начислять</option><option value="false" ${value === false ? 'selected' : ''}>Не начислять</option></select>`;
       }
+      if (type === 'departmentKey') return `<select ${attrs}>${editorOptionsHtml(editorDepartmentOptions(ownerDepartments, formatted), formatted, 'Не задано / наследовать')}</select>`;
       return type === 'select' ? `<select ${attrs}><option value="">${path === 'mode' ? escapeHtml(`По схеме: ${EDITOR_CHOICE_LABELS[gridSource.mode] || gridSource.mode}`) : 'Не задано / наследовать'}</option>${[...new Set([...choices, ...(value && !choices.includes(value) ? [value] : [])])].map((choice) => `<option value="${escapeHtml(choice)}" ${choice === value ? 'selected' : ''}>${escapeHtml(EDITOR_CHOICE_LABELS[choice] || choice)}</option>`).join('')}</select>`
         : `<input ${attrs} value="${escapeHtml(formatted)}" ${['money', 'rate', 'integer'].includes(type) ? 'inputmode="decimal"' : ''}>`;
     };
@@ -921,7 +968,7 @@
       if (type === 'departmentKey' && item.mode === 'override') editorDepartmentKey(item.value);
       const value = item.mode === 'override' ? ['money', 'rate'].includes(type) ? editorFormat(item.value) : String(item.value ?? '') : '';
       const inheritedCaption = editorInheritedCaption(gridSource,item);
-      return `<section data-grid-override="${index === null ? 'new' : index}"><p data-grid-inherited-caption>${escapeHtml(inheritedCaption)}</p><div class="form-row"><label>UUID сотрудника<input data-grid-employee value="${escapeHtml(item.employeeId || '')}" list="payroll-grid-employees"></label><label>Параметр<input data-grid-override-path value="${escapeHtml(item.path || '')}" placeholder="perShiftCents, bracketRatesBps.0, cap.rateBps, department"></label><label>Назначение<select data-grid-override-mode><option value="override" ${item.mode !== 'inherit' ? 'selected' : ''}>Персонально</option><option value="inherit" ${item.mode === 'inherit' ? 'selected' : ''}>По роли</option></select></label><label>${type === 'departmentKey' ? 'Код личного цеха' : 'Личное значение (сумма / %)'}<input data-grid-override-value value="${escapeHtml(value)}"></label><label>С даты<input type="date" data-grid-override-from value="${escapeHtml(item.effectiveFrom || '')}"></label><label>По дату<input type="date" data-grid-override-to value="${escapeHtml(item.effectiveTo || '')}"></label></div><button type="button" class="button" data-grid-inherit>Вернуть к ставке роли для этого периода</button></section>`;
+      return `<section data-grid-override="${index === null ? 'new' : index}"><p data-grid-inherited-caption>${escapeHtml(inheritedCaption)}</p><div class="form-row"><label>Сотрудник<select data-grid-employee>${editorOptionsHtml(editorEmployeeOptions(ownerStaff, gridSource, item.employeeId), item.employeeId, 'Выберите сотрудника')}</select></label><label>Параметр<select data-grid-override-path>${editorOptionsHtml(editorParameterOptions(gridSource, item.path), item.path, 'Выберите параметр')}</select></label><label>Назначение<select data-grid-override-mode><option value="override" ${item.mode !== 'inherit' ? 'selected' : ''}>Персонально</option><option value="inherit" ${item.mode === 'inherit' ? 'selected' : ''}>По роли</option></select></label><label data-grid-value-label><span>${type === 'departmentKey' ? 'Личный цех' : 'Личное значение (сумма / %)'}</span>${type === 'departmentKey' ? `<select data-grid-override-value>${editorOptionsHtml(editorDepartmentOptions(ownerDepartments, value), value, 'Выберите цех')}</select>` : `<input data-grid-override-value value="${escapeHtml(value)}">`}</label><label>С даты<input type="date" data-grid-override-from value="${escapeHtml(item.effectiveFrom || '')}"></label><label>По дату<input type="date" data-grid-override-to value="${escapeHtml(item.effectiveTo || '')}"></label></div><button type="button" class="button" data-grid-inherit>Вернуть к значению роли для этого периода</button></section>`;
     };
     const organizeGrid=()=>{
       const roles=[...grid.querySelectorAll(':scope > details')];
@@ -936,7 +983,7 @@
         fields.remove();const impact=role.querySelector('[data-grid-role-impact]');if(impact)disclosure(impact,'Какие личные условия перекрывают эту роль');
       });
       if(roles.length)grid.prepend(...roles);
-      const overrides=grid.querySelector('[data-grid-overrides]');if(overrides){const title=overrides.previousElementSibling?.previousElementSibling;const add=overrides.nextElementSibling;const personal=disclosure(overrides,'Индивидуальные условия сотрудников');if(title?.tagName==='H4')title.remove();const help=document.createElement('p');help.className='muted';help.textContent='Для личного цеха сотрудника укажите параметр department; для приоритетного цеха лимита — cap.department. '+EDITOR_DEPARTMENT_HELP;personal.append(help);if(add?.matches('[data-grid-add-override]'))personal.append(add);}
+      const overrides=grid.querySelector('[data-grid-overrides]');if(overrides){const title=overrides.previousElementSibling?.previousElementSibling;const add=overrides.nextElementSibling;const personal=disclosure(overrides,'Индивидуальные условия сотрудников');if(title?.tagName==='H4')title.remove();const help=document.createElement('p');help.className='muted';help.textContent='Выберите сотрудника, параметр и период действия личных условий. '+EDITOR_DEPARTMENT_HELP;personal.append(help);if(add?.matches('[data-grid-add-override]'))personal.append(add);}
     };
     const rebuildGrid = () => {
       try {
@@ -1006,6 +1053,20 @@
     };
     editor.addEventListener('input', resetPersonalCapAcknowledgement);
     editor.addEventListener('change', resetPersonalCapAcknowledgement);
+    grid.addEventListener('change', event => {
+      if (!event.target.matches('[data-grid-override-path]') || editorAction?.kind === 'inspect') return;
+      const card = event.target.closest('[data-grid-override]');
+      const old = card.querySelector('[data-grid-override-value]'), value = old.value;
+      const department = editorDepartmentPath(event.target.value);
+      const replacement = document.createElement(department ? 'select' : 'input');
+      replacement.dataset.gridOverrideValue = ''; replacement.disabled = old.disabled;
+      if (department) replacement.innerHTML = editorOptionsHtml(editorDepartmentOptions(ownerDepartments, value), value, 'Выберите цех');
+      else replacement.value = value;
+      const wrapper = old.parentElement;
+      if (wrapper?.classList.contains('custom-select')) wrapper.replaceWith(replacement);
+      else old.replaceWith(replacement);
+      card.querySelector('[data-grid-value-label] > span').textContent = department ? 'Личный цех' : 'Личное значение (сумма / %)';
+    });
     grid.addEventListener('input', markGridDirty);
     grid.addEventListener('change', markGridDirty);
     const refreshInheritedCaptions = () => {
@@ -1083,7 +1144,7 @@
     const sortedVersions = (scheme) => [...(scheme.versions || [])].sort((left, right) => Number(right.versionNo) - Number(left.versionNo));
     const renderList = () => {
       if (!schemes.length) { list.innerHTML = '<div class="empty">Схем пока нет. Создайте схему и сохраните первую черновую версию.</div>'; return; }
-      list.innerHTML = schemes.map((scheme) => `<article class="finance-scheme-card"><div class="panel-head"><div><h3>${escapeHtml(scheme.name)}</h3><small class="muted">${escapeHtml(scheme.description || 'Без описания')}</small></div></div><div class="finance-scheme-versions">${sortedVersions(scheme).map((version) => `<div class="payment-row"><label><input type="checkbox" data-scheme-compare-version="${escapeHtml(version.id)}"> Сравнить</label><span>Версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode] || version.mode)} · ${escapeHtml(version.effectiveFrom)}${version.effectiveTo ? ` — ${escapeHtml(version.effectiveTo)}` : ''}<small class="muted">${version.payoutRiskAcknowledgement?.configDigest ? `Риск подтверждён владельцем ${escapeHtml(version.payoutRiskAcknowledgement.acknowledgedAt || '')}` : 'Подтверждение риска не сохранено'}</small></span><span class="badge ${version.status === 'active' ? 'success' : version.status === 'draft' ? 'warning' : ''}">${escapeHtml(({active:'Активна',draft:'Черновик',archived:'В архиве'})[version.status] || version.status)}</span><div class="toolbar-row"><button type="button" class="button small" data-scheme-open-version="${escapeHtml(version.id)}">Открыть</button>${version.status === 'draft' ? `<button type="button" class="button small primary" data-scheme-activate="${escapeHtml(version.id)}">Активировать</button>` : ''}<button type="button" class="button small" data-scheme-revisions="${escapeHtml(version.id)}">История</button></div></div>`).join('') || '<div class="empty">Черновых версий нет</div>'}<div class="toolbar-row"><button type="button" class="button small" data-scheme-new-version="${escapeHtml(scheme.id)}">Создать новую версию</button></div></div></article>`).join('');
+      list.innerHTML = schemes.map((scheme) => `<article class="finance-scheme-card"><div class="panel-head"><div><h3>${escapeHtml(scheme.name)}</h3><small class="muted">${escapeHtml(scheme.description || 'Без описания')}</small></div></div><div class="finance-scheme-versions">${sortedVersions(scheme).map((version) => `<div class="payment-row"><label><input type="checkbox" data-scheme-compare-version="${escapeHtml(version.id)}"> Сравнить</label><span>Версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode] || version.mode)} · ${escapeHtml(version.effectiveFrom)}${version.effectiveTo ? ` — ${escapeHtml(version.effectiveTo)}` : ''}<small class="muted">${version.payoutRiskAcknowledgement?.configDigest ? `Риск подтверждён владельцем ${escapeHtml(version.payoutRiskAcknowledgement.acknowledgedAt || '')}` : 'Подтверждение риска не сохранено'}</small></span><span class="badge ${version.status === 'active' ? 'success' : version.status === 'draft' ? 'warning' : ''}">${escapeHtml(editorStatusLabel(version.status))}</span><div class="toolbar-row"><button type="button" class="button small" data-scheme-open-version="${escapeHtml(version.id)}">Открыть</button>${version.status === 'draft' ? `<button type="button" class="button small primary" data-scheme-activate="${escapeHtml(version.id)}">Активировать</button>` : ''}<button type="button" class="button small" data-scheme-revisions="${escapeHtml(version.id)}">История</button></div></div>`).join('') || '<div class="empty">Черновых версий нет</div>'}<div class="toolbar-row"><button type="button" class="button small" data-scheme-new-version="${escapeHtml(scheme.id)}">Создать новую версию</button></div></div></article>`).join('');
     };
     const load = async ({ force = false } = {}) => {
       if (pending && !force) return;
@@ -1100,9 +1161,9 @@
       previewBox.hidden = false;
       if (!previewInput.value.trim()) previewInput.value = JSON.stringify(defaultPreview(), null, 2);
       previewResult.hidden = true;
-      panel.querySelector('[data-scheme-selected-label]').textContent = `${version.name} · версия ${version.versionNo} · ${version.status}`;
+      panel.querySelector('[data-scheme-selected-label]').textContent = `${version.name} · версия ${version.versionNo} · ${editorStatusLabel(version.status)}`;
       editorAction = version.status === 'draft' ? { kind: 'edit', versionId } : { kind: 'inspect', versionId };
-      panel.querySelector('[data-scheme-editor-title]').textContent = version.status === 'draft' ? 'Редактирование черновика' : 'Активная версия (только чтение)';
+      panel.querySelector('[data-scheme-editor-title]').textContent = version.status === 'draft' ? 'Редактирование черновика' : `${editorStatusLabel(version.status)} (только чтение)`;
       nameField.value = version.name || ''; descriptionField.value = version.description || '';
       definitionField.value = JSON.stringify(definitionFromVersion(version), null, 2);
       nameField.disabled = true; descriptionField.disabled = true; definitionField.readOnly = version.status !== 'draft';
@@ -1114,7 +1175,7 @@
       rebuildGrid();
       refreshReadiness();
       selectWorkspace('configuration',{focus:true});
-      notify(version.status === 'draft' ? 'Открыт редактируемый черновик.' : 'Активная версия защищена от редактирования. Создайте новую версию для изменений.');
+      notify(version.status === 'draft' ? 'Открыт редактируемый черновик.' : 'Сохранённая версия защищена от редактирования. Создайте новую версию для изменений.');
     };
     const showEditor = async (action, { scheme = null, version = null } = {}) => {
       selectedVersion=null;invalidateReadiness();
@@ -1293,6 +1354,27 @@
     panel.querySelector('[data-scheme-reload]').addEventListener('click', load);
     attendanceFrom.addEventListener('change', () => { attendanceCoverage = null; attendanceWatermark.value = null; attendanceApprove.disabled = true; attendanceResult.innerHTML = '<p class="empty">Период изменился. Проверьте полноту источника заново.</p>'; });
     attendanceTo.addEventListener('change', () => { attendanceCoverage = null; attendanceWatermark.value = null; attendanceApprove.disabled = true; attendanceResult.innerHTML = '<p class="empty">Период изменился. Проверьте полноту источника заново.</p>'; });
+    const lookupMessage = document.createElement('p'); lookupMessage.className = 'muted'; lookupMessage.dataset.gridLookupMessage = '';
+    grid.before(lookupMessage);
+    lookupMessage.textContent = 'Загружаем имена сотрудников и названия цехов…';
+    Promise.allSettled([request('/api/staff'), request('/api/inventory/departments?status=all')]).then(results => {
+      const valid = results.map(result => result.status === 'fulfilled' && Array.isArray(result.value?.items));
+      ownerStaff = valid[0] ? results[0].value.items.filter(row => row && typeof row === 'object').map(({id,name,login,role,active}) => ({id,name,login,role,active})) : [];
+      ownerDepartments = valid[1] ? results[1].value.items.filter(row => row && typeof row === 'object').map(({code,id,name,active}) => ({code,id,name,active})) : [];
+      lookupMessage.textContent = [!valid[0] ? 'Список сотрудников недоступен: сохранённые идентификаторы доступны без имён.' : '', !valid[1] ? 'Справочник цехов недоступен: сохранённые коды доступны без названий.' : '', 'Названия цехов служат подсказкой; принадлежность продаж определяется их исходными данными. Новые отсутствующие коды можно указать в расширенной конфигурации.'].filter(Boolean).join(' ');
+      // Only refresh labels/options: never rebuild a dirty editor or overwrite a draft.
+      for (const control of grid.querySelectorAll('[data-grid-employee]')) {
+        const value = control.value;
+        control.innerHTML = editorOptionsHtml(editorEmployeeOptions(ownerStaff, gridSource, value), value, 'Выберите сотрудника');
+        control._customSelectRefresh?.();
+      }
+      for (const control of grid.querySelectorAll('select[data-grid-type="departmentKey"], select[data-grid-override-value]')) {
+        const value = control.value;
+        control.innerHTML = editorOptionsHtml(editorDepartmentOptions(ownerDepartments, value), value, control.hasAttribute('data-grid-role') ? 'Не задано / наследовать' : 'Выберите цех');
+        control._customSelectRefresh?.();
+      }
+      refreshInheritedCaptions();
+    });
     refreshAttendance();
     load();
   };
