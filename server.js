@@ -1003,7 +1003,15 @@ const sessionFromRequest = async (req) => {
           });
           return { user, createdAt: persisted.createdAt, expiresAt: persisted.expiresAt, trustedDevice: isTrustedSession(persisted) };
         }
-      } catch (_) { return null; }
+      } catch (_) {
+        const error = new Error('authentication_unavailable');
+        error.code = 'AUTH_SESSION_UNAVAILABLE';
+        throw error;
+      }
+    } else {
+      const error = new Error('authentication_unavailable');
+      error.code = 'AUTH_SESSION_UNAVAILABLE';
+      throw error;
     }
     const memorySession = sessions.get(token);
     if (memorySession) {
@@ -6854,6 +6862,11 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.url.startsWith('/api/')) { const result = await api(req, res); if (result !== null) return result; }
     return staticFile(req, res);
-  } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
+  } catch (error) {
+    // An unavailable session store is retryable, not evidence of an invalid token.
+    // This boundary covers the middleware and the extra session/PIN lookups.
+    if (error.code === 'AUTH_SESSION_UNAVAILABLE') return json(res, 503, { error: 'authentication_unavailable' });
+    return json(res, 500, { error: 'internal_error', message: error.message });
+  }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));

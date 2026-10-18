@@ -45,7 +45,13 @@ assert.match(sourceBlock,/idempotencyKey: intent\.idempotencyKey/,'a retry reuse
 assert.match(sourceBlock,/await renderRefundOrder\(order\)/,'successful write reloads history and payment balances');
 assert.match(source,/order_refund:\s*'Возврат по POS-заказу'/,'Finance report gives POS refunds a user-facing source label');
 assert.match(source,/payoutSourceLabels=\{[^\n]*order_refund:'Возврат по POS-заказу'/,'period business reconciliation labels POS refund payouts');
-assert.match(source,/const api = \(url, options = \{\}\) => \{ if \(staticDemo\(\)\) return demoJson\(url, options\);[\s\S]*?return window\.fetch\(url/,'live API requests dispatch through the page fetch implementation');
+const apiStart=source.indexOf('const api ='),apiEnd=source.indexOf('window.__crmApi = api;',apiStart);
+assert.ok(apiStart>=0&&apiEnd>apiStart,'central API wrapper is present');
+const apiBlock=source.slice(apiStart,apiEnd);
+assert.match(apiBlock,/if \(staticDemo\(\)\) return demoJson\(url, options\)/,'demo API remains isolated');
+assert.match(apiBlock,/await window\.fetch\(url, \{/,'live API dispatches through page fetch implementation');
+assert.match(apiBlock,/\.\.\.options/,'caller method and body are forwarded');
+assert.match(apiBlock,/headers: \{ \.\.\.authHeaders\(\)/,'live API attaches authorization');
 const financeStart=source.indexOf('function renderFinanceReport()'),financeDistStart=published.indexOf('function renderFinanceReport()');
 const financeEnd=source.indexOf('\nfunction ',financeStart+24),financeDistEnd=published.indexOf('\nfunction ',financeDistStart+24);
 assert.notEqual(financeStart,-1,'finance report has source renderer');

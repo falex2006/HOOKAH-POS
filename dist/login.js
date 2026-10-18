@@ -1,7 +1,6 @@
 const form = document.querySelector('#login-form');
-// A login page always starts a fresh authentication attempt; never reuse a stale staff identity.
-localStorage.removeItem('crm_session_token');
-localStorage.removeItem('crm_session_user');
+// Merely opening this page must not sign out other tabs sharing this origin.
+// Successful login replaces the session; explicit logout/401 clears it.
 const setupForm = document.querySelector('#setup-form');
 const setupMessage = document.querySelector('#setup-message');
 const passwordResetForm = document.querySelector('#password-reset-form');

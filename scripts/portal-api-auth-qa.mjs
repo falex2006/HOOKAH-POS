@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../portal.js',import.meta.url),'utf8');
-const start=source.indexOf('const api =');const end=source.indexOf('window.__crmApi =',start);
+const start=source.indexOf('const API_READ_TIMEOUT_MS =');const end=source.indexOf('window.__crmApi =',start);
 assert.ok(start>0&&end>start);
 const make=new Function('fetch','window','localStorage','staticDemo','demoJson','portalNotificationCenter',`localStorage.getItem ||= (()=>'token');window.fetch=fetch;const disposeNotificationObserver=()=>portalNotificationCenter?.dispose?.();const authHeaders=()=>({});${source.slice(start,end)}return api;`);
 for(const deniedStorage of [false,true]) {

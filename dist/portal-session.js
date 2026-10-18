@@ -2,10 +2,12 @@
 (() => {
   const tokenKey = 'crm_session_token';
   const userKey = 'crm_session_user';
-  const portalScript = '/portal.js?rev=2026101503';
+  const portalScript = '/portal.js?rev=2026101801';
   let pending = null;
   let accepted = null;
   let loaded = false;
+  let loading = false;
+  let scriptFailed = false;
   let blocked = true;
   let reloading = false;
   const signature = (session) => JSON.stringify([
@@ -37,7 +39,7 @@
     if (url.pathname === '/clients' || url.pathname === '/admin') return canAccessRoute(session, url.pathname, url.hash);
     return permission === 'dashboard' || session.permissions.includes(permission);
   };
-  function block(message = 'Проверяем доступ…', denied = false) {
+  function block(message = 'Загрузка…', denied = false) {
     blocked = true;
     document.documentElement.dataset.portalAccess = 'checking';
     let guard = document.getElementById('portal-session-guard');
@@ -45,18 +47,27 @@
       guard = document.createElement('section');
       guard.id = 'portal-session-guard';
       guard.setAttribute('role', 'status');
-      guard.innerHTML = '<h1>Hookah POS</h1><p data-session-message></p><button type="button" data-session-retry>Повторить проверку</button> <a href="/">Рабочий стол</a> · <a href="/login">Войти в другую учётную запись</a>';
+      guard.innerHTML = '<span data-session-message></span><button type="button" data-session-retry>Повторить</button><a data-session-login href="/login">Войти заново</a>';
       document.body.append(guard);
       guard.querySelector('[data-session-retry]').onclick = () => refresh();
     }
-    guard.querySelector('[data-session-message]').textContent = message;
-    guard.querySelector('[data-session-retry]').hidden = denied || message === 'Проверяем доступ…';
+    const initialLoading = message === 'Загрузка…';
+    guard.setAttribute('data-loading', String(initialLoading));
+    guard.setAttribute('aria-label', initialLoading ? 'Загрузка' : message);
+    guard.querySelector('[data-session-message]').textContent = initialLoading ? '' : message;
+    guard.querySelector('[data-session-retry]').hidden = denied || message === 'Загрузка…' || reloading;
+    guard.querySelector('[data-session-login]').hidden = message === 'Загрузка…' || reloading;
   }
-  function reload() {
+  function reload(message = 'Доступ изменился. Обновляем рабочее место…') {
     if (reloading) return;
     reloading = true;
-    block('Доступ изменился. Обновляем рабочее место…');
+    block(message);
     window.location.reload();
+  }
+  function unblock() {
+    blocked = false;
+    delete document.documentElement.dataset.portalAccess;
+    document.getElementById('portal-session-guard')?.remove();
   }
   function install(session) {
     accepted = session;
@@ -67,20 +78,35 @@
       block('Доступ к этому разделу ограничен. Владелец может изменить права вашей роли.', true);
       return;
     }
-    if (loaded) { if (blocked) reload(); return; }
-    loaded = true;
+    // A classic script may execute even after its network deadline. Retry in a
+    // fresh document so its globals and event handlers can never execute twice.
+    if (scriptFailed) { reload('Повторно загружаем интерфейс…'); return; }
+    if (loaded) { unblock(); return; }
+    if (loading) return;
+    loading = true;
     blocked = false;
     const script = document.createElement('script');
     script.src = portalScript;
+    const timer = setTimeout(() => {
+      scriptFailed = true;
+      block('Загрузка интерфейса занимает слишком долго. Повторите проверку.');
+    }, 15000);
     script.onload = () => {
-      if (blocked || reloading || !accepted || !canAccessRoute(accepted, window.location.pathname, window.location.hash)) return;
-      blocked = false;
-      delete document.documentElement.dataset.portalAccess;
-      document.getElementById('portal-session-guard')?.remove();
+      clearTimeout(timer);
+      loading = false;
+      loaded = true;
+      if (scriptFailed || blocked || reloading || !accepted || !canAccessRoute(accepted, window.location.pathname, window.location.hash)) return;
+      unblock();
     };
-    script.onerror = () => block('Не удалось загрузить интерфейс. Повторите проверку.');
+    script.onerror = () => {
+      clearTimeout(timer);
+      loading = false;
+      scriptFailed = true;
+      block('Не удалось загрузить интерфейс. Повторите проверку.');
+    };
     document.head.append(script);
   }
+
   async function verify() {
     const token = localStorage.getItem(tokenKey);
     if (!token) { block(); window.location.replace('/login'); return; }
@@ -103,7 +129,7 @@
         localStorage.removeItem(tokenKey); localStorage.removeItem(userKey); window.location.replace('/login'); return;
       }
       if (!response.ok || !session?.user?.id || !Array.isArray(session.permissions) || !session.permissions.every((value) => typeof value === 'string')) throw new Error('session_unavailable');
-      if (accepted && signature(accepted) !== signature(session) && loaded) { accepted = session; reload(); return; }
+      if (accepted && signature(accepted) !== signature(session) && (loaded || loading)) { accepted = session; reload(); return; }
       install(session);
     } catch (_) {
       if (localStorage.getItem(tokenKey) === token && !reloading) block('Не удалось проверить доступ. Проверьте подключение и повторите попытку.');
