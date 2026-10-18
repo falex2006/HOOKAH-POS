@@ -47,11 +47,13 @@
   const redirectToLogin = () => { clearTimeout(timer); location.replace('/login'); };
   window.__broadcastSessionEnd = () => { try { localStorage.setItem(sessionEventKey, JSON.stringify({ action: 'logout', userId: String(user.id || ''), at: Date.now() })); } catch (_) {} };
   const logout = async () => {
+    if (!currentSession()) { redirectToLogin(); return; }
     const button=overlay.querySelector('#screen-lock-exit');
     if(button.disabled)return;
     button.disabled=true;
     try { if(!String(localStorage.getItem('crm_session_token')||'').startsWith('demo-static-')){const response=await fetch('/api/logout', { method: 'POST', headers: headers() });if(!response.ok&&response.status!==401)throw new Error('logout_unavailable');} }
     catch (_) {button.disabled=false;setMessage('Не удалось завершить сессию. Повторите выход.','error');return;}
+    if (!currentSession()) { redirectToLogin(); return; }
     window.__broadcastSessionEnd();
     try { localStorage.removeItem(lockStateKey); } catch (_) {}
     localStorage.removeItem('crm_session_token');
@@ -183,8 +185,10 @@
     if (!locked || unlockRequest || pinInput.value.length !== 4) return;
     if (!currentSession()) { redirectToLogin(); return; }
     const requestEpoch = lockEpoch;
-    unlockRequest = fetch('/api/session/unlock', { method: 'POST', headers: headers(), body: JSON.stringify({ pin: pinInput.value }) }).then(async (response) => {
-      const payload = await response.json().catch(() => ({}));
+    const controller = new AbortController();
+    const requestTimer = setTimeout(() => controller.abort(), 10000);
+    unlockRequest = fetch('/api/session/unlock', { method: 'POST', signal: controller.signal, headers: headers(), body: JSON.stringify({ pin: pinInput.value }) }).then(async (response) => {
+      const payload = await response.json();
       if (!locked || requestEpoch !== lockEpoch) return;
       if (!response.ok) { const error = new Error(payload.error || 'unlock_failed'); error.status = response.status; throw error; }
       if (!currentSession() || !payload.user || identity(payload.user) !== activeIdentity) { redirectToLogin(); return; }
@@ -197,8 +201,8 @@
       if (error.message === 'pin_not_configured') setMessage('PIN не настроен. Выйдите и обратитесь к администратору.', 'error');
       else if (error.message === 'invalid_pin') setMessage('Неверный PIN. Попробуйте ещё раз.', 'error');
       else if (error.message === 'too_many_pin_attempts') setMessage('Слишком много попыток. Подождите минуту и попробуйте снова.', 'error');
-      else setMessage('Не удалось проверить PIN. Проверьте соединение.', 'error');
-    }).finally(() => { unlockRequest = null; });
+      else setMessage('Не удалось проверить PIN. Проверьте соединение и повторите ввод.', 'error');
+    }).finally(() => { clearTimeout(requestTimer); unlockRequest = null; });
     await unlockRequest;
   };
   pinInput.addEventListener('input', () => { pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 4); if (pinInput.value.length === 4) unlock(); });

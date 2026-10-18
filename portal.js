@@ -618,6 +618,7 @@ document.querySelector('#logout')?.addEventListener('click', async (event) => {
   const button=event.currentTarget;
   if(button.disabled)return;
   button.disabled=true;
+  const logoutToken = localStorage.getItem('crm_session_token');
   document.querySelector('#portal-logout-error')?.remove();
   try {
     if(!String(localStorage.getItem('crm_session_token')||'').startsWith('demo-static-')){
@@ -629,6 +630,7 @@ document.querySelector('#logout')?.addEventListener('click', async (event) => {
     const message=document.createElement('p');message.id='portal-logout-error';message.setAttribute('role','alert');message.textContent='Не удалось завершить сессию. Повторите выход.';button.after(message);
     return;
   }
+  if (localStorage.getItem('crm_session_token') !== logoutToken) { button.disabled=false; return; }
   window.HOOKAH_MANAGEMENT_THEME?.clear();
   window.__broadcastSessionEnd?.();
   localStorage.removeItem('crm_session_token');
@@ -1719,7 +1721,69 @@ const demoJson = async (url, options = {}) => {
   const discountDecision = path.match(/^\/api\/discount-requests\/([^/]+)\/(approve|reject)$/); if (discountDecision && method === 'POST') { if (!hasPortalPermission('finance')) throw new Error('HTTP 403'); let localItems = []; try { localItems = JSON.parse(localStorage.getItem('territory_crm_discount_requests') || '[]'); } catch (_) {} const decision = discountDecision[2] === 'approve' ? 'approved' : 'rejected'; const localRequest = localItems.find((x) => x.id === discountDecision[1]); if (localRequest) { const orderError = demoDiscountOrderError(localRequest); if (orderError) throw orderError; if (localRequest.status !== 'requested') throw new Error('discount_already_decided'); if (decision === 'approved') { const proposed = localItems.map((entry) => entry === localRequest ? { ...entry, status: decision } : entry); const balanceError = demoPaidOrderBalanceError(localRequest, [...proposed, ...demoState.discounts]); if (balanceError) throw balanceError; } localRequest.status = decision; localRequest.decidedAt = new Date().toISOString(); localStorage.setItem('territory_crm_discount_requests', JSON.stringify(localItems)); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: `discount.${decision}`, entityType: 'discount', entityId: localRequest.id, actor: 'администратор', createdAt: new Date().toISOString() }); demoSave(); return localRequest; } const request = demoState.discounts.find((x) => x.id === discountDecision[1]); if (!request) throw new Error('HTTP 404'); const orderError = demoDiscountOrderError(request); if (orderError) throw orderError; if (request.status !== 'requested') throw new Error('discount_already_decided'); if (decision === 'approved') { const proposed = demoState.discounts.map((entry) => entry === request ? { ...entry, status: decision } : entry); const balanceError = demoPaidOrderBalanceError(request, [...localItems, ...proposed]); if (balanceError) throw balanceError; } request.status = decision; request.decidedAt = new Date().toISOString(); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: `discount.${decision}`, entityType: 'discount', entityId: request.id, actor: 'администратор', createdAt: new Date().toISOString() }); demoSave(); return request; }
   return {};
 };
-const api = (url, options = {}) => { if (staticDemo()) return demoJson(url, options); if (window.__portalSessionGate?.blocked) return Promise.reject(new Error('session_access_unverified')); const requestToken = localStorage.getItem('crm_session_token'); return window.fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then(async (response) => { if (requestToken !== localStorage.getItem('crm_session_token')) throw new Error('session_access_changed'); if (response.status === 401) { disposeNotificationObserver(); try { localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); } catch {} window.location.href = '/login'; const error = new Error('authentication_required'); error.status = 401; error.payload = { error: 'authentication_required' }; throw error; } const payload = await response.json().catch(() => ({})); if (window.__portalSessionGate?.blocked || requestToken !== localStorage.getItem('crm_session_token')) throw new Error('session_access_changed'); if (!response.ok) { const error = new Error(payload.error || `HTTP ${response.status}`); error.payload = payload; throw error; } return payload; }); };
+const API_READ_TIMEOUT_MS = 20000;
+const api = async (url, options = {}) => {
+  if (staticDemo()) return demoJson(url, options);
+  if (window.__portalSessionGate?.blocked) throw new Error('session_access_unverified');
+  const requestToken = localStorage.getItem('crm_session_token');
+  // Only reads are bounded: a timed-out mutation could still commit on the server.
+  const controller = String(options.method || 'GET').toUpperCase() === 'GET' ? new AbortController() : null;
+  let timer;
+  let onCallerAbort;
+  let onAbort;
+  const checkAborted = () => { if (controller?.signal.aborted) throw controller.signal.reason; };
+  try {
+    const aborted = controller ? new Promise((resolve, reject) => {
+      onAbort = () => reject(controller.signal.reason);
+      controller.signal.addEventListener('abort', onAbort, { once: true });
+      onCallerAbort = () => controller.abort(options.signal.reason);
+      if (options.signal?.aborted) onCallerAbort();
+      else options.signal?.addEventListener('abort', onCallerAbort, { once: true });
+      timer = setTimeout(() => {
+        const error = new Error('Сервер долго не отвечает. Повторите загрузку.');
+        error.code = 'read_timeout';
+        controller.abort(error);
+      }, API_READ_TIMEOUT_MS);
+    }) : null;
+    const request = (async () => {
+      checkAborted();
+      const response = await window.fetch(url, {
+        ...options,
+        ...(controller ? { signal: controller.signal } : {}),
+        headers: { ...authHeaders(), ...(options.headers || {}) },
+      });
+      checkAborted();
+      if (requestToken !== localStorage.getItem('crm_session_token')) throw new Error('session_access_changed');
+      if (response.status === 401) {
+        disposeNotificationObserver();
+        try { localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); } catch {}
+        window.location.href = '/login';
+        const error = new Error('authentication_required');
+        error.status = 401;
+        error.payload = { error: 'authentication_required' };
+        throw error;
+      }
+      const payload = await response.json().catch((error) => {
+        checkAborted();
+        if (error?.name === 'AbortError') throw error;
+        return {};
+      });
+      checkAborted();
+      if (window.__portalSessionGate?.blocked || requestToken !== localStorage.getItem('crm_session_token')) throw new Error('session_access_changed');
+      if (!response.ok) {
+        const error = new Error(payload.error || `HTTP ${response.status}`);
+        error.payload = payload;
+        throw error;
+      }
+      return payload;
+    })();
+    return await (aborted ? Promise.race([request, aborted]) : request);
+  } finally {
+    clearTimeout(timer);
+    if (onCallerAbort) options.signal?.removeEventListener('abort', onCallerAbort);
+    if (onAbort) controller.signal.removeEventListener('abort', onAbort);
+  }
+};
 window.__crmApi = api;
 const refreshSidebarCounters = () => {
   const setBadge = (href, value, label, { markProblem = false } = {}) => document.querySelectorAll(`.portal-sidebar a[href="${href}"]`).forEach((link) => {

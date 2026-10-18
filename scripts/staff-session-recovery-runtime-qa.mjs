@@ -26,6 +26,8 @@ const runFetch = async ({ response, method = 'GET', delay = false }) => {
   const controller = { signal: {}, abort() { aborts += 1; } };
   const context = {
     staffAccessRevision: 0,
+    document: { querySelector() { return null; } },
+    navigator: { onLine: true },
     AbortController: function AbortController() { return controller; },
     window: {
       setTimeout(callback) { timerCallback = callback; return 1; },
@@ -73,6 +75,7 @@ const runVerify = async ({ outcome, retry = false, concurrent = false }) => {
   const status = { hidden: true, textContent: '', innerHTML: '', setAttribute() {} };
   const navs = [{ hidden: false, removeAttribute() {} }, { hidden: false, removeAttribute() {} }];
   const document = {
+    body: { classList: { toggle() {} } },
     querySelector(selector) { return selector === '#staff-session-status' ? status : null; },
     querySelectorAll(selector) { return selector.includes('.portal-sidebar') ? navs : []; },
   };
@@ -90,7 +93,7 @@ const runVerify = async ({ outcome, retry = false, concurrent = false }) => {
     AbortController: function AbortController() { return { signal: {}, abort() {} }; },
     window: { setTimeout: () => 1, clearTimeout: () => {}, location: { replace: (url) => redirects.push(url) } },
     localStorage: { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) },
-    sessionHeaders: () => ({ Authorization: 'Bearer roman-token' }), fetch: fetchImpl, mountStaffExtensions: () => {},
+    sessionHeaders: () => ({ Authorization: 'Bearer roman-token' }), fetch: fetchImpl, mountStaffExtensions: () => {}, openSelfAttendanceDeepLink() {},
     document, applyStaffSession: (session) => applied.push(session), refreshFloor: () => floor.push(1), loadProducts: () => products.push(1), refreshShift: () => shifts.push(1),
     showFloorUnavailable: (text) => { status.innerHTML = text; }, notice() {},
   };
