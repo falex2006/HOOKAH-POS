@@ -81,6 +81,7 @@ try {
   const assertBlocked=async(state)=>{
     await page.locator(`#staff-floor-shift-gate[data-state="${state}"]`).waitFor();
     assert.equal(await gate.isVisible(),true);
+    if(state==='closed'){assert.equal(await gate.locator('h2').textContent(),'Смена закрыта');assert.equal(await page.getByRole('button',{name:'Открыть смену',exact:true}).count(),1);assert.equal(await page.locator('#shift-toggle').isVisible(),false);}
     for(const selector of ['#tables','.pos-floor-heading','.order'])assert.equal(await page.locator(selector).isVisible(),false,`${state} hides ${selector}`);
   };
   const shot=async(label)=>{const file=`${label}.png`;await page.screenshot({path:path.join(artifacts,file)});evidence.screenshots.push(file);};
@@ -130,6 +131,7 @@ try {
   const mobileContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1,storageState:await page.context().storageState()});
   const mobile=await mobileContext.newPage();await paceSessionReads(mobile);await mobile.goto(base,{waitUntil:'networkidle'});
   await mobile.locator('#staff-floor-shift-gate[data-state=closed]').waitFor();assert.equal(await mobile.locator('#tables').isVisible(),false);assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  assert.equal(await mobile.getByRole('button',{name:'Открыть смену',exact:true}).count(),1);assert.equal(await mobile.locator('#shift-toggle').isVisible(),false);
   await mobile.screenshot({path:path.join(artifacts,'closed-mobile390.png')});evidence.screenshots.push('closed-mobile390.png');
   await mobile.locator('[data-floor-shift-open]').tap();await mobile.locator('#staff-action-modal.open').waitFor();await mobile.locator('[name=openingCash]').fill('0');
   const mobileOpened=mobile.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/shifts');await mobile.locator('#staff-action-submit').tap();assert.equal((await mobileOpened).status(),201);

@@ -294,6 +294,15 @@ const shiftApi=(options={})=>{
 const shiftCloseFailureMessage=(error)=>{if(error?.code!=='shift_cash_attribution_unresolved')return 'Не удалось закрыть смену';const details=error.payload||{};const count=Number(details.count);const amount=Number(details.amount);const countText=Number.isFinite(count)&&count>=0?String(Math.floor(count)):'неизвестно';const amountText=Number.isFinite(amount)&&amount>=0?`${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(amount)} ₽`:'неизвестна';return `Смена осталась открытой. Платежей без привязки: ${countText}; сумма: ${amountText}. Попросите управляющего сверить эти платежи, затем повторите закрытие.`;};
 const shiftCashCloseDescription=(shift)=>{const format=(value)=>`${new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(value)} ₽`;const unresolved=Number(shift?.unresolvedLegacyCashCount||0);if(unresolved>0)return `Ожидаемую кассу нельзя рассчитать: ${unresolved} наличных платежа на ${format(Number(shift.unresolvedLegacyCashAmount||0))} без привязки к смене. Запрос закрытия будет отклонён, пока управляющий не сверит эти платежи.`;if(shift?.expectedCash!==null&&shift?.expectedCash!==undefined&&Number.isFinite(Number(shift.expectedCash)))return `Ожидаемая наличность по данным системы: ${format(Number(shift.expectedCash))}. Введите фактический остаток; при закрытии сервер пересчитает сумму с учётом новых операций.`;return 'Ожидаемая наличность сейчас недоступна. Проверьте соединение и обновите состояние смены перед закрытием.';};
 const shiftCloseResultMessage=(result)=>{const format=(value)=>`${new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value||0))} ₽`;if(result?.expectedCash===undefined||result?.closingCash===undefined||result?.cashVariance===undefined)return 'Смена закрыта';const variance=Number(result.cashVariance);const sign=variance>0?'+':'';return `Смена закрыта. Ожидалось: ${format(result.expectedCash)}; фактически: ${format(result.closingCash)}; разница: ${sign}${format(variance)}.`;};
+const syncStaffShiftHeader=()=>{
+  const button=document.querySelector('#shift-toggle');if(!button)return;
+  const gate=document.querySelector('#staff-floor-shift-gate');
+  const statusOnly=staffShiftReadable&&staffFloorShiftState==='closed'&&gate&&!gate.hidden&&gate.getClientRects().length>0;
+  let status=document.querySelector('#shift-closed-status');
+  if(!status){status=document.createElement('span');status.id='shift-closed-status';status.className='shift';status.setAttribute('role','status');status.innerHTML=`${staffIcon('clock')}<span>Смена закрыта</span>`;button.before(status);}
+  status.hidden=!statusOnly;
+  button.hidden=!staffShiftReadable||Boolean(statusOnly);
+};
 const renderStaffShiftControl=(state)=>{
   staffFloorShiftState=state;
   syncFloorShiftGate();
@@ -301,6 +310,7 @@ const renderStaffShiftControl=(state)=>{
   const view={loading:['Проверяем смену…','Проверка','Проверяем смену'],closed:['Смена закрыта','Открыть','Открыть смену'],open:['Смена открыта','Закрыть','Закрыть смену'],error:['Смена недоступна','Повтор','Повторить проверку смены'],saving:['Сохраняем смену…','Ждите','Сохраняем смену']}[state];
   button.dataset.shiftState=state;button.disabled=!staffShiftManageable||state==='loading'||state==='saving';button.setAttribute('aria-busy',String(state==='loading'||state==='saving'));button.setAttribute('aria-label',staffShiftManageable?view[2]:view[0]);button.title=staffShiftManageable?view[2]:view[0];
   button.innerHTML=`${staffIcon(state==='open'?'circle-check':'clock')}<span class="shift-state-label">${view[0]}</span><span class="shift-action-label">${staffShiftManageable?view[1]:view[0]}</span>`;
+  syncStaffShiftHeader();
   if(posWorkspaceMounted)updateOrderMainAction();
 };
 let shiftRefreshPending=null;
@@ -512,7 +522,7 @@ syncFloorShiftGate=()=>{
   document.body.dataset.floorShift=available?'open':state==='open'?'loading':state;
   floorShiftGate.dataset.state=document.body.dataset.floorShift;
   floorShiftGate.hidden=available;
-  const copy=state==='closed'?['Откройте смену',staffShiftManageable?'Чтобы работать со столами и заказами, откройте кассовую смену.':'Попросите сотрудника с правом управления сменой открыть её.']:state==='error'?['Не удалось проверить смену','Повторите проверку, чтобы безопасно продолжить работу.']:['Проверяем смену…','Столы появятся после подтверждения открытой смены.'];
+  const copy=state==='closed'?['Смена закрыта',staffShiftManageable?'Столы и заказы будут доступны после начала смены':'Попросите сотрудника с правом управления сменой открыть её.']:state==='error'?['Не удалось проверить смену','Повторите проверку, чтобы безопасно продолжить работу.']:['Проверяем смену…','Столы появятся после подтверждения открытой смены.'];
   floorShiftGate.innerHTML=available?'':`<h2>${copy[0]}</h2><p>${copy[1]}</p>${state==='closed'&&staffShiftManageable?'<button type="button" class="primary" data-floor-shift-open>Открыть смену</button>':state==='error'&&staffShiftReadable?'<button type="button" class="secondary" data-floor-shift-retry>Повторить проверку</button>':''}`;
   if(!available){
     document.body.classList.remove('staff-order-open');
@@ -981,6 +991,7 @@ const setStaffWorkspaceView=(view,{updateUrl=true}={})=>{
   root.classList.remove('staff-preparation-view');
   root.classList.toggle('staff-orders-view',next==='orders');
   root.dataset.staffView=next;
+  syncStaffShiftHeader();
   if(next==='orders'&&!wasOrders)drawOrder(null);
   document.querySelector('.staff-header-title b')?.replaceChildren(document.createTextNode(next==='orders'?'Заказы':'Рабочий зал'));
   document.querySelectorAll('aside nav button').forEach((button)=>{
