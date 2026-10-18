@@ -27,7 +27,7 @@ const evidence = { baseline, screenshots: [], assertions: [], errors: [] };
 const password = randomBytes(24).toString('hex');
 const salt = randomBytes(16).toString('hex');
 const hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
-let child, browser;
+let child, browser, diagnosticPage;
 let serverDiagnostics='';
 const selectOption = async (select, value) => {
   const disclosure = select.locator('xpath=ancestor::details[1]');
@@ -75,15 +75,41 @@ try {
     sessionQueue=turn.catch(()=>{});await turn;return route.continue();
   });
   const page = await browser.newPage({ viewport:{width:1366,height:900},locale:'ru-RU' });
+  diagnosticPage=page;
   page.setDefaultTimeout(90000);page.setDefaultNavigationTimeout(90000);
   await paceSessionReads(page);
   page.on('pageerror',error=>evidence.errors.push(error.message));
   const login = async (p, name) => { await p.goto(`${base}/login`);await p.locator('#login-username').fill(name);await p.locator('#login-password').fill(password);await p.locator('#login-form button[type=submit]').click();await p.waitForURL(url=>url.pathname!=='/login'); };
   await login(page,logins.owner);
+  let seededIncomeId=null,seededPayrollUser=null;const seededDiscounts=[];
+  const priorMonthEnd=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),0)).toISOString().slice(0,10);
+  const payrollFrom=priorMonthEnd.slice(0,7)+'-01';
+  if(process.env.FINANCE_NAV_SECTIONS_ONLY==='1') {
+    seededPayrollUser=(await db.query("INSERT INTO users(organization_id,venue_id,full_name,login,role) VALUES($1,$2,'QA бармен для начисления',$3,'bartender') RETURNING id",[org,venue,`finance-payroll-${process.pid}`])).rows[0].id;
+    await db.query("INSERT INTO staff_work_logs(venue_id,user_id,started_at,ended_at,source) VALUES($1,$2,$3,$4,'manual')",[venue,seededPayrollUser,`${priorMonthEnd.slice(0,7)}-15T05:00:00Z`,`${priorMonthEnd.slice(0,7)}-15T13:00:00Z`]);
+    for(const action of ['approve','reject']) {
+      const order=(await db.query("INSERT INTO orders(venue_id,opened_by,status,vip_minimum) SELECT $1,id,'open',1000 FROM users WHERE login=$2 RETURNING id",[venue,logins.owner])).rows[0].id;
+      const discount=(await db.query("INSERT INTO discounts(order_id,requested_by,type,value,reason,status) SELECT $1,id,'percent',10,$3,'requested' FROM users WHERE login=$2 RETURNING id",[order,logins.owner,`QA ${action} request`])).rows[0].id;
+      seededDiscounts.push({id:discount,action});
+    }
+    const incomeCategory=(await db.query("SELECT id FROM finance_categories WHERE venue_id=$1 AND kind='income' AND active=true",[venue])).rows[0].id;
+    const fixtureApi=async(pathname,method,body)=>page.evaluate(async({pathname,method,body})=>{const response=await fetch(pathname,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return {status:response.status,body:await response.json()};},{pathname,method,body});
+    const fixtureDate=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Yekaterinburg'}).format(new Date());
+    for(const [index,title] of ['Аренда оборудования · QA','Проведённая услуга · QA'].entries()) {
+      const income=await fixtureApi('/api/finance/other-income','POST',{categoryId:incomeCategory,title,basis:'Акт QA',counterpartyName:'Тестовый партнёр',recognitionDate:fixtureDate,totalAmount:'15000.00',idempotencyKey:`nav-income-${process.pid}-${index}`});
+      assert.equal(income.status,201,JSON.stringify(income.body));
+      if(index===0)seededIncomeId=income.body.id;
+      else assert.equal((await fixtureApi(`/api/finance/other-income/${income.body.id}/post`,'POST',{})).status,200);
+    }
+    const payable=await fixtureApi('/api/finance/payables','POST',{categoryId:rent,title:'Аренда помещения · QA',counterpartyName:'Арендодатель QA',basis:'Договор QA',periodFrom:fixtureDate.slice(0,7)+'-01',periodTo:fixtureDate,dueDate:fixtureDate,lines:[{description:'Аренда зала',amount:'25000.00'}],idempotencyKey:`nav-payable-${process.pid}`});
+    assert.equal(payable.status,201,JSON.stringify(payable.body));
+    evidence.assertions.push('owned disposable database seeded with draft/posted income, rent obligation and paid POS card payment');
+  }
+
   const sidebarState = async p => p.evaluate(()=>{const node=document.querySelector('.portal-sidebar'),r=node?.getBoundingClientRect(),style=node&&getComputedStyle(node);return {body:document.body.className,sidebar:node?.className,transform:style?.transform,width:style?.width,left:r?.left,right:r?.right,hover:node?.matches(':hover'),expanded:document.querySelector('.sidebar-mobile-toggle')?.getAttribute('aria-expanded'),active:document.activeElement?.outerHTML.slice(0,300),innerWidth,devicePixelRatio,touch:navigator.maxTouchPoints};});
   const settleClosedSidebar = async p => {await p.waitForFunction(()=>{const sidebar=document.querySelector('.portal-sidebar');return sidebar&&sidebar.getBoundingClientRect().right<=1;},{},{timeout:5000}).catch(async error=>{throw Error(`Closed mobile sidebar overlaps content: ${JSON.stringify(await sidebarState(p))}; ${error.message}`);});};
   const captureControl = async (locator,label) => {
-    for(const width of [1366,390]) {
+    for(const width of [1366,768,390,320]) {
       await page.setViewportSize({width,height:900});
       if(width<901){await settleClosedSidebar(page);assert.equal(await page.locator('.portal-sidebar').evaluate(node=>node.inert),true);assert.equal(await page.locator('.portal-sidebar').getAttribute('aria-hidden'),'true');}
       await locator.evaluate(node=>{node.scrollIntoView({block:'start',inline:'nearest',behavior:'instant'});window.scrollTo({left:0,top:window.scrollY,behavior:'instant'});const main=document.querySelector('.portal-main');if(main)main.scrollLeft=0;});
@@ -93,9 +119,49 @@ try {
       const file=`control-${label}-${width}.png`;await page.screenshot({path:path.join(artifacts,file)});
       evidence.screenshots.push({file,kind:'control-viewport',width,label,geometry,sidebar:await sidebarState(page)});
     }
+    await page.evaluate(()=>{document.documentElement.dataset.theme='light';document.body.classList.add('light-theme');document.dispatchEvent(new Event('management-theme-context-change'));});
+    await page.setViewportSize({width:390,height:900});
+    const lightFile=`control-${label}-light-390.png`;await page.screenshot({path:path.join(artifacts,lightFile)});evidence.screenshots.push({file:lightFile,kind:'control-viewport',width:390,label,theme:'light'});
+    await page.evaluate(()=>{document.documentElement.dataset.theme='dark';document.body.classList.remove('light-theme');document.dispatchEvent(new Event('management-theme-context-change'));});
     await page.setViewportSize({width:1366,height:900});
     await page.waitForFunction(()=>!document.querySelector('.portal-sidebar').inert&&!document.querySelector('.portal-sidebar').hasAttribute('aria-hidden'));
   };
+
+  const sectionKeys = ['overview','expenses','income','obligations','suppliers','payments','cash','result','staff','discounts','payroll'];
+  const chooseSection = async (key) => {
+    if (page.viewportSize().width <= 700) await selectOption(page.locator('.finance-view-picker select'),key);
+    else await page.locator(`.finance-view-navigation [data-finance-view="${key}"]`).click();
+    await page.waitForFunction(key=>document.querySelector('#page-content')?.dataset.financeView===key,key);
+  };
+  const revealControl = async locator => {
+    const summaries=await locator.evaluate(node=>{const result=[];for(let parent=node.parentElement;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS'&&!parent.open)result.unshift(parent.querySelector(':scope > summary').textContent.trim());return result;});
+    for(const summary of summaries)await page.locator('summary').filter({hasText:new RegExp('^'+summary.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$')}).click();
+  };
+  await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
+  for(const width of [1366,768,390,320]) {
+    await page.setViewportSize({width,height:width===1366?900:844});
+    if(width<901)await settleClosedSidebar(page);
+    for(const key of sectionKeys) {
+      await chooseSection(key);
+      await page.evaluate(()=>document.fonts.ready);
+      const geometry=await page.locator('#page-content').evaluate(node=>({
+        overflow:document.documentElement.scrollWidth>innerWidth+1,
+        visiblePanels:[...node.querySelectorAll(':scope > .finance-view-panel')].filter(panel=>panel.getClientRects().length).map(panel=>({id:panel.id,classes:panel.className})),
+        controls:[...node.querySelectorAll('button,input:not([type=hidden]),select,summary')].filter(control=>control.getClientRects().length&&getComputedStyle(control).visibility!=='hidden').map(control=>{const r=control.getBoundingClientRect();return {text:(control.getAttribute('aria-label')||control.textContent||control.id).trim().slice(0,80),left:r.left,right:r.right};})
+      }));
+      const file=`section-${key}-${width}.png`;
+      await page.screenshot({path:path.join(artifacts,file),fullPage:true});
+      evidence.screenshots.push({file,kind:'section',key,width,geometry});
+      if(!baseline){
+        assert.equal(geometry.overflow,false,`${key}/${width} document overflow`);
+        assert.ok(geometry.visiblePanels.length,`${key}/${width} visible content`);
+        assert.equal(await page.locator('.finance-view-navigation [aria-current="page"]').getAttribute('data-finance-view'),key);
+        assert.ok(geometry.controls.every(control=>control.left>=-1&&control.right<=width+1),`${key}/${width} controls outside viewport: ${JSON.stringify(geometry.controls.filter(control=>control.left< -1||control.right>width+1))}`);
+      }
+    }
+  }
+  evidence.assertions.push('all 11 finance sections captured at desktop 1366, tablet 768 and mobile 390/320; active section and visible controls checked');
+  await page.setViewportSize({width:1366,height:900});
 
   if (!baseline) {
     await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
@@ -131,6 +197,247 @@ try {
     }
     evidence.assertions.push('finance sections isolate panels, supplier target works, KPI reveals payments, Back preserves input, reload and mobile picker restore selection');
     await page.setViewportSize({width:1366,height:900});
+    const mutationRequests=[];
+    const trackMutation=request=>{if(['POST','PATCH','DELETE'].includes(request.method())&&/^\/api\/(finance|expenses|payroll)/.test(new URL(request.url()).pathname))mutationRequests.push(request.url());};
+    page.on('request',trackMutation);
+    await chooseSection('income');
+    const incomeCreate=page.locator('[data-other-income-form]');
+    assert.equal(await incomeCreate.isVisible(),false,'income creation collapsed until requested');
+    await revealControl(incomeCreate);
+    await incomeCreate.locator('[name=totalAmount]').fill('456.78');
+    await incomeCreate.locator('[name=title]').fill('Доход: несохранённый ввод QA');
+    await chooseSection('expenses');
+    await revealControl(page.locator('#expense-form'));
+    await page.locator('#expense-amount').fill('234.56');
+    await chooseSection('income');
+    assert.equal(await incomeCreate.locator('[name=totalAmount]').inputValue(),'456.78');
+    assert.equal(await incomeCreate.locator('[name=title]').inputValue(),'Доход: несохранённый ввод QA');
+    await chooseSection('expenses');
+    assert.equal(await page.locator('#expense-amount').inputValue(),'234.56');
+    evidence.assertions.push('expense and income creation are separate from journals and unsaved input survives section switches');
+
+    await chooseSection('obligations');
+    for(const [opener,form] of [['[data-obligation-new]','[data-obligation-form]'],['[data-rule-new]','[data-rule-form]']]) {
+      await page.locator(opener).click();await page.locator(form).waitFor({state:'visible'});
+      await page.locator(form+' [name=title]').fill('Форма QA без сохранения');
+      await page.locator(form+' [data-line-name]').first().fill('Аренда');
+      await page.locator(form+' [data-line-amount]').first().fill('1000');
+      await page.locator(form+' [data-line-add]').click();
+      assert.equal(await page.locator(form+' [data-line-amount]').count(),2);
+      await page.locator(form+' [data-line-name]').nth(1).fill('Уборка');
+      await page.locator(form+' [data-line-amount]').nth(1).fill('200');
+      if(form==='[data-rule-form]')assert.equal(Number(await page.locator(form+' [name=amount]').inputValue()),1200);
+      await captureControl(page.locator(form),form.includes('rule')?'section-rule-form':'section-obligation-form');
+      await page.locator(form+' [data-form-close]').click();assert.equal(await page.locator(form).isVisible(),false);
+    }
+    const accountsLink=page.locator('#business-obligations a[href="#finance-account-settings"]');
+    await accountsLink.click();await page.waitForFunction(()=>document.querySelector('#page-content').dataset.financeView==='cash');
+    assert.equal(await page.locator('[data-finance-account-list]').isVisible(),true);
+    await page.reload({waitUntil:'networkidle'});
+    assert.equal(await activeView(),'cash');assert.equal(await page.locator('[data-finance-account-list]').isVisible(),true);
+    evidence.assertions.push('obligation and recurring forms add priced lines, recurring total is correct, close works; account shortcut and deep-link reload select cash');
+
+    await chooseSection('overview');
+    for(const view of ['bars','table','line']){
+      await page.locator(`[data-finance-chart-view="${view}"]`).click();
+      assert.equal(await page.locator(`[data-finance-chart-view="${view}"]`).getAttribute('aria-pressed'),'true');
+      assert.equal(await page.locator('[data-finance-chart-view][aria-pressed="true"]').count(),1);
+      assert.ok((await page.locator('#finance-chart').textContent()).trim());
+    }
+    await selectOption(page.locator('#finance-chart-period'),'30');
+    assert.equal(await page.locator('#finance-chart-period').inputValue(),'30');
+    await chooseSection('payments');
+    for(const view of ['bars','line','table','donut']){
+      await page.locator(`[data-payment-view="${view}"]`).click();
+      assert.equal(await page.locator(`[data-payment-view="${view}"]`).getAttribute('aria-pressed'),'true');
+      assert.equal(await page.locator('[data-payment-view][aria-pressed="true"]').count(),1);
+      assert.match(await page.locator('#payment-list').textContent(),/125/);
+    }
+    evidence.assertions.push('chart period and all chart/payment presentations switch correctly with seeded card payment');
+
+    await chooseSection('suppliers');
+    await revealControl(page.locator('#payables-search'));
+    await page.locator('#payables-search').fill('Нет такого поставщика QA');
+    await selectOption(page.locator('#payables-status'),'');
+    await page.locator('#payables-date-from').fill('2026-01-01');
+    const supplierFiltered=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/finance/purchase-payables'&&new URL(response.url()).searchParams.get('documentDateFrom')==='2026-01-01');
+    await page.locator('#payables-filter-apply').click();assert.equal((await supplierFiltered).status(),200);
+    await page.locator('#payables-filter-reset').click();assert.equal(await page.locator('#payables-search').inputValue(),'');
+    await chooseSection('income');
+    await revealControl(page.locator('[data-other-income-search]'));
+    await page.locator('[data-other-income-search]').fill('Нет такого дохода QA');
+    await selectOption(page.locator('[data-other-income-status]'),'draft');
+    const incomeFiltered=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/finance/other-income'&&new URL(response.url()).searchParams.get('q')==='Нет такого дохода QA'&&new URL(response.url()).searchParams.get('status')==='draft');
+    await page.locator('[data-other-income-filter]').click();assert.equal((await incomeFiltered).status(),200);
+    await page.waitForFunction(()=>document.querySelector('[data-other-income-list]').textContent.includes('Прочих доходов по выбранным условиям нет'));
+    await chooseSection('expenses');
+    await revealControl(page.locator('#expenses-filter-from'));
+    await page.locator('#expenses-filter-from').fill('2026-01-01');await page.locator('#expenses-filter-to').fill('2026-01-31');
+    const expenseFiltered=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/expenses'&&new URL(response.url()).searchParams.get('from')==='2026-01-01');
+    await page.locator('#expenses-filter-apply').click();assert.equal((await expenseFiltered).status(),200);
+    await page.locator('#expenses-filter-reset').click();assert.equal(await page.locator('#expenses-filter-from').inputValue(),'');
+    evidence.assertions.push('supplier, income and expense filter controls issue expected queries; reset clears applied values');
+
+    await chooseSection('payroll');await page.locator('#payroll-create-toggle').click();
+    await page.locator('#payroll-create-form').waitFor({state:'visible'});
+    await page.locator('#payroll-create-from').fill('2026-01-01');
+    const payrollSettings=page.locator('.finance-payroll-settings');
+    await payrollSettings.waitFor({state:'attached'});
+    assert.equal(await payrollSettings.evaluate(node=>node.open),false);
+    await payrollSettings.locator(':scope > summary').click();
+    assert.equal(await payrollSettings.locator('[data-scheme-new]').isVisible(),true);
+    await captureControl(payrollSettings,'section-payroll-settings');
+    await payrollSettings.locator(':scope > summary').click();
+    assert.equal(await page.locator('#payroll-create-from').inputValue(),'2026-01-01','settings toggle preserves payroll creation input');
+    await captureControl(page.locator('#payroll-create-form'),'section-payroll-create');
+    await page.locator('#payroll-create-cancel').click();
+    assert.equal(await page.locator('#payroll-create-form').isVisible(),false);
+    assert.deepEqual(mutationRequests,[],'exploration and cancellation must not create or mutate finance records');
+    page.off('request',trackMutation);
+    evidence.assertions.push('payroll creation opens and cancels; all section controls explored without financial mutations');
+    if(seededDiscounts.length){
+      await chooseSection('discounts');
+      await captureControl(page.locator('#discount-list'),'discount-decisions');
+      let holdDiscountRefresh=true,releaseDiscountRefresh;
+      const discountRefreshGate=new Promise(resolve=>{releaseDiscountRefresh=resolve;});
+      await page.route('**/api/finance/summary*',async route=>{if(holdDiscountRefresh)await discountRefreshGate;await route.continue();});
+      try { for(const {id,action} of seededDiscounts){
+        await page.waitForFunction(()=>!document.querySelector('#discount-reload').disabled);
+        const decided=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===`/api/discount-requests/${id}/${action}`);
+        await page.locator(`.discount-${action}[data-discount="${id}"]`).click();assert.equal((await decided).status(),200);
+        await page.waitForFunction(({reason,status})=>[...document.querySelectorAll('#discount-list .discount-row')].some(row=>row.textContent.includes(reason)&&row.textContent.includes(status)),{reason:`QA ${action} request`,status:action==='approve'?'Применена':'Отклонена'});
+        assert.equal((await db.query('SELECT status FROM discounts WHERE id=$1',[id])).rows[0].status,action==='approve'?'approved':'rejected');
+        evidence.assertions.push(`discount ${action} persisted in owned database`);
+        if(action==='approve'){
+          const pendingControls=await page.locator('#discount-list button[data-discount]').evaluateAll(nodes=>nodes.map(node=>({disabled:node.disabled,text:node.textContent})));
+          evidence.discountPendingControls=pendingControls;
+          assert.ok(pendingControls.length&&pendingControls.every(control=>control.disabled),'freshly rendered discount controls remain disabled until summary refresh settles');
+          holdDiscountRefresh=false;releaseDiscountRefresh();
+        }
+      }} finally {holdDiscountRefresh=false;releaseDiscountRefresh();await page.unroute('**/api/finance/summary*');}
+      await page.reload({waitUntil:'networkidle'});
+      assert.equal(await page.locator('#discount-list button[data-discount]').count(),0);
+      evidence.assertions.push('populated discount requests approved and rejected through actual UI; database and reload retain both decisions');
+    }
+    if(seededIncomeId){
+      await chooseSection('income');
+      await page.locator('[data-other-income-search]').fill('');await selectOption(page.locator('[data-other-income-status]'),'');
+      await page.locator('[data-other-income-filter]').click();
+      await page.locator(`[data-other-income-edit="${seededIncomeId}"]`).waitFor();
+      await page.locator(`[data-other-income-edit="${seededIncomeId}"]`).click();
+      await incomeCreate.waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('[data-other-income-form] [name=title]').value==='Аренда оборудования · QA');
+      await incomeCreate.locator('[data-other-income-form-cancel]').click();
+      const receipt=page.locator('.finance-receipt-disclosure');assert.ok(await receipt.count()>0);
+      assert.equal(await receipt.first().evaluate(node=>node.open),false);await receipt.first().locator(':scope > summary').click();
+      await captureControl(receipt.first(),'income-receipt-expanded');
+      evidence.assertions.push('populated income draft edit reopens creation, cancel works, posted income receipt opens separately');
+    }
+    await chooseSection('cash');
+    await revealControl(page.locator('[data-finance-account-form]'));
+    await page.locator('[data-finance-account-form] [name=name]').fill('QA счёт через интерфейс');
+    await selectOption(page.locator('[data-finance-account-form] [name=kind]'),'bank');
+    const accountSaved=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/finance/accounts');
+    await page.locator('[data-finance-account-form] [type=submit]').click();assert.equal((await accountSaved).status(),201);
+    await page.locator('[data-finance-account-list]').getByText('QA счёт через интерфейс',{exact:true}).waitFor();
+    let failAccounts=true;
+    await page.route('**/api/finance/accounts*',route=>failAccounts&&route.request().method()==='GET'?route.fulfill({status:503,contentType:'application/json',body:'{"error":"temporary_unavailable"}'}):route.continue());
+    await page.reload({waitUntil:'networkidle'});
+    await revealControl(page.locator('[data-finance-account-list]'));await page.locator('[data-finance-accounts-retry]').waitFor();failAccounts=false;
+    await page.locator('[data-finance-accounts-retry]').click();
+    await page.locator('[data-finance-account-list]').getByText('QA счёт через интерфейс',{exact:true}).waitFor();
+    await page.unroute('**/api/finance/accounts*');
+    evidence.assertions.push('cash account creation persists; failed account loading is recoverable via visible retry');
+    if(seededPayrollUser){
+      await chooseSection('payroll');
+      const settings=page.locator('.finance-payroll-settings');
+      await revealControl(settings.locator('[data-scheme-new]'));
+      await settings.locator('[data-scheme-new]').click();
+      const configuration=settings.locator('[data-scheme-pane="configuration"]');
+      await configuration.waitFor({state:'visible'});
+      await settings.locator('[data-scheme-name]').fill('QA пошаговая схема');
+      const rate=settings.locator('[data-grid-role="bartender"][data-grid-path="perShiftCents"]');
+      await revealControl(rate);await rate.fill('500');
+      await settings.locator('.scheme-workspace-nav [data-scheme-workspace="list"]').click();
+      await settings.locator('.scheme-workspace-nav [data-scheme-workspace="configuration"]').click();
+      assert.equal(await settings.locator('[data-scheme-name]').inputValue(),'QA пошаговая схема');assert.equal(await rate.inputValue(),'500');
+      assert.equal(await settings.locator('[data-scheme-pane]:visible').count(),1);
+      await settings.locator('[data-scheme-grid-apply]').click();
+      await settings.locator('[data-scheme-risk-acknowledged]').check();
+      const schemeSave=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/payroll/schemes');
+      await settings.locator('[data-scheme-save]').click();const schemeResponse=await schemeSave;assert.equal(schemeResponse.status(),201);
+      const savedScheme=await schemeResponse.json();const savedVersion=savedScheme.versions[0].versionId;
+      await settings.locator('[data-scheme-pane="checks"]').waitFor({state:'visible'});
+      await settings.locator('[data-attendance-refresh]').click();
+      await settings.locator('.scheme-workspace-nav [data-scheme-workspace="trial"]').click();
+      await settings.locator('[data-scheme-preview]').waitFor({state:'visible'});
+      const trialRun=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===`/api/payroll/versions/${savedVersion}/preview`);
+      await settings.locator('[data-scheme-run-preview]').click();assert.equal((await trialRun).status(),200);
+      await settings.locator('[data-scheme-preview-result]').waitFor({state:'visible'});
+      assert.equal((await db.query('SELECT config_json FROM payroll_scheme_versions WHERE id=$1',[savedVersion])).rows[0].config_json.roleParameters.bartender.perShiftCents,50000);
+      for(const key of ['configuration','checks','trial']) {
+        await settings.locator(`.scheme-workspace-nav [data-scheme-workspace="${key}"]`).click();
+        const pane=settings.locator(`[data-scheme-pane="${key}"]`);
+        for(const width of [1366,768,390,320]){
+          await page.setViewportSize({width,height:900});await pane.evaluate(node=>node.scrollIntoView({block:'start',inline:'nearest',behavior:'instant'}));
+          assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`payroll ${key}/${width} overflow`);
+          const file=`payroll-workflow-${key}-${width}.png`;await page.screenshot({path:path.join(artifacts,file)});evidence.screenshots.push({file,key,width,kind:'payroll-workflow'});
+          if(key==='configuration'){const rateControl=settings.locator('[data-grid-role="bartender"][data-grid-path="perShiftCents"]');await revealControl(rateControl);await rateControl.evaluate(node=>node.closest('details').scrollIntoView({block:'start',behavior:'instant'}));const rateFile=`payroll-workflow-rate-${width}.png`;await page.screenshot({path:path.join(artifacts,rateFile)});evidence.screenshots.push({file:rateFile,key:'rate',width,kind:'payroll-workflow'});}
+        }
+        await page.setViewportSize({width:1366,height:900});
+      }
+      evidence.assertions.push('guided scheme configuration retains unsaved input across panes, saves version, advances to checks and runs real preview without payroll entries');
+      await settings.locator(':scope > summary').click();
+      await page.locator('#payroll-create-toggle').click();
+      await page.waitForFunction(id=>[...document.querySelector('#payroll-create-user').options].some(option=>option.value===id),seededPayrollUser);
+      await selectOption(page.locator('#payroll-create-user'),seededPayrollUser);
+      await page.locator('#payroll-create-from').fill(payrollFrom);await page.locator('#payroll-create-to').fill(priorMonthEnd);
+      await selectOption(page.locator('#payroll-create-finance-category'),rent);
+      await page.locator('#payroll-rule-new').click();
+      await page.locator('#payroll-rule-name').fill('QA почасовая 500');
+      await selectOption(page.locator('#payroll-rule-type'),'hourly');await page.locator('#payroll-rule-rate').fill('500');
+      await captureControl(page.locator('#payroll-rule-form'),'payroll-basic-model');
+      const newModel=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/payroll/rules');
+      await page.locator('#payroll-rule-form [type=submit]').click();const newModelResponse=await newModel;assert.equal(newModelResponse.status(),201);
+      const model=(await newModelResponse.json());const modelId=model.id||model.item?.id;
+      await page.waitForFunction(id=>document.querySelector('#payroll-create-rule').value===id,modelId);
+      assert.equal(await page.locator('#payroll-create-user').inputValue(),seededPayrollUser);
+      assert.equal(await page.locator('#payroll-create-from').inputValue(),payrollFrom);
+      assert.equal(await page.locator('#payroll-create-to').inputValue(),priorMonthEnd);
+      assert.equal(await page.locator('#payroll-create-finance-category').inputValue(),rent);
+      await page.route('**/api/payroll/rules*',route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"temporary_unavailable"}'}),{times:1});
+      const failedOptions=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/payroll/rules'&&response.status()===503);
+      await page.locator('#payroll-options-retry').click();await failedOptions;
+      await page.waitForFunction(()=>!document.querySelector('#payroll-options-retry').disabled);
+      await page.locator('#payroll-options-retry').click();
+      await page.waitForFunction(id=>document.querySelector('#payroll-create-rule').value===id&&!document.querySelector('#payroll-options-retry').disabled,modelId);
+      assert.equal(await page.locator('#payroll-create-user').inputValue(),seededPayrollUser);assert.equal(await page.locator('#payroll-create-from').inputValue(),payrollFrom);
+      await captureControl(page.locator('#payroll-create-form'),'payroll-prepared-accrual');
+      const draftSave=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/payroll/entries');
+      await page.locator('#payroll-create-form [type=submit]').click();const draftResponse=await draftSave;assert.equal(draftResponse.status(),201);
+      const payrollDraft=(await db.query('SELECT id,status,amount FROM payroll_entries WHERE venue_id=$1 AND user_id=$2',[venue,seededPayrollUser])).rows[0];
+      assert.equal(payrollDraft.status,'draft');assert.equal(Number(payrollDraft.amount),4000);
+      await page.locator(`[data-payroll-action="approve"][data-entry="${payrollDraft.id}"]`).waitFor();
+      const approveEntry=page.waitForResponse(response=>response.request().method()==='PATCH'&&new URL(response.url()).pathname===`/api/payroll/entries/${payrollDraft.id}`);
+      await page.locator(`[data-payroll-action="approve"][data-entry="${payrollDraft.id}"]`).click();assert.equal((await approveEntry).status(),200);
+      await page.locator(`[data-payroll-payment-account="${payrollDraft.id}"]`).waitFor();
+      await page.waitForFunction(id=>{const select=document.querySelector(`[data-payroll-payment-account="${id}"]`);return select&&!select.disabled&&!select.parentElement.querySelector(".custom-select-trigger")?.disabled;},payrollDraft.id,{timeout:5000});
+      await selectOption(page.locator(`[data-payroll-payment-account="${payrollDraft.id}"]`),account);
+      await selectOption(page.locator(`[data-payroll-payment-method="${payrollDraft.id}"]`),'card');
+      await page.locator(`[data-payroll-payment-date="${payrollDraft.id}"]`).fill(priorMonthEnd);
+      await captureControl(page.locator('.payroll-entry-row').filter({has:page.locator(`[data-payroll-action="pay"][data-entry="${payrollDraft.id}"]`)}),'payroll-approved-entry');
+      const paidEntry=page.waitForResponse(response=>response.request().method()==='PATCH'&&new URL(response.url()).pathname===`/api/payroll/entries/${payrollDraft.id}`);
+      await page.locator(`[data-payroll-action="pay"][data-entry="${payrollDraft.id}"]`).click();assert.equal((await paidEntry).status(),200);
+      await page.waitForFunction(()=>document.querySelector('#payroll-register').textContent.includes('Выплачено'));
+      const payout=(await db.query('SELECT pe.status,pe.expense_id,e.amount,e.source,e.finance_account_id,e.payment_method FROM payroll_entries pe JOIN expenses e ON e.id=pe.expense_id WHERE pe.id=$1',[payrollDraft.id])).rows[0];
+      assert.equal(payout.status,'paid');assert.equal(Number(payout.amount),4000);assert.equal(payout.source,'payroll');assert.equal(payout.finance_account_id,account);assert.equal(payout.payment_method,'card');
+      await captureControl(page.locator('#payroll-register'),'payroll-paid-register');
+      await page.reload({waitUntil:'networkidle'});await page.locator('#payroll-filter-from').fill(payrollFrom);await page.locator('#payroll-filter-to').fill(priorMonthEnd);await page.locator('#payroll-reload').click();
+      await page.waitForFunction(()=>document.querySelector('#payroll-register').textContent.includes('Выплачено'));
+      evidence.assertions.push('actual hourly model created, selected employee/period/category retained through 503 retry; 8h × 500 = 4000 draft approved and paid from bank/card, linked expense and reload verified');
+
+    }
+
+
   }
 
   if (process.env.FINANCE_NAV_SECTIONS_ONLY !== '1') {
@@ -390,7 +697,7 @@ try {
   evidence.scope=process.env.FINANCE_NAV_SECTIONS_ONLY==='1'?'section-navigation':'full-finance';
   evidence.status=baseline?'BASELINE_CAPTURED':'PASS';
   console.log(`FINANCE NAVIGATION ${evidence.status}: ${artifacts}`);
-} catch(error) { evidence.status='FAIL';evidence.failure={name:error.name,message:error.message};evidence.serverDiagnostics=serverDiagnostics;throw error; }
+} catch(error) { evidence.status='FAIL';evidence.failure={name:error.name,message:error.message};evidence.serverDiagnostics=serverDiagnostics;if(diagnosticPage&&!diagnosticPage.isClosed()){evidence.failureUi=await diagnosticPage.locator('#payroll-create-message,#payroll-message,#payroll-rule-message,[data-scheme-message]').allTextContents().catch(()=>[]);await diagnosticPage.screenshot({path:path.join(artifacts,'failure.png')}).catch(()=>{});}throw error; }
 finally {
   await mkdir(artifacts,{recursive:true});await writeFile(path.join(artifacts,'evidence.json'),JSON.stringify(evidence,null,2));
   if(browser)await browser.close();

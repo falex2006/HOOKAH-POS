@@ -13,10 +13,10 @@ const sync = fs.readFileSync(path.join(root, 'scripts', 'sync-published-assets.m
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 
 assert.equal(ui, distUi, 'published UI asset matches the source');
-assert.match(finance, /payroll-scheme-ui\.js\?rev=17/, 'finance source loads the current owner payroll UI revision');
-assert.match(distFinance, /payroll-scheme-ui\.js\?rev=17/, 'published finance page loads the current payroll UI revision');
-assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=17/, 'directory alias loads the same payroll UI revision');
-assert.match(sync, /payrollSchemeUiRevision = '17'/, 'asset revision is managed by the publish sync');
+assert.match(finance, /payroll-scheme-ui\.js\?rev=18/, 'finance source loads the current owner payroll UI revision');
+assert.match(distFinance, /payroll-scheme-ui\.js\?rev=18/, 'published finance page loads the current payroll UI revision');
+assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=18/, 'directory alias loads the same payroll UI revision');
+assert.match(sync, /payrollSchemeUiRevision = '18'/, 'asset revision is managed by the publish sync');
 assert.ok(sync.includes(String.raw`payroll-scheme-ui\.js\?rev=\d+`), 'publish sync updates the payroll UI cache revision');
 assert.match(sync, /cpSync\(resolve\(root, 'payroll-scheme-ui\.js'\), resolve\(root, 'dist', 'payroll-scheme-ui\.js'\)\)/,
   'publish sync copies the payroll UI source into dist');

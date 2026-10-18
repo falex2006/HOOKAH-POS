@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '2026101807';
-const portalRevision = '2026101807';
+const cssRevision = '2026101901';
+const portalRevision = '2026101901';
 const portalSessionRevision = '2026101805';
 // This employee-page iteration invalidates only its own HTML asset URLs.
-const employeePaymentsCssRevision = '2026101807';
+const employeePaymentsCssRevision = '2026101901';
 const employeePaymentsSessionRevision = '2026101805';
 const lockRevision = '2026101803';
 const appRevision = '2026101807';
@@ -22,7 +22,7 @@ const loginRevision = '2026101803';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '13';
-const payrollSchemeUiRevision = '17';
+const payrollSchemeUiRevision = '18';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
 const speedDialRevision = '1';
