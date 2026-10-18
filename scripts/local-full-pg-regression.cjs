@@ -41,6 +41,7 @@ const suites = new Set([
   'recipe-sale-manual-movement-race-postgres-qa.mjs',
   'payroll-sale-credit-source-postgres-contract.mjs',
   'pos-payroll-recognition-postgres-qa.mjs',
+  'payroll-personal-team-weight-postgres-qa.mjs', 'payroll-personal-department-postgres-qa.mjs',
   'acceptance-27-purchase-reversal-postgres-qa.mjs',
   'acceptance-27-purchase-reversal-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs',
   'acceptance-22-purchase-fields-postgres-qa.mjs',
@@ -246,6 +247,10 @@ async function runSuite(value) {
     if (name === 'postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('postgres_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'payroll-sale-credit-source-postgres-contract.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'payroll_sale_credit_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
+    if (['payroll-personal-team-weight-postgres-qa.mjs', 'payroll-personal-department-postgres-qa.mjs'].includes(name)) {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
     if (name === 'recipe-depletion-pg-runtime-qa.mjs') {

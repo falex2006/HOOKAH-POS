@@ -1,5 +1,7 @@
 'use strict';
 
+const { isDepartmentKey } = require('./payroll-schemes');
+
 // Pure DTO mapping only. A successful mapping is not an official-run attestation:
 // this helper cannot verify source coverage, ownership, attribution or watermarks.
 // It neither reads source systems nor authorizes/persists runs.
@@ -27,6 +29,10 @@ const centsToDecimal = (value, code) => {
 const cleanText = (value, max, code) => {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max) fail(code);
   return value.trim();
+};
+const departmentKey = value => {
+  if (!isDepartmentKey(value)) fail('payroll_snapshot_department_missing');
+  return value;
 };
 const quantity = (value) => {
   const raw = String(value);
@@ -170,7 +176,7 @@ const mapPayrollSnapshotRows = (input) => {
         snapshotKey: key, venue_id: venue, run_id: run, order_id: orderId, order_item_id: orderItemId,
         employee_id: employeeId, employee_name_snapshot: employeeName, menu_item_id: menuItemId,
         menu_item_name_snapshot: cleanText(source.menuItemName, 160, 'payroll_snapshot_item_name_missing'),
-        department_key: cleanText(source.department, 80, 'payroll_snapshot_department_missing'),
+        department_key: departmentKey(source.department),
         sold_at: new Date(source.soldAt).toISOString(), local_date: day.date, quantity: qty,
         gross_amount: gross, discount_amount: discount, refund_amount: refund, commission_base_net: net,
         applied_rate_bps: calculated.appliedRateBps, item_rule_id: itemRuleId,

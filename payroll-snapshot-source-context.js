@@ -1,5 +1,7 @@
 'use strict';
 
+const { isDepartmentKey } = require('./payroll-schemes');
+
 // Pure lineage consistency only. Caller-supplied rows do not attest tenant
 // ownership, completeness of upstream facts or authority to persist a run.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,6 +27,10 @@ const date = (value) => {
 const text = (value, max) => {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max) fail('payroll_source_text_invalid');
   return value.trim();
+};
+const departmentKey = value => {
+  if (!isDepartmentKey(value)) fail('payroll_source_text_invalid');
+  return value;
 };
 const money = (value) => {
   if (!Number.isSafeInteger(value) || value < 0) fail('payroll_source_money_invalid');
@@ -87,7 +93,7 @@ const validatePayrollSnapshotSourceContext = ({ venueId, runId, venueTimezone, r
     const gross = money(source.grossCents), discount = money(source.discountCents), refund = money(source.refundCents), net = money(source.commissionBaseCents);
     if (BigInt(gross) !== BigInt(discount) + BigInt(refund) + BigInt(net)) fail('payroll_source_net_reconciliation_failed');
     sourceById.set(id, { id, orderId, orderItemId, employeeId, menuItemId, localDate, soldAt: instant.toISOString(),
-      employeeName: employeeById.get(employeeId).name, menuItemName: text(source.menuItemName, 160), roleId: text(source.roleId, 80), department: text(source.department, 80),
+      employeeName: employeeById.get(employeeId).name, menuItemName: text(source.menuItemName, 160), roleId: text(source.roleId, 80), department: departmentKey(source.department),
       quantity: quantity(source.quantity), grossCents: gross, discountCents: discount, refundCents: refund, commissionBaseCents: net,
       turnoverCents: money(source.turnoverCents), grossAmount: decimal(gross), discountAmount: decimal(discount), refundAmount: decimal(refund), commissionBaseNet: decimal(net),
       costSnapshot: source.costSnapshot === undefined ? undefined : structuredClone(source.costSnapshot) });
@@ -110,7 +116,7 @@ const validatePayrollSnapshotSourceContext = ({ venueId, runId, venueTimezone, r
       const context = employeeDayByKey.get(`${employeeId}|${localDate}`);
       if (!source || !context || source.employeeId !== employeeId || source.localDate !== localDate
           || source.roleId !== text(line.roleId, 80) || context.roleId !== source.roleId
-          || source.menuItemId !== uuid(line.menuItemId) || source.department !== text(line.department, 80)) fail('payroll_source_line_context_mismatch');
+          || source.menuItemId !== uuid(line.menuItemId) || source.department !== departmentKey(line.department)) fail('payroll_source_line_context_mismatch');
       if (source.commissionBaseCents !== money(line.commissionBaseCents) || source.turnoverCents !== money(line.turnoverCents)) fail('payroll_source_line_amount_mismatch');
       money(line.commissionCents);
       // Rates and calculated commissions belong to payroll output, not POS input.

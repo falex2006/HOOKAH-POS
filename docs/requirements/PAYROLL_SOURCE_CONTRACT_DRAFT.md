@@ -4,6 +4,77 @@
 **Основание:** `PAYROLL_ARCHITECTURE_CONTRACT.md`, `FINANCE_MODEL.md`, локальная схема и действующие POS/табельные маршруты.  
 **Цель:** определить доказуемые входные данные official payroll run, не используя кассу, стол или текущего пользователя как догадку об исполнителе.
 
+## Актуализация 2026-10-19: признание возврата и переход к официальному расчёту
+
+Этот раздел уточняет текущую границу по коду `37f8cf91` и handoff Finance-чата `01a14689-e4c5-7532-8145-3b3b3ee39343`. Исторические аудиты ниже описывают состояние до появления 090–092. Canonical pricing, item-return reader и payroll sale-credit уже существуют; повторная реализация этих адаптеров не требуется. Следующий контракт остаётся проектом. Он не разрешает upstream DDL/producer, денежные записи или включение `officialReady`.
+
+### Матрица происхождения данных
+
+| Требуемый факт | Текущий источник и предел доказательства | Что необходимо для официального расчёта | Владелец |
+|---|---|---|---|
+| Товарная стоимость после скидок | Immutable 090 и canonical reader; отдельные minimum adjustment и seller snapshot | Полная область выбранного tenant/периода, без legacy/unknown строк | POS предоставляет, Payroll проверяет |
+| Продажи сотрудника до возвратов | `payroll-sale-credit-source.js`, включает некомиссионные товары | Историческая допустимость сотрудника и неизменяемая привязка дня; текущие membership/timezone этого не доказывают | Payroll + владелец employee facts |
+| Возвращённые количество/стоимость | 091/092; previous/delta/cumulative, последовательность внутри исходной строки | Полное покрытие истории; unsequenced legacy не достраивается по времени/UUID | POS |
+| Фактическая выплата гостю | 088, tender amounts и `created_at` | Используется для cash flow; не является стоимостью товара или датой payroll-recognition | Finance |
+| Дата признания возврата в зарплате | Авторитетного факта нет | Отдельный immutable versioned recognition fact, описанный ниже | Finance/POS producer по назначению координатора |
+| Историческая timezone | Наблюдается текущая настройка площадки | Снимок timezone и локальной даты с provenance; перспективная фиксация, без реконструкции прошлого | Владелец source producer |
+| Историческая employee eligibility | Текущая membership; seller ID известен | Attested interval или эквивалентное immutable evidence для venue/employee/source instant | Владелец employee facts |
+| Полный личный net | Компонент пока unsupported | Все credited merchandise lines минус признанные item values; noncommissionable включены; покрытие и lineage полные | Payroll consumer после handoff |
+| Себестоимость и цех/смена | Компоненты unsupported | Исторические cost facts и стабильный department/shift manifest; ни текущий каталог, ни название товара не заменяют факт | Inventory/POS + Payroll |
+| Утверждённая явка | 082 approved attendance | Согласование sales-based presence из ТЗ с утверждёнными минутами для соответствующих режимов | Payroll/attendance |
+| Поздняя корректировка | Источник и writer отсутствуют | Исходная line/run, recognition event, owner decision и следующий открытый run | Payroll; финансовая семантика Finance |
+
+### Предлагаемый recognition fact v1
+
+Это **предлагаемый входной документ**, не новая payroll проводка и не команда выплаты. Физическая таблица, migration number, producer route и transaction boundaries назначаются координатором отдельно. Для нового source event требуется:
+
+- `id`, `schemaVersion`, `venueId`, `refundId`, `refundItemId`, `pricingSnapshotId`, `orderId`, `orderItemId`, `portionId`, `employeeId`, `currency`, `policyVersion`;
+- `recognizedAt`: авторитетный UTC timestamp с точностью PostgreSQL до микросекунд; `timezoneSnapshot`: IANA timezone; `localDate`: соответствующая этому instant локальная дата. Эти три поля фиксируются вместе и не пересчитываются после изменения venue timezone;
+- `recordedAt`, `actorId`, обязательная `reason`, ссылка на версию правила и доказательство происхождения. `recordedAt` и существующее `order_refunds.created_at` не подставляются вместо `recognizedAt`;
+- immutable ссылка на сохранённые previous/delta/cumulative quantity и merchandise value, producer sequence, исходного продавца и eligibility evidence. Поля сверяются с source rows в том же согласованном чтении; флаг `verified:true` от caller недостаточен;
+- tenant-scoped idempotency identity и canonical payload checksum: тот же ключ/тот же payload возвращает исходный результат; тот же ключ с иными данными — конфликт. Исправление принятого факта требует отдельного correction contract, не UPDATE/DELETE истории.
+
+Отдельно от повторов HTTP требуется бизнес-уникальность: не более одного первичного recognition на `(venueId, refundItemId)` независимо от idempotency key, actor и policyVersion. Новая версия правила или другой ключ не создают второе признание той же возвращённой строки. Corrections имеют отдельную явную lineage и не маскируются под ещё одно первичное событие.
+
+Дата recognition должна задаваться производителем согласно принятому Finance правилу. Само наличие поля не утверждает правило и не создаёт недостающие исторические данные. Для первой реализации рассматривается только `recognized_event_date`; `original_sale_period_correction` сохраняется unsupported до отдельного договора. Старые возвраты без recognition или eligibility evidence остаются incomplete. Пустая наблюдаемая выборка без доказательства полноты не означает отсутствие возвратов.
+
+### Покрытие, суммы и корректировки
+
+Будущий manifest должен содержать tenant/currency, период и полный диапазон источников, version/policy digest, source watermark, полный набор sales/refund/recognition IDs, полный порядок 092 и evidence исторической eligibility/timezone. Возврат текущего периода может относиться к продаже прошлого периода: producer обязан предоставить её исходную строку и всю нужную историю, даже если она вне sale-query окна. Одно read-only repeatable-read чтение предотвращает смешивание состояний; само по себе оно не доказывает полноту.
+
+Merchandise value и внешний payout сверяются отдельно. Полный employee net включает некомиссионные позиции, не включает venue minimum adjustment и не выводится из commission base. Отрицательное изменение net хранится как знаковый результат признанных событий; оно не преобразуется в ноль и не разрешает отрицательную выплату. Согласование такой величины с дневным ограничением выплаты и остатком поздней корректировки остаётся обязательным перед writer.
+
+Закрытый/оплаченный run и начисления неизменны. Для позднего события предлагается owner-reviewed adjustment следующего открытого run, с lineage `recognition → original credited line → original run → owner decision → target run`. Корректируемая сумма должна быть выведена из сохранённой версии расчёта и допустимой переменной части; умножение возврата на текущую ставку запрещено, поскольку targets/caps/team fund могут быть нелинейны. Не разрешены автоматическое удержание из оклада, automatic clawback, отрицательная выплата и автоматическое списание непокрытого остатка. Остаток остаётся явно нерешённым до отдельного принятого процесса. Review UI, allocation между затронутыми участниками общего фонда и exact-once posting — следующие обязательные части adjustment contract, не решённые наличием recognition fact.
+
+Два разных owner decisions также не разрешают повторно применить один возврат. Будущий adjustment contract должен атомарно учитывать уже применённую сумму и остаток по recognition и исходной credited line/run. Если будут разрешены частичные применения в нескольких открытых периодах, их сумма не может превышать одобренную корректируемую сумму; новые решения не обнуляют использованный остаток. Физическая связь и конкурентный механизм ещё не спроектированы, поэтому до их приёмки нажатие owner review не разрешает posting.
+
+### Независимые oracle-сценарии для будущей интеграционной приёмки
+
+Ни один случай в этой таблице пока не заявлен как выполненный source→recognition→run тест.
+
+| ID | Данные | Независимое ожидание |
+|---|---|---|
+| R1 | Sale net 100000 коп., recognised merchandise return 20000, внешний payout 12000 | Полный личный net 80000; payout отдельно 12000, не 20000 |
+| R2 | Комиссионная строка 60000 и некомиссионная 40000, возврат второй на 10000 | Полный net 90000; комиссионная база первой остаётся 60000; комиссия не выводится из общего net |
+| R3 | Merchandise net 100000, minimum adjustment 20000 | Employee merchandise net 100000; venue total 120000; 20000 никому не назначаются |
+| R4 | `recognizedAt=2026-10-31T19:00:00.000001Z`, snapshot Asia/Yekaterinburg | localDate 2026-11-01; последующая смена venue timezone на UTC не переносит событие в октябрь |
+| R5 | Исходная строка 3 единицы/11 коп., последовательные возвраты по 1 | Previous/cumulative values 0→4→7→11, delta 4/3/4; итог 11, не 12 |
+| R6 | Событие ноября ссылается на октябрьскую продажу | Исходная цена/продавец и предшествующие возвраты читаются за границами sale period; без них incomplete |
+| R7 | Один recognition повторяется; затем тот же key с иной датой/суммой; затем другой key/policyVersion для того же refundItem | Один исходный fact/эффект при повторе; изменённый payload — конфликт; второй primary recognition для того же venue/refundItem не создаётся |
+| R8 | Уже выплаченный run; поздний возврат | Исходные snapshots/entry/expense побайтно неизменны; до owner decision новой выплаты/удержания нет |
+| R9 | Условный будущий случай: принятый adjustment contract разрешает частичное применение; разрешённая коррекция 3000 коп., доступная переменная часть целевого run 1000 | Не более 1000 эффекта, остаток не менее 2000 явно сохранён; оклад и payout ниже нуля не затрагиваются. До принятия самого contract никакого posting, даже после owner click |
+| R10 | Current member есть, исторической eligibility нет; либо unknown seller, foreign venue, legacy091, sequence gap, missing recognition | unsupported/incomplete, суммы unknown, не ноль; writer не вызывается |
+| R11 | В параллельной транзакции добавляется возврат между чтением headers и lines | Первый manifest полностью прежний, следующий полностью новый; ни один не смешивает состояния |
+| R12 | Два разных owner decisions и ключа конкурентно применяют один recognition; фонд/порог/cap затрагивает несколько сотрудников | Использованный correction balance атомарно общий для recognition/исходной line/run, общий эффект не превышает одобренную сумму; allocation и возможные частичные применения требуют отдельного принятого contract. Текущая ставка не используется |
+| R13 | Продаж в текущем периоде 0; признанный поздний merchandise return 20000 коп. | Period employee net −20000, без clamp до нуля; официальный writer blocked до принятия правил дневного ограничения и остатка корректировки |
+
+### Следующий handoff и критерий перехода
+
+1. Finance принимает точное правило recognition и treatment остатка/нелинейных корректировок; координатор назначает владельца producer, файлы и свободный номер миграции. Этот документ их не резервирует.
+2. Source owners реализуют перспективные immutable recognition/timezone/eligibility facts и transactional idempotency с tenant-safe FK; предоставляют реальные PG/API доказательства и диапазон поддержанной истории.
+3. Payroll подключает существующие readers в одном manifest, реализует recognizedLineRefunds/fullEmployeeNetRevenue на этих фактах; отсутствие любого требуемого факта блокирует официальный расчёт. Сначала source/readback oracle matrix, затем official snapshots/run→entry и существующий payout lifecycle.
+4. `officialReady` меняется только после всей применимой source matrix и сквозной приёмки; один доступный компонент или чистый арифметический тест этого не разрешает.
+
 ## Отраслевые примеры, не заменяющие наш финансовый контракт
 
 - Oracle Simphony отдельно предоставляет Employee Journal — журнал продажных операций сотрудника — и Employee Closed Check — список чеков, закрытых сотрудником. Это полезное разделение: автор позиции/операции и закрывший чек являются разными фактами; `orders.opened_by` или закрытие чека не следует принимать как автора каждой позиции. [Oracle Simphony POS Reports](https://docs.oracle.com/en/industries/food-beverage/simphony-essentials/simsl/c_reports_pos.htm)

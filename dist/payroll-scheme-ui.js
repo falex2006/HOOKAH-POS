@@ -60,8 +60,20 @@
     }
     if (value === undefined) delete current[keys.at(-1)]; else current[keys.at(-1)] = value;
   };
+  const editorDepartmentKey = (text) => {
+    if (typeof text !== 'string' || !text || text !== text.trim() || [...text].length > 80
+        || /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(text)) {
+      throw new Error('Код цеха: от 1 до 80 символов, без пробелов по краям и управляющих символов.');
+    }
+    return text;
+  };
+  const editorDepartmentPath = path => path === 'department' || path === 'cap.department';
+  // Editor and submit-time impact/risk checks must accept the same paths.
+  const EDITOR_OVERRIDE_PATH = /^(mode|applyMilestones|milestoneEligibility|department|perShiftCents|stableRateBps|targetCents|teamWeight|baseRateBps|bonusRateBps|excessRatePolicy|lossPolicy|itemRuleBasis|bracketRatesBps\.\d+|cap\.(rateBps|basis|department)|milestoneBonusesCents\.\d+)$/;
+  const EDITOR_DEPARTMENT_HELP = 'Для лимита по личному обороту цеха сначала используется «Цех лимита» (cap.department), а если он не задан — «Цех сотрудника» (department). Каждый параметр наследуется отдельно: цех лимита роли имеет приоритет даже над личным цехом сотрудника. Смена цеха может увеличить сумму выплаты при прежнем проценте. Эти настройки не меняют цех проданных строк и не подтверждают работу в смене.';
   const editorValue = (text, type) => {
     if (type === 'milestoneEligibility') return editorMilestoneEligibilityValue(text);
+    if (type === 'departmentKey') return text === '' ? undefined : editorDepartmentKey(text);
     if (String(text).trim() === '') return undefined;
     if (type === 'boolean') {
       const value = String(text).trim();
@@ -82,12 +94,12 @@
   };
   const editorOverrideType = (path) => /^(perShiftCents|targetCents|milestoneBonusesCents\.\d+)$/.test(path) ? 'money'
     : /^(stableRateBps|baseRateBps|bonusRateBps|bracketRatesBps\.\d+|cap\.rateBps)$/.test(path) ? 'rate'
-      : path === 'teamWeight' ? 'integer' : path === 'applyMilestones' ? 'boolean' : path === 'milestoneEligibility' ? 'milestoneEligibility' : 'text';
+      : editorDepartmentPath(path) ? 'departmentKey' : path === 'teamWeight' ? 'integer' : path === 'applyMilestones' ? 'boolean' : path === 'milestoneEligibility' ? 'milestoneEligibility' : 'text';
   const editorOverrideValue = (path, text) => {
     const type = editorOverrideType(path);
     if (type === 'boolean') { if (!['true', 'false'].includes(text)) throw new Error('Для applyMilestones укажите true или false.'); return text === 'true'; }
     const value = editorValue(text, type);
-    if (value === undefined) throw new Error('Личное значение обязательно; ноль допустим.');
+    if (value === undefined) throw new Error(type === 'departmentKey' ? 'Укажите код личного цеха или выберите наследование.' : 'Личное значение обязательно; ноль допустим.');
     const allowed = { mode: EDITOR_MODES, excessRatePolicy: ['replace_base', 'add_to_base'], lossPolicy: ['offset_daily_losses'], itemRuleBasis: ['net_revenue'], 'cap.basis': ['venue_day', 'employee_department_day'] };
     if (allowed[path] && !allowed[path].includes(value)) throw new Error('Неподдерживаемое значение параметра.');
     return value;
@@ -97,7 +109,7 @@
     if (!result || !result.roleParameters || typeof result.roleParameters !== 'object' || Array.isArray(result.roleParameters)) throw new Error('В JSON нужен объект roleParameters.');
     for (const field of fields) {
       if (!Object.hasOwn(result.roleParameters, field.role)) throw new Error('Роль не найдена в конфигурации.');
-      editorSet(result.roleParameters[field.role], field.path, editorValue(field.text, field.path === 'milestoneEligibility' ? 'milestoneEligibility' : field.type));
+      editorSet(result.roleParameters[field.role], field.path, editorValue(field.text, editorDepartmentPath(field.path) ? 'departmentKey' : field.path === 'milestoneEligibility' ? 'milestoneEligibility' : field.type));
     }
     for (const role of Object.values(result.roleParameters)) for (const path of ['cap', 'teamFund', 'bracketRatesBps', 'milestoneBonusesCents']) {
       if (role[path] && typeof role[path] === 'object' && !Array.isArray(role[path]) && !Object.keys(role[path]).length) delete role[path];
@@ -108,7 +120,7 @@
     for (const edit of overrides) {
       const entry = edit.index === null ? {} : structuredClone(original[edit.index]);
       if (!entry) throw new Error('Переопределение не найдено.');
-      if (!edit.employeeId.trim() || !/^(mode|applyMilestones|milestoneEligibility|perShiftCents|stableRateBps|targetCents|teamWeight|baseRateBps|bonusRateBps|excessRatePolicy|lossPolicy|itemRuleBasis|bracketRatesBps\.\d+|cap\.(rateBps|basis)|milestoneBonusesCents\.\d+)$/.test(edit.path)) throw new Error('Укажите сотрудника и поддерживаемый путь параметра.');
+      if (!edit.employeeId.trim() || !EDITOR_OVERRIDE_PATH.test(edit.path)) throw new Error('Укажите сотрудника и поддерживаемый путь параметра.');
       entry.employeeId = edit.employeeId.trim(); entry.path = edit.path; entry.mode = edit.mode;
       if (/^(bracketRatesBps|milestoneBonusesCents)\.\d+$/.test(entry.path)) {
         const [family,key]=entry.path.split('.'), threshold=Number(key);
@@ -184,9 +196,10 @@
       if (!['override', 'inherit'].includes(item.mode)) throw new Error('Неизвестный режим личного параметра.');
       if (item.mode !== 'override') continue;
       if (typeof item.employeeId !== 'string' || !item.employeeId.trim() || typeof item.path !== 'string'
-        || !/^(mode|applyMilestones|milestoneEligibility|perShiftCents|stableRateBps|targetCents|teamWeight|baseRateBps|bonusRateBps|excessRatePolicy|lossPolicy|itemRuleBasis|bracketRatesBps\.\d+|cap\.(rateBps|basis)|milestoneBonusesCents\.\d+)$/.test(item.path)
+        || !EDITOR_OVERRIDE_PATH.test(item.path)
         || !Object.hasOwn(item, 'value')) throw new Error('Некорректный личный параметр.');
       const type = editorOverrideType(item.path);
+      if (type === 'departmentKey') editorDepartmentKey(item.value);
       const text = ['money', 'rate'].includes(type) ? editorFormat(item.value) : String(item.value);
       if (editorOverrideValue(item.path, text) !== item.value) throw new Error('Некорректное личное значение.');
       if (changedPath !== undefined && changedPath !== item.path) continue;
@@ -246,11 +259,12 @@
     const roleId=assignments[0].roleId,source=definition.roleParameters?.[roleId];
     if(!source||typeof source!=='object'||Array.isArray(source))return {date,roleId,value:undefined,origin:'missing_role'};
     const role=structuredClone(source);
-    for(const edit of roleEdits.filter(row=>row.role===roleId&&row.path===item.path))editorSet(role,edit.path,editorValue(edit.text,edit.type));
+    for(const edit of roleEdits.filter(row=>row.role===roleId&&row.path===item.path))editorSet(role,edit.path,editorValue(edit.text,editorDepartmentPath(edit.path)?'departmentKey':edit.type));
     if(item.path==='applyMilestones'&&role.applyMilestones===undefined&&definition.applyMilestones===undefined){
       for(const edit of roleEdits.filter(row=>row.role===roleId&&row.path==='mode'))editorSet(role,edit.path,editorValue(edit.text,edit.type));
     }
     let value=editorGet(role,item.path||''),origin=value===undefined?'absent':'role';
+    if(editorDepartmentPath(item.path)&&value!==undefined)editorDepartmentKey(value);
     if(item.path==='mode'&&value===undefined){value=definition.mode;origin='scheme';}
     if(item.path==='applyMilestones'&&value===undefined){
       if(definition.applyMilestones!==undefined){if(typeof definition.applyMilestones!=='boolean')throw new Error('Проверьте переключатель премий схемы.');value=definition.applyMilestones;origin='scheme';}
@@ -270,7 +284,7 @@
       const labels={role:'роль',scheme:'схема',role_mode:'режим роли',legacy_default:'прежнее правило',absent:'не задано'},type=editorOverrideType(item.path||'');
       const value=context.value===undefined?'не задано (при наследовании личный параметр отсутствует)':typeof context.value==='boolean'?(context.value?'начислять':'не начислять')
         :type==='milestoneEligibility'?EDITOR_MILESTONE_LABELS[context.value]:['money','rate'].includes(type)?editorFormat(context.value):String(context.value);
-      return `На ${context.date} · роль: ${context.roleId} · наследуемое значение: ${value} · источник: ${labels[context.origin]}. Пустое личное значение не равно нулю.`;
+      return `На ${context.date} · роль: ${context.roleId} · наследуемое значение: ${value} · источник: ${labels[context.origin]}. ${editorDepartmentPath(item.path)?'Показано наследование именно этого параметра; при расчёте цех лимита имеет приоритет над цехом сотрудника.':'Пустое личное значение не равно нулю.'}`;
     }catch(error){return `Наследование не определено: ${error.message}`;}
   };
   const editorMilestoneThresholds = (definition) => {
@@ -291,7 +305,8 @@
     ['mode', 'Способ расчёта', 'select', EDITOR_MODES], ['perShiftCents', 'Оклад за смену', 'money'],
     ['applyMilestones', 'Пороговые премии', 'boolean', ['true', 'false']],
     ['milestoneEligibility', 'Условие выплаты премии', 'select', EDITOR_MILESTONE_POLICIES],
-    ['stableRateBps', 'Стабильная ставка, %', 'rate'], ['cap.rateBps', 'Лимит, %', 'rate'], ['cap.basis', 'База лимита', 'select', ['venue_day', 'employee_department_day']], ['cap.department', 'Цех лимита', 'text'],
+    ['stableRateBps', 'Стабильная ставка, %', 'rate'], ['cap.rateBps', 'Лимит, %', 'rate'], ['cap.basis', 'База лимита', 'select', ['venue_day', 'employee_department_day']],
+    ['department', 'Цех сотрудника (если цех лимита не задан)', 'departmentKey'], ['cap.department', 'Цех лимита (приоритетный)', 'departmentKey'],
     ['targetCents', 'Личный ориентир', 'money'], ['baseRateBps', 'Базовая ставка, %', 'rate'], ['bonusRateBps', 'Повышенная ставка, %', 'rate'],
     ['excessRatePolicy', 'Ставка сверх ориентира', 'select', ['replace_base', 'add_to_base']], ['lossPolicy', 'Учёт убытков', 'select', ['offset_daily_losses']], ['itemRuleBasis', 'База позиционной ставки', 'select', ['net_revenue']],
     ['teamWeight', 'Личный вес в фонде', 'integer'], ['teamFund.poolId', 'ID общего фонда', 'text'], ['teamFund.departments', 'Цеха фонда через запятую', 'departments'],
@@ -424,7 +439,8 @@
   const payrollSaveErrorLabels = {
     invalid_personal_parameters: 'Личные параметры неполны для части периода. Проверьте обязательные поля выбранного режима и даты настроек.',
     payroll_milestone_eligibility_schema_required: 'Для сохранения условия премии требуется обновление зарплатного хранилища. Настройка не сохранена.',
-    invalid_personal_cap: 'Личный лимит неполон для части периода. Задайте процент и базу лимита; для базы по цеху у роли должен быть указан цех.',
+    payroll_personal_department_schema_required: 'Для сохранения личного цеха требуется обновление зарплатного хранилища. Настройка не сохранена.',
+    invalid_personal_cap: 'Личный лимит неполон для части периода. Задайте процент и базу лимита; для базы по цеху укажите цех лимита или цех сотрудника, лично либо по роли.',
     milestone_cap_policy_required: 'Выберите, включать пороговые премии в лимит или начислять их отдельно.',
     payroll_personal_target_schema_required: 'Сохранение новой зарплатной схемы требует обновления структуры базы данных. Настройки не сохранены.',
     payroll_risk_acknowledgement_required: 'Перед сохранением версии подтвердите, что поняли риск блокировки официального расчёта. Это подтверждение не разрешает выплату выше личной выручки.',
@@ -884,6 +900,7 @@
       }
     };
     const gridControl = (role, path, type, value, choices = []) => {
+      if (type === 'departmentKey' && value !== undefined) editorDepartmentKey(value);
       const attrs = `data-grid-role="${escapeHtml(role)}" data-grid-path="${escapeHtml(path)}" data-grid-type="${type === 'select' ? 'text' : type}" aria-label="${escapeHtml(`${role}: ${path}`)}"`;
       const formatted = ['money', 'rate'].includes(type) ? editorFormat(value) : type === 'departments' && Array.isArray(value) ? value.join(', ') : value ?? '';
       if (path === 'milestoneEligibility') {
@@ -901,9 +918,10 @@
     };
     const overrideCard = (item = {}, index = null) => {
       const type = editorOverrideType(item.path || '');
+      if (type === 'departmentKey' && item.mode === 'override') editorDepartmentKey(item.value);
       const value = item.mode === 'override' ? ['money', 'rate'].includes(type) ? editorFormat(item.value) : String(item.value ?? '') : '';
       const inheritedCaption = editorInheritedCaption(gridSource,item);
-      return `<section data-grid-override="${index === null ? 'new' : index}"><p data-grid-inherited-caption>${escapeHtml(inheritedCaption)}</p><div class="form-row"><label>UUID сотрудника<input data-grid-employee value="${escapeHtml(item.employeeId || '')}" list="payroll-grid-employees"></label><label>Параметр<input data-grid-override-path value="${escapeHtml(item.path || '')}" placeholder="perShiftCents, bracketRatesBps.0, cap.rateBps"></label><label>Назначение<select data-grid-override-mode><option value="override" ${item.mode !== 'inherit' ? 'selected' : ''}>Персонально</option><option value="inherit" ${item.mode === 'inherit' ? 'selected' : ''}>По роли</option></select></label><label>Личное значение (сумма / %)<input data-grid-override-value value="${escapeHtml(value)}"></label><label>С даты<input type="date" data-grid-override-from value="${escapeHtml(item.effectiveFrom || '')}"></label><label>По дату<input type="date" data-grid-override-to value="${escapeHtml(item.effectiveTo || '')}"></label></div><button type="button" class="button" data-grid-inherit>Вернуть к ставке роли для этого периода</button></section>`;
+      return `<section data-grid-override="${index === null ? 'new' : index}"><p data-grid-inherited-caption>${escapeHtml(inheritedCaption)}</p><div class="form-row"><label>UUID сотрудника<input data-grid-employee value="${escapeHtml(item.employeeId || '')}" list="payroll-grid-employees"></label><label>Параметр<input data-grid-override-path value="${escapeHtml(item.path || '')}" placeholder="perShiftCents, bracketRatesBps.0, cap.rateBps, department"></label><label>Назначение<select data-grid-override-mode><option value="override" ${item.mode !== 'inherit' ? 'selected' : ''}>Персонально</option><option value="inherit" ${item.mode === 'inherit' ? 'selected' : ''}>По роли</option></select></label><label>${type === 'departmentKey' ? 'Код личного цеха' : 'Личное значение (сумма / %)'}<input data-grid-override-value value="${escapeHtml(value)}"></label><label>С даты<input type="date" data-grid-override-from value="${escapeHtml(item.effectiveFrom || '')}"></label><label>По дату<input type="date" data-grid-override-to value="${escapeHtml(item.effectiveTo || '')}"></label></div><button type="button" class="button" data-grid-inherit>Вернуть к ставке роли для этого периода</button></section>`;
     };
     const organizeGrid=()=>{
       const roles=[...grid.querySelectorAll(':scope > details')];
@@ -913,12 +931,12 @@
       if(milestone){const next=milestone.nextElementSibling,help=next?.nextElementSibling;const bonuses=disclosure(milestone,'Пороговые премии: суммы по ролям');if(next)bonuses.append(next);if(help?.tagName==='P')bonuses.append(help);
         const eligibility=grid.querySelector('[data-grid-scheme-milestone-eligibility]')?.closest('.form-row');if(eligibility){const hint=eligibility.nextElementSibling;bonuses.append(eligibility);if(hint?.tagName==='P')bonuses.append(hint);}}
       roles.forEach((role,index)=>{role.classList.add('scheme-group');role.dataset.gridRoleCard='';role.open=index===0;const fields=role.querySelector(':scope > .form-row');
-        const groups=[['Основная оплата',path=>['mode','perShiftCents','stableRateBps'].includes(path)],['Премии и личный план',path=>['applyMilestones','milestoneEligibility','targetCents','baseRateBps','bonusRateBps','excessRatePolicy'].includes(path)],['Лимиты и расчёт от маржи',path=>path.startsWith('cap.')||['lossPolicy','itemRuleBasis'].includes(path)],['Командный фонд',()=>true]];
-        for(const [title,matches] of groups){const labels=[...fields.children].filter(label=>matches(label.querySelector('[data-grid-path]')?.dataset.gridPath||''));if(!labels.length)continue;const row=document.createElement('div');row.className='form-row scheme-role-fields';row.append(...labels);fields.before(row);const grouped=disclosure(row,title);grouped.open=title==='Основная оплата';}
+        const groups=[['Основная оплата',path=>['mode','perShiftCents','stableRateBps'].includes(path)],['Премии и личный план',path=>['applyMilestones','milestoneEligibility','targetCents','baseRateBps','bonusRateBps','excessRatePolicy'].includes(path)],['Лимиты и расчёт от маржи',path=>path.startsWith('cap.')||['department','lossPolicy','itemRuleBasis'].includes(path)],['Командный фонд',()=>true]];
+        for(const [title,matches] of groups){const labels=[...fields.children].filter(label=>matches(label.querySelector('[data-grid-path]')?.dataset.gridPath||''));if(!labels.length)continue;const row=document.createElement('div');row.className='form-row scheme-role-fields';row.append(...labels);fields.before(row);const grouped=disclosure(row,title);grouped.open=title==='Основная оплата';if(title==='Лимиты и расчёт от маржи'){const help=document.createElement('p');help.className='muted';help.textContent=EDITOR_DEPARTMENT_HELP;grouped.append(help);}}
         fields.remove();const impact=role.querySelector('[data-grid-role-impact]');if(impact)disclosure(impact,'Какие личные условия перекрывают эту роль');
       });
       if(roles.length)grid.prepend(...roles);
-      const overrides=grid.querySelector('[data-grid-overrides]');if(overrides){const title=overrides.previousElementSibling?.previousElementSibling;const add=overrides.nextElementSibling;const personal=disclosure(overrides,'Индивидуальные условия сотрудников');if(title?.tagName==='H4')title.remove();if(add?.matches('[data-grid-add-override]'))personal.append(add);}
+      const overrides=grid.querySelector('[data-grid-overrides]');if(overrides){const title=overrides.previousElementSibling?.previousElementSibling;const add=overrides.nextElementSibling;const personal=disclosure(overrides,'Индивидуальные условия сотрудников');if(title?.tagName==='H4')title.remove();const help=document.createElement('p');help.className='muted';help.textContent='Для личного цеха сотрудника укажите параметр department; для приоритетного цеха лимита — cap.department. '+EDITOR_DEPARTMENT_HELP;personal.append(help);if(add?.matches('[data-grid-add-override]'))personal.append(add);}
     };
     const rebuildGrid = () => {
       try {
