@@ -40,6 +40,7 @@ const suites = new Set([
   'acceptance-47-pos-journey-postgres-qa.mjs',
   'recipe-sale-manual-movement-race-postgres-qa.mjs',
   'payroll-sale-credit-source-postgres-contract.mjs',
+  'pos-payroll-recognition-postgres-qa.mjs',
   'acceptance-27-purchase-reversal-postgres-qa.mjs',
   'acceptance-27-purchase-reversal-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs',
   'acceptance-22-purchase-fields-postgres-qa.mjs',
@@ -276,6 +277,10 @@ async function runSuite(value) {
     }
     if (['acceptance-48-inventory-department-boundaries-postgres-qa.mjs', 'acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs'].includes(name)) env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
     if (['paid-order-balance-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs', 'finance-shift-analytics-postgres-qa.mjs', 'finance-employee-postgres-qa.mjs', 'guest-loyalty-postgres-api-qa.mjs', 'session-preferences-postgres-qa.mjs', 'scoped-role-dependencies-postgres-qa.mjs', 'staff-identity-postgres-qa.mjs', 'staff-login-race-postgres-qa.mjs', 'pos-order-refunds-postgres-qa.mjs', 'pos-role-payment-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'acceptance-48-inventory-department-boundaries-postgres-qa.mjs', 'acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs'].includes(name)) env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE || 'orders_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'pos-payroll-recognition-postgres-qa.mjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
     if (name === 'acceptance-33-expense-document-postgres-browser-qa.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
