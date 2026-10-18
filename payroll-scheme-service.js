@@ -177,6 +177,19 @@ const requireMilestoneConfigurationSchema = async (db, definition) => {
   if (result.rows[0]?.ready !== true) fail('payroll_milestone_eligibility_schema_required', 409);
 };
 
+const requirePersonalDepartmentConfigurationSchema = async (db, definition) => {
+  // Inherit rows use the new paths too. Role-only department fields already
+  // existed and must not require this additive personal-configuration capability.
+  if (!definition.employeeOverrides.some(row => row.path === 'department' || row.path === 'cap.department')) return;
+  const result = await db.query(`SELECT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid=to_regclass('payroll_employee_overrides')
+      AND conname='payroll_employee_overrides_department_value_check'
+      AND contype='c' AND convalidated
+  ) AS ready`);
+  if (result.rows[0]?.ready !== true) fail('payroll_personal_department_schema_required', 409);
+};
+
 const assertOwner = async (db, principal, lock = false) => {
   if (!principal || typeof principal.venueId !== 'string' || typeof principal.userId !== 'string') fail('authenticated_owner_required', 403);
   const result = await db.query(`SELECT id, full_name AS name
@@ -503,6 +516,7 @@ const makeService = (pool) => {
     const versionId = randomUUID();
     const definition = ensureDefinition(rawDefinition, schemeId, versionId);
     await requireMilestoneConfigurationSchema(db, definition);
+    await requirePersonalDepartmentConfigurationSchema(db, definition);
     const payoutRiskAcknowledgement = await recordPayoutRiskAcknowledgement(db, actor, definition, acknowledgement);
     const configJson = JSON.stringify({ roleParameters: definition.roleParameters, applyMilestones: definition.applyMilestones,
       milestoneEligibility: definition.milestoneEligibility, milestoneCapPolicy: definition.milestoneCapPolicy, sourcePolicies: definition.sourcePolicies, payoutRiskAcknowledgement });
@@ -541,6 +555,7 @@ const makeService = (pool) => {
     if (current.rows[0].status !== 'draft') fail('payroll_scheme_version_immutable', 409);
     const definition = ensureDefinition(definitionInput, current.rows[0].scheme_id, versionId);
     await requireMilestoneConfigurationSchema(db, definition);
+    await requirePersonalDepartmentConfigurationSchema(db, definition);
     const payoutRiskAcknowledgement = await recordPayoutRiskAcknowledgement(db, actor, definition, acknowledgement);
     for (const table of ['payroll_role_assignments', 'payroll_employee_overrides', 'payroll_item_commission_rules']) {
       await db.query(`DELETE FROM ${table} WHERE venue_id=$1 AND scheme_version_id=$2`, [actor.venueId, versionId]);
@@ -562,6 +577,7 @@ const makeService = (pool) => {
     if (!current.payoutRiskAcknowledgement?.configDigest) fail('payroll_risk_acknowledgement_required', 409);
     const definition = ensureDefinition(current, current.id, current.versionId);
     await requireMilestoneConfigurationSchema(db, definition);
+    await requirePersonalDepartmentConfigurationSchema(db, definition);
     if (current.payoutRiskAcknowledgement.policyCode !== PAYOUT_RISK_ACK_POLICY
         || current.payoutRiskAcknowledgement.configDigest !== payoutConfigurationDigest(definition)) {
       fail('payroll_risk_acknowledgement_required', 409);

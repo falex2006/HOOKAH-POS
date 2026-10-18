@@ -79,4 +79,12 @@ const lowerEmployee = uppercaseCalculated.toLowerCase();
 rawUppercase.result = JSON.parse(JSON.stringify(rawUppercase.result).replaceAll(employeeId, lowerEmployee));
 rawUppercase.employees[0].id = uppercaseCalculated; rawUppercase.sourceLines[0].employeeId = uppercaseCalculated;
 assert.equal(validate(rawUppercase).sourceById.get(lineId).employeeId, lowerEmployee);
+
+for (const department of ['🫖'.repeat(80), 'Bar', 'bar kitchen']) {
+ const data=fixture(); data.sourceLines[0].department=department; data.result.daily[0].lines[0].department=department;
+ assert.equal(validate(data).sourceById.get(lineId).department,department);
+}
+for (const department of ['🫖'.repeat(81), ' bar', 'bar ', 'bar\u0000', 'bar\u0085', '\ud800', {}, []]) {
+ rejects(d=>{d.sourceLines[0].department=department;d.result.daily[0].lines[0].department=department;},'payroll_source_text_invalid');
+}
 console.log('PAYROLL SNAPSHOT SOURCE CONTEXT CONTRACT: PASS (typed lineage, explicit timezone, source coverage and pure canonicalization)');
