@@ -5254,6 +5254,3 @@ div.action-modal>.action-box form>.action-footer>button{min-height:44px;margin:0
  :is(body.portal.velora-theme,body.staff-theme) :is(.action-modal .action-footer,.staff-admin-actions,.staff-profile-actions,.staff-card-dialog .action-footer){flex-direction:column;align-items:stretch;gap:8px}
  :is(body.portal.velora-theme,body.staff-theme) :is(.action-modal .action-footer,.staff-admin-actions,.staff-profile-actions,.staff-card-dialog .action-footer)>button{width:100%;min-width:0}
 }
-body.platform-page .modal-actions{align-items:stretch;gap:12px}
-body.platform-page .modal-actions>button{min-height:44px}
-@media(max-width:560px){body.platform-page .modal-actions{flex-direction:column;gap:8px}body.platform-page .modal-actions>button{width:100%;min-width:0}}
