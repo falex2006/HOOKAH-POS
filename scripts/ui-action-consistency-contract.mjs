@@ -8,7 +8,15 @@ assert.match(css, /@media\(max-width:700px\)\{\s*:is\(body\.portal\.velora-theme
 assert.match(css, /div\.action-modal>\.action-box form>\.action-footer\{flex-direction:column;align-items:stretch;gap:8px\}/);
 assert.match(css, /\.staff-admin-actions,\.staff-profile-actions/);
 assert.match(css, /\{flex-direction:column;align-items:stretch;gap:8px\}/);
-assert.match(css, /:is\(body\.portal\.velora-theme,body\.staff-theme\) \.toolbar-row>\.button\.small\{min-height:44px\}/);
+assert.match(css, /finance-category-actions>:is\(\.button,\.finance-category-start,\.finance-category-overflow\)\{grid-column:auto;box-sizing:border-box;width:100%;min-width:0;max-width:100%\}/);
+assert.match(css, /finance-category-workspace \.finance-category-overflow\{display:flex;justify-content:flex-end\}/);
+assert.match(css, /finance-category-workspace \.finance-category-overflow>summary\.button\{box-sizing:border-box;width:44px;padding:0;border:1px solid/);
+assert.match(css, /\.inventory-movement-editor-actions\{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:6px\}/);
+assert.match(css, /:is\(body\.portal\.velora-theme,body\.staff-theme\) \.inventory-movement-editor-actions>\.button\{width:200px;min-width:200px;min-height:44px;font-size:13px;white-space:nowrap\}/);
+assert.match(css, /:is\(body\.portal\.velora-theme,body\.staff-theme\) \.inventory-movement-editor-actions>\.button\{width:100%;min-width:0;min-height:44px\}/);
+assert.match(css, /\.ui-modal \.ui-modal-head>\.ui-button \{ flex:0 0 auto;white-space:nowrap; \}/);
+assert.match(css, /body\[data-page="reservations"\] \.reservation-save-footer\{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:12px/);
+assert.match(css, /body\[data-page="reservations"\] \.reservation-save-footer>:is\(\.button,\.ui-button\)\{width:100%;min-width:0\}/);
 assert.match(js, /id="cancel-finance-category" type="button">Отмена<\/button><button class="button primary" type="submit">Сохранить/);
 assert.deepEqual(fs.readFileSync(new URL('portal.js', root)), fs.readFileSync(new URL('dist/portal.js', root)));
 assert.deepEqual(fs.readFileSync(new URL('style.css', root)), fs.readFileSync(new URL('dist/style.css', root)));
