@@ -9,6 +9,9 @@ assert.match(css, /div\.action-modal>\.action-box form>\.action-footer\{flex-dir
 assert.match(css, /\.staff-admin-actions,\.staff-profile-actions/);
 assert.match(css, /\{flex-direction:column;align-items:stretch;gap:8px\}/);
 assert.match(css, /finance-category-actions>:is\(\.button,\.finance-category-start,\.finance-category-overflow\)\{grid-column:auto;box-sizing:border-box;width:100%;min-width:0;max-width:100%\}/);
+assert.match(css, /finance-category-workspace #finance-category-list \.category-row\{grid-template-columns:minmax\(0,1fr\) 88px minmax\(0,1\.8fr\);gap:16px;padding:16px;align-items:center\}/);
+assert.match(css, /finance-category-workspace #finance-category-list \.category-row>\.badge\{justify-self:center\}/);
+assert.match(css, /@media\(max-width:1100px\)\{\.finance-category-workspace #finance-category-list \.category-row\{grid-template-columns:minmax\(0,1fr\) 88px\}/);
 assert.match(css, /finance-category-workspace \.finance-category-overflow\{display:flex;justify-content:flex-end\}/);
 assert.match(css, /finance-category-workspace \.finance-category-overflow>summary\.button\{box-sizing:border-box;width:44px;padding:0;border:1px solid/);
 assert.match(css, /\.inventory-movement-editor-actions\{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:6px\}/);
