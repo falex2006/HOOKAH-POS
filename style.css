@@ -11,6 +11,7 @@
 #page-content.ui-connected-pages .network-row{flex-wrap:wrap;gap:16px}
 #page-content.ui-connected-pages .network-row>div:first-child{flex:1 1 280px;min-width:0}
 #page-content.ui-connected-pages .network-row small{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:620px){#page-content.ui-connected-pages .network-row>div:first-child{flex-basis:auto}}
 #page-content.ui-connected-pages .integration-icon{background:var(--ui-input);color:var(--ui-link)}
 #page-content.ui-connected-pages .badge.warning{color:var(--ui-warning);background:var(--ui-panel)}
 #page-content.ui-connected-pages .badge.success{color:var(--ui-success);background:var(--ui-panel)}
@@ -1188,7 +1189,7 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .staff-drawer-scrim{position:absolute;inset:0;background:#05070acc;backdrop-filter:blur(4px)}
 .staff-drawer-panel{position:absolute;top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);width:min(680px,calc(100% - 32px));max-height:min(90vh,900px);overflow:auto;padding:26px;background:linear-gradient(145deg,#1b1e23,#15171b);border:1px solid #3a414b;border-radius:18px;box-shadow:0 24px 80px #000b;color:#eef1f4}
 .staff-drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid #2b3038}
-.staff-drawer-head h2{margin:0;color:#f7f8fa;font-size:22px}.staff-drawer-head p{margin:6px 0 0;color:#8d96a1;font-size:12px}.staff-drawer-close{flex:0 0 auto}
+.staff-drawer-head h2{margin:0;color:#f7f8fa;font-size:22px}.staff-drawer-head p{margin:6px 0 0;color:#8d96a1;font-size:12px}.staff-drawer-close{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;min-width:44px;padding:0;border:1px solid #3c4652;border-radius:12px;background:#242a32;color:#c4ccd5;font-size:22px;line-height:1;cursor:pointer}.staff-drawer-close:hover{border-color:#ff8b78;background:#2a3039;color:#fff}.staff-drawer-close:focus-visible{outline:2px solid #ff8b78;outline-offset:2px}
 .staff-drawer-body{padding-top:20px}.staff-drawer-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;border:0;padding:0}.staff-drawer-form>b{display:none}.staff-drawer-form .staff-form-field,.staff-drawer-form .staff-sensitive-fields,.staff-drawer-form .permission-scope-fields,.staff-drawer-form>button,.staff-drawer-form>#staff-message{grid-column:1/-1}.staff-drawer-form .staff-form-contact-row{display:contents}.staff-drawer-form .staff-form-field{min-width:0}.staff-drawer-form input,.staff-drawer-form select,.staff-drawer-form textarea{box-sizing:border-box;width:100%;min-width:0}.staff-drawer-form .staff-sensitive-fields{margin-top:2px}.staff-drawer-form>button{margin-top:4px}.staff-drawer-form>#staff-message{margin-top:0}
 .velora-theme .staff-row[hidden]{display:none}
 @media(max-width:720px){.velora-theme .staff-panel .panel-head{display:grid}.velora-theme .staff-list-tools{grid-template-columns:1fr;max-width:100%}.velora-theme .staff-list-tools input{min-width:0}.velora-theme .staff-add-button{justify-self:start}.velora-theme .staff-drawer-panel{padding:20px}.staff-drawer-form{grid-template-columns:1fr}}
@@ -2534,6 +2535,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .purchase-line-preview{grid-column:1/-1;margin:0}
 .velora-theme .purchase-line>.button{min-height:44px}
 .velora-theme .purchase-form-footer{padding-top:14px;border-top:1px solid #2b3038}
+.velora-theme .purchase-form-footer>.toolbar-row{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:12px}
+.velora-theme .purchase-form-footer>.toolbar-row>.button{min-height:44px;margin:0}
 .velora-theme .purchase-form-footer>strong{font-size:18px;color:#f3f5f7}
 .velora-theme .purchase-history{display:grid;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid #2b3038}
 .velora-theme .purchase-document-form .required-mark{color:#ff7180;font-weight:800}
@@ -2545,7 +2548,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 @media(max-width:1100px){.velora-theme .purchase-line{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .purchase-line>label:first-child{grid-column:1/-1}.velora-theme .purchase-line-preview{grid-column:1/-1}}
 @media(max-width:980px){.velora-theme .purchase-lines-head>.button,.velora-theme .purchase-document-row>.toolbar-row>.button{min-height:44px}}
 @media(max-width:760px){.velora-theme .purchase-document-form>.form-grid{grid-template-columns:1fr 1fr}.velora-theme .purchase-document-form>.form-grid>label:first-child{grid-column:1/-1}}
-@media(max-width:650px){.velora-theme .inventory-purchase-panel>.panel-head{flex-direction:column}.velora-theme .inventory-purchase-panel>.panel-head>.badge{max-width:none;align-self:flex-start}.velora-theme .purchase-document-form>.form-grid{grid-template-columns:1fr}.velora-theme .purchase-document-form>.form-grid>label:first-child{grid-column:auto}.velora-theme .purchase-lines-head,.velora-theme .purchase-form-footer{align-items:stretch;flex-direction:column}.velora-theme .purchase-lines-head>.button,.velora-theme .purchase-form-footer .toolbar-row>.button{width:100%;min-height:44px}.velora-theme .purchase-line{grid-template-columns:minmax(0,1fr);padding:12px}.velora-theme .purchase-line>label:first-child,.velora-theme .purchase-line-preview{grid-column:1}.velora-theme .purchase-document-row{grid-template-columns:minmax(0,1fr) auto}.velora-theme .purchase-document-row>.toolbar-row{grid-column:1/-1;width:100%}.velora-theme .purchase-document-row>.toolbar-row>.button{flex:1;min-height:44px}}
+@media(max-width:650px){.velora-theme .inventory-purchase-panel>.panel-head{flex-direction:column}.velora-theme .inventory-purchase-panel>.panel-head>.badge{max-width:none;align-self:flex-start}.velora-theme .purchase-document-form>.form-grid{grid-template-columns:1fr}.velora-theme .purchase-document-form>.form-grid>label:first-child{grid-column:auto}.velora-theme .purchase-lines-head,.velora-theme .purchase-form-footer{align-items:stretch;flex-direction:column}.velora-theme .purchase-lines-head>.button,.velora-theme .purchase-form-footer .toolbar-row>.button{width:100%;min-height:44px}.velora-theme .purchase-form-footer>.toolbar-row{width:100%;flex-direction:column;gap:8px}.velora-theme .purchase-line{grid-template-columns:minmax(0,1fr);padding:12px}.velora-theme .purchase-line>label:first-child,.velora-theme .purchase-line-preview{grid-column:1}.velora-theme .purchase-document-row{grid-template-columns:minmax(0,1fr) auto}.velora-theme .purchase-document-row>.toolbar-row{grid-column:1/-1;width:100%}.velora-theme .purchase-document-row>.toolbar-row>.button{flex:1;min-height:44px}}
 @media(max-width:380px){.velora-theme .inventory-page-title>.toolbar-row{grid-template-columns:minmax(0,1fr)}}
 
 /* Warehouse tables become labeled item cards when the available content column
@@ -3912,8 +3915,8 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .inventory-journal-editor .custom-select.is-open .custom-select-menu{position:static;max-height:220px;margin-top:6px}
 .inventory-journal-editor input,.inventory-journal-editor textarea{min-width:0}
 .inventory-journal-editor #movement-cancel{margin-top:0}
-.inventory-movement-editor-actions{display:flex;gap:10px;margin-top:6px}
-.inventory-movement-editor-actions .button{flex:1;width:auto;margin:0}
+.inventory-movement-editor-actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:6px}
+.inventory-movement-editor-actions .button{flex:0 0 auto;min-width:120px;min-height:44px;width:auto;margin:0}
 .inventory-journal-editor .form-message:empty{display:none}
 @media(max-width:1100px){.inventory-movements-mode .purchase-document-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.inventory-movements-mode .purchase-document-filters .toolbar-row{grid-column:2/-1;justify-content:flex-end}.velora-theme .inventory-movements-mode .purchase-document-row{grid-template-columns:minmax(0,1fr) auto}.inventory-movements-mode .purchase-document-row>.toolbar-row{grid-column:1/-1}}
 @media(max-width:650px){.inventory-movement-journal-switch{width:100%}.inventory-movement-journal-switch button{min-width:0;flex:1}.inventory-movements-mode .purchase-document-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-movements-mode .purchase-document-filters .toolbar-row{grid-column:1/-1;justify-content:stretch}.inventory-movements-mode .purchase-document-filters .toolbar-row .button{flex:1}.inventory-movements-mode #purchase-document-list,.inventory-movements-mode #movement-history-list{max-height:55dvh}.inventory-journal-editor.purchase-document-dialog{width:calc(100vw - 20px);padding:16px}.inventory-journal-editor .purchase-lines{max-height:44dvh}.inventory-movements-mode .movement-row{grid-template-columns:minmax(0,1fr) auto}.inventory-movements-mode .inventory-header-actions{display:grid;grid-template-columns:1fr;width:100%}.inventory-movements-mode .inventory-header-actions .button{width:100%;white-space:normal}}
@@ -4234,8 +4237,8 @@ body[data-page="reservations"] #reservation-form label{min-width:0;gap:8px;color
 body[data-page="reservations"] #reservation-form .form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
 body[data-page="reservations"] #reservation-form :is(input:not([type=hidden]),select,textarea,.custom-select-trigger){width:100%;min-width:0;min-height:44px;box-sizing:border-box}
 body[data-page="reservations"] #reservation-form .muted{color:#9aa3ae;font-size:11px;line-height:1.5}
-body[data-page="reservations"] .reservation-save-footer{display:flex;flex-wrap:wrap;gap:12px;padding-top:18px;border-top:1px solid #363d48}
-body[data-page="reservations"] .reservation-save-footer>.button{min-height:44px;flex:1 1 auto}
+body[data-page="reservations"] .reservation-save-footer{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:12px;padding-top:18px;border-top:1px solid #363d48}
+body[data-page="reservations"] .reservation-save-footer>:is(.button,.ui-button){min-height:44px;min-width:112px;flex:0 0 auto}
 body[data-page="reservations"] #reservation-cancel-edit[hidden]{display:none}
 body[data-page="reservations"] .reservation-save-footer>.form-message{flex:1 1 100%;margin:0;line-height:1.5}
 body[data-page="reservations"] .reservation-panel>.panel-head{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
@@ -4612,6 +4615,7 @@ body[data-page="reservations"].light-theme .reservation-review{background:#f8fbf
 .ui-modal[data-size="large"] .ui-modal-card { width:880px; }
 .ui-modal .ui-modal-head { position:static;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex:none;padding:20px 24px;border-bottom:1px solid var(--ui-border-subtle);background:var(--ui-panel);height:auto;min-height:0; }
 .ui-modal .ui-modal-head>div { min-width:0; }
+.ui-modal .ui-modal-head>.ui-button { flex:0 0 auto;white-space:nowrap; }
 .ui-modal .ui-modal-head .ui-helper { margin:8px 0 0; }
 .ui-modal .ui-modal-body { display:grid;gap:16px;overflow:auto;overscroll-behavior:contain;min-height:0;padding:20px 24px; }
 .ui-modal .ui-modal-footer { display:flex;justify-content:flex-end;gap:12px;flex:none;flex-wrap:wrap;padding:16px 24px;border-top:1px solid var(--ui-border-subtle);background:var(--ui-panel); }
@@ -5095,18 +5099,36 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 /* Financial category directory: filters and actions keep their own alignment. */
 .velora-theme .finance-category-workspace .finance-categories-panel>.panel-head{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 .velora-theme .finance-category-workspace .finance-category-filters{display:grid;grid-template-columns:minmax(180px,2fr) minmax(140px,1fr) minmax(170px,1fr);max-width:none;width:100%;gap:12px}
-.finance-category-workspace #finance-category-list .category-row{grid-template-columns:minmax(0,1fr) auto auto;gap:16px;padding:16px;align-items:center}
+.finance-category-workspace #finance-category-list .category-row{grid-template-columns:minmax(0,1fr) 88px minmax(0,1.8fr);gap:16px;padding:16px;align-items:start}
+.finance-category-workspace #finance-category-list .category-row>.badge{box-sizing:border-box;width:88px;min-width:88px;align-self:start;justify-self:center;text-align:center;white-space:normal}
 .finance-category-workspace #finance-category-list .category-row>div:first-child{min-width:0;overflow-wrap:anywhere}
-.finance-category-workspace .finance-category-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
-.finance-category-workspace .finance-category-actions .button{margin:0;min-height:44px;white-space:nowrap}
+.finance-category-workspace .finance-category-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:stretch}
+.finance-category-workspace .finance-category-actions .button{display:flex;flex:1 1 120px;box-sizing:border-box;min-width:0;max-width:none;margin:0;min-height:44px;align-items:center;justify-content:center;text-align:center;line-height:1.25;white-space:normal}
+.finance-category-workspace .finance-category-actions .button.danger-outline{border:1px solid rgba(255,100,110,.45);background:transparent;color:var(--ui-danger,#ff7180)}
+
+/* UI-18: keep equivalent finance actions and view switches aligned on small screens. */
+#page-content.ui-financial-pages .finance-obligation-actions{display:flex;align-items:center;gap:12px}
+#page-content.ui-financial-pages .finance-obligation-actions>.button{display:flex;flex:1 1 168px;min-width:0;min-height:44px;align-items:center;justify-content:center;text-align:center;white-space:normal}
+#page-content.ui-financial-pages .finance-payables-panel :is([data-obligation-form],[data-rule-form])>.toolbar-row{display:flex;justify-content:flex-end;gap:12px}
+#page-content.ui-financial-pages .finance-payables-panel :is([data-obligation-form],[data-rule-form])>.toolbar-row>.button{min-height:44px;margin:0}
+@media(max-width:700px){
+ #page-content.ui-financial-pages .finance-obligation-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;width:100%}
+ #page-content.ui-financial-pages .finance-obligation-actions>.button{width:100%;min-width:0}
+ #page-content.ui-financial-pages .finance-payables-panel :is([data-obligation-form],[data-rule-form])>.toolbar-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;width:100%}
+ #page-content.ui-financial-pages .finance-payables-panel :is([data-obligation-form],[data-rule-form])>.toolbar-row>.button{width:100%;min-width:0}
+ #page-content.ui-financial-pages .finance-chart-controls .finance-chart-view{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-column:1/-1;justify-self:stretch;width:100%;gap:8px}
+ #page-content.ui-financial-pages .finance-chart-controls .finance-chart-view>button{width:100%;min-width:0;min-height:44px;box-sizing:border-box;text-align:center}
+ #page-content.ui-financial-pages .payment-panel-head .finance-chart-view{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:8px}
+ #page-content.ui-financial-pages .payment-panel-head .finance-chart-view>button{width:100%;min-width:0;min-height:44px;box-sizing:border-box;text-align:center}
+}
 .finance-category-workspace .finance-category-links{margin-top:6px;font-size:12px;color:var(--muted,#9ca5af)}
 .finance-category-workspace .finance-category-links summary{cursor:pointer;width:fit-content}
 .finance-category-workspace .finance-category-links small{display:block;margin-top:8px;line-height:1.5;max-width:60ch}
 .finance-category-workspace .finance-categories-panel .toolbar-row:has([data-income-from]){display:grid;grid-template-columns:minmax(200px,1fr) repeat(2,minmax(140px,180px)) auto;gap:12px;align-items:end}
 .finance-category-workspace .finance-categories-panel .toolbar-row label{display:grid;gap:6px;min-width:0}
 .finance-category-workspace .finance-categories-panel .toolbar-row input{width:100%;box-sizing:border-box;min-height:44px}
-@media(max-width:1100px){.finance-category-workspace #finance-category-list .category-row{grid-template-columns:minmax(0,1fr) auto}.finance-category-workspace .finance-category-actions{grid-column:1/-1;justify-content:flex-start}}
-@media(max-width:700px){.velora-theme .finance-category-workspace .finance-category-filters{grid-template-columns:1fr 1fr}.finance-category-workspace .finance-category-filters>label:first-child{grid-column:1/-1}.finance-category-workspace .finance-categories-panel .toolbar-row:has([data-income-from]){grid-template-columns:1fr 1fr}.finance-category-workspace .finance-categories-panel .toolbar-row:has([data-income-from])>label:first-child{grid-column:1/-1}.finance-category-workspace .finance-category-actions{gap:6px}.finance-category-workspace .finance-category-actions .button{flex:1 1 auto}}
+@media(max-width:1100px){.finance-category-workspace #finance-category-list .category-row{grid-template-columns:minmax(0,1fr) 88px}.finance-category-workspace .finance-category-actions{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:700px){.velora-theme .finance-category-workspace .finance-category-filters{grid-template-columns:1fr 1fr}.finance-category-workspace .finance-category-filters>label:first-child{grid-column:1/-1}.finance-category-workspace .finance-categories-panel .toolbar-row:has([data-income-from]){grid-template-columns:1fr 1fr}.finance-category-workspace .finance-categories-panel .toolbar-row:has([data-income-from])>label:first-child{grid-column:1/-1}.finance-category-workspace .finance-category-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:8px}.finance-category-workspace .finance-category-actions>:is(.button,.finance-category-start){grid-column:auto;box-sizing:border-box;width:100%;min-width:0;max-width:100%}.finance-category-workspace .finance-category-actions .button{min-height:48px;min-width:0;white-space:normal}.finance-category-workspace .finance-category-start[open]{grid-column:1/-1;order:initial}}
 .finance-category-start{position:relative}.finance-category-start>summary{list-style:none;cursor:pointer}.finance-category-start>summary::-webkit-details-marker{display:none}
 .finance-category-start[open]{flex-basis:100%;order:2}.finance-category-start[open]>.finance-entry-options{margin-top:10px}
 .finance-entry-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0}
@@ -5137,10 +5159,8 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .finance-category-tabs [role=tab]:focus-visible{outline:2px solid var(--ui-focus,#ff913e);outline-offset:2px}
 .finance-category-workspace #finance-category-list .category-row{border:0;border-bottom:1px solid var(--line,#303641);border-radius:0;background:transparent;padding:14px 0;min-height:76px}
 .finance-category-workspace #finance-category-list .category-row:last-child{border-bottom:0}
-.finance-category-overflow{position:relative}.finance-category-overflow>summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:grid;place-items:center}.finance-category-overflow>summary::-webkit-details-marker{display:none}
-.finance-category-overflow-menu{position:absolute;right:0;top:100%;z-index:10;padding:8px;background:var(--ui-panel,#20252c);border:1px solid var(--line,#3a424c);border-radius:10px;box-shadow:0 8px 24px #0005;min-width:160px}
 .finance-category-start-dialog{width:min(740px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;border:1px solid var(--line,#3a424c);border-radius:20px;background:var(--ui-panel,#1b2026);color:var(--text-primary,#f3f6fb);padding:24px}
-.finance-category-start-dialog::backdrop{background:#0009}.finance-category-start-dialog .panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.finance-category-start-dialog::backdrop{background:#0009}.finance-category-start-dialog .panel-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;margin-bottom:18px}.finance-category-start-dialog .panel-head h2{min-width:0;margin:0;overflow-wrap:anywhere}.finance-category-start-dialog .panel-head>.button{grid-column:2;grid-row:1;min-height:44px;white-space:nowrap}
 .finance-category-start-dialog .finance-entry-options .button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;white-space:normal;gap:8px;padding:16px;min-height:110px}
 .finance-category-workspace .finance-categories-panel{margin-bottom:20px}
 .finance-category-workspace [data-income-mappings]>.empty{min-height:0;padding:18px}
@@ -5170,6 +5190,15 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .finance-category-filter-options>summary::before{content:'▸'}
 .finance-category-filter-options[open]>summary::before{content:'▾'}
 .finance-category-filter-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:8px}
+.finance-category-workspace>.finance-category-page-title{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:24px;row-gap:10px;align-items:start}
+.finance-category-page-heading{grid-column:1;min-width:0}
+.finance-category-page-actions{grid-column:2;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;min-width:0}
+.finance-category-page-actions>.button{margin-top:0;white-space:nowrap}
+.finance-category-intro,.finance-category-help{grid-column:1/-1;min-width:0;max-width:none;width:100%}
+.finance-category-intro{margin:0;line-height:1.5;overflow-wrap:anywhere}
+.finance-category-help{margin-top:0}
+.finance-category-help>p{max-width:1100px;line-height:1.55}
+@media(max-width:900px){.finance-category-workspace>.finance-category-page-title{grid-template-columns:minmax(0,1fr);row-gap:8px}.finance-category-page-heading,.finance-category-page-actions{grid-column:1}.finance-category-page-actions{justify-content:flex-start}}
 @media(max-width:700px){.finance-category-workspace>.page-title .toolbar-row{display:flex;flex-wrap:wrap;gap:8px}.finance-category-workspace>.page-title .toolbar-row>.button{width:auto;flex:1 1 auto}.finance-category-filter-fields{grid-template-columns:minmax(0,1fr)}}
 
 /* The working floor is available only after an authoritative open-shift read. */
@@ -5233,3 +5262,28 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .staff-theme #shift-closed-status{display:inline-flex;align-items:center;gap:6px;color:var(--ui-text-secondary,#aeb8c5)}
 .staff-theme .staff-floor-shift-gate button{width:auto;min-width:200px;max-width:100%}
 @media(max-width:650px){.staff-theme .staff-floor-shift-gate button{width:100%;min-width:0}}
+
+/* UI-11: keep form and dialog actions aligned without changing compact card controls. */
+:is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer{align-items:center;gap:12px}
+:is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer>.ui-button{min-height:44px;margin:0}
+div.action-modal>.action-box form>.action-footer{justify-content:flex-end;align-items:center;gap:12px}
+div.action-modal>.action-box form>.action-footer>button{min-height:44px;margin:0}
+@media(max-width:700px){
+ :is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer{flex-direction:column;align-items:stretch;gap:8px}
+ :is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer>.ui-button{width:100%;max-width:none;min-width:0}
+ div.action-modal>.action-box form>.action-footer{flex-direction:column;align-items:stretch;gap:8px}
+ div.action-modal>.action-box form>.action-footer>button{flex:0 0 auto;width:100%;min-width:0}
+}
+
+/* UI-12: form actions keep the same hierarchy and geometry in every dialog. */
+:is(body.portal.velora-theme,body.staff-theme) :is(.action-modal .action-footer,.staff-admin-actions,.staff-profile-actions,.staff-card-dialog .action-footer){align-items:center;gap:12px}
+:is(body.portal.velora-theme,body.staff-theme) :is(.action-modal .action-footer,.staff-admin-actions,.staff-profile-actions,.staff-card-dialog .action-footer)>button{min-height:44px;margin:0}
+:is(body.portal.velora-theme,body.staff-theme) .inventory-movement-editor-actions>.button{width:200px;min-width:200px;min-height:44px;font-size:13px;white-space:nowrap}
+@media(max-width:700px){
+ :is(body.portal.velora-theme,body.staff-theme) :is(.action-modal .action-footer,.staff-admin-actions,.staff-profile-actions,.staff-card-dialog .action-footer){flex-direction:column;align-items:stretch;gap:8px}
+ :is(body.portal.velora-theme,body.staff-theme) :is(.action-modal .action-footer,.staff-admin-actions,.staff-profile-actions,.staff-card-dialog .action-footer)>button{width:100%;min-width:0}
+ body[data-page="reservations"] .reservation-save-footer{flex-direction:column;align-items:stretch;gap:8px}
+ body[data-page="reservations"] .reservation-save-footer>:is(.button,.ui-button){width:100%;min-width:0}
+ .inventory-movement-editor-actions{width:100%;flex-direction:column;align-items:stretch;gap:8px}
+ :is(body.portal.velora-theme,body.staff-theme) .inventory-movement-editor-actions>.button{width:100%;min-width:0;min-height:44px}
+}

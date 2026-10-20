@@ -61,8 +61,10 @@ assert.match(ui, /expenseChoiceDialog\.showModal\(\)/,
   'expense entry action uses modal focus containment');
 assert.match(ui, /expenseChoiceDialog\.close\(\)/,
   'expense choice dialog exposes a close action');
-assert.match(ui, /finance-category-overflow[\s\S]*?<summary[^>]*aria-label=/,
-  'secondary category actions retain a labelled expandable menu');
+assert.match(ui, /class="button small \$\{item\.active === false \? 'primary' : 'danger-outline'\}" type="button" data-category-status=/,
+  'archive and restore actions are visible directly on the category card');
+assert.doesNotMatch(ui, /finance-category-overflow/,
+  'a one-action overflow menu does not hide archive or restore');
 assert.match(portal, /categoryId: reportButton\.dataset\.categoryReport, from: to\.slice\(0, 7\) \+ '-01', to/,
   'category drilldown opens on the current calendar month and exposes editable period filters');
 assert.match(portal, /linkedCategoryId=incomingParams\.get\("categoryId"\)[\s\S]*?includeArchivedCategory=incomingParams\.get\("includeArchived"\)==="true"[\s\S]*?loadUnifiedCategories\(current\.id,Boolean\(linkedCategoryId&&includeArchivedCategory\)\)[\s\S]*?categorySelect\.value=linkedCategoryId/,
