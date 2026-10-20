@@ -5233,3 +5233,16 @@ body[data-page="delivery"] .delivery-workspace { grid-template-columns:minmax(0,
 .staff-theme #shift-closed-status{display:inline-flex;align-items:center;gap:6px;color:var(--ui-text-secondary,#aeb8c5)}
 .staff-theme .staff-floor-shift-gate button{width:auto;min-width:200px;max-width:100%}
 @media(max-width:650px){.staff-theme .staff-floor-shift-gate button{width:100%;min-width:0}}
+
+/* UI-11: keep form and dialog actions aligned without changing compact card controls. */
+:is(body.portal.velora-theme,body.staff-theme) .toolbar-row>.button.small{min-height:44px}
+:is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer{align-items:center;gap:12px}
+:is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer>.ui-button{min-height:44px;margin:0}
+div.action-modal>.action-box form>.action-footer{justify-content:flex-end;align-items:center;gap:12px}
+div.action-modal>.action-box form>.action-footer>button{min-height:44px;margin:0}
+@media(max-width:700px){
+ :is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer{flex-direction:column;align-items:stretch;gap:8px}
+ :is(body.portal.velora-theme,body.staff-theme) :is(.ui-modal,.ui-critical-dialog) .ui-modal-footer>.ui-button{width:100%;max-width:none;min-width:0}
+ div.action-modal>.action-box form>.action-footer{flex-direction:column;align-items:stretch;gap:8px}
+ div.action-modal>.action-box form>.action-footer>button{flex:0 0 auto;width:100%;min-width:0}
+}

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const root = new URL('../', import.meta.url);
+const css = fs.readFileSync(new URL('style.css', root), 'utf8');
+const js = fs.readFileSync(new URL('portal.js', root), 'utf8');
+assert.match(css, /:is\(body\.portal\.velora-theme,body\.staff-theme\) :is\(\.ui-modal,\.ui-critical-dialog\) \.ui-modal-footer\{align-items:center;gap:12px\}/);
+assert.match(css, /@media\(max-width:700px\)\{\s*:is\(body\.portal\.velora-theme,body\.staff-theme\) :is\(\.ui-modal,\.ui-critical-dialog\) \.ui-modal-footer\{flex-direction:column;align-items:stretch;gap:8px\}/);
+assert.match(css, /div\.action-modal>\.action-box form>\.action-footer\{flex-direction:column;align-items:stretch;gap:8px\}/);
+assert.match(css, /:is\(body\.portal\.velora-theme,body\.staff-theme\) \.toolbar-row>\.button\.small\{min-height:44px\}/);
+assert.match(js, /id="cancel-finance-category" type="button">Отмена<\/button><button class="button primary" type="submit">Сохранить/);
+assert.deepEqual(fs.readFileSync(new URL('portal.js', root)), fs.readFileSync(new URL('dist/portal.js', root)));
+assert.deepEqual(fs.readFileSync(new URL('style.css', root)), fs.readFileSync(new URL('dist/style.css', root)));
+console.log('UI action consistency contract: PASS');
