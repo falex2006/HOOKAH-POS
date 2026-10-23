@@ -127,6 +127,9 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .planning-list-item{display:grid;gap:5px;width:100%;min-height:64px;text-align:left;padding:14px;margin:8px 0;border:1px solid var(--ui-border-subtle);border-radius:8px;background:transparent;color:var(--ui-text-primary);font:inherit;cursor:pointer;overflow-wrap:break-word}
 .planning-list-item:hover{background:var(--ui-raised)}.planning-list-item>strong{font-size:15px}.planning-list-item>span,.planning-list-item>small{color:var(--ui-text-secondary);font-size:13px}
 .planning-users{max-height:260px;overflow:auto}.planning-operations{max-height:360px;overflow:auto}.planning-operations article{padding:12px 0;border-bottom:1px solid var(--ui-border-subtle)}
+.planning-dialog [data-draft-content]{display:grid;gap:12px;min-width:0}
+.planning-dialog [data-draft-content]>h3{margin:0;font-size:16px}
+.planning-dialog [data-draft-content]>:is([data-draft-load-retry],[data-draft-retry]){justify-self:start}
 .planning-footer{padding-top:16px}.planning-dialog [data-slot-time]{display:grid;grid-template-columns:1fr 1fr;gap:12px}.planning-dialog [data-weekdays]{display:flex;gap:12px;flex-wrap:wrap}
 .planning-dialog [data-slot]{margin:12px 0}.planning-dialog [data-range-result]{max-height:320px;overflow:auto}.planning-dialog summary{cursor:pointer;min-height:44px}
 .template-row{display:flex;align-items:center;gap:8px}.template-row>.planning-list-item{flex:1;min-width:0}

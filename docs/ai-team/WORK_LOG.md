@@ -9066,3 +9066,7 @@ Reproduced stickyconfirmation acrosschangedselection/reason/dates/fingerprint. R
 ## 2026-10-24 — planning home GET lifecycle closed in bounded scope
 
 Fixed confirmed reloadHome GET guard/error/retry/stalelist/errorclear/close blockers with local state; shared mutationpending unchanged. Baseline12→source12/dist12PASS390/1440 with forcedsingleflight and Escape/lateclosed-response. Scoped12pxalertspacing +planning-homevectorchevron keeps24pxfootprint and details/focus. MASTER independentbaseline/finaldiff/dist12+incrementalCSSvisualGO; rootvisual2widths. Lifecycle9/discard/graphite/syntax/parity/diffPASS. QAonlyGETfixture, no server/draftpublication/PG/roles changes. See PLANNING_HOME_READ_STATES_20261024.md, overallgoal/U2open. Frozen8paths separately, no GitHub/VPS.
+
+## 2026-10-24 — planning detail open/read lifecycle
+
+Confirmed duplicate nativeclick opens duplicate detail GET/windows; initial GET feedback/cancel/localretry missing. Minimal immediatechildsingleton/loading/errorretry/currentidentity guard, readonlyGETeditorentrycancel and publishedstate rendering. Source14/dist14PASS390/1440; RED14/10captures retained; lateclosed success/reject cannotchange newhome/detail. Scoped12pxcontentgrid/h3margin0/naturalretry; sharedmutationhelper/reload/body unchanged. MASTER independentJS/dist14/visualGO; CSSlastdelta selfreview/14focus documented. Lifecycle9/discard/graphite/syntax/parity/diffPASS. See PLANNING_DRAFT_OPEN_20261024.md. Saved8paths, noPG/GitHub/VPS; fullplanning/auditnotcomplete.

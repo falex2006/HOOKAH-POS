@@ -52,11 +52,23 @@
       for(const field of [form.elements.from,form.elements.to])field.addEventListener('input',()=>{form.elements.periodPreset.value='custom';form.elements.periodPreset._customSelectRefresh?.();});
         submit(d,async(form,data,key)=>{const saved=await api('/drafts','POST',{name:data.get('name'),from:data.get('from'),to:data.get('to'),userIds:users(form),requestKey:key});d.node.close();await reloadHome();if(dialogIsOpen(home))await openDraft(saved.id);});
     }
+    let draftDialog=null;
     async function openDraft(id){
+      if(!dialogIsOpen(home))return;
+      if(draftDialog?.isConnected&&draftDialog.open){draftDialog.focus();return;}
       try{
-        let draft=await api(`/drafts/${id}`);if(!dialogIsOpen(home))return;
-        const d=plainDialog(draft.name,'<div data-draft-content></div>');
+        let draft,loading=false;
+        const d=plainDialog('План графика','<div data-draft-content></div>');
+        draftDialog=d.node;
+        d.node.addEventListener('close',()=>{if(draftDialog===d.node)draftDialog=null;},{once:true});
         const area=d.node.querySelector('[data-draft-content]');
+        const current=()=>dialogIsOpen(home)&&dialogIsOpen(d)&&draftDialog===d.node;
+        async function loadInitial(){
+          if(loading||!current())return;loading=true;area.innerHTML='<p role="status">Загрузка плана…</p>';d.error('');
+          try{const result=await api(`/drafts/${id}`);if(!current())return;draft=result;d.node.querySelector('h2').textContent=draft.name;draw();}
+          catch(error){if(!current())return;area.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-draft-load-retry>Повторить загрузку</button>`;area.querySelector('[data-draft-load-retry]').onclick=loadInitial;}
+          finally{loading=false;}
+        }
         async function reload(){
           try{draft=await api(`/drafts/${id}`);if(d.node.isConnected){draw();d.error('');}await reloadHome();}
           catch(error){if(!d.node.isConnected)return;area.replaceChildren();d.error('Изменение сохранено, но обновить черновик не удалось. '+error.message);const retry=document.createElement('button');retry.type='button';retry.className='button';retry.dataset.draftRetry='';retry.textContent='Повторить загрузку черновика';retry.onclick=async()=>{d.pending(true);try{await reload();}finally{d.pending(false);}};area.append(retry);}
@@ -81,8 +93,8 @@
           area.querySelector('[data-publish-preview]')?.addEventListener('click',()=>publishEditor(draft,async()=>{await reload();await refresh();},d));
           area.querySelector('[data-discard]')?.addEventListener('click',async()=>{if(!window.confirm('Закрыть черновик без публикации? Предложения сохранятся в истории.'))return;d.pending(true);try{await api(`/drafts/${id}/discard`,'POST',{version:draft.version,requestKey:crypto.randomUUID()});await reload();}catch(error){d.error(error.message);}finally{d.pending(false);}});
         }
-        draw();
-      }catch(error){home.error(error.message);}
+        await loadInitial();
+      }catch(error){if(dialogIsOpen(home))home.error(error.message);}
     }
     async function editOperation(draft,op,index,done,parent){
       const p=op?.payload||(op?.sourceId?draft.baseItems.find(item=>item.id===op.sourceId):null)||{}, day=p.workDate||draft.from;
