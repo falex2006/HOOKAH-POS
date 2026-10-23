@@ -47,11 +47,14 @@ let output = '', browser, server, serverClosed, db, venueId, ownerLogin = 'owner
     await page.locator('#network-name').fill('Network QA B');
     await page.locator('#network-city').fill('QA City');
     await page.locator('#network-address').fill('QA address B');
+    await page.locator('#network-phone').click();
+    await page.locator('#network-phone').pressSequentially('+79001234567');
     await page.locator('#network-form button[type=submit]').click();
     await page.getByText('2 точки', { exact: true }).waitFor();
     const items = await page.evaluate(async () => (await (await fetch('/api/network/venues')).json()).items);
     const a = items.find(item => item.isCurrent), b = items.find(item => item.name === 'Network QA B');
     assert.ok(a && b && a.id !== b.id);
+    assert.equal(String(b.phone).replace(/\D/g, ''), '79001234567', 'created venue phone keeps all digits once');
     await page.locator('#network-add-toggle').click();
     await page.locator('#network-name').fill('Unsaved organization venue');
     await page.locator('#network-city').fill('Unsaved city');
@@ -59,6 +62,7 @@ let output = '', browser, server, serverClosed, db, venueId, ownerLogin = 'owner
     await page.locator('#network-format').fill('QA format');
     await page.locator('#network-phone').fill('+7 900 000 00 00');
     const phoneDraft = await page.locator('#network-phone').inputValue();
+    assert.equal(phoneDraft, '+7 (900) 000-00-00', 'full phone fill does not duplicate country prefix');
     await page.locator('#network-timezone').selectOption('Europe/Moscow');
     await page.locator(`.network-select[data-venue="${b.id}"]`).click();
     const current = async id => page.waitForFunction(id => window.__networkItems?.some(item => item.id === id && item.isCurrent) && window.__portalSessionVerified?.user?.venueId === id && !window.__portalSessionGate.blocked, id, { timeout: 5000 });
