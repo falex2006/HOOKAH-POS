@@ -2476,7 +2476,10 @@ function setupVenueLayout() {
         onSubmit: values => api(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId, name: values.name.trim() }) }),
         errorMessage: error => error.payload?.error === 'venue_context_changed' ? 'Точка изменилась. Откройте актуальный зал.' : 'Не удалось изменить зону. Введённые данные сохранены — повторите попытку.'
       });
-      if (outcome?.reason === 'success') { await load(); outcome.restoreFocus?.(); }
+      if (outcome?.reason === 'success') {
+        document.querySelector('#floor-editor')?.dispatchEvent(new CustomEvent('venue-layout-edited', { detail: { venueId: actionVenueId, kind: 'zone', result: outcome.result } }));
+        await load(); outcome.restoreFocus?.();
+      }
     } else if (deleteZone) {
       const zone = zones.find((entry) => entry.id === deleteZone.dataset.zoneDelete); if (!zone || !await portalConfirm(`Удалить зону «${zone.name}»?`, 'Удалить можно только пустую зону. Зона со столами останется без изменений.', 'Удалить зону')) return;
       api(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId }) }).then(() => { load(); portalNotice('Зона удалена', 'success'); }).catch((error) => { if (error.payload?.error === 'venue_context_changed') load(); portalNotice(error.payload?.error === 'venue_context_changed' ? 'Точка изменилась. Откройте актуальный зал.' : error.payload?.error === 'zone_not_empty' ? 'Нельзя удалить зону, пока в ней есть столы' : 'Не удалось удалить зону', 'error'); });
@@ -2488,7 +2491,10 @@ function setupVenueLayout() {
         onSubmit: values => { const minCapacity = Number(values.minCapacity); const maxCapacity = Number(values.maxCapacity); return api(`/api/floor/tables/${encodeURIComponent(table.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId, name: values.name.trim(), capacity: maxCapacity, minCapacity, maxCapacity, minimumOrderTotal: Number(values.minimumOrderTotal), minimumOrderStartTime: values.minimumOrderStartTime || null, minimumOrderEndTime: values.minimumOrderEndTime || null, layout: { amenities: { playstation5: Boolean(values.playstation5), television: Boolean(values.television) } } }) }); },
         errorMessage: error => error.payload?.error === 'venue_context_changed' ? 'Точка изменилась. Откройте актуальный объект.' : error.payload?.error === 'invalid_table_minimum_schedule' ? 'Укажите оба времени. Начало и окончание должны различаться.' : 'Не удалось изменить объект. Введённые данные сохранены — повторите попытку.'
       });
-      if (outcome?.reason === 'success') { await load(); outcome.restoreFocus?.(); }
+      if (outcome?.reason === 'success') {
+        document.querySelector('#floor-editor')?.dispatchEvent(new CustomEvent('venue-layout-edited', { detail: { venueId: actionVenueId, kind: 'table', result: outcome.result } }));
+        await load(); outcome.restoreFocus?.();
+      }
 
     }
   });  load();
@@ -3004,6 +3010,42 @@ function renderDashboard() {
     const status = floorEditor.querySelector('#floor-editor-status');
     let dragState = null;
     let floorReadRevision = 0;
+    let activeFloorRead = 0;
+    const committedFloorEdits = [];
+    floorEditor.addEventListener('venue-layout-edited', (event) => {
+      const { venueId, kind, result: saved } = event.detail || {};
+      const payload = floorEditor._payload;
+      if (!floorEditor.isConnected || !hasPortalPermission('settings') || !venueId || !saved?.id || typeof saved.name !== 'string' || !['zone', 'table'].includes(kind)) return;
+      if (!event.detail.replay && activeFloorRead) committedFloorEdits.push({ revision: activeFloorRead, detail: { ...event.detail, replay: true } });
+      if (!payload || String(venueId) !== floorEditor.dataset.venueId) return;
+      const zone = (payload.zones || []).find((item) => kind === 'zone' ? String(item.id) === String(saved.id) : item.tables?.some((table) => String(table.id) === String(saved.id)));
+      if (!zone || !['zone', 'table'].includes(kind)) return;
+      // Apply committed metadata in place; geometry drafts, node identity and drag/focus survive.
+      if (kind === 'zone') {
+        zone.name = saved.name;
+        [...floorZoneTabs.querySelectorAll('[data-floor-zone-tab]')].filter((node) => node.dataset.floorZoneTab === String(zone.id)).forEach((node) => { node.textContent = zone.name; });
+      } else {
+        const table = zone.tables.find((item) => String(item.id) === String(saved.id));
+        if (!Number.isFinite(Number(saved.capacity)) || Number(saved.capacity) < 1) return;
+        for (const key of ['name', 'capacity', 'minCapacity', 'maxCapacity', 'minimumOrderTotal', 'minimumOrderStartTime', 'minimumOrderEndTime']) {
+          if (Object.prototype.hasOwnProperty.call(saved, key)) table[key] = saved[key];
+        }
+        if (saved.layout?.amenities) table.layout = { ...table.layout, amenities: saved.layout.amenities };
+        [...canvas.querySelectorAll('[data-floor-drag]')].filter((node) => node.dataset.floorDrag === String(table.id)).forEach((node) => { node.textContent = table.name; });
+        const form = [...grid.querySelectorAll('[data-floor-table]')].find((node) => node.dataset.floorTable === String(table.id));
+        if (form) {
+          form.elements.namedItem('name').value = table.name;
+          form.elements.namedItem('capacity').value = String(table.capacity);
+          form.dataset.capacity = String(table.capacity);
+          form.closest('details')?.querySelector('summary b')?.replaceChildren(document.createTextNode(table.name));
+        }
+      }
+      for (const table of zone.tables || []) {
+        const form = [...grid.querySelectorAll('[data-floor-table]')].find((node) => node.dataset.floorTable === String(table.id));
+        const caption = form?.closest('details')?.querySelector('summary small');
+        if (caption) caption.textContent = `${zone.name || ''} · ${Number(table.capacity || 2)} мест`;
+      }
+    });
     let editorStale = false;
     let retryExcludeId = '';
     const pendingTables = new Set();
@@ -3027,15 +3069,22 @@ function renderDashboard() {
     };
     const reloadFloorEditor = (options = {}) => {
       const revision = ++floorReadRevision;
+      activeFloorRead = revision;
       return api('/api/floor').then((payload) => {
         if (revision !== floorReadRevision) return false;
         editorStale = false;
         drawFloorEditor(payload, options);
+        // Keep the pending read's geometry/status and replay newer committed metadata over it.
+        for (const edit of committedFloorEdits.splice(0)) {
+          if (edit.revision === revision) floorEditor.dispatchEvent(new CustomEvent('venue-layout-edited', { detail: edit.detail }));
+        }
         retryExcludeId = '';
         status.hidden = true;
         pendingTables.forEach((id) => setFloorPending(id, true));
         return true;
-      }).catch((error) => { if (revision !== floorReadRevision) return false; throw error; });
+      }).catch((error) => { if (revision !== floorReadRevision) return false; throw error; }).finally(() => {
+        if (activeFloorRead === revision) { activeFloorRead = 0; committedFloorEdits.length = 0; }
+      });
     };
     const contextChanged = (error) => error.payload?.error === 'venue_context_changed';
     const showFloorError = (error, fallback) => {
