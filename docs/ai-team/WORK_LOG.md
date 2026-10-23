@@ -9054,3 +9054,7 @@ Confirmed RED duplicate opposing decisions and selfsubmit in mounted UI; fields 
 ## 2026-10-24 — attendance approval PG journey preparation
 
 Added owned fixture helper and extended existingallowlistedworktime suite for real ownerpolicy/managerrequest/ownerdecision/managerstart-end at390/1440. No product orPGguard changes. First authorizedrun59256exit1(no timeout) failed fixture201 expectation vs actualroutecontract200; not a productbug/PASS. Sanitizedlog retained, runnercleanupnoerror/lockfalse/slotreturned. New responsecapture,bounded10swaits, unique run artifacts and14assetbefore/after hashes prepared; nextactualPGnotrun. MASTER independently confirmedroutecontract; fulljourneyremains pending. See ATTENDANCE_APPROVAL_JOURNEY_20261024.md, preserveold23PASS scope separately.
+
+## 2026-10-24 — attendance real journey accepted
+
+Actual guardedPG rerun61138exit0 ontestedce4f10b7 PASS69: owner/manager UI/API/SQL/reload request→approve→approvedstart→end390/1440, failure-beforeSQL/draft/samekey and opposingdecisions, managerdeny/foreignpolicy.14productassetSHA stable; MASTER14MATCH+report/terminal+actualvisual390/1440 boundedGO. Fresh unique run artifacts retained, historical23report excluded. Runnercleanupabsenceassert noerror/lockfalse/slotreturnedPAYROLL. Docs append supersedes prior pendingstatus only withinthisscope; overallgoal/U2 remains open, physicalFold/otherACL/errors notclaimed. No productchangesafter2d849f8b, no GitHub/VPS.
