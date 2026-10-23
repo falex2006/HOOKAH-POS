@@ -109,7 +109,7 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .schedule-dialog{background:var(--ui-panel);color:var(--ui-text-primary);border:1px solid var(--ui-border-subtle);border-radius:16px;width:min(640px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:24px;box-sizing:border-box;overflow:auto;font-size:14px}
 .schedule-dialog::backdrop{background:var(--ui-overlay)}.schedule-dialog form{display:grid;gap:14px}
 .schedule-dialog h2{margin:0 0 4px;font-size:22px;line-height:1.25}.schedule-dialog p{margin:0;font-size:13px;line-height:1.5}
-.schedule-dialog [data-grant-list]>[role=alert]{margin-bottom:12px}
+.schedule-dialog :is([data-grant-list],[data-demand-list])>[role=alert]{margin-bottom:12px}
 .schedule-dialog fieldset{display:grid;gap:12px;min-width:0;margin:0;padding:12px 0;border:0}.schedule-dialog legend{font-size:12px;color:var(--ui-text-muted);padding:0}
 .schedule-dialog [data-times]{grid-template-columns:1fr 1fr}.schedule-dialog [data-times]>fieldset,.schedule-dialog [data-times]>details{grid-column:1/-1}
 .schedule-dialog [data-break-row]{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.schedule-dialog [data-break-row]>.button{grid-column:1/-1;justify-self:start}
