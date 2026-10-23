@@ -55,7 +55,20 @@ async function main() {
         } else if (scenario === 'access-denied') { status = 403; data = { error: 'schedule_forbidden' }; }
         else if (scenario === 'employees-error' && pathname.endsWith('/employees')) { status = 503; data = { error: 'schedule_unavailable' }; }
         else if (scenario === 'list-error' && pathname === '/api/staff/schedule') { status = 503; data = { error: 'schedule_unavailable' }; }
-        else data = pathname.endsWith('/access') ? access : pathname.endsWith('/employees') ? { items: [employee] } : { items: [], actual: [], access };
+        else {
+          const calendarAccess = scenario === 'calendar-readonly' ? { ...access, role: 'manager', manage: false } : access;
+          const calendarEmployee = scenario === 'calendar-inactive' ? { ...employee, active: false } : employee;
+          data = pathname.endsWith('/access') ? calendarAccess : pathname.endsWith('/employees') ? { items: [calendarEmployee] } : { items: [], actual: [], access: calendarAccess };
+          if (pathname === '/api/staff/schedule' && ['calendar-occupied', 'calendar-night'].includes(scenario)) {
+            const day = new URL(request.url()).searchParams.get('from');
+            const previous = new Date(Date.parse(day + 'T12:00:00Z') - 86400000).toISOString().slice(0, 10);
+            const night = scenario === 'calendar-night', workDate = night ? previous : day;
+            const entry = { id: 'calendar-fixture', userId: employee.id, workDate, kind: 'shift', status: 'planned', version: 1, breakMinutes: 0,
+              plannedStart: new Date(`${workDate}T${night ? '22' : '10'}:00:00+05:00`).toISOString(),
+              plannedEnd: new Date(`${day}T${night ? '06' : '18'}:00:00+05:00`).toISOString() };
+            if (night) data.continuations = [entry]; else data.items = [entry];
+          }
+        }
         await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
       });
       async function snapshot(name) {
@@ -142,6 +155,35 @@ async function main() {
         releaseRead(); await page.evaluate(() => window.__oldMount);
         if (!(await page.locator('[data-qa-new-mount]').count())) defects.push({ width, state: heldStage, defect: 'Old mount overwrites current UI after same-target remount' });
         readHeld = null;
+      }
+      for (const calendarState of ['calendar-empty', 'calendar-readonly', 'calendar-inactive', 'calendar-occupied', 'calendar-night']) {
+        scenario = calendarState; await mountSchedule(); await page.evaluate(() => window.__mount);
+        assert.match(await page.locator('.schedule-period-title').innerText(), /\d/, 'period label settled before calendar screenshot');
+        const cells = page.locator('.schedule-week tbody tr:not(.schedule-open-shifts) td');
+        const assignable = calendarState !== 'calendar-readonly' && calendarState !== 'calendar-inactive';
+        if (assignable) {
+          if (await cells.filter({ has: page.locator('.schedule-add-quiet') }).locator('.schedule-cell-empty').count()) defects.push({ width, state: calendarState, defect: 'Dash beside plus resembles a remove action in assignable empty day' });
+          const plus = page.locator('.schedule-add-quiet').first();
+          if (await plus.getAttribute('title') !== 'Назначить смену') defects.push({ width, state: calendarState, defect: 'Quiet plus lacks clear assignment tooltip' });
+          assert.match(await plus.getAttribute('aria-label'), /Назначить: Тестовый сотрудник, \d{4}-\d{2}-\d{2}/);
+        } else {
+          assert.equal(await page.locator('.schedule-add-quiet').count(), 0, 'read-only/inactive employee gets no quiet assign button');
+          assert.equal(await cells.locator('.schedule-cell-empty[aria-label="Не запланировано"]').count(), 7, 'empty-day semantics retained without calling it a day off');
+        }
+        if (calendarState === 'calendar-occupied') assert.equal(await page.locator('.schedule-week [data-entry="calendar-fixture"]').count(), 1);
+        if (calendarState === 'calendar-night') {
+          assert.equal(await page.locator('.schedule-week .schedule-entry-continuation').count(), 1);
+          assert.match(await page.locator('.schedule-week .schedule-entry-continuation').getAttribute('aria-label'), /Продолжение ночной смены/);
+          assert.match(await page.locator('[data-summary]').innerText(), /План: 0 ч/, 'carry-over is not counted twice');
+        }
+        await snapshot(calendarState);
+        if (calendarState === 'calendar-empty') {
+          const visibleAdd = page.locator('[data-add]:visible').first(); await visibleAdd.focus();
+          assert.equal(await visibleAdd.evaluate(node => node === document.activeElement), true);
+          await page.keyboard.press('Enter'); await page.locator('dialog[open]').waitFor();
+          if (width === 1440) assert.equal(await page.locator('dialog[open] [name=userId]').inputValue(), employee.id, 'keyboard plus carries the employee');
+          await page.locator('dialog[open] [data-close]').click();
+        }
       }
 
       async function mountAttendance(kind = 'management') {
