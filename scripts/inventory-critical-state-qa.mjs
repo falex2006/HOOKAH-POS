@@ -83,6 +83,7 @@ const drawEnd = portal.indexOf('\n  const loadAutoOrders', drawStart);
 assert.ok(drawStart >= 0 && drawEnd > drawStart, 'auto-order renderer must be discoverable');
 const drawSource = portal.slice(drawStart, drawEnd);
 const render = (state) => {
+  let selectionUpdates = 0;
   const nodes = {
     '#auto-order-list': { innerHTML: '', querySelectorAll: () => [], querySelector: () => null },
     '#auto-order-low-count': { textContent: '', className: '' },
@@ -95,8 +96,10 @@ const render = (state) => {
   const esc = (value) => String(value ?? '');
   const displayName = (value) => String(value ?? '');
   const autoOrderStatus = {};
-  const execute = new Function('autoOrderState', 'document', 'nodes', 'canWriteInventory', 'pluralRu', 'money', 'esc', 'displayName', 'autoOrderStatus', 'autoOrderCreatePending', 'autoOrderCancelPending', 'openAutoOrderReceipt', 'loadAutoOrders', `${drawSource}; drawAutoOrders(); return { nodes, state: autoOrderState };`);
-  return execute(state, document, nodes, true, pluralRu, money, esc, displayName, autoOrderStatus, false, new Set(), () => {}, () => {}).nodes;
+  const execute = new Function('autoOrderState', 'document', 'nodes', 'canWriteInventory', 'pluralRu', 'money', 'esc', 'displayName', 'autoOrderStatus', 'autoOrderCreatePending', 'autoOrderCancelPending', 'openAutoOrderReceipt', 'loadAutoOrders', 'updateAutoOrderSelection', `${drawSource}; drawAutoOrders(); return { nodes, state: autoOrderState };`);
+  const result = execute(state, document, nodes, true, pluralRu, money, esc, displayName, autoOrderStatus, false, new Set(), () => {}, () => {}, () => { selectionUpdates++; });
+  assert.equal(selectionUpdates, 1, 'renderer updates selection controls after error-state redraw');
+  return result.nodes;
 };
 
 const failedInitial = render({ items: [], requests: [], error: true, hasLoaded: false });

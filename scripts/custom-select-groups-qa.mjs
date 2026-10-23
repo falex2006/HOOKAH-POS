@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../portal.js',import.meta.url),'utf8');
 const a=source.indexOf('const portalSelectOptionsMarkup =');
-const b=source.indexOf('const enhancePortalSelect =',a);
+const b=source.indexOf('const positionPortalSelect =',a);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const render=new Function('esc',source.slice(a,b)+';return portalSelectOptionsMarkup;')(esc);
 const option=(value,text,disabled=false)=>({tagName:'OPTION',value,textContent:text,disabled,selected:false});

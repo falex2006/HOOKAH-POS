@@ -5,24 +5,25 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '2026101902';
-const managementThemeRevision = '3';
-const portalRevision = '2026101901';
-const portalSessionRevision = '2026101805';
+const cssRevision = '2026102305';
+const managementThemeRevision = '2026102305';
+const portalRevision = '2026102305';
+const portalSessionRevision = '2026102305';
 // This employee-page iteration invalidates only its own HTML asset URLs.
-const employeePaymentsCssRevision = '2026101902';
-const employeePaymentsSessionRevision = '2026101805';
-const lockRevision = '2026101803';
+const employeePaymentsCssRevision = '2026102305';
+const employeePaymentsSessionRevision = '2026102305';
+const notificationCenterRevision = '2026102305';
+const lockRevision = '2026102305';
 const appRevision = '2026101807';
 const posWorkspaceRevision = '5';
-const posWorkspaceCssRevision = '10';
+const posWorkspaceCssRevision = '2026102305';
 const platformRevision = '2026101102';
 const platformCssRevision = '2026101102';
-const staffProfileRevision = '6';
+const staffProfileRevision = '2026102305';
 const loginRevision = '2026101803';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
-const staffAdminCardRevision = '13';
+const staffAdminCardRevision = '2026102305';
 const payrollSchemeUiRevision = '21';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
@@ -65,6 +66,7 @@ if (process.argv.includes('--saas-only')) {
     const html = readFileSync(path, 'utf8')
       .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
       .replace(/management-theme\.js\?rev=\d+/g, `management-theme.js?rev=${managementThemeRevision}`)
+    .replace(/management-theme\.css\?rev=\d+/g, `management-theme.css?rev=${managementThemeRevision}`)
       .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
       .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
       .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`);
@@ -110,6 +112,8 @@ for (const path of htmlFiles) {
     })
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${employeePaymentsPage ? employeePaymentsCssRevision : cssRevision}`)
     .replace(/management-theme\.js\?rev=\d+/g, `management-theme.js?rev=${managementThemeRevision}`)
+    .replace(/management-theme\.css\?rev=\d+/g, `management-theme.css?rev=${managementThemeRevision}`)
+    .replace(/notification-center\.js\?rev=\d+/g, `notification-center.js?rev=${notificationCenterRevision}`)
     .replace(/platform\.css\?rev=\d+/g, `platform.css?rev=${platformCssRevision}`)
     .replace(/(?:portal|portal-session)\.js\?rev=\d+/g, `portal-session.js?rev=${employeePaymentsPage ? employeePaymentsSessionRevision : portalSessionRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
@@ -117,7 +121,7 @@ for (const path of htmlFiles) {
     .replace(/pos-workspace\.js\?rev=\d+/g, `pos-workspace.js?rev=${posWorkspaceRevision}`)
     .replace(/pos-workspace\.css\?rev=\d+/g, `pos-workspace.css?rev=${posWorkspaceCssRevision}`)
     .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
-    .replace(/(<script\s+src="\/?(?:portal|app)\.js\?rev=\d+"[^>]*>)/g,(tag,_,offset,html)=>html.slice(0,offset).includes('notification-center.js?rev=1')?tag:'<script src="/notification-center.js?rev=1"></script>'+tag)
+    .replace(/(<script\s+src="\/?(?:portal|app)\.js\?rev=\d+"[^>]*>)/g, (tag, _, offset, html) => /<script\s+src="\/?notification-center\.js\?rev=\d+"[^>]*>/.test(html.slice(0, offset)) ? tag : `<script src="/notification-center.js?rev=${notificationCenterRevision}"></script>${tag}`)
     .replace(/staff-profile\.js\?rev=\d+/g, `staff-profile.js?rev=${staffProfileRevision}`)
     .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`)
     .replace(/auth-smoke\.js\?rev=\d+/g, `auth-smoke.js?rev=${authSmokeRevision}`)

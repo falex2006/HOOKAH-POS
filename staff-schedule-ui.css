@@ -276,3 +276,18 @@ body.portal.schedule-route:not(.light-theme) .schedule-page .is-cancelled .sched
 .schedule-export-meta{display:block!important;margin:4mm 0!important;font-size:10pt!important}
 @page{size:landscape;margin:12mm}
 }
+
+/* Stable disclosure indicators, including wrapped mobile labels. */
+:is(.schedule-period-picker,.schedule-more,.schedule-filters,.schedule-editor-extra,.planning-tool-group,.schedule-explanation,.schedule-coverage,.schedule-help-topic)>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none}
+:is(.schedule-period-picker,.schedule-more,.schedule-filters,.schedule-editor-extra,.planning-tool-group,.schedule-explanation,.schedule-coverage,.schedule-help-topic)>summary::-webkit-details-marker{display:none}
+:is(.schedule-period-picker,.schedule-more,.schedule-filters,.schedule-editor-extra,.planning-tool-group,.schedule-explanation,.schedule-coverage)>summary::after{content:'⌄'}
+:is(.schedule-period-picker,.schedule-more,.schedule-filters,.schedule-editor-extra,.planning-tool-group,.schedule-explanation,.schedule-coverage,.schedule-help-topic)>summary::after{display:grid;place-items:center;flex:0 0 24px;width:24px;height:24px;line-height:1}
+:is(.schedule-period-picker,.schedule-more,.schedule-filters,.schedule-editor-extra,.planning-tool-group,.schedule-explanation,.schedule-coverage)[open]>summary::after{transform:rotate(180deg)}
+.schedule-period-picker>summary.schedule-period-title{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:600px){.schedule-filters .schedule-toolbar{left:0;right:auto}}
+@media(max-width:400px){.schedule-editor-basics{grid-template-columns:minmax(0,1fr)}}
+
+.schedule-discard-confirm{border-top:1px solid var(--ui-border-control);padding-top:12px;margin-top:12px}
+.schedule-discard-confirm>.schedule-actions{flex-wrap:wrap}
+@media(max-width:600px){.schedule-discard-confirm>.schedule-actions{display:grid;grid-template-columns:minmax(0,1fr)}.schedule-discard-confirm button{width:100%;min-width:0;white-space:normal}}
+.schedule-dialog [data-weekdays]{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:4px 8px}.schedule-dialog [data-weekdays]>legend{grid-column:1/-1}.schedule-dialog [data-weekdays]>.schedule-check{min-height:44px;margin:0}

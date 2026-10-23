@@ -35,6 +35,27 @@ const api = async (route, method = 'GET', body, expected = 200, bearer = token) 
   assert.ok((Array.isArray(expected) ? expected : [expected]).includes(response.status), `${method} ${route}: ${response.status} ${JSON.stringify(payload)}`);
   return { status: response.status, ...payload };
 };
+const verifyProducerWaitsForPayrollSnapshot = async (route, method, body, expected = 200, bearer = token) => {
+  const blocker = new Client({ connectionString: target.url.href });
+  await blocker.connect();
+  const key = `payroll-official-source-v1:${ids.venue.toLowerCase()}`;
+  await blocker.query('SELECT pg_advisory_lock(hashtextextended($1,0))', [key]);
+  let blocked = false;
+  const pending = api(route, method, body, expected, bearer);
+  try {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const state = await db.query("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query ILIKE '%pg_advisory_xact_lock_shared%') AS blocked");
+      if (state.rows[0]?.blocked) { blocked = true; break; }
+      await delay(25);
+    }
+  } finally {
+    await blocker.query('SELECT pg_advisory_unlock(hashtextextended($1,0))', [key]);
+    await blocker.end();
+  }
+  const result = await pending;
+  assert.equal(blocked, true, `${method} ${route} waits for payroll source snapshot fence`);
+  return result;
+};
 const table = async name => api('/api/floor/tables', 'POST', { expectedVenueId: ids.venue, zoneId: zone.id, name: `${name}-${marker}`, capacity: 2 }, 201);
 const openOrder = async (name, quantity = 3) => {
   const seat = await table(name);
@@ -103,6 +124,10 @@ try {
   product = await api('/api/products', 'POST', { name: `Recognition ${marker}`, category: 'Бар', price: 100.50, inventoryMode: 'non_stock' }, 201);
   shift = await api('/api/shifts', 'POST', { openingCash: 0 }, 201);
 
+  const fencedClose = await openOrder('Source fence close', 1);
+  await verifyProducerWaitsForPayrollSnapshot(`/api/orders/${fencedClose.order.id}/close`, 'POST', { paymentMethod: 'card', paymentAccountId: cardAccount });
+  check('authenticated sale close waits behind payroll source snapshot fence');
+
   const sale = await openOrder('Partial tender');
   const discount = await api(`/api/orders/${sale.order.id}/discount-requests`, 'POST', { type: 'percent', value: 1, reason: 'QA penny allocation' }, 201);
   await api(`/api/discount-requests/${discount.id}/approve`, 'POST', {}, 200);
@@ -132,7 +157,7 @@ try {
   const saleFacts = (await db.query('SELECT to_jsonb(s) AS fact FROM pos_payroll_sale_events s WHERE id=$1', [source.id])).rows[0].fact;
   await db.query("UPDATE venues SET timezone='Pacific/Honolulu' WHERE id=$1", [ids.venue]);
   const firstBody = refundBody(originalTender.id, { itemId: sale.line.id, quantity: 1 }, `first-${marker}`);
-  const firstRefund = await api(`/api/finance/orders/${sale.order.id}/refunds`, 'POST', firstBody, 201);
+  const firstRefund = await verifyProducerWaitsForPayrollSnapshot(`/api/finance/orders/${sale.order.id}/refunds`, 'POST', firstBody, 201);
   const readRefund = async refundId => (await db.query('SELECT to_jsonb(e) AS fact FROM pos_payroll_refund_events e WHERE venue_id=$1 AND refund_id=$2', [ids.venue, refundId])).rows[0]?.fact;
   const firstRecognition = await readRefund(firstRefund.id);
   assert.equal(firstRecognition.coverage_status, 'complete');
@@ -152,7 +177,7 @@ try {
   assert.deepEqual((await db.query('SELECT to_jsonb(e) AS fact FROM pos_payroll_recognition_epochs e WHERE venue_id=$1', [ids.venue])).rows[0].fact, venueEpoch, 'timezone changes do not reset activation epoch');
   await api(`/api/finance/orders/${sale.order.id}/refunds`, 'POST', { ...firstBody, reason: 'changed' }, 409);
   await api(`/api/finance/orders/${sale.order.id}/refunds`, 'GET', undefined, [403, 404], foreignToken);
-  check('HTTP refund/replay conserves independent payout and merchandise amounts; historical membership/timezones and tenant boundary stay fixed');
+  check('HTTP refund/replay conserves payout and merchandise amounts, waits for source fence, and preserves tenant/timezone facts');
 
   const secondRefund = await api(`/api/finance/orders/${sale.order.id}/refunds`, 'POST', refundBody(originalTender.id, { itemId: sale.line.id, quantity: 2 }, `second-${marker}`), 201);
   const secondRecognition = await readRefund(secondRefund.id);

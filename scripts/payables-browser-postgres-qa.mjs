@@ -107,7 +107,7 @@ try {
   });
   assert.equal((await (await fetch(`${base}/api/health`)).json()).database, 'postgres');
   const browserExecutable = process.env.CHROME_PATH || process.env.PLAYWRIGHT_EXECUTABLE_PATH;
-  browser = await chromium.launch({ headless: true, ...(browserExecutable ? { executablePath: browserExecutable } : {}) });
+  browser = await chromium.launch({ headless: process.env.VISUAL_BROWSER_HEADLESS !== 'false', ...(browserExecutable ? { executablePath: browserExecutable } : {}) });
   const page = await browser.newPage({ viewport: { width: 375, height: 812 }, locale: 'ru-RU' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -146,7 +146,7 @@ try {
   assert.match(await legacyUiRow.textContent(), /900[,.]00/);
   await page.goto(`${base}/finance/categories`, { waitUntil: 'networkidle' });
   const incomeReportUi = page.locator('[data-income-report]');
-  await page.getByRole('tab', { name: 'Отчёт выручки POS', exact: true }).click();
+  await page.getByRole('tab', { name: 'Выручка по категориям', exact: true }).click();
   await page.locator('[data-income-from]').fill('2020-01-15');
   await page.locator('[data-income-to]').fill('2020-01-15');
   const incomeUiResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/finance/income-category-report' && new URL(response.url()).searchParams.get('from') === '2020-01-15');
@@ -176,6 +176,7 @@ try {
   assert.equal(rentCategoryResponse.status, 201, 'authenticated finance admin can create an expense category');
   const rentCategoryId = rentCategoryResponse.body.id;
   assert.deepEqual(errors.filter(message=>!message.includes('ViewTransition opt-in disabled')),[],'finance rendering must complete before opening the recurring-rent form');
+  await page.goto(`${base}/finance#business-obligations`, { waitUntil: 'networkidle' });
   const rentPanel = page.locator('#business-obligations');
   await rentPanel.locator('[data-rule-new]').click();
   const rentRuleForm = rentPanel.locator('[data-rule-form]');
@@ -640,6 +641,7 @@ try {
   await ruleRow.getByText('Завершено', { exact: true }).waitFor();
   await page.goto(`${base}/finance/categories`, { waitUntil: 'networkidle' });
   await page.getByRole('tab', { name: 'Категории', exact: true }).click();
+  await page.locator('.finance-category-filter-options > summary').click();
   await selectPortalOption(page.locator('#finance-category-status'), 'all');
   const categoryRow = page.locator('#finance-category-list .category-row').filter({ hasText: `QA rent ${process.pid}` });
   await categoryRow.waitFor();
@@ -782,8 +784,9 @@ try {
   const readerAccess=await readerPage.evaluate(async({documentId,categoryId})=>{const get=await fetch(`/api/finance/other-income/${documentId}`);const create=await fetch('/api/finance/other-income',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({categoryId,title:'Forbidden reader write',basis:'Role test',recognitionDate:'2026-10-17',totalAmount:'10.00',idempotencyKey:'reader-forbidden-document'})});const receipt=await fetch(`/api/finance/other-income/${documentId}/receipts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:'1.00',receiptDate:'2026-10-17',paymentMethod:'cash',idempotencyKey:'reader-forbidden-receipt'})});return{read:get.status,create:create.status,receipt:receipt.status};},{documentId:otherIncomeId,categoryId:otherIncomeCategoryId});
   assert.deepEqual(readerAccess,{read:200,create:403,receipt:403},'finance_read can inspect other income but cannot create income documents or cash receipts');
   await readerPage.close();
-  await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
+  await page.goto(`${base}/finance#other-income`,{waitUntil:'networkidle'});
   const otherIncomePanel=page.locator('#other-income');const otherIncomeForm=otherIncomePanel.locator('[data-other-income-form]');
+  await otherIncomePanel.locator('summary').filter({ hasText: 'Новый доход' }).click();
   await selectPortalOption(otherIncomeForm.locator('[name="categoryId"]'), otherIncomeCategoryId);
   await otherIncomeForm.locator('[name="totalAmount"]').fill('1250');
   await otherIncomeForm.locator('[name="title"]').fill(`QA UI service ${process.pid}`);
@@ -817,6 +820,7 @@ try {
     await route.continue();
   });
   const firstReceiptForm=editedOtherUiRow.locator('[data-other-income-receipt]');
+  await editedOtherUiRow.locator('.finance-receipt-disclosure > summary').click();
   await selectPortalOption(firstReceiptForm.locator('select[name="paymentAccountId"]'), rentBankAccountId);
   await selectPortalOption(firstReceiptForm.locator('select[name="paymentMethod"]'), 'bank_transfer');
   const firstReceiptIntent=page.waitForResponse((response)=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith('/receipts'));
@@ -893,6 +897,7 @@ try {
   assert.equal(countedPurchaseCategory.purchaseDocumentCount, 1, 'category count includes the purchase source document');
   await page.goto(`${base}/finance/categories`, { waitUntil: 'networkidle' });
   await page.getByRole('tab', { name: 'Категории', exact: true }).click();
+  await page.locator('.finance-category-filter-options > summary').click();
   await selectPortalOption(page.locator('#finance-category-status'), 'all');
   const purchaseCategoryRow = page.locator('#finance-category-list .category-row').filter({ hasText: `QA purchase edited ${process.pid}` });
   await purchaseCategoryRow.waitFor();
@@ -997,7 +1002,7 @@ try {
 
   await page.goto(`${base}/finance#payables`, { waitUntil: 'networkidle' });
   const row = page.locator('.payable-row').filter({ hasText: 'QA browser supplier' });
-  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
+  assert.equal(await page.locator('#page-content').getAttribute('data-finance-view'), 'suppliers', 'payables deep link selects supplier workspace');
   await row.waitFor();
   const expectedSupplierOrder = ['QA categorized supplier', 'QA browser supplier', 'QA older dated supplier', 'QA undated supplier'];
   const expectedBoundedSupplierOrder = ['QA browser supplier', 'QA older dated supplier'];
@@ -1031,7 +1036,6 @@ try {
   const undatedRow = page.locator('.payable-row').filter({ hasText: 'QA undated supplier' });
   assert.match(await undatedRow.textContent(), /Дата накладной не указана/, 'finance UI labels the missing invoice date without inventing one');
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   await row.waitFor();
   assert.deepEqual(await page.locator('.payable-row').evaluateAll((rows) => rows.map((item) => item.querySelector('.payable-supplier b')?.textContent?.trim())), expectedSupplierOrder, 'payables order survives browser reload');
   assert.match(await row.textContent(), /Не оплачена/);
@@ -1049,7 +1053,6 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.payable-row').length === 3);
   assert.equal(await page.locator('.payable-row').count(), 3, 'payables UI includes undated invoice only after explicit selection');
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   assert.equal(await page.locator('#payables-date-from').inputValue(), '2026-09-05', 'payables date range persists through reload');
   assert.equal(await page.locator('#payables-include-undated').isChecked(), true, 'payables undated selection persists through reload');
   assert.equal(await page.locator('.payable-row').count(), 3, 'reloaded payables repeat the filtered result');
@@ -1087,8 +1090,12 @@ try {
   await row.locator('.payable-payment-form button[type="submit"]').click();
   await row.locator('.payable-payment-message').getByText('Файл не похож на PNG, JPEG, WebP или PDF. Выберите корректный документ.').waitFor();
   assert.equal(paymentPosts, 0, 'bad file signature does not reach payment API');
+  assert.equal(await row.locator('.payable-selected-file').isHidden(), true, 'rejected file has no selected-name label');
   assert.equal(await row.locator('input[name="amount"]').isDisabled(), false, 'form unlocks after invalid file');
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64');
+  const longFileName = 'podtverzhdenie-oplaty-postavshchiku-po-nakladnoy-2026-10-21.png';
+  await documentInput.setInputFiles({ name: longFileName, mimeType: 'image/png', buffer: png });
+  assert.equal(await row.locator('.payable-selected-file').textContent(), longFileName, 'selected attachment name is readable outside the native picker');
   await documentInput.setInputFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: png });
   await page.setViewportSize({ width: 320, height: 700 });
   const openFormMetrics = await page.evaluate(() => { const panel=[...document.querySelectorAll('#page-content section.finance-payables-panel')].find((item)=>item.textContent.includes('Расчёты с поставщиками')); return Object.fromEntries(['html', '.portal-main', '.finance-payables-panel', '.payable-payment-editor', '.payable-payment-form', '.payable-payment-form label', '.payable-payment-form input[type="file"]', '.payable-payment-form input[type="number"]', '.form-row'].map((selector) => { const element = selector === 'html' ? document.documentElement : selector === '.portal-main' ? document.querySelector(selector) : selector === '.finance-payables-panel' ? panel : panel?.querySelector(selector); return [selector, element ? { scroll: element.scrollWidth, client: element.clientWidth, rect: Math.round(element.getBoundingClientRect().width) } : null]; })); });
@@ -1139,7 +1146,6 @@ try {
   assert.equal(await row.locator('select[name="paymentAccountId"]').inputValue(), purchaseCashAccountId, 'retry keeps original account');
   assert.equal(await row.locator('input[name="document"]').isDisabled(), true, 'retry uses the stored document payload rather than a new file picker value');
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   await row.locator('.payable-payment-form[data-pending-retry="true"]').waitFor();
   assert.equal(await row.locator('input[name="amount"]').inputValue(), '125', 'reload restores the exact pending amount');
   assert.equal(await row.locator('select[name="paymentAccountId"]').inputValue(), purchaseCashAccountId, 'reload restores the account selection');
@@ -1164,7 +1170,6 @@ try {
     }
   }
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByText('Поставщики · расчёты по накладным',{exact:true}).click();
   await row.waitFor();
   assert.match(await row.textContent(), /Оплачена/);
   const paidFilterResponse=page.waitForResponse((response)=>response.request().method()==='GET'&&new URL(response.url()).pathname==='/api/finance/purchase-payables'&&new URL(response.url()).searchParams.get('paymentStatus')==='paid');
@@ -1174,8 +1179,7 @@ try {
   assert.equal(await page.locator('.payable-row').count(), 1);
 
   // Open original source documents from actual cash outflow rows.
-  await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
-  await page.getByText('Расходы · журнал операций',{exact:true}).click();
+  await page.goto(`${base}/finance#expenses`,{waitUntil:'networkidle'});
   await page.locator('#expenses-filter-reset').click();
   for (const [kind,id,title] of [['purchase',draft.id,'Исходная закупка'],['payroll',payrollEntryId,'Исходное начисление зарплаты']]) {
     const action=page.locator(`[data-expense-source="${kind}"][data-expense-source-id="${id}"]`).first();

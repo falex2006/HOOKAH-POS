@@ -25,7 +25,7 @@ const suites = new Set([
   'payroll-lifecycle-postgres-api-qa.mjs', 'tasks-postgres-e2e-qa.mjs', 'delivery-persistence-qa.mjs',
   'finance-employee-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs',
   'finance-shift-analytics-postgres-qa.mjs', 'paid-order-balance-postgres-qa.mjs',
-  'recipe-depletion-pg-runtime-qa.mjs', 'inventory-crossflow-postgres-e2e-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs',
+  'recipe-depletion-pg-runtime-qa.mjs', 'inventory-crossflow-postgres-e2e-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'purchase-editor-browser-qa.cjs', 'auto-order-selection-browser-qa.cjs', 'staff-role-dialog-layout-browser-qa.cjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs',
   'session-preferences-postgres-qa.mjs', 'shift-notifications-e2e-qa.mjs',
   'notifications-postgres-qa.mjs', 'purchase-auto-order-postgres-e2e-qa.mjs',
   'saas-quota-suspension-postgres-qa.mjs', 'audit-privacy-postgres-qa.mjs',
@@ -48,7 +48,7 @@ const suites = new Set([
   'acceptance-47-pos-journey-postgres-browser-qa.mjs',
   'recipe-cost-breakdown-postgres-browser-qa.mjs',
   'floor-table-archive-postgres-browser-qa.mjs',
-  'payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'closed-shift-floor-browser-qa.mjs',
+  'payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'finance-dialog-alignment-browser-qa.cjs', 'closed-shift-floor-browser-qa.mjs',
   'tobacco-catalog-auth-boundaries-postgres-qa.mjs',
   'acceptance-48-inventory-department-boundaries-postgres-qa.mjs',
   'acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs',
@@ -171,7 +171,7 @@ async function execute(name, env, c, args = [], extraSecrets = []) {
   try { code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); }); }
   finally { clearTimeout(timer); }
   fs.writeFileSync(logPath, safeText(data, c, extraSecrets));
-  assert.ok(!timedOut && code === 0, `${name} failed; sanitized details: tmp/full-local-qa/pg-${name}.log`);
+  assert.ok(!timedOut && code === 0, `${name} failed (exit=${code}, timeout=${timedOut}); sanitized details: tmp/full-local-qa/pg-${name}.log`);
   console.log('PASS PostgreSQL ' + name);
 }
 async function runSuite(value) {
@@ -257,7 +257,7 @@ async function runSuite(value) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'inventory_qa_' + crypto.randomBytes(8).toString('hex');
       env.RECIPE_DEPLETION_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
-    if (['inventory-crossflow-postgres-e2e-qa.mjs', 'acceptance-47-pos-journey-postgres-qa.mjs', 'recipe-sale-manual-movement-race-postgres-qa.mjs', 'acceptance-27-purchase-reversal-postgres-qa.mjs', 'acceptance-27-purchase-reversal-postgres-browser-qa.mjs', 'acceptance-22-purchase-fields-postgres-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'recipe-cost-breakdown-postgres-browser-qa.mjs'].includes(name)) {
+    if (['inventory-crossflow-postgres-e2e-qa.mjs', 'acceptance-47-pos-journey-postgres-qa.mjs', 'recipe-sale-manual-movement-race-postgres-qa.mjs', 'acceptance-27-purchase-reversal-postgres-qa.mjs', 'acceptance-27-purchase-reversal-postgres-browser-qa.mjs', 'acceptance-22-purchase-fields-postgres-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'purchase-editor-browser-qa.cjs', 'auto-order-selection-browser-qa.cjs', 'staff-role-dialog-layout-browser-qa.cjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'recipe-cost-breakdown-postgres-browser-qa.mjs'].includes(name)) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'inventory_qa_' + crypto.randomBytes(8).toString('hex');
       const databaseUrl = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
       if (name === 'inventory-crossflow-postgres-e2e-qa.mjs') env.INVENTORY_CROSSFLOW_PG_TEST_DATABASE_URL = databaseUrl;
@@ -267,6 +267,9 @@ async function runSuite(value) {
       else if (name === 'acceptance-27-purchase-reversal-postgres-browser-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = databaseUrl;
       else if (name === 'acceptance-22-purchase-fields-postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = databaseUrl;
       else if (name === 'inventory-movements-browser-qa.cjs') env.INVENTORY_MOVEMENTS_TEST_DATABASE_URL = databaseUrl;
+      else if (name === 'purchase-editor-browser-qa.cjs') env.PURCHASE_EDITOR_TEST_DATABASE_URL = databaseUrl;
+      else if (name === 'auto-order-selection-browser-qa.cjs') env.AUTO_ORDER_SELECTION_TEST_DATABASE_URL = databaseUrl;
+      else if (name === 'staff-role-dialog-layout-browser-qa.cjs') env.STAFF_ROLE_DIALOG_TEST_DATABASE_URL = databaseUrl;
       else if (name === 'inventory-receiving-mobile-postgres-browser-qa.mjs') env.INVENTORY_RECEIVING_MOBILE_TEST_DATABASE_URL = databaseUrl;
       else if (name === 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs') env.INVENTORY_CROSSFLOW_PG_TEST_DATABASE_URL = databaseUrl;
       else if (name === 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs') env.ACCEPTANCE_33_PURCHASE_DATE_TEST_DATABASE_URL = databaseUrl;
@@ -297,9 +300,11 @@ async function runSuite(value) {
     if (name === 'tobacco-catalog-auth-boundaries-postgres-qa.mjs') {
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('tobacco_auth_qa_' + crypto.randomBytes(8).toString('hex'));
     }
-    if (['payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'closed-shift-floor-browser-qa.mjs'].includes(name)) {
+    if (['payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'finance-dialog-alignment-browser-qa.cjs', 'closed-shift-floor-browser-qa.mjs'].includes(name)) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'payables_qa_' + crypto.randomBytes(8).toString('hex');
-      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+      const financeDatabaseUrl = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+      if (name === 'finance-dialog-alignment-browser-qa.cjs') env.FINANCE_DIALOG_ALIGNMENT_TEST_DATABASE_URL = financeDatabaseUrl;
+      else env.MIGRATIONS_PG_TEST_DATABASE_URL = financeDatabaseUrl;
     }
     if (['finance-expense-drafts-postgres-qa.mjs', 'finance-income-snapshot-integrity-postgres-qa.mjs'].includes(name)) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
@@ -324,7 +329,7 @@ async function runSuite(value) {
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
     if (name === 'inventory-category-tobacco-migration-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('inventory_qa_' + crypto.randomBytes(8).toString('hex'));
-    if (['pos-role-payment-postgres-browser-qa.mjs', 'pos-transfer-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'acceptance-47-pos-journey-postgres-browser-qa.mjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs', 'recipe-cost-breakdown-postgres-browser-qa.mjs', 'payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'closed-shift-floor-browser-qa.mjs'].includes(name)) {
+    if (['pos-role-payment-postgres-browser-qa.mjs', 'pos-transfer-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'purchase-editor-browser-qa.cjs', 'auto-order-selection-browser-qa.cjs', 'staff-role-dialog-layout-browser-qa.cjs', 'acceptance-47-pos-journey-postgres-browser-qa.mjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs', 'recipe-cost-breakdown-postgres-browser-qa.mjs', 'payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'finance-dialog-alignment-browser-qa.cjs', 'closed-shift-floor-browser-qa.mjs'].includes(name)) {
       const candidates = [process.env.PLAYWRIGHT_PACKAGE_PATH, ...(process.platform === 'win32' ? [path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Codex', 'resources', 'app', 'node_modules', 'playwright'), path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'node_modules', 'playwright')] : [])].filter(Boolean);
       const playwrightPath = candidates.find(candidate => fs.existsSync(candidate));
       assert.ok(playwrightPath, 'POS browser QA requires the configured Playwright package path');

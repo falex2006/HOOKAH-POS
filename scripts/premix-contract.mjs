@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../migrations/037_inventory_premix.sql', import.meta.url), 'utf8');
-const bindingMigration = fs.readFileSync(new URL('../migrations/101_premix_recipe_output_binding.sql', import.meta.url), 'utf8');
+const bindingMigration = fs.readFileSync(new URL('../migrations/110_premix_recipe_output_binding.sql', import.meta.url), 'utf8');
 assert.match(migration, /inventory_premix_batches/);
 assert.match(migration, /recipe_type/);
 assert.match(server, /\/api\/inventory\/premixes\/produce/);

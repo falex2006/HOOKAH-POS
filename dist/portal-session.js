@@ -2,7 +2,7 @@
 (() => {
   const tokenKey = 'crm_session_token';
   const userKey = 'crm_session_user';
-  const portalScript = '/portal.js?rev=2026101901';
+  const portalScript = '/portal.js?rev=2026102305';
   let pending = null;
   let cooldownUntil = 0;
   let cooldownTimer = null;
@@ -21,6 +21,7 @@
     const any = (...keys) => keys.some((key) => permissions.has(key));
     const page = pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
     if (page === '/clients') return any('orders', 'staff', 'staff_view');
+    if (page === '/network') return ['owner', 'admin', 'developer'].includes(session.user.role) && permissions.has('settings');
     if (page === '/admin') {
       if (hash === '#staff') return any('staff', 'staff_view');
       if (hash === '#staff-schedule') return any('staff_schedule_view', 'staff_schedule_self');
@@ -38,7 +39,7 @@
   };
   const canUseNavigation = (session, href, permission) => {
     const url = new URL(href, window.location.origin);
-    if (url.pathname === '/clients' || url.pathname === '/admin') return canAccessRoute(session, url.pathname, url.hash);
+    if (url.pathname === '/clients' || url.pathname === '/admin' || url.pathname === '/network') return canAccessRoute(session, url.pathname, url.hash);
     return permission === 'dashboard' || session.permissions.includes(permission);
   };
   function updateRetryButton() {
@@ -99,7 +100,9 @@
     const user = { ...session.user, workspacePermissions: [...session.permissions], permissionPolicy: session.permissionPolicy || session.user.permissionPolicy };
     localStorage.setItem(userKey, JSON.stringify(user));
     if (!canAccessRoute(session, window.location.pathname, window.location.hash)) {
-      block('Доступ к этому разделу ограничен. Владелец может изменить права вашей роли.', true);
+      block(window.location.pathname.replace(/\/$/, '') === '/network'
+        ? 'Раздел «Моя сеть» доступен владельцу, администратору или разработчику.'
+        : 'Доступ к этому разделу ограничен. Владелец может изменить права вашей роли.', true);
       return;
     }
     // A classic script may execute even after its network deadline. Retry in a
@@ -177,7 +180,9 @@
   window.addEventListener('hashchange', (event) => {
     if (!accepted || reloading) return;
     if (!canAccessRoute(accepted, window.location.pathname, window.location.hash)) {
-      block('Доступ к этому разделу ограничен. Владелец может изменить права вашей роли.', true);
+      block(window.location.pathname.replace(/\/$/, '') === '/network'
+        ? 'Раздел «Моя сеть» доступен владельцу, администратору или разработчику.'
+        : 'Доступ к этому разделу ограничен. Владелец может изменить права вашей роли.', true);
       event.stopImmediatePropagation();
     } else if (blocked) { event.stopImmediatePropagation(); reload(); }
   });

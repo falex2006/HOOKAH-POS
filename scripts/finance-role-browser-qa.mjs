@@ -75,13 +75,19 @@ try {
       assert.equal(await page.locator('#payroll-register').count(), 0, `${role} cannot see payroll register`);
       assert.equal(await page.locator('#expense-form').count(), 0, `${role} cannot submit expenses`);
       if (role === 'bartender') {
-        assert.equal(await page.locator('#expense-list, #finance-orders, #finance-chart, #payables-list').count(), 0, 'employee sees only own turnover');
-        assert.match(await page.locator('.employee-turnover-panel').textContent(), /Оборот заказов, открытых вами/);
+        assert.equal(await page.locator('#expense-list, #finance-orders, #finance-chart, #payables-list').count(), 0, 'employee sees only own payment view');
+        assert.match(await page.locator('h1').textContent(), /Оплаты по вашим заказам/);
+        assert.match(await page.locator('.employee-turnover-panel').textContent(), /По заказам, открытым вами/);
       } else {
-        assert.match(await page.locator('#expense-list').textContent(), /финансовым ролям/);
-        await page.locator('summary').filter({ hasText: 'Поставщики · расчёты по накладным' }).click();
-        await page.locator('summary').filter({ hasText: 'Скидки · заявки' }).click();
+        assert.match(await page.locator('#expense-list').textContent(), /расходов нет/);
+        const selectFinanceView = async (value) => {
+          const control = page.locator('.finance-view-picker select').locator('xpath=..');
+          await control.locator('.custom-select-trigger').click();
+          await control.locator(`.custom-select-menu [data-value="${value}"]`).click();
+        };
+        await selectFinanceView('suppliers');
         await page.locator('.payable-row').first().waitFor();
+        await selectFinanceView('discounts');
         await page.locator('.discount-row').first().waitFor();
         assert.match(await page.locator('#payables-list').textContent(), /QA supplier/);
         assert.match(await page.locator('#discount-list').textContent(), /QA permission check/);
@@ -105,7 +111,6 @@ try {
       for (const [path, method, data] of [
         ['/api/payroll/entries', 'GET'],
         ['/api/payroll/entries', 'POST', { userId: 'x', ruleId: 'x', periodFrom: '2026-09-01', periodTo: '2026-09-30' }],
-        ['/api/finance/categories', 'GET'],
         ['/api/expenses', 'POST', { category: 'QA', amount: 1 }],
         ['/api/finance/purchase-payables/role-qa-payable/payments', 'POST', { amount: 1, paymentDate: '2026-09-30', paymentMethod: 'cash' }],
         ['/api/discount-requests/role-qa-discount/approve', 'POST', {}],
@@ -113,6 +118,8 @@ try {
         const response = await page.request.fetch(`${base}${path}`, { method, data, headers: authHeaders });
         assert.equal(response.status(), 403, `${role} ${method} ${path} is denied`);
       }
+      const categories = await page.request.get(`${base}/api/finance/categories`, { headers: authHeaders });
+      assert.equal(categories.status(), role === 'manager' ? 200 : 403, `${role} finance category read scope`);
       if (role === 'bartender') {
         assert.equal((await page.request.get(`${base}/api/finance/purchase-payables`, { headers: authHeaders })).status(), 403, 'employee cannot read supplier balances');
         assert.equal((await page.request.get(`${base}/api/finance/purchase-payables?documentDateFrom=2026-09-01&paymentStatus=unpaid`, { headers: authHeaders })).status(), 403, 'employee cannot use filtered supplier-balance endpoint');
@@ -121,10 +128,43 @@ try {
         await page.setViewportSize({ width, height: 800 });
         assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1; }), false, `${role} finance overflow at ${width}px`);
       }
+      let failEmployeeReport = false;
+      if (role === 'bartender') await page.route('**/api/finance/report*', (route) => failEmployeeReport
+        ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'temporary_unavailable' }) })
+        : route.continue());
+      await page.goto(`${base}/finance/report`, { waitUntil: 'networkidle' });
+      if (role === 'bartender') {
+        await page.getByRole('heading', { name: 'Мой отчёт' }).waitFor();
+        await page.waitForFunction(() => document.querySelector('#employee-report-revenue')?.textContent !== '—');
+        assert.equal(await page.locator('#report-kpis, [data-finance-funding], [data-finance-balance-events]').count(), 0, 'employee report has no venue-wide financial details');
+        failEmployeeReport = true;
+        await page.locator('#employee-report-refresh').click();
+        await page.getByText('Не удалось загрузить отчёт. Повторите попытку.').waitFor();
+        assert.equal(await page.locator('#employee-report-revenue').textContent(), '—', 'failed personal report clears prior total');
+        failEmployeeReport = false;
+        await page.locator('#employee-report-refresh').click();
+        await page.waitForFunction(() => document.querySelector('#employee-report-revenue')?.textContent !== '—');
+      } else {
+        await page.getByRole('heading', { name: 'Отчёты' }).waitFor();
+        await page.locator('#report-kpis').waitFor();
+        assert.equal(await page.locator('[data-funding-document], [data-balance-submit]').count(), 0, 'read-only manager has no owner funding forms');
+      }
+      for (const width of [390, 1440]) {
+        await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+        if (width === 390) {
+          const navigation = await page.evaluate(() => ({ expanded: document.querySelector('.sidebar-mobile-toggle')?.getAttribute('aria-expanded'), className: document.querySelector('.portal-sidebar')?.className, transform: getComputedStyle(document.querySelector('.portal-sidebar')).transform }));
+          assert.equal(navigation.expanded, 'false', `${role} report navigation must close after desktop-to-mobile resize: ${JSON.stringify(navigation)}`);
+          await page.waitForFunction(() => document.querySelector('.portal-sidebar')?.getBoundingClientRect().right <= 1, null, { timeout: 2000 });
+        }
+        assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); return document.documentElement.scrollWidth <= innerWidth + 1 && main.scrollWidth <= main.clientWidth + 1; }), true, `${role} report fits ${width}px`);
+        await page.screenshot({ path: `tmp/finance-report-${role}-${width}.png` });
+      }
+      await page.locator('.page-title a[href="/finance"]').click();
+      await page.waitForURL(url => url.pathname === '/finance');
       assert.deepEqual(errors.filter((message) => !message.includes('ViewTransition opt-in disabled')), [], `${role} page errors`);
     } finally { await context.close(); }
   }
-  console.log('FINANCE ROLE BROWSER QA: PASS (bartender/manager UI restrictions, finance_read, 403 mutations, 3 widths)');
+  console.log('FINANCE ROLE BROWSER QA: PASS (bartender/manager finance and report UI, employee report 503/retry, read-only manager report, 403 mutations, responsive widths)');
 } finally {
   await browser?.close();
   child.kill();

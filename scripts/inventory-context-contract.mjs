@@ -34,8 +34,8 @@ for (const id of ['new-recipe', 'new-product', 'create-auto-order']) {
 assert.match(portal, /actions: \[\], kpis: \[\['К заказу'/, 'auto-order header must not repeat its conditional panel CTA');
 assert.match(portal, /product-catalog-empty/, 'catalog empty state must have its semantic class');
 assert.match(portal, /class="empty visual-catalog-empty product-catalog-empty"/, 'catalog empty state must match the responsive full-width style');
-assert.match(portal, /const emptyMessage = productItems\.length[\s\S]*По запросу ничего не найдено[\s\S]*Каталог пока пуст/,
-  'catalog must distinguish an empty inventory from a search with no matches');
+assert.match(portal, /const emptyMessage = productItems\.length[\s\S]*По текущему поиску и фильтрам товаров нет[\s\S]*Каталог пока пуст/,
+  'catalog must distinguish an empty inventory from no results under the combined search and filters');
 assert.match(css, /\.visual-catalog-empty\{grid-column:1\/-1/, 'catalog empty state must span the catalog grid');
 assert.match(portal, /recipe\.productId && productItems\.some\(\(product\) => String\(product\.id\) === String\(recipe\.productId\)\)/,
   'recipe linkage KPI must count only valid links to existing menu products');

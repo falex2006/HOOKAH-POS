@@ -143,6 +143,17 @@ html:not([data-portal-access="checking"]) :is(#page-content,[data-management-the
   background:var(--ui-panel);border-color:var(--ui-border-subtle);color:var(--ui-text-primary);
 }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.ui-modal-head,.modal-head) :is(h2,h3) { color:var(--ui-text-primary); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .ui-modal-card>.ui-modal-head>button.ui-icon-button[aria-label^="Закрыть"] {
+  box-sizing:border-box;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;
+  border:0;border-radius:var(--ui-radius-control);background:transparent;box-shadow:none;
+  color:var(--ui-text-secondary);line-height:1;
+}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .ui-modal-card>.ui-modal-head>button.ui-icon-button[aria-label^="Закрыть"]:hover:not(:disabled) {
+  border:0;background:var(--ui-raised);color:var(--ui-text-primary);box-shadow:none;
+}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .ui-modal-card>.ui-modal-head>button.ui-icon-button[aria-label^="Закрыть"]:focus-visible {
+  outline:2px solid var(--ui-focus);outline-offset:2px;
+}
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.ui-modal-body,.action-fields,.notification-panel-content) { background:var(--ui-panel);color:var(--ui-text-primary); }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.ui-modal-footer,.action-footer) :is(.button,.ui-button) { min-height:44px; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].ui-critical-dialog:not(dialog).open { background:var(--ui-overlay); }
@@ -312,3 +323,18 @@ html:not([data-portal-access="checking"]) :is(#page-content,[data-management-the
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .recipe-cost-lines>div{padding:12px;border-radius:10px;align-items:start}
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .recipe-cost-lines>div>span{display:grid;gap:6px;min-width:0;line-height:1.5;overflow-wrap:anywhere}
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .recipe-cost-lines>div>b{flex-shrink:0;white-space:nowrap}
+
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.recipe-wizard.product-editor,.recipe-wizard .recipe-wizard-steps){background:transparent}
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .recipe-wizard .recipe-wizard-steps{border:0;padding:0}
+
+@media(max-width:650px){html:not([data-portal-access="checking"]) [data-management-theme="mt"] .inventory-stock-panel .panel-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}html:not([data-portal-access="checking"]) [data-management-theme="mt"] .inventory-stock-panel .inventory-stock-filters{width:100%;min-width:0;grid-template-columns:minmax(0,1fr)}html:not([data-portal-access="checking"]) [data-management-theme="mt"] .inventory-stock-panel .inventory-stock-filters>label{width:100%}}
+
+html:not([data-portal-access="checking"]) body.portal #page-content .inventory-departments-panel>div.catalog-tree-section{background:transparent;border-color:transparent;box-shadow:none}
+/* Interface preferences already sit inside the company panel; avoid a second frame. */
+html:not([data-portal-access="checking"]) #page-content #company.company-panel>#settings-dashboard-modules[data-management-theme="mt"]{background:transparent;border:0;box-shadow:none;padding:0}
+/* Read the setting first; switches align at the trailing edge of each group. */
+html:not([data-portal-access="checking"]) #settings-dashboard-modules[data-management-theme="mt"] label:has(>input[type="checkbox"]){display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;width:100%;box-sizing:border-box}
+html:not([data-portal-access="checking"]) #settings-dashboard-modules[data-management-theme="mt"] label>span{min-width:0;overflow-wrap:anywhere}
+
+/* Keep filled destructive actions visually related to primary gradients. */
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(button,a):is(.button.danger,.ui-button--danger):not(.danger-outline):not(:disabled):not([aria-disabled="true"]) { background:linear-gradient(100deg,var(--ui-danger-fill-start),var(--ui-danger-fill-end));border-color:var(--ui-danger-fill-start);color:var(--ui-text-on-danger); }

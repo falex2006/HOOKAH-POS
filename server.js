@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createRepositories, allocatePremixBatchConsumption } = require('./db');
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 const { handleOrderPreparation, refreshPgPreparation, refreshMemoryPreparation, preparationItems } = require('./order-preparation');
 const { venueTimezoneSql, refreshTableReservationStatus, reservationDateTimeIsFuture } = require('./reservation-calendar');
 const { createPermissionResolver } = require('./effective-permissions');
@@ -2242,6 +2243,7 @@ async function api(req, res) {
   const networkVenueSelect = pathname.match(/^\/api\/network\/venues\/([^/]+)\/select$/);
   if (networkVenueSelect && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (process.env.DATABASE_URL || repositories?.pool) {
       if (!repositories?.pool) return json(res, 503, { error: 'network_unavailable' });
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(networkVenueSelect[1])) return json(res, 404, { error: 'venue_not_found' });
@@ -3270,7 +3272,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (repositories?.pool) {
       const client = await repositories.pool.connect();
       try {
-        await client.query('BEGIN');
+        await beginPayrollSourceProducerTransaction(client, venueDbId);
         if (outputIngredientId) {
           const output = await client.query('SELECT id FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [outputIngredientId, venueDbId]);
           if (!output.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'premix_output_item_not_found' }); }
@@ -3306,7 +3308,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(recipeProfile[1])) {
       const client = await repositories.pool.connect();
       try {
-        await client.query('BEGIN');
+        await beginPayrollSourceProducerTransaction(client, venueDbId);
         const input = await body(req);
         const existingResult = await client.query('SELECT product_id AS "productId",category,ingredients,recipe_type AS "recipeType",output_ingredient_id AS "outputIngredientId",yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount" FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 AND active=true FOR UPDATE', [recipeProfile[1], venueDbId]);
         const existing = existingResult.rows[0];
@@ -3400,7 +3402,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (recipeProfile && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(recipeProfile[1])) { try { const { rows } = await repositories.pool.query('UPDATE inventory_recipe_cards SET active=false,updated_at=now() WHERE id=$1 AND venue_id=$2 AND active=true RETURNING id,name,active', [recipeProfile[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'recipe_not_found' }); recordAudit(req, 'recipe.archived', 'recipe', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'recipe_delete_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(recipeProfile[1])) { const client = await repositories.pool.connect(); try { await beginPayrollSourceProducerTransaction(client, venueDbId); const { rows } = await client.query('UPDATE inventory_recipe_cards SET active=false,updated_at=now() WHERE id=$1 AND venue_id=$2 AND active=true RETURNING id,name,active', [recipeProfile[1], venueDbId]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'recipe_not_found' }); } await client.query('COMMIT'); recordAudit(req, 'recipe.archived', 'recipe', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'recipe_delete_failed', detail: error.message }); } finally { client.release(); } }
     const index = recipes.findIndex((item) => item.id === recipeProfile[1]); if (index < 0) return json(res, 404, { error: 'recipe_not_found' });
     const recipe = recipes.splice(index, 1)[0]; recordAudit(req, 'recipe.deleted', 'recipe', recipe.id, recipe, null); return json(res, 200, recipe);
   }
@@ -5098,7 +5100,7 @@ if (staffProfile && req.method === 'PATCH') {
   const withInventoryHierarchyTransaction = async (department, subdepartment, categoryName, write, categoryId = null) => {
     const client = await repositories.pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginPayrollSourceProducerTransaction(client, venueDbId);
       const hierarchyError = await validateInventoryHierarchy(department, subdepartment, client);
       if (hierarchyError) { await client.query('ROLLBACK'); return { error: hierarchyError }; }
       const categoryError = await validateInventoryCategorySubdepartment(department, subdepartment, categoryName, client);
@@ -5155,7 +5157,7 @@ if (staffProfile && req.method === 'PATCH') {
         if (repositories?.pool) {
           const client = await repositories.pool.connect();
           try {
-            await client.query('BEGIN');
+            await beginPayrollSourceProducerTransaction(client, venueDbId);
             const current = await client.query('SELECT department,subdepartment,category,category_id AS "categoryId",pack_multiplier AS "packMultiplier",cost FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [inventoryItemPath[1], venueDbId]);
             if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_item_not_found' }); }
             const observed = current.rows[0];
@@ -5354,7 +5356,7 @@ if (staffProfile && req.method === 'PATCH') {
     }
     let client;
     try {
-      client = await repositories.pool.connect(); await client.query('BEGIN');
+      client = await repositories.pool.connect(); await beginPayrollSourceProducerTransaction(client, venueDbId);
       const { rows: batchRows } = await client.query(`SELECT b.*,i.name AS output_name,i.unit AS output_stock_unit,i.cost AS output_cost
         FROM inventory_premix_batches b JOIN ingredients i ON i.id=b.output_ingredient_id
         WHERE b.id=$1 AND b.venue_id=$2 FOR UPDATE OF b,i`, [batchId, venueDbId]);
@@ -5419,7 +5421,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (repositories?.pool) {
       let client;
       try {
-        client = await repositories.pool.connect(); await client.query('BEGIN');
+        client = await repositories.pool.connect(); await beginPayrollSourceProducerTransaction(client, venueDbId);
         const recipeResult = await client.query('SELECT id,name,ingredients,output_ingredient_id AS "outputIngredientId",yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit" FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 AND active=true AND recipe_type=\'premix\' FOR SHARE', [recipeId, venueDbId]); const recipe = recipeResult.rows[0]; if (!recipe) { await client.query('ROLLBACK'); return json(res, 404, { error: 'premix_recipe_not_found' }); }
         if (!recipe.outputIngredientId) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_output_binding_required' }); }
         if (requestedOutputItemId && requestedOutputItemId !== String(recipe.outputIngredientId)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_output_binding_mismatch', outputItemId: recipe.outputIngredientId }); }
@@ -6349,7 +6351,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderDelete[1])) {
       const client = await repositories.pool.connect();
       try {
-        await client.query('BEGIN');
+        await beginPayrollSourceProducerTransaction(client, venueDbId);
         const { rows: orderRows } = await client.query('SELECT id,status,table_id AS "tableId",notes FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderDelete[1], venueDbId]);
         const persisted = orderRows[0]; if (!persisted) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
         if (!['open', 'in_progress', 'ready'].includes(persisted.status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_deletable', status: persisted.status }); }
@@ -6596,7 +6598,7 @@ if (staffProfile && req.method === 'PATCH') {
     const canonical=JSON.stringify({amountCents:totalCents,reason,allocations:allocations.map(({sourcePaymentId,amountCents,payoutMethod,paymentAccountId})=>({sourcePaymentId,amountCents,payoutMethod,paymentAccountId})),items:itemReturns,noItemReturn});
     let client;
     try {
-      client=await repositories.pool.connect(); await client.query('BEGIN');
+      client=await repositories.pool.connect(); await beginPayrollSourceProducerTransaction(client, venueDbId);
       const orderResult=await client.query("SELECT id,status FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE",[refundOrderId,venueDbId]);
       if(!orderResult.rows[0]){await client.query('ROLLBACK');return json(res,404,{error:'order_not_found'});}
       const pricingSnapshot=await client.query('SELECT id FROM pos_order_pricing_snapshots WHERE venue_id=$1 AND order_id=$2',[venueDbId,refundOrderId]);
@@ -6687,7 +6689,7 @@ if (staffProfile && req.method === 'PATCH') {
       let client;
       try {
         client = await repositories.pool.connect();
-        await client.query('BEGIN');
+        await beginPayrollSourceProducerTransaction(client, venueDbId);
         // Serialize concurrent payments and close requests using the same order lock.
         const { rows: orderRows } = await client.query('SELECT id,status,pricing_locked_at AS "pricingLockedAt",pricing_version AS "pricingVersion",table_id AS "tableId",guest_id AS "guestId",reservation_id AS "reservationId",vip_minimum AS "minimumOrderTotal",loyalty_redemption_policy_version AS "redemptionPolicyVersion",loyalty_redemption_rate AS "redemptionRate",loyalty_redemption_cap_percent AS "redemptionCapPercent",loyalty_redemption_min_points AS "redemptionMinPoints",loyalty_redemption_base AS "redemptionBase" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [paymentPath[1], venueDbId]);
         const persisted = orderRows[0];
@@ -6813,7 +6815,7 @@ if (staffProfile && req.method === 'PATCH') {
       let result;
       try {
         client = await repositories.pool.connect();
-        await client.query('BEGIN');
+        await beginPayrollSourceProducerTransaction(client, venueDbId);
         // Serialize concurrent close attempts before reading totals or depleting stock.
         const { rows: orderRows } = await client.query('SELECT id,status,table_id AS "tableId",guest_id AS "guestId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderPath[1], venueDbId]);
         const persisted = orderRows[0];

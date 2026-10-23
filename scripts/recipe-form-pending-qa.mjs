@@ -10,7 +10,7 @@ const start = portal.indexOf('    const lockRecipeControls = () => {', scope);
 const end = portal.indexOf('    loadRecipes();', start);
 assert.ok(start > scope && end > start, 'recipe submit handler exists');
 assert.match(portal.slice(start, end), /if \(form\.dataset\.submitting === '1'\) return/, 'delete/grid actions must respect pending save');
-assert.match(portal.slice(scope, start), /#new-recipe'\)\?\.addEventListener\('click', \(\) => \{ if \(form\.dataset\.submitting !== '1'\)/, 'new editor must stay closed while saving');
+assert.match(portal.slice(scope, start), /#new-recipe'\)\?\.addEventListener\('click', \(event\) => \{ if \(form\.dataset\.submitting !== '1' && form\.hidden\) resetRecipeForm\(null, event\.currentTarget\); \}\)/, 'new editor opens only while closed, preserves its opener, and leaves an in-progress draft intact');
 
 const fields = new Map();
 for (const id of ['recipe-id', 'recipe-name', 'recipe-category', 'recipe-product', 'recipe-type', 'recipe-yield-quantity', 'recipe-yield-unit', 'recipe-portion-count', 'recipe-technology', 'recipe-serve']) fields.set(`#${id}`, { value: '' });
@@ -49,6 +49,7 @@ vm.runInNewContext(portal.slice(start, end), {
   loadRecipes: () => Promise.resolve(),
   resetRecipeForm: () => {},
   portalNotice: (message, kind) => notices.push({ message, kind }),
+  bindManagementNotice: () => (message, kind) => notices.push({ message, kind }),
 });
 const submit = () => onSubmit({ preventDefault() {} });
 const settle = async () => { await new Promise((resolve) => setImmediate(resolve)); };
@@ -90,7 +91,7 @@ onGridClick({ target: { closest: (selector) => selector === '[data-recipe-delete
 assert.equal(requests.length, 3);
 assert.equal(requests[2].options.method, 'DELETE');
 submit();
-onFormDelete();
+onFormDelete({ currentTarget: deleteButton });
 onGridClick({ target: { closest: (selector) => selector === '[data-recipe-delete]' ? rowDelete : null } });
 assert.equal(requests.length, 3, 'pending delete must block save and other deletes');
 requests[2].reject(new Error('offline'));
@@ -98,7 +99,7 @@ await settle();
 assert.equal(form.dataset.submitting, '0');
 assert.equal(rowDelete.disabled, false);
 
-onFormDelete();
+onFormDelete({ currentTarget: deleteButton });
 assert.equal(requests.length, 4);
 assert.equal(requests[3].options.method, 'DELETE');
 submit();

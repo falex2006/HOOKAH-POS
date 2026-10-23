@@ -10,6 +10,10 @@ const sidebarCounters = portal.slice(portal.indexOf('const refreshSidebarCounter
 assert.ok(!sidebarCounters.includes("setBadge('/integrations'"), 'paused integrations must not show a sidebar attention badge');
 assert.ok(!sidebarCounters.includes("api('/api/integrations')"), 'sidebar counters must not fetch paused integration status');
 assert.ok(portal.includes('sidebar-menu-search'));
+assert.match(portal, /emptyState\.setAttribute\('role', 'status'\)/, 'no-results message is announced as a status');
+assert.match(portal, /emptyState\.setAttribute\('aria-live', 'polite'\)/, 'no-results updates are announced politely');
+assert.match(portal, /emptyState\.textContent !== 'Разделы не найдены'\) emptyState\.textContent = 'Разделы не найдены'/, 'empty search explains why the navigation is blank and populates the live region on reveal');
+assert.match(portal, /const noResults = Boolean\(query\) && !groups\(\)\.some\(group => !group\.hidden\)/, 'empty state appears only for a non-empty query without visible permitted groups');
 assert.ok(portal.includes("summary?.setAttribute('aria-expanded'"));
 assert.match(portal, /requestedDashboardFocus === 'permissions' && portalUser\.role !== 'owner'/, 'permissions route is guarded for non-owner roles');
 console.log(`SIDEBAR MENU AUDIT CONTRACT: PASS (${labels.length} labels, 26 routes, counters and accessibility hooks)`);
