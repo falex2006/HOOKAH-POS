@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { createHash, randomBytes, randomUUID, scryptSync } from 'node:crypto';
+import { execFileSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
 import { assertQaDatabaseIdentity, validateQaDatabaseUrl } from './postgres-qa-safety.mjs';
+import { attendanceApprovalJourney } from './staff-attendance-approval-browser-journey.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const target = validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL, 'Worktime UI QA database');
@@ -20,6 +21,11 @@ const marker = randomBytes(6).toString('hex'), password = randomBytes(24).toStri
 const salt = randomBytes(16).toString('hex'), hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
 const logins = Object.fromEntries(['owner', 'manager', 'foreignOwner'].map(key => [key, `worktime-${key}-${marker}`]));
 const artifacts = path.join(root, 'tmp', 'staff-worktime-postgres'); fs.mkdirSync(artifacts, { recursive: true });
+const testedHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim();
+const assetPaths = ['staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-attendance-ui.js', 'staff-attendance-ui.css', 'app.js', 'portal.js', 'style.css'];
+const assetHashes = () => Object.fromEntries(assetPaths.flatMap(file => [file, `dist/${file}`]).map(file => [file, createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
+const testedAssets = assetHashes();
+fs.writeFileSync(path.join(artifacts, 'tested-assets-before.json'), JSON.stringify({ testedHead, testedAssets }, null, 2));
 let server, serverClosed, browser, connected = false, checks = 0;
 const errors = [], check = (value, description) => { assert.ok(value, description); checks++; };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -93,6 +99,7 @@ try {
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'actual portal fits viewport');
     await context.close();
   }
+  await attendanceApprovalJourney({ browser, db, base, ids, logins, password, artifacts, check, errors });
   // Real server authorization/tenant reads, separate from UI fault injection.
   const request = await browser.newContext();
   for (const key of ['manager', 'foreignOwner']) {
@@ -108,7 +115,8 @@ try {
     }
   }
   await request.close(); check(errors.length === 0, 'no browser JS errors');
-  fs.writeFileSync(path.join(artifacts, 'report.json'), JSON.stringify({ checks, widths: [390, 1440], baseCommit: '17d93081', scope: 'actual owner UI/API/DB/reload; manager denial and foreign tenant API; GET503 injected only for failure/retry', errors }, null, 2));
+  assert.deepEqual(assetHashes(), testedAssets, 'tested product assets stay unchanged throughout the suite');
+  fs.writeFileSync(path.join(artifacts, 'report.json'), JSON.stringify({ checks, widths: [390, 1440], baseCommit: '17d93081', testedHead, testedAssets, scope: 'actual owner schedule/policy and manager attendance request/approval/start/end UI/API/DB/reload; manager management denial and foreign tenant policy API; injected GET503 and initial request POST503, held real approval POST', errors }, null, 2));
   console.log(`WORKTIME POSTGRES BROWSER QA: PASS (${checks} assertions; actual owner UI/API/DB/reload3901440; manager denial; tenant policy isolation)`);
 } finally {
   try { await browser?.close(); }
