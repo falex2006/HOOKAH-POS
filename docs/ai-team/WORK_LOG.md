@@ -9082,3 +9082,8 @@ Added owned UIjourney +explicitplanning mode to existingguardedworktimeQA, oldat
 ## 2026-10-24 — published plan copy clarity
 
 Publishedhistory now says applied changes and past-tense actions, preserving open/discarded text exactly. No handlers/CSS/API/role edits. Reusedread14source/dist andnonemptydistwrite24 focusedbrowserfixtures390/1440, no new mirrortests. MASTER tinydiff/empty390GO; rootnonempty390visual. Evidence PLANNING_HISTORY_COPY_20261024.md +tmp/planning-history-copy. ActualDB50 remainsboundold62/assets, notnewPGclaim; otherauditstatesopen, noGitHub/VPS.
+
+
+## 2026-10-24 — employee settings context isolation
+
+Confirmed P1 A/B late-read mixing and wrong synthetic PUT recipient, old availability writable during loading, clear/defaults identity races. Atomic generation-bound reads, immediate invalidation, current loaded identity and captured save target, write singleflight, defaults captured qualifications, local retry and stale-message clearing. Baseline24 issues -> source16/dist16 screenshot observations PASS390/1440, zero issues/page errors; late rejection and closed-dialog success included. MASTER independent bounded code-health GO; root actual screenshots reviewed. Syntax/parity/diff PASS. See PLANNING_EMPLOYEE_CONTEXT_20261024.md. Synthetic API only, no new PG/production proof. User freezes further improvements and requests verified joint release; MASTER owns integration/deploy; full historical audit not claimed complete.

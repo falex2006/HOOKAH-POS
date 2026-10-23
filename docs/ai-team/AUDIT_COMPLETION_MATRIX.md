@@ -1263,3 +1263,8 @@ Exact62b8b947 scenario=planning ownerUI/API/PostgreSQL/reload3901440 PASS50+dire
 ## 2026-10-24 — published history wording
 
 Minor actual50 visualfinding: publisheddetail still called applied data proposals. Published-only intro/history heading/past-tense operationlabels/emptytext corrected, open/discarded text and handlers/CSS unchanged. Existingdraftopen source14/dist14PASS3901440 +oneexistingdistwrite24 nonemptycreatehistory; source mapping update/cancel reviewed, no screenshotsclaimforthose. MASTER tinydiff/empty390boundedGO, rootnonempty390. See PLANNING_HISTORY_COPY_20261024.md. Exact62 actual50 archive remainsimmutable, no newPG/backend/GitHub/VPS. Fullgoalnotcomplete.
+
+
+## 2026-10-24 — employee settings context isolation
+
+Confirmed P1 A/B late-read mixing and wrong synthetic PUT recipient, old availability writable during loading, clear/defaults identity races. Atomic generation-bound reads, immediate invalidation, current loaded identity and captured save target, write singleflight, defaults captured qualifications, local retry and stale-message clearing. Baseline24 issues -> source16/dist16 screenshot observations PASS390/1440, zero issues/page errors; late rejection and closed-dialog success included. MASTER independent bounded code-health GO; root actual screenshots reviewed. Syntax/parity/diff PASS. See PLANNING_EMPLOYEE_CONTEXT_20261024.md. Synthetic API only, no new PG/production proof. User freezes further improvements and requests verified joint release; MASTER owns integration/deploy; full historical audit not claimed complete.
