@@ -1,4 +1,0 @@
-
-## 2026-10-24 — U2: schedule access dialog hidden GET states
-
-Reproduced duplicate grants GET/dialog while loading and missing in-dialog error retry. Immediate singleton dialog with close/reopen and mount/generation guards now passes source12/dist12 component states390/1440; preserved existing rights PUT handlers. Added scoped12px alert/retry gap. Baseline12 mismatches and screenshots retained; strengthened final capture visibility/focus/bounds checks, no production access. Lifecycle9/discard/graphite, syntax/parity/diff and independent code-health/visual GO; prior worktime44 regression PASS. See docs/ai-team/SCHEDULE_ACCESS_DIALOG_20261024.md for exact evidence boundaries. PG/RBAC/PUT and whole U2 completion not claimed; no GitHub/VPS changes. Package preserved separately for coordinator integration.
