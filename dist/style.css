@@ -6009,6 +6009,13 @@ body.portal #page-content.finance-category-workspace .finance-category-filter-fi
 @media(max-width:700px){body.portal #page-content.finance-category-workspace .finance-category-filters{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}body.portal #page-content.finance-category-workspace .finance-category-filters>label:first-child{grid-column:1/-1}}
 
 /* Staff directory: one compact tile size and contained laptop table. */
+/* Staff controls: one segment boundary and contained, neutral focus indicators. */
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch>button{min-height:44px;border:0;box-shadow:none;background:transparent}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch>button[aria-pressed="true"]{background:color-mix(in srgb,var(--ui-text-primary) 12%,var(--ui-input));box-shadow:none;color:var(--ui-text-primary)}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch>button:focus:not(:focus-visible){outline:0;box-shadow:none}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-view-switch>button:focus-visible{outline:2px solid var(--ui-text-secondary);outline-offset:-3px;box-shadow:none}
+#page-content.ui-admin-pages #staff.staff-catalog #staff-search:focus{border-color:var(--ui-text-secondary);box-shadow:none;outline:0}
+#page-content.ui-admin-pages #staff.staff-catalog #staff-search:focus-visible{outline:2px solid var(--ui-text-secondary);outline-offset:-2px;box-shadow:none}
 #page-content.ui-admin-pages #staff.staff-catalog .staff-directory-view-controls{grid-template-columns:auto minmax(240px,320px);justify-content:start;background:transparent;border:0;box-shadow:none}
 #page-content.ui-admin-pages #staff.staff-catalog #staff-list[data-view="cards"]{--staff-card-min:210px;--staff-avatar-size:64px;align-items:stretch}
 #page-content.ui-admin-pages #staff.staff-catalog #staff-list[data-view="cards"] .staff-card{justify-content:flex-start;min-height:0;padding:16px;gap:0}
