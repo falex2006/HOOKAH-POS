@@ -9078,3 +9078,7 @@ Confirmed forcedduplicate submits caused invalidsecondPATCH/publish and earlycon
 ## 2026-10-24 — real planning write and committed-response replay accepted
 
 Added owned UIjourney +explicitplanning mode to existingguardedworktimeQA, oldattendance path preserved, planningJS/dist addedto16assetmanifest. Exact62b8b947 terminal46821exit0 scenario planning PASS50/directasserts3901440: actualcreate/save/readretry then realCOMMITreply200 replacedwith503, samekeypayloadreplay200, exactly1receipt/audit/live mutation afterreload. MASTER independent16SHA/report/terminal/actualscreensGO; runnerownedDBdropabsenceassert nofailure/lockfalse/slotreturned. Freshreportbound to testedhead; no broaderrole/warning/DBclaims. See PLANNING_REAL_WRITE_20261024.md. Nextpublishedhistorycopy separate, no testedartifact rewriting/GitHub/VPS.
+
+## 2026-10-24 — published plan copy clarity
+
+Publishedhistory now says applied changes and past-tense actions, preserving open/discarded text exactly. No handlers/CSS/API/role edits. Reusedread14source/dist andnonemptydistwrite24 focusedbrowserfixtures390/1440, no new mirrortests. MASTER tinydiff/empty390GO; rootnonempty390visual. Evidence PLANNING_HISTORY_COPY_20261024.md +tmp/planning-history-copy. ActualDB50 remainsboundold62/assets, notnewPGclaim; otherauditstatesopen, noGitHub/VPS.

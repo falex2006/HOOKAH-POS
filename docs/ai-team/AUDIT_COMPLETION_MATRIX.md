@@ -1259,3 +1259,7 @@ RED14issues/20captures390/1440: forcedsubmit duplicate invalidwrite/unlocks pend
 ## 2026-10-24 — U2 actual planning write/lost-response replay PASS50
 
 Exact62b8b947 scenario=planning ownerUI/API/PostgreSQL/reload3901440 PASS50+directdeepasserts/errors[], terminal46821exit0. Create201→draftsavepre503/exactretry200→savedGET503/GETretry/noresave→realpublishCOMMIT200 but browser503→samebody/key cached200 afterstate/versionchanged. SQLbefore/afterreload exactly1receipt/planningpublishaudit/liveaudit/liverow, no secondversionincrement.16productassetSHA stable, MASTER independently16MATCH/report/terminal/actualvisual3901440 boundedGO. Fresh run-1792790955598-aa2d53, guardcleanupabsenceassert noerror/lockfalse/slotreturnedPAYROLL. See PLANNING_REAL_WRITE_20261024.md. This closes ownerdayoffwrite/replay gate only, not all warnings/roles/series/range or wholeaudit. Publishedhistorywording remains nextlocalpolish; don't overwrite tested62 evidence. NoGitHub/VPS.
+
+## 2026-10-24 — published history wording
+
+Minor actual50 visualfinding: publisheddetail still called applied data proposals. Published-only intro/history heading/past-tense operationlabels/emptytext corrected, open/discarded text and handlers/CSS unchanged. Existingdraftopen source14/dist14PASS3901440 +oneexistingdistwrite24 nonemptycreatehistory; source mapping update/cancel reviewed, no screenshotsclaimforthose. MASTER tinydiff/empty390boundedGO, rootnonempty390. See PLANNING_HISTORY_COPY_20261024.md. Exact62 actual50 archive remainsimmutable, no newPG/backend/GitHub/VPS. Fullgoalnotcomplete.
