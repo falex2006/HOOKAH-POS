@@ -130,6 +130,9 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .planning-dialog [data-draft-content]{display:grid;gap:12px;min-width:0}
 .planning-dialog [data-draft-content]>h3{margin:0;font-size:16px}
 .planning-dialog [data-draft-content]>:is([data-draft-load-retry],[data-draft-retry]){justify-self:start}
+.schedule-dialog [data-publish-content]{display:grid;gap:12px;min-width:0}
+.schedule-dialog [data-publish-content]>[role=status]{display:grid;gap:8px}
+.schedule-dialog [data-publish-content]>[data-publish-load-retry]{justify-self:start}
 .planning-footer{padding-top:16px}.planning-dialog [data-slot-time]{display:grid;grid-template-columns:1fr 1fr;gap:12px}.planning-dialog [data-weekdays]{display:flex;gap:12px;flex-wrap:wrap}
 .planning-dialog [data-slot]{margin:12px 0}.planning-dialog [data-range-result]{max-height:320px;overflow:auto}.planning-dialog summary{cursor:pointer;min-height:44px}
 .template-row{display:flex;align-items:center;gap:8px}.template-row>.planning-list-item{flex:1;min-width:0}

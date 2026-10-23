@@ -17,9 +17,9 @@
     const dialogIsOpen=d=>!!d?.node?.isConnected&&d.node.open===true;
     const markFormDirty=form=>{form.dispatchEvent(new Event('input',{bubbles:true}));form.dispatchEvent(new Event('change',{bubbles:true}));};
     function submit(d, action) {
-      const form=d.node.querySelector('form');let key=crypto.randomUUID();
+      const form=d.node.querySelector('form');let key=crypto.randomUUID(),inFlight=false;
       form.addEventListener('input',()=>{key=crypto.randomUUID();});form.addEventListener('change',()=>{key=crypto.randomUUID();});
-      form.onsubmit=async e=>{e.preventDefault();const data=new FormData(form);d.pending(true);d.error('');try{await action(form,data,key);}catch(error){d.error(error.message);}finally{d.pending(false);}};
+      form.onsubmit=async e=>{e.preventDefault();if(inFlight||!dialogIsOpen(d))return;inFlight=true;try{const data=new FormData(form);d.pending(true);d.error('');await action(form,data,key);}catch(error){d.error(error.message);}finally{inFlight=false;d.pending(false);}};
     }
     let home,templatesParent,homeLoading=false;
     async function reloadHome(){
@@ -132,15 +132,27 @@
     }
     function conflictsText(conflicts){return conflicts.map(c=>typeof c==='string'?(errors[c]||c):`${errors[c.code]||c.code||'Конфликт'}${c.userId?' · '+name(c.userId):''}${c.workDate?' · '+c.workDate:''}`).join('; ');}
     const coverageText=coverage=>(coverage?.advisories||[]).map(item=>`${errors[item.code]||item.code}${item.userId?` · ${name(item.userId)}`:''}${item.workDate?` · ${item.workDate}`:''}${item.start&&item.end?` · ${local(item.start,access.timezone).slice(11)}–${local(item.end,access.timezone).slice(11)}`:''}${item.required!==undefined?` · нужно ${item.required}, есть ${item.covered}`:''}`).join('; ');
+    let publicationDialog=null;
     async function publishEditor(draft,done,parent){
-      try{
-        const preview=await api(`/drafts/${draft.id}/publish-preview`,'POST',{version:draft.version});
-        if(!dialogIsOpen(parent))return;const cover=coverageText(preview.coverage);
-        const d=dialog('Проверка публикации',`<p>Будет применено изменений: ${preview.operations.length}. Неизменённые записи останутся прежними.</p><div class="planning-operations">${preview.operations.map(op=>`<p>${esc({create:'Добавить',update:'Изменить',cancel:'Отменить'}[op.operation])}: ${esc(summary(op.payload||draft.baseItems.find(b=>b.id===op.sourceId)||{}))}</p>`).join('')}</div><p>${preview.conflicts.length?esc(conflictsText(preview.conflicts)):'Пересечений при проверке не найдено. Перед сохранением сервер проверит всё повторно.'}</p>${cover?`<div role="status"><strong>Покрытие потребности (справочно):</strong><p>${esc(cover)}</p><small>Открытые смены считаются незакрытыми местами; неизвестное положение перерыва показано отдельно.</small></div>`:''}${preview.warnings.length?`<div role="status"><strong>Предупреждения доступности:</strong><p>${esc(conflictsText(preview.warnings))}</p><label class="schedule-check"><input type="checkbox" name="confirmWarnings" required>Подтверждаю публикацию с этими предупреждениями</label></div>`:''}<label>Причина публикации${preview.warnings.length?' и подтверждения предупреждений':''} (обязательна для прошлого периода)<textarea name="reason" maxlength="500" ${preview.warnings.length?'required':''}></textarea></label>`);
-        const button=d.node.querySelector('[type=submit]');button.textContent='Опубликовать график';
-        if(!preview.canPublish||preview.conflicts.length||!preview.operations.length){button.remove();d.node.querySelector('form').onsubmit=e=>e.preventDefault();d.error(!preview.canPublish?'Нет права публикации. Владелец может выдать его отдельно.':preview.conflicts.length?'Сначала устраните конфликты.':'Нет изменений для публикации.');return;}
-        submit(d,async(form,data,key)=>{await api(`/drafts/${draft.id}/publish`,'POST',{version:draft.version,fingerprint:preview.fingerprint,reason:data.get('reason'),confirmWarnings:!!form.elements.confirmWarnings?.checked,requestKey:key});d.node.close();await done();});
-      }catch(error){if(dialogIsOpen(parent)){parent.error(error.message);window.alert(error.message);}}
+      if(!dialogIsOpen(parent))return;
+      if(publicationDialog?.isConnected&&publicationDialog.open){publicationDialog.focus();return;}
+      const d=dialog('Проверка публикации','<div data-publish-content></div>');publicationDialog=d.node;
+      d.node.addEventListener('close',()=>{if(publicationDialog===d.node)publicationDialog=null;},{once:true});
+      const area=d.node.querySelector('[data-publish-content]'),form=d.node.querySelector('form'),button=form.querySelector('[type=submit]');
+      button.textContent='Опубликовать график';button.hidden=true;button.disabled=true;form.onsubmit=e=>e.preventDefault();
+      let loading=false;const current=()=>dialogIsOpen(parent)&&dialogIsOpen(d)&&publicationDialog===d.node;
+      async function loadPreview(){
+        if(loading||!current())return;loading=true;area.innerHTML='<p role="status">Проверка публикации…</p>';d.error('');
+        try{
+          const preview=await api(`/drafts/${draft.id}/publish-preview`,'POST',{version:draft.version});if(!current())return;const cover=coverageText(preview.coverage);
+          area.innerHTML=`<p>Будет применено изменений: ${preview.operations.length}. Неизменённые записи останутся прежними.</p><div class="planning-operations">${preview.operations.map(op=>`<p>${esc({create:'Добавить',update:'Изменить',cancel:'Отменить'}[op.operation])}: ${esc(summary(op.payload||draft.baseItems.find(b=>b.id===op.sourceId)||{}))}</p>`).join('')}</div><p>${preview.conflicts.length?esc(conflictsText(preview.conflicts)):'Пересечений при проверке не найдено. Перед сохранением сервер проверит всё повторно.'}</p>${cover?`<div role="status"><strong>Покрытие потребности (справочно):</strong><p>${esc(cover)}</p><small>Открытые смены считаются незакрытыми местами; неизвестное положение перерыва показано отдельно.</small></div>`:''}${preview.warnings.length?`<div role="status"><strong>Предупреждения доступности:</strong><p>${esc(conflictsText(preview.warnings))}</p><label class="schedule-check"><input type="checkbox" name="confirmWarnings" required>Подтверждаю публикацию с этими предупреждениями</label></div>`:''}<label>Причина публикации${preview.warnings.length?' и подтверждения предупреждений':''} (обязательна для прошлого периода)<textarea name="reason" maxlength="500" ${preview.warnings.length?'required':''}></textarea></label>`;
+          if(!preview.canPublish||preview.conflicts.length||!preview.operations.length){button.remove();form.onsubmit=e=>e.preventDefault();d.error(!preview.canPublish?'Нет права публикации. Владелец может выдать его отдельно.':preview.conflicts.length?'Сначала устраните конфликты.':'Нет изменений для публикации.');return;}
+          button.hidden=false;button.disabled=false;
+          submit(d,async(form,data,key)=>{await api(`/drafts/${draft.id}/publish`,'POST',{version:draft.version,fingerprint:preview.fingerprint,reason:data.get('reason'),confirmWarnings:!!form.elements.confirmWarnings?.checked,requestKey:key});d.node.close();await done();});
+        }catch(error){if(!current())return;area.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-publish-load-retry>Повторить проверку</button>`;area.querySelector('[data-publish-load-retry]').onclick=loadPreview;}
+        finally{loading=false;}
+      }
+      await loadPreview();
     }
     const defaultDefinition=()=>({pattern:{type:'weekdays',weekdays:[1,2,3,4,5]},slots:[{kind:'shift',startTime:'10:00',endTime:'18:00',endDayOffset:0,breakMinutes:0,note:''}]});
     function patternFields(def=defaultDefinition(),functions=[]){
