@@ -28,6 +28,7 @@ const out = 'tmp/staff-directory-focus';
       await page.setViewportSize({ width: 1440, height: 1000 });
       const selected = page.locator(`[data-staff-view="${view}"]`); await selected.click();
       await selected.evaluate(async node => { void node.offsetWidth; await Promise.all(node.getAnimations().map(animation => animation.finished.catch(() => {}))); });
+      assert.equal(await selected.getAttribute('aria-pressed'), 'true');
       assert.equal(await page.locator('#staff-list').getAttribute('data-view'), view);
       assert.equal(await page.locator('.staff-view-switch > button[aria-pressed=true]').count(), 1);
       const before = await metrics(selected);
@@ -36,8 +37,9 @@ const out = 'tmp/staff-directory-focus';
       if (before.background === groupBackground || before.background === 'rgba(0, 0, 0, 0)') issues.push(`${view}: selected fill is indistinguishable from its group`);
       const selectedContrast = await selected.evaluate(node => {
         const context = document.createElement('canvas').getContext('2d');
-        const luminance = color => { context.fillStyle = color; context.fillRect(0, 0, 1, 1); const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722; };
+        const luminance = color => { context.clearRect(0, 0, 1, 1); context.fillStyle = color; context.fillRect(0, 0, 1, 1); const pixel = [...context.getImageData(0, 0, 1, 1).data]; if (pixel[3] !== 255) return null; const rgb = pixel.slice(0, 3).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722; };
         const a = luminance(getComputedStyle(node).backgroundColor), b = luminance(getComputedStyle(node.parentElement).backgroundColor);
+        if (a == null || b == null) return 0; // Reject transparent fill; never treat it as opaque black or reuse a previous pixel.
         return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
       });
       if (selectedContrast < 1.3) issues.push(`${view}: selected tone lost against group background`);
