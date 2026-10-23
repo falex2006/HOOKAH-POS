@@ -9,7 +9,8 @@ const fields=new Map();
 function field(selector){if(!fields.has(selector))fields.set(selector,{textContent:'',innerHTML:'',handlers:{},addEventListener(type,fn){this.handlers[type]=fn;}});return fields.get(selector);}
 const pending=[], notices=[], renders=[];
 const api=(path,options)=>new Promise((resolve,reject)=>pending.push({path,options,resolve,reject}));
-const state=new Function('document','api','portalNotice','renders',`let items=[];const pendingStatusIds=new Set();const draw=()=>renders.push(items.map(x=>({...x})));${section.slice(start,end)};return {load,getItems:()=>items};`)({querySelector:field},api,(...args)=>notices.push(args),renders);
+const notice=(...args)=>{notices.push(args);const toast=field('#portal-notice');toast.textContent=args[0];toast.remove=()=>{toast.textContent='';};};
+const state=new Function('document','api','portalNotice','renders','bindManagementNotice',`let items=[];const pendingStatusIds=new Set();const draw=()=>renders.push(items.map(x=>({...x})));${section.slice(start,end)};return {load,getItems:()=>items};`)({querySelector:field},api,notice,renders,()=>notice);
 const first=state.load();pending[0].reject(Error('offline'));await first;
 assert.equal(field('#delivery-count').textContent,'Ошибка загрузки');assert.match(field('#delivery-list').innerHTML,/data-delivery-retry/);
 field('#delivery-filter').handlers.change();assert.match(field('#delivery-list').innerHTML,/Повторить/);
@@ -30,6 +31,17 @@ assert.equal(pending[6].path,'/api/deliveries','successful PATCH rereads current
 pending[6].resolve({items:[{id:'qa',status:'delivered'}]});await success;assert.equal(state.getItems()[0].status,'delivered');assert.equal(select.disabled,false);
 select.value='confirmed';const savedButReadFailed=change();pending[7].resolve({id:'qa',status:'confirmed'});await Promise.resolve();await Promise.resolve();pending[8].reject(Error('read failed'));await savedButReadFailed;
 assert.match(field('#delivery-list').innerHTML,/Повторить/);assert.equal(notices.length,1,'successful save with failed GET reports load error rather than mutation rollback');
+const current=state.load();pending.at(-1).resolve({items:[{id:'qa',status:'new'},{id:'qb',status:'new'}]});await current;
+const selectB={dataset:{deliveryStatus:'qb'},value:'confirmed',disabled:false,isConnected:true};
+const changeB=()=>field('#delivery-list').handlers.change({target:{closest:()=>selectB}});
+select.value='confirmed';const errorA=change();pending.at(-1).reject(Error('A offline'));await errorA;
+const errorB=changeB();pending.at(-1).reject(Error('B offline'));await errorB;
+select.value='confirmed';const retryA=change();pending.at(-1).resolve({id:'qa',status:'confirmed'});await Promise.resolve();await Promise.resolve();
+pending.at(-1).resolve({items:[{id:'qa',status:'confirmed'},{id:'qb',status:'new'}]});await retryA;
+assert.equal(field('#portal-notice').textContent,'Не удалось изменить статус доставки','success A keeps the newer failure notice belonging to B');
+selectB.value='confirmed';const retryB=changeB();pending.at(-1).resolve({id:'qb',status:'confirmed'});await Promise.resolve();await Promise.resolve();
+pending.at(-1).resolve({items:[{id:'qa',status:'confirmed'},{id:'qb',status:'confirmed'}]});await retryB;
+assert.equal(field('#portal-notice').textContent,'','success B clears its own earlier failure notice');
 assert.match(section,/if \(creating\) return/);assert.match(section,/creating = true; controls\.forEach/);assert.match(section,/finally \{ creating = false; controls\.forEach/);
 assert.match(readFileSync(new URL('../style.css',import.meta.url),'utf8'),/\.delivery-actions \.badge\{[^}]*max-width:[^;}]+;[^}]*overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/);
 console.log('DELIVERY UI ERROR, RETRY, STALE LOAD AND PATCH QA: PASS');

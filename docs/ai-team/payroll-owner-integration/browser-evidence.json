@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "scope": "owner configuration, schema guards and scenario; no official source or payout claim",
+  "assertions": [
+    "143 actual PostgreSQL replay twice preserves config/history rows and complete constraint catalog",
+    "actual owner HTTP save/read/direct PG/preview: both personal keys 3000→9000→inherit3000, specific-key priority, exact 80 supplementary Unicode code points",
+    "invalid typed/Unicode keys and full-window expiry reject with unchanged rows/revisions; foreign employee FK cannot cross tenant",
+    "real table probes: both new typed CHECKs, inherit NULL-only, 80-codepoint boundary, NBSP/BOM/control rejection, JSONB invalid Unicode, all 089 paths preserved; all probes rolled back",
+    "real service/PG missing-capability matrix: both paths including inherit reject create/update/new-version/activate with409 and atomic rollback; role-only configs still work; DDL rollback restores capability",
+    "HTTP reader403/foreign-owner404, active immutable PUT409, preserved active readback and additive new-version typed configuration",
+    "payroll_entries, expenses and payroll_calculation_runs unchanged across complete suite"
+  ],
+  "browser": {
+    "status": "PASS",
+    "versionId": "e2d29375-442c-48d7-ba06-f1311047c613",
+    "screenshots": [
+      "department-explicit-cap-30.png",
+      "department-fallback-90.png",
+      "department-configuration-375.png"
+    ],
+    "errors": [],
+    "assertions": [
+      "Named employee/department custom selects; three cap.department -> perShiftCents -> cap.department cycles without orphan/nested UI, saved and reloaded from HTTP/PG",
+      "Inherit action refreshes both visible custom-select labels; restoring personal department refreshes both labels and saves exact values before inherit/reload",
+      "UI save/HTTP/PG/reload; exact cap priority 30 -> fallback 90 -> role 30 -> restored explicit 90 rubles; independent inherit/date fields",
+      "Four narrow widths without page horizontal overflow; active configuration readonly; scenario-only; screenshots show viewport and numeric proof is API plus DOM"
+    ]
+  }
+}

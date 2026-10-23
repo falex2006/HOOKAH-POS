@@ -629,3 +629,10 @@
 
 .staff-theme.pos-workspace-enabled .pos-workspace-switch .pos-workspace-view[hidden] { display:none; }
 .staff-theme.pos-workspace-enabled .pos-workspace-switch:not(:has([data-pos-view="preparation"]:not([hidden]))) { grid-template-columns:1fr;width:180px; }
+
+/* Keep order disclosure controls aligned within their own text column. */
+.staff-theme.pos-workspace-enabled .order.ui-pos .order-more>summary{justify-content:space-between;gap:8px}
+.staff-theme.pos-workspace-enabled .order.ui-pos .order-more>summary::after{float:none;display:grid;place-items:center;flex:0 0 24px;width:24px;height:24px;line-height:1}
+.staff-theme.pos-workspace-enabled .order.ui-pos .order-item-details>summary{width:100%;justify-content:space-between;gap:8px;overflow-wrap:anywhere}
+.staff-theme.pos-workspace-enabled .order.ui-pos .order-item-details>summary::after{display:grid;place-items:center;flex:0 0 24px;width:24px;height:24px;margin:0;line-height:1}
+.staff-theme.pos-workspace-enabled .order.ui-pos .order-item-details[open]>summary::after{transform:rotate(180deg)}

@@ -68,4 +68,14 @@ rejects({ ...base, sourceLines: [{ ...source, department: 'b'.repeat(81) }], res
 
 for (const metadata of [null, {}, 'invalid']) rejects({ ...base, result: { ...result,
   daily: [{ ...result.daily[0], milestoneDecisions: metadata }] } }, 'payroll_milestone_evidence_day_invalid');
+
+// Department identity is exact and measured in Unicode code points, as in PG.
+for (const department of ['🫖'.repeat(80), 'Bar', 'bar kitchen']) {
+ const fixture=structuredClone(base); fixture.sourceLines[0].department=department; fixture.result.daily[0].lines[0].department=department;
+ assert.equal(mapPayrollSnapshotRows(fixture).snapshotLines[0].department_key,department);
+}
+for (const department of ['🫖'.repeat(81), ' bar', 'bar ', 'bar\u0000', 'bar\u0085', '\ud800', {}, []]) {
+ const fixture=structuredClone(base); fixture.sourceLines[0].department=department; fixture.result.daily[0].lines[0].department=department;
+ rejects(fixture,'payroll_snapshot_department_missing');
+}
 console.log('PAYROLL SNAPSHOT SERIALIZER CONTRACT: PASS (lineage, cents, quantity precision, readiness and pure mapping)');

@@ -25,6 +25,14 @@ try {
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 320, height: 700 }, locale: 'ru-RU' });
   const exceptions = [];
+  const selectOption = async (select, value) => {
+    if (await select.getAttribute('data-custom-select') === '1') {
+      const wrapper = select.locator('xpath=..');
+      await page.waitForFunction((selectorId) => { const trigger = document.querySelector(`#${selectorId}`)?.parentElement?.querySelector('.custom-select-trigger'); return trigger && !trigger.disabled; }, await select.getAttribute('id'), { timeout: 8000 });
+      await wrapper.locator('.custom-select-trigger').click();
+      await wrapper.locator(`[role="option"][data-value="${value}"]`).click();
+    } else await select.selectOption(value);
+  };
   page.on('pageerror', (error) => exceptions.push(error.message));
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
   await page.locator('#login-username').fill('admin');
@@ -75,13 +83,16 @@ try {
   assert.equal(patchCount, 2, 'one successful retry');
 
   const revised = page.locator('.category-row').filter({ hasText: 'QA browser rent revised' });
+  await revised.locator('details.finance-category-overflow > summary').click();
   await revised.locator('[data-category-status]').click();
   await page.locator('.action-modal.open .action-footer button[type="submit"]').click();
   await page.waitForFunction(() => !document.querySelector('.category-row')?.textContent?.includes('QA browser rent revised'));
-  await page.locator('#finance-category-status').selectOption('all');
+  await page.locator('.finance-category-filter-options > summary').click();
+  await selectOption(page.locator('#finance-category-status'), 'all');
   const archived = page.locator('.category-row').filter({ hasText: 'QA browser rent revised' });
   await archived.waitFor();
   assert.match(await archived.textContent(), /В архиве/);
+  await archived.locator('details.finance-category-overflow > summary').click();
   await archived.locator('[data-category-status]').click();
   await page.waitForFunction(() => { const row = [...document.querySelectorAll('.category-row')].find((item) => item.textContent?.toLocaleLowerCase('ru-RU').includes('qa browser rent revised')); return row && !row.textContent.includes('В архиве'); });
   await page.reload({ waitUntil: 'networkidle' });
@@ -91,6 +102,28 @@ try {
     await page.setViewportSize({ width, height: 800 });
     assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); const panel = document.querySelector('.finance-categories-panel'); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1 || panel.scrollWidth > panel.clientWidth + 1; }), false, `category page overflow at ${width}px`);
   }
+  for (const width of [320, 731, 1440]) {
+    await page.setViewportSize({ width, height: 820 });
+    await page.goto(`${base}/finance/categories?tab=pos-report`, { waitUntil: 'networkidle' });
+    const showButton = page.locator('[data-income-report-load]');
+    const metrics = await showButton.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const range = document.createRange(); range.selectNodeContents(button);
+      const backButton = document.querySelector('.finance-category-workspace>.page-title .toolbar-row a.button');
+      const backText = [...(backButton?.childNodes || [])].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      const backRange = document.createRange(); if (backText) backRange.selectNode(backText);
+      return { width: rect.width, height: rect.height, textWidth: range.getBoundingClientRect().width, textLines: range.getClientRects().length, backLines: backRange.getClientRects().length, controls: ['[data-income-venue]','[data-income-from]','[data-income-to]'].map((selector) => { const control = document.querySelector(selector); const visibleControl = control?.closest('.custom-select') || control; return !!visibleControl && visibleControl.getClientRects().length > 0; }), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
+    });
+    assert.ok(metrics.width >= 96, `POS report action stays wide enough at ${width}px: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.textWidth <= metrics.width - 16, `POS report action label fits on one line at ${width}px: ${JSON.stringify(metrics)}`);
+    assert.equal(metrics.textLines, 1, `POS report action label uses one line at ${width}px: ${JSON.stringify(metrics)}`);
+    assert.equal(metrics.backLines, 1, `finance back action uses one line at ${width}px: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.controls.every(Boolean), `POS report filters remain visible at ${width}px: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.pageWidth <= metrics.viewport + 1, `POS report has no horizontal overflow at ${width}px`);
+    await page.screenshot({ path: `docs/ai-team/responsive-emulator/finance-pos-report-${width}.png`, fullPage: true });
+  }
+  await page.goto(`${base}/finance/categories`, { waitUntil: 'networkidle' });
+  await page.locator('.finance-category-filter-options > summary').click();
   let phase = 'failure';
   let releaseOldRead;
   const oldReadGate = new Promise((resolve) => { releaseOldRead = resolve; });
@@ -114,13 +147,13 @@ try {
   phase = 'race';
   await page.locator('#finance-category-status').evaluate((select) => select.dispatchEvent(new Event('change', { bubbles: true })));
   await oldReadRequest;
-  await page.locator('#finance-category-status').selectOption('all');
+    await selectOption(page.locator('#finance-category-status'), 'all');
   await page.locator('#finance-category-list').getByText('LATEST CATEGORY').waitFor();
   releaseOldRead();
   await page.waitForTimeout(100);
   assert.doesNotMatch(await page.locator('#finance-category-list').textContent(), /STALE CATEGORY/, 'late active response cannot overwrite all-status filter');
   phase = 'failure';
-  await page.locator('#finance-category-status').selectOption('active');
+  await selectOption(page.locator('#finance-category-status'), 'active');
   await page.locator('[data-finance-category-retry]').waitFor();
   assert.equal(await page.locator('#finance-category-count').textContent(), '—', 'failed read clears stale count');
   assert.doesNotMatch(await page.locator('#finance-category-list').textContent(), /LATEST CATEGORY/, 'failed read clears stale rows');

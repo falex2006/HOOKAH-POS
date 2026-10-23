@@ -1,0 +1,122 @@
+{
+  "runs": [
+    {
+      "run": "acceptance-1792353133332-38536",
+      "status": "PASS",
+      "assertionCount": 33,
+      "screenshotCount": 132,
+      "assertions": [
+        "all 11 finance sections captured at desktop 1366, tablet 768 and mobile 390/320; active section and visible controls checked",
+        "finance sections isolate panels, supplier target works, KPI reveals payments, Back preserves input, reload and mobile picker restore selection",
+        "expense and income creation are separate from journals and unsaved input survives section switches",
+        "obligation and recurring forms add priced lines, recurring total is correct, close works; account shortcut and deep-link reload select cash",
+        "chart period and all chart/payment presentations switch correctly with seeded card payment",
+        "supplier, income and expense filter controls issue expected queries; reset clears applied values",
+        "payroll creation opens and cancels; all section controls explored without financial mutations",
+        "cash account creation persists; failed account loading is recoverable via visible retry",
+        "collapsed filters preserve type/status/search, show active summary, reopen by keyboard, and reset explicitly",
+        "category create/edit persisted after reload; empty search",
+        "archive and restore through UI survive reload",
+        "failed category load is distinct from empty, retry recovers",
+        "explicit empty API fixture renders successful empty state rather than error/search absence",
+        "category tabs push URL state, reload and Back/Forward restore selected panel",
+        "category report active preserves period/category through reload and snapshot request",
+        "category report archived preserves period/category through reload and snapshot request",
+        "category start expense opens selected category without submission",
+        "category start obligation opens selected category without submission",
+        "category start recurring opens selected category without submission",
+        "income category opens other-income form with preset category and no POST",
+        "cash_in/paid enum-safe snapshot201 with real paid fixture",
+        "cash_in/approved enum-safe snapshot201 with real paid fixture",
+        "income deep-link category503 retry restores requested category",
+        "income accounts503 retains document list and supports retry",
+        "POS venue init503 disables report and recovers by retry",
+        "unified /api/finance/report-venues503 blocks snapshots and retry recovers",
+        "unified /api/finance/categories503 blocks snapshots and retry recovers",
+        "obligation category503 disables submit; retry retains entered title",
+        {
+          "mobileMenuOpen": 390,
+          "state": {
+            "body": "portal velora-theme sidebar-drawer-open",
+            "sidebar": "portal-sidebar is-expanded",
+            "transform": "matrix(1, 0, 0, 1, -0.861835, 0)",
+            "width": "280px",
+            "left": -0.8618346452713013,
+            "right": 279.1381653547287,
+            "hover": false,
+            "expanded": "true",
+            "active": "<a data-route=\"dashboard\" href=\"/admin\" data-permission=\"dashboard\" aria-label=\"Главная\" title=\"Главная\"><svg class=\"icon\" aria-hidden=\"true\"><use href=\"/assets/tabler-icons.svg#layout-dashboard\"></use></svg><span>Главная</span></a>",
+            "innerWidth": 390,
+            "devicePixelRatio": 1,
+            "touch": 1
+          }
+        },
+        "real Chromium mobile/touch 390: menu open/close, three expense routes, income and report presets visible",
+        {
+          "mobileMenuOpen": 320,
+          "state": {
+            "body": "portal velora-theme sidebar-drawer-open",
+            "sidebar": "portal-sidebar is-expanded",
+            "transform": "matrix(1, 0, 0, 1, 0, 0)",
+            "width": "272px",
+            "left": 0,
+            "right": 272,
+            "hover": false,
+            "expanded": "true",
+            "active": "<a data-route=\"dashboard\" href=\"/admin\" data-permission=\"dashboard\" aria-label=\"Главная\" title=\"Главная\"><svg class=\"icon\" aria-hidden=\"true\"><use href=\"/assets/tabler-icons.svg#layout-dashboard\"></use></svg><span>Главная</span></a>",
+            "innerWidth": 320,
+            "devicePixelRatio": 1,
+            "touch": 1
+          }
+        },
+        "real Chromium mobile/touch 320: menu open/close, three expense routes, income and report presets visible",
+        "finance reader cannot create/edit/archive/start and API denies write"
+      ],
+      "errors": []
+    },
+    {
+      "run": "acceptance-1792353289673-29196",
+      "status": "PASS",
+      "assertionCount": 15,
+      "screenshotCount": 112,
+      "assertions": [
+        "owned disposable database seeded with draft/posted income, rent obligation and paid POS card payment",
+        "all 11 finance sections captured at desktop 1366, tablet 768 and mobile 390/320; active section and visible controls checked",
+        "finance sections isolate panels, supplier target works, KPI reveals payments, Back preserves input, reload and mobile picker restore selection",
+        "expense and income creation are separate from journals and unsaved input survives section switches",
+        "obligation and recurring forms add priced lines, recurring total is correct, close works; account shortcut and deep-link reload select cash",
+        "chart period and all chart/payment presentations switch correctly with seeded card payment",
+        "supplier, income and expense filter controls issue expected queries; reset clears applied values",
+        "payroll creation opens and cancels; all section controls explored without financial mutations",
+        "discount approve persisted in owned database",
+        "discount reject persisted in owned database",
+        "populated discount requests approved and rejected through actual UI; database and reload retain both decisions",
+        "populated income draft edit reopens creation, cancel works, posted income receipt opens separately",
+        "cash account creation persists; failed account loading is recoverable via visible retry",
+        "guided scheme configuration retains unsaved input across panes, saves version, advances to checks and runs real preview without payroll entries",
+        "actual hourly model created, selected employee/period/category retained through 503 retry; 8h × 500 = 4000 draft approved and paid from bank/card, linked expense and reload verified"
+      ],
+      "errors": []
+    }
+  ],
+  "savedScreenshots": [
+    "section-cash-1366.png",
+    "section-discounts-1366.png",
+    "section-expenses-1366.png",
+    "section-income-1366.png",
+    "section-obligations-1366.png",
+    "section-overview-1366.png",
+    "section-payments-1366.png",
+    "section-payroll-1366.png",
+    "section-result-1366.png",
+    "section-staff-1366.png",
+    "section-suppliers-1366.png",
+    "section-expenses-320.png",
+    "section-income-390.png",
+    "section-cash-390.png",
+    "payroll-workflow-configuration-320.png",
+    "payroll-workflow-rate-390.png",
+    "control-payroll-basic-model-light-390.png",
+    "control-payroll-paid-register-390.png"
+  ]
+}

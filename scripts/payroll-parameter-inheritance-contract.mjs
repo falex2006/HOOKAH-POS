@@ -71,7 +71,7 @@ for(const [roleMode,personalMode,expected] of [['stable_percent','progressive_da
  input.scheme.employeeOverrides.push({employeeId:'a',path:'applyMilestones',mode:'override',value:expected===0});
  assert.equal(rows(run(input))[1].milestoneBonusCents,expected===0?100:0);cases++;
 }
-const unsupported=fixture('stable_percent',capped);unsupported.scheme.employeeOverrides=[{employeeId:'a',path:'cap.department',mode:'override',value:'kitchen'}];
+const unsupported=fixture('stable_percent',capped);unsupported.scheme.employeeOverrides=[{employeeId:'a',path:'cap.unknown',mode:'override',value:'kitchen'}];
 assert.equal(calculate(unsupported).status,'blocked');
 const across=fixture('stable_percent',stable,{perShiftCents:300,stableRateBps:3000});
 across.scheme.employeeOverrides=[{employeeId:'a',path:'stableRateBps',mode:'override',value:2000,effectiveFrom:date(2),effectiveTo:date(4)}];

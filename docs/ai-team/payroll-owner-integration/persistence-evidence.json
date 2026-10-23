@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "scope": "private storage over synthetic supplied evidence; no official source, API, accrual or payout acceptance",
+  "assertions": [
+    "Real committed v2 scalar/personal-target/team-fund/margin rows, independent 20/64/64/40 money oracles, complete DTO readback and UUID links; milestone21, rejected recipient and empty next day preserved",
+    "Actual SQL failure after every table family and at constraint flush restores all rows; real deferred commission mismatch23514; caller catches errors then COMMIT leaves no partial run",
+    "Caller ROLLBACK removes successful helper bundle; no explicit transaction rejects25P01; existing run23505 appends nothing",
+    "Missing/disabled deferred trigger fails schema gate before writes; rollback restores catalog; committed histories immutable; payroll entries and expenses unchanged"
+  ]
+}

@@ -22,6 +22,10 @@ assert.match(css, /#page-content\.ui-financial-pages\.employee-payments \.employ
 assert.match(css, /\.employee-payments-table td:not\(:first-child\):not\(:last-child\)::before \{ content:attr\(data-label\)/,
   'mobile employee ledger must retain visible field labels');
 for (const text of requiredGlobal) assert.ok(rules.includes(text), `visual rules missing global rule: ${text}`);
+assert.match(rules, /боковое меню выезжает поверх интерфейса и не резервирует ширину/,
+  'mobile workspace must use the full viewport while the sidebar is off-canvas');
+assert.match(css, /@media\(max-width:760px\)\{\.portal\.velora-theme \.portal-shell>\.portal-main\{box-sizing:border-box;flex:1 1 100%;width:100%;max-width:100%\}\}/,
+  'legacy shell workspace must span the mobile viewport despite the fixed sidebar');
 for (const text of ['Остатки', 'Поставки и списания', 'Технологические карты', 'Каталог товаров', 'Понятны ли названия всех кнопок']) {
   assert.ok(warehousePrompt.includes(text), `warehouse prompt missing rule: ${text}`);
 }

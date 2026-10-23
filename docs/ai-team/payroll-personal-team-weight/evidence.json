@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "scope": "owner configuration and scenario only; no official source or payout claim",
+  "assertions": [
+    "approved_minutes: real UI create, typed personal weight without role leaf, PG/read/reload, 3/0/inherit/restore, independent scenario amounts, active immutable; minutes unaffected by configured personal weight",
+    "configured_weights: real UI create, typed personal weight without role leaf, PG/read/reload, 3/0/inherit/restore, independent scenario amounts, active immutable; incomplete inherit rolls back rows and revisions",
+    "finance_read member cannot read/write owner schemes; all payroll entries/expenses/runs unchanged"
+  ],
+  "screenshots": [
+    "approved_minutes-personal-3.png",
+    "approved_minutes-scenario-restored.png",
+    "configured_weights-personal-3.png",
+    "configured_weights-scenario-restored.png"
+  ],
+  "errors": []
+}

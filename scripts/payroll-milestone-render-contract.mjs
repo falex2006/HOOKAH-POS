@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const ui=readFileSync(new URL('../payroll-scheme-ui.js',import.meta.url),'utf8');
 const {calculatePayrollScheme:calculate}=createRequire(import.meta.url)('../payroll-schemes');
 const extract=(a,b)=>{const start=ui.indexOf(a),end=ui.indexOf(b,start+a.length);assert(start>=0&&end>start);return ui.slice(start,end);};
-const helpers=extract('  const escapeHtml =','  // Pure structured-editor')+extract('  const money =','  const renderDetails =');
+const helpers=extract('  const escapeHtml =','  const venueLocalToday =')+extract('  const money =','  const renderDetails =');
 const context={MAX_RENDERED_EMPLOYEE_DAYS:2000,MAX_RENDERED_LINES:2000,MAX_RENDERED_MILESTONE_DECISIONS:2000,MAX_RENDERED_MILESTONE_SHIFTS:2000};
 const render=vm.runInNewContext(helpers+extract('  const renderDetails =','  const renderPreview =')+'\nrenderDetails;',{...context});
 const legacyRender=vm.runInNewContext(helpers+frozenLegacy+'\nrenderDetails;',{...context});
@@ -16,7 +16,7 @@ const fixture=policy=>({scheme:{id:'s',versionId:'v',mode:'stable_percent',apply
 const result=p=>{const r=calculate(fixture(p));assert.equal(r.status,'ready');return r;};
 const section=html=>html.match(/<section[^>]*data-milestone-decisions[^>]*>[\s\S]*?<\/section>/g)||[];
 const tests=[
- ['legacy HTML exact parity',()=>{const r=result();assert.equal(render(r,names),legacyRender(r,names));}],
+ ['legacy amounts and markup preserved with translated labels',()=>{const r=result();const expected=legacyRender(r,names).replaceAll('· ready</strong>', '· Сценарий рассчитан</strong>').replaceAll('Срезано cap', 'Уменьшено лимитом').replaceAll('<td>—</td><td>bar</td>', '<td>—</td><td>Сохранённый цех · bar</td>');assert.equal(render(r,names),expected);}],
  ['all-active explanation and fields',()=>{const html=render(result('all_active'),names);assert.equal(section(html).length,3);assert.match(html,/data-milestone-decision/);assert.match(html,/Employee B/);assert.match(html,/Все активные/);assert.match(html,/Премия разрешена/);assert.match(html,/shift-a/);assert.match(html,/сценар/i);}],
  ['worked refusal and no catchup',()=>{const r=result('worked_on_threshold_day');assert.equal(r.daily[0].milestoneDecisions.find(d=>d.employeeId==='b').awardedAmountCents,0);assert.equal(r.daily[1].milestoneDecisions.length,0);const html=render(r,names);assert.match(html,/Нет утверждённой работы в день порога/);assert.match(html,/Работавшие в день порога/);assert.match(html,/Нет решений по порогам/);}],
  ['refusal without employee payout row',()=>{const input=fixture('worked_on_threshold_day');input.sales=[];input.attendance=[];input.venueDailyTurnover=[{date:'2026-10-01',turnoverCents:20000},{date:'2026-10-02',turnoverCents:0},{date:'2026-10-03',turnoverCents:0}];const r=calculate(input);assert.equal(r.status,'ready');assert.equal(r.daily[0].employees.length,0);assert.equal(r.daily[0].milestoneDecisions.length,2);const html=render(r,names);assert.match(html,/Employee B/);assert.match(html,/Нет утверждённой работы в день порога/);}],

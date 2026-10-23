@@ -8,8 +8,8 @@ for(const type of ['network-select','network-archive']) {
  let listener,requests=0,resolve,reject;const notices=[];
  const button={dataset:{venue:'qa'},disabled:false,isConnected:true,textContent:'Original',classList:{contains:name=>name===type}};
  const event={target:{closest:selector=>selector==='[data-venue]'?button:null}};
- new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','refreshPortalContext',`${source.slice(start,end)}`)(
- {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},()=>{requests++;return new Promise((a,b)=>{resolve=a;reject=b;});},(...args)=>notices.push(args),async()=>true,async()=>({name:'QA',address:'QA'}),async()=>{}, {__networkItems:[{id:'qa',name:'QA',address:'QA'}]},async()=>({failed:[]}));
+ new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','refreshPortalContext','bindManagementNotice',`${source.slice(start,end)}`)(
+ {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},()=>{requests++;return new Promise((a,b)=>{resolve=a;reject=b;});},(...args)=>notices.push(args),async()=>true,async()=>({name:'QA',address:'QA'}),async()=>{}, {__networkItems:[{id:'qa',name:'QA',address:'QA'}]},async()=>({failed:[]}),()=> (...args)=>notices.push(args));
  const first=listener(event);await Promise.resolve();await Promise.resolve();
  assert.equal(button.disabled,true);await listener(event);assert.equal(requests,1);
  reject(Error('offline'));await first;assert.equal(button.disabled,false);assert.equal(button.textContent,'Original');
@@ -23,8 +23,8 @@ for (const type of ['network-archive', 'network-edit']) {
  const event={target:{closest:selector=>selector==='[data-venue]'?button:null}};
  const dialog=()=>{dialogs++;return new Promise(resolve=>{finishDialog=resolve;});};
  const ordinaryDialog=async()=>{await dialog();return {reason:'cancel'};};
- new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','editOrdinary',source.slice(start,end))(
-  {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},async()=>{requests++;},()=>{},dialog,dialog,async()=>{}, {__networkItems:[{id:'qa',name:'QA',address:'QA'}]},ordinaryDialog);
+ new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','editOrdinary','bindManagementNotice',source.slice(start,end))(
+  {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},async()=>{requests++;},()=>{},dialog,dialog,async()=>{}, {__networkItems:[{id:'qa',name:'QA',address:'QA'}]},ordinaryDialog,()=>()=>{});
  const first=listener(event);
  assert.equal(dialogs,1);assert.equal(button.disabled,true);
  await listener(event);assert.equal(dialogs,1);assert.equal(requests,0);
@@ -47,8 +47,8 @@ for (const type of ['network-archive', 'network-edit']) {
  const event={target:{closest:selector=>selector==='[data-venue]'?button:null}};
  const editOrdinary=options=>{editor=options;return new Promise(resolve=>finishEditor=resolve);};
  const api=(path,options)=>{requests++;payloads.push({path,method:options.method,body:JSON.parse(options.body)});return new Promise((resolve,reject)=>{resolveRequest=resolve;rejectRequest=reject;});};
- new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','editOrdinary','hasPortalPermission',source.slice(start,end))(
-  {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},api,(...args)=>notices.push(args),async()=>true,()=>{throw Error('legacy edit must not run');},async()=>{loads++;},{__networkItems:[{id:'qa',name:'QA',address:'QA'}]},editOrdinary,()=>true);
+ new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','editOrdinary','hasPortalPermission','bindManagementNotice',source.slice(start,end))(
+  {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},api,(...args)=>notices.push(args),async()=>true,()=>{throw Error('legacy edit must not run');},async()=>{loads++;},{__networkItems:[{id:'qa',name:'QA',address:'QA'}]},editOrdinary,()=>true,()=> (...args)=>notices.push(args));
  const first=listener(event);
  assert.equal(button.disabled,true);assert.equal(editor.key,'venue:qa');assert.equal(editor.opener,button);assert.equal(editor.isCurrent(),true);
  assert.equal(editor.validate({name:' ',address:'a'}).field,'name');assert.equal(editor.validate({name:'n',address:' '}).field,'address');

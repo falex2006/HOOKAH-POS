@@ -37,7 +37,9 @@ Existing 091 rows retain NULL sequence and NULL transition facts and are returne
 Заголовок refund хранит `item_attribution_status` и отделяет complete event item lines, legacy/unattributed выплату и явный нетоварный случай. При `complete` item return lines сверяются с исходными line snapshot и ранее возвращёнными количествами/суммами. При `unattributed` фактическую выплату разрешено зафиксировать, но нельзя назначать её сотруднику по эвристике; будущий official payroll run, требующий полного employee net source, должен блокироваться.
 
 Возвратная политика payroll — owner-selected правило в versioned payroll scheme; финансовая refund операция фиксирует факты, но не выбирает, в каком периоде уменьшать комиссию, делать ли clawback или как делить эффект по сотрудникам. Для полной item attribution требуется будущий pricing evaluator snapshot с line-level скидками; нельзя выводить её из текущей цены товара, order opener или равномерно распределять payout.
-### Payroll recognition handoff proposal — pending Finance approval
+### Payroll recognition handoff proposal — historical proposal
+
+2026-10-19 update: the prospective source-evidence subset is now defined in [FINANCE_PAYROLL_RECOGNITION_CONTRACT.md](FINANCE_PAYROLL_RECOGNITION_CONTRACT.md) and migration144. New events capture a server-owned recognition timestamp, frozen timezone/local date and original line/eligibility evidence. This accepts source provenance for `recognized_event_date`, not an automatic payroll deduction or official calculation. The broader historical correction, owner-reviewed adjustment, cost/department manifest and official writer work described below remains separate; this old proposal must not override the narrower version1 contract.
 
 Статус: предложение для Finance/POS, не принятая финансовая политика. Не разрешает миграцию, изменение producer, проводки или повышение `officialReady`.
 

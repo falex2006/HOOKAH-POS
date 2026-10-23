@@ -11,6 +11,9 @@ const notices = [];
 const loadContext = {
   autoOrderLoadGeneration: 0,
   autoOrderState: { items: [], requests: [], error: null, hasLoaded: false },
+  autoOrderPanel: { isConnected: true },
+  portalCriticalContext: () => 'qa-venue',
+  document: { activeElement: null, querySelector: () => null },
   api: (url) => new Promise((resolve, reject) => { assert.equal(url, '/api/inventory/auto-orders'); pendingLoads.push({ resolve, reject }); }),
   drawAutoOrders: () => {}, refreshInventoryContext: () => {},
   portalNotice: (message, kind) => notices.push({ message, kind }),
@@ -26,19 +29,29 @@ assert.equal(loadContext.autoOrderState.items[0].id, 'new');
 assert.equal(loadContext.autoOrderState.error, null);
 assert.equal(notices.length, 0, 'older failure must not replace newer success');
 
-const createStart = portal.indexOf("  document.querySelector('#create-auto-order')?.addEventListener('click', async () => {");
+const createStart = portal.indexOf("  document.querySelector('#create-auto-order')?.addEventListener('click', async (themeEvent) => {");
 const createEnd = portal.indexOf('  loadAutoOrders();', createStart);
 assert.ok(createStart > 0 && createEnd > createStart);
 const requests = [];
 let onCreate;
 let refreshResolve;
 const selected = { checked: true, dataset: { autoOrderItem: 'stock-1' } };
-const quantity = { value: '2' };
+const quantity = {
+  value: '2', checkValidity() { return Number(this.value) > 0; },
+  closest: () => ({ hidden: false }), setAttribute: () => {}, focus: () => {},
+};
+const messages = [];
+const createButton = { addEventListener: (_name, callback) => { onCreate = callback; } };
 const context = {
   autoOrderCreatePending: false,
   autoOrderState: { items: [{ id: 'stock-1' }], requests: [], error: null },
-  document: { querySelector: (selector) => selector === '#create-auto-order' ? { addEventListener: (_name, callback) => { onCreate = callback; } } : quantity, querySelectorAll: () => [selected] },
+  autoOrderPanel: { isConnected: true, querySelectorAll: () => [selected], querySelector: () => quantity },
+  autoOrderSections: { querySelector: () => ({ click: () => {} }) },
+  document: { activeElement: createButton, body: {}, querySelector: (selector) => selector === '#create-auto-order' ? createButton : quantity },
   CSS: { escape: (value) => value },
+  portalCriticalContext: () => 'qa-venue', hasPortalPermission: () => true,
+  bindManagementNotice: () => (message, kind) => notices.push({ message, kind }),
+  showAutoOrderMessage: (message, error) => messages.push({ message, error }),
   drawAutoOrders: () => {},
   api: (url, options) => new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })),
   loadAutoOrders: () => new Promise((resolve) => { refreshResolve = resolve; }),
@@ -46,14 +59,14 @@ const context = {
 };
 vm.runInNewContext(portal.slice(createStart, createEnd), context);
 quantity.value = '0';
-await onCreate();
+await onCreate({ currentTarget: createButton });
 assert.equal(requests.length, 0);
-assert.ok(notices.some((notice) => notice.message.includes('больше нуля')));
+assert.ok(messages.some((entry) => entry.message.includes('больше нуля')));
 quantity.value = '2';
-const first = onCreate();
+const first = onCreate({ currentTarget: createButton });
 assert.equal(context.autoOrderCreatePending, true);
 assert.equal(requests.length, 1);
-await onCreate();
+await onCreate({ currentTarget: createButton });
 assert.equal(requests.length, 1, 'rerendered button cannot duplicate pending POST');
 requests[0].resolve({ id: 'order-1', status: 'sent', lines: [] });
 await new Promise((resolve) => setImmediate(resolve));
@@ -63,7 +76,7 @@ refreshResolve(false);
 await first;
 assert.equal(context.autoOrderCreatePending, false);
 assert.equal(context.autoOrderState.requests[0].id, 'order-1', 'created request remains visible after refresh failure');
-assert.ok(notices.some((notice) => notice.message.includes('Заявка создана, но список не обновился')));
+assert.ok(messages.some((entry) => entry.message.includes('Заявка создана, но список не обновился')));
 
 const autoOrderScope = portal.slice(portal.indexOf('  const drawAutoOrders = () => {'), loadStart);
 assert.match(autoOrderScope, /autoOrderCancelPending\.has\(request\.id\)/, 'cancel must be guarded by request id');
@@ -74,23 +87,42 @@ let cancelHandler;
 const pendingCancel = new Set();
 const cancelRequests = [];
 const cancelNotices = [];
+const cancelRequest = { id: 'order-1', status: 'sent' };
+const cancelButton = { dataset: { autoOrderCancel: 'order-1' }, disabled: false, addEventListener: (_name, handler) => { cancelHandler = handler; } };
+let cancelAction, closeCancelDialog;
 const cancelContext = {
-  history: { querySelectorAll: () => [{ dataset: { autoOrderCancel: 'order-1' }, addEventListener: (_name, handler) => { cancelHandler = handler; } }] },
-  requests: [{ id: 'order-1', status: 'sent' }],
+  history: { querySelectorAll: () => [cancelButton] },
+  requests: [cancelRequest], autoOrderState: { requests: [cancelRequest], error: false },
+  autoOrderPanel: { isConnected: true }, portalCriticalContext: () => 'qa-venue', hasPortalPermission: () => true,
   autoOrderCancelPending: pendingCancel,
-  window: { confirm: () => true }, drawAutoOrders: () => {},
+  portalCriticalAction: (options) => new Promise(resolve => { cancelAction = options; closeCancelDialog = resolve; }),
+  bindManagementNotice: () => (message, kind) => cancelNotices.push({ message, kind }),
   api: (url, options) => new Promise((resolve, reject) => cancelRequests.push({ url, options, resolve, reject })),
   loadAutoOrders: async () => null,
   portalNotice: (message, kind) => cancelNotices.push({ message, kind }),
 };
 vm.runInNewContext(portal.slice(cancelStart, cancelEnd), cancelContext);
-const cancelFirst = cancelHandler();
-await cancelHandler();
+const cancelClosed = cancelHandler({ currentTarget: cancelButton });
+assert.equal(pendingCancel.has('order-1'), true);
+assert.equal(cancelButton.disabled, true);
+assert.equal(cancelAction.title, 'Отменить заявку?');
+assert.equal(cancelAction.submitLabel, 'Отменить заявку');
+assert.equal(cancelRequests.length, 0, 'closing confirmation cannot send a PATCH');
+cancelAction.onClose(); closeCancelDialog(); await cancelClosed;
+assert.equal(cancelButton.disabled, false, 'closing unlocks the original action');
+const cancelFirst = cancelHandler({ currentTarget: cancelButton });
+const cancelSubmit = cancelAction.onSubmit();
+await cancelHandler({ currentTarget: cancelButton });
 assert.equal(cancelRequests.length, 1, 'same order cancellation cannot duplicate');
 assert.equal(pendingCancel.has('order-1'), true);
+assert.equal(cancelButton.disabled, true);
 cancelRequests[0].resolve({ status: 'cancelled' });
+await cancelSubmit;
+cancelAction.onClose(); closeCancelDialog();
 await cancelFirst;
 assert.equal(pendingCancel.has('order-1'), false);
+assert.equal(cancelButton.disabled, false);
+assert.equal(cancelRequest.status, 'cancelled');
 assert.ok(cancelNotices.some((notice) => notice.message === 'Заявка отменена'));
 assert.equal(cancelNotices.some((notice) => notice.message.includes('список не обновился')), false, 'superseded read is not a failure');
 

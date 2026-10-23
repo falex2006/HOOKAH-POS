@@ -27,7 +27,7 @@
       const add=(item={label:'Дополнительный',number:'',primary:false})=>{
         const row=document.createElement('div');
         row.className='staff-phone-row';
-        row.innerHTML='<select aria-label="Тип телефона"><option>Рабочий</option><option>Личный</option><option>Резервный</option><option>Дополнительный</option></select><input type="tel" placeholder="+7 (___) ___-__-__" aria-label="Номер телефона"><label><input type="radio" name="staff_primary_phone" aria-label="Основной"> основной</label><button type="button" class="staff-phone-row__remove" aria-label="Удалить номер" title="Удалить номер"><svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#x"></use></svg></button>';
+        row.innerHTML='<select aria-label="Тип телефона"><option>Рабочий</option><option>Личный</option><option>Резервный</option><option>Дополнительный</option></select><input type="tel" inputmode="tel" placeholder="Номер телефона" aria-label="Номер телефона"><label><input type="radio" name="staff_primary_phone" aria-label="Основной"> основной</label><button type="button" class="staff-phone-row__remove" aria-label="Удалить номер" title="Удалить номер"><svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#x"></use></svg></button>';
         row.querySelector('select').value=item.label||'Дополнительный';
         row.querySelector('input[type="tel"]').value=item.number||'';
         row.querySelector('input[type="radio"]').checked=!!item.primary;

@@ -25,7 +25,7 @@ const marker = randomUUID().slice(0, 8);
 const ownerLogin = `qa16-owner-${marker}`;
 const ownerPassword = `qa16-${randomUUID()}`;
 const hash = (value) => { const salt = randomBytes(16).toString('hex'); return `scrypt$${salt}$${scryptSync(value, salt, 64).toString('hex')}`; };
-let server, exitWait, output = '', base = '', token = '', passed = false, checks = 0;
+let server, exitWait, output = '', base = '', token = '', passed = false, checks = 0, cashAccountId;
 
 const waitForServer = async () => {
   const deadline = Date.now() + 20000;
@@ -54,13 +54,34 @@ const concurrentRequests = async (closePath, movementBody, firstOperation) => {
   const barrier = new Promise((resolve) => { release = resolve; });
   const launch = (run) => (async () => { ready++; if (ready === 2) release(); await barrier; return run(); })();
   const operations = {
-    close: () => request(closePath, 'POST', { paymentMethod: 'cash' }),
+    close: () => request(closePath, 'POST', { paymentMethod: 'cash', paymentAccountId: cashAccountId }),
     movement: () => request('/api/inventory/movements', 'POST', movementBody),
   };
   const names = firstOperation === 'movement' ? ['movement', 'close'] : ['close', 'movement'];
   const results = await Promise.allSettled(names.map((name) => launch(operations[name])));
   for (const result of results) if (result.status === 'rejected') throw result.reason;
   return Object.fromEntries(names.map((name, index) => [name, results[index].value]));
+};
+const assertCostEditWaitsForSourceSnapshot = async (ingredientId) => {
+  const blocker = new pg.Client({ connectionString: target.url.href, connectionTimeoutMillis: 5000 });
+  await blocker.connect();
+  const key = `payroll-official-source-v1:${ids.venue.toLowerCase()}`;
+  await blocker.query('SELECT pg_advisory_lock(hashtextextended($1,0))', [key]);
+  let blocked = false;
+  const pending = request(`/api/inventory/items/${ingredientId}`, 'PATCH', { cost: 0.75 }, token, 200);
+  try {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const state = await db.query("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query ILIKE '%pg_advisory_xact_lock_shared%') AS blocked");
+      if (state.rows[0]?.blocked) { blocked = true; break; }
+      await delay(25);
+    }
+  } finally {
+    await blocker.query('SELECT pg_advisory_unlock(hashtextextended($1,0))', [key]);
+    await blocker.end();
+  }
+  const result = await pending;
+  assert.equal(blocked, true, 'ingredient cost edit waits for the payroll source snapshot fence');
+  assert.equal(Number(result.payload.cost), 0.75, 'cost edit is applied after the payroll snapshot releases');
 };
 
 try {
@@ -83,6 +104,8 @@ try {
     await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role,status) VALUES($1,$2,'owner','active')", [ids.organization, ids.owner]);
     await db.query('COMMIT');
   } catch (error) { await db.query('ROLLBACK'); throw error; }
+  cashAccountId = (await db.query("SELECT id FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox' AND active=true", [ids.venue])).rows[0]?.id;
+  assert.ok(cashAccountId, 'race QA uses the seeded venue cashbox required by the current close API');
 
   server = spawn(process.execPath, ['server.js'], {
     cwd: root, windowsHide: true,
@@ -150,6 +173,9 @@ try {
     assert.equal(Number(inventoryRead.payload.items.find((entry) => entry.id === ingredient.payload.id)?.onHand), 40, `${scenario.label}: fresh inventory API read reflects the reconciled balance`); checks++;
     assert.ok(inventoryRead.payload.movements.some((entry) => entry.itemId === ingredient.payload.id), `${scenario.label}: fresh inventory read includes the movement journal`); checks++;
   }
+  const fencedCostItem = await request('/api/inventory/items', 'POST', { name: `QA16 fenced cost ${marker}`, unit: 'мл', itemType: 'ingredient', cost: 0.5, department: 'bar' }, token, 201);
+  await assertCostEditWaitsForSourceSnapshot(fencedCostItem.payload.id);
+  checks += 2;
   passed = true;
 } finally {
   if (server?.pid && server.exitCode === null && server.signalCode === null) {

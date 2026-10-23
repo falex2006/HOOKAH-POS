@@ -17,15 +17,46 @@ try {
   if (!output.includes('CRM running on')) await new Promise((resolve, reject) => { const timeout = setTimeout(() => reject(new Error(`CRM startup timed out: ${output}`)), 10_000); const ready = (chunk) => { if (String(chunk).includes('CRM running on')) { clearTimeout(timeout); child.stdout.off('data', ready); resolve(); } }; child.stdout.on('data', ready); child.once('error', reject); child.once('exit', (code) => reject(new Error(`CRM exited (${code}): ${output}`))); });
   const loginResponse = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'owner', password: 'demo' }) });
   assert.equal(loginResponse.status, 200); const session = await loginResponse.json();
+  const shiftResponse = await fetch(`${baseUrl}/api/shifts`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ openingCash: 0 }) });
+  assert.equal(shiftResponse.status, 201, 'open an isolated QA shift before creating orders');
+  const shift = await shiftResponse.json();
+  const readShift = await fetch(`${baseUrl}/api/notifications/${encodeURIComponent(`shift_opened:${shift.id}`)}/read`, { method: 'PUT', headers: { Authorization: `Bearer ${session.token}` } });
+  assert.equal(readShift.status, 200, 'keep the setup shift outside the unread order count');
+  const headers = { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' };
+  const floorResponse = await fetch(`${baseUrl}/api/floor`, { headers });
+  assert.equal(floorResponse.status, 200); const floor = await floorResponse.json();
+  let zone = floor.zones?.[0];
+  if (!zone) { const zoneResponse = await fetch(`${baseUrl}/api/floor/zones`, { method: 'POST', headers, body: JSON.stringify({ expectedVenueId: floor.venueId, name: 'Notification QA hall' }) }); assert.equal(zoneResponse.status, 201); zone = await zoneResponse.json(); }
   for (const suffix of ['one', 'two']) {
-    const created = await fetch(`${baseUrl}/api/orders`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tableId: `notification-browser-qa-${suffix}` }) });
-    assert.equal(created.status, 201); const order = await created.json();
+    const tableResponse = await fetch(`${baseUrl}/api/floor/tables`, { method: 'POST', headers, body: JSON.stringify({ expectedVenueId: floor.venueId, zoneId: zone.id, name: `Notification QA ${suffix}`, capacity: 2 }) });
+    assert.equal(tableResponse.status, 201); const table = await tableResponse.json();
+    const created = await fetch(`${baseUrl}/api/orders`, { method: 'POST', headers, body: JSON.stringify({ tableId: table.id }) });
+    if (created.status !== 201) throw new Error(`Notification QA order creation ${created.status}: ${await created.text()}`); const order = await created.json();
   const deleted = await fetch(`${baseUrl}/api/orders/${encodeURIComponent(order.id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ comment: 'Notification browser QA', writeoff: false }) }); assert.equal(deleted.status, 200);
   }
   const emptyAdminCreate = await fetch(`${baseUrl}/api/staff`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Notification Empty Inbox QA', role: 'admin', login: `notification_empty_${Date.now()}`, password: 'demo', birthDate: '1990-01-01', permissionScopes: ['inventory'] }) });
   assert.equal(emptyAdminCreate.status, 201);
   const emptyAdminLogin = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: (await emptyAdminCreate.json()).login, password: 'demo' }) });
   assert.equal(emptyAdminLogin.status, 200); const emptyAdmin = await emptyAdminLogin.json();
+  const restrictedCreate = await fetch(`${baseUrl}/api/staff`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Notification Restricted QA', role: 'bartender', login: `qa_bart_${Date.now()}`, password: 'demo', birthDate: '1990-01-01' }) });
+  if (restrictedCreate.status !== 201) throw new Error(`Restricted staff fixture ${restrictedCreate.status}: ${await restrictedCreate.text()}`);
+  const restrictedLogin = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: (await restrictedCreate.json()).login, password: 'demo' }) });
+  assert.equal(restrictedLogin.status, 200); const restrictedAdmin = await restrictedLogin.json();
+  const scopedAdmins = {};
+  for (const scope of ['orders', 'finance']) {
+    const created = await fetch(`${baseUrl}/api/staff`, { method: 'POST', headers, body: JSON.stringify({ name: `Notification ${scope} QA`, role: 'admin', login: `qa_${scope}_${Date.now()}`, password: 'demo', birthDate: '1990-01-01', permissionScopes: [scope] }) });
+    assert.equal(created.status, 201, `${scope} notification fixture`);
+    const login = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: (await created.json()).login, password: 'demo' }) });
+    assert.equal(login.status, 200); scopedAdmins[scope] = await login.json();
+  }
+  const roleSessions = [];
+  for (const [index, role] of ['admin', 'manager', 'developer', 'senior_bartender', 'hookah_master', 'senior_hookah_master'].entries()) {
+    const created = await fetch(`${baseUrl}/api/staff`, { method: 'POST', headers, body: JSON.stringify({ name: `Notification ${role} QA`, role, login: `qa_nt_${index}_${Date.now().toString(36)}`, password: 'demo', birthDate: '1990-01-01' }) });
+    assert.equal(created.status, 201, `${role} notification fixture`);
+    const login = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: (await created.json()).login, password: 'demo' }) });
+    assert.equal(login.status, 200, `${role} notification login`);
+    roleSessions.push([role, await login.json()]);
+  }
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
   await context.addInitScript(({ token, user }) => { localStorage.setItem('crm_session_token', token); localStorage.setItem('crm_session_user', JSON.stringify(user)); }, { token: session.token, user: session.user });
   const page = await context.newPage(); await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
@@ -38,9 +69,36 @@ try {
     await page.waitForFunction(() => document.querySelector('#notification-count')?.textContent === '2');
     await routeBell.click(); await page.locator('#notification-panel').waitFor({ state: 'visible' });
     await page.locator('.notification-item').first().waitFor();
-    assert.equal(await page.locator('.notification-item').count(), 2, `persistent inbox is reachable from ${route}`);
+    assert.equal(await page.locator('.notification-item').count(), 3, `persistent inbox is reachable from ${route}`);
     await page.keyboard.press('Escape');
   }
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    await page.goto(`${baseUrl}/admin#notifications`, { waitUntil: 'domcontentloaded' });
+    await page.locator('.notification-page-content .notification-item').first().waitFor();
+    assert.equal(await page.locator('.notification-page-content .notification-item').count(), 3);
+    await page.locator('.notification-page [data-notification-filter="unread"]').click();
+    await page.waitForFunction(() => document.querySelectorAll('.notification-page-content .notification-item').length === 2);
+    await page.locator('.notification-page [data-notification-filter="all"]').click();
+    await page.waitForFunction(() => document.querySelectorAll('.notification-page-content .notification-item').length === 3);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `inline notification center fits ${width}px`);
+    await page.locator('#notification-bell').click();
+    await page.waitForFunction(() => document.querySelectorAll('#notification-panel-content .notification-item').length === 3);
+    await page.keyboard.press('Escape');
+  }
+  let failInlineRefresh = true;
+  await page.route('**/api/notifications**', async (route) => {
+    if (failInlineRefresh && route.request().method() === 'GET') {
+      failInlineRefresh = false;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'notifications_unavailable' }) });
+    } else await route.continue();
+  });
+  await page.locator('.notification-page [data-notification-filter="unread"]').click();
+  await page.locator('.notification-page .notification-inline-error').waitFor();
+  await page.locator('.notification-page .notification-inline-error button').click();
+  await page.waitForFunction(() => document.querySelectorAll('.notification-page-content .notification-item').length === 2);
+  await page.unroute('**/api/notifications**');
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
   await page.locator('#notification-bell').waitFor({ state: 'visible' });
   await page.waitForFunction(() => document.querySelector('#notification-count')?.textContent === '2');
@@ -65,7 +123,7 @@ try {
     await page.locator('.notification-item').first().waitFor();
     assert.equal(await bell.getAttribute('aria-expanded'), 'true');
     assert.equal(await page.locator('#notification-panel-title').textContent(), 'Уведомления');
-    assert.equal(await page.locator('.notification-item').count(), 2);
+    assert.equal(await page.locator('.notification-item').count(), 3);
     const bounds = await page.locator('.notification-panel-card').boundingBox();
     assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `tray fits viewport width ${width}`);
     assert.equal(await panel.getAttribute('aria-modal'), width <= 768 ? 'true' : 'false');
@@ -122,7 +180,95 @@ try {
   assert.match(await emptyPage.locator('.notification-state-empty').innerText(), /Пока нет уведомлений/);
   await emptyPage.keyboard.press('Escape');
   assert.equal(await emptyPage.evaluate(() => document.activeElement?.id), 'notification-bell', 'keyboard-open empty tray restores focus');
+  await emptyPage.goto(`${baseUrl}/admin#notifications`, { waitUntil: 'domcontentloaded' });
+  await emptyPage.locator('.notification-page .notification-state-empty').waitFor();
+  assert.match(await emptyPage.locator('.notification-page-content').innerText(), /Пока нет уведомлений/);
+  const restrictedContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await restrictedContext.addInitScript(({ token, user }) => { localStorage.setItem('crm_session_token', token); localStorage.setItem('crm_session_user', JSON.stringify(user)); }, { token: restrictedAdmin.token, user: restrictedAdmin.user });
+  const restrictedPage = await restrictedContext.newPage(); await restrictedPage.goto(`${baseUrl}/admin#notifications`, { waitUntil: 'domcontentloaded' });
+  await restrictedPage.locator('.notification-page-content').waitFor();
+  assert.equal(await restrictedPage.locator('#notification-bell').isHidden(), true);
+  assert.match(await restrictedPage.locator('.notification-page-content').innerText(), /недоступны для текущего профиля/);
+  assert.equal((await fetch(`${baseUrl}/api/notifications`, { headers: { Authorization: `Bearer ${restrictedAdmin.token}` } })).status, 403);
+  await restrictedContext.close();
+  for (const [scope, expectedType, expectedCount] of [['orders', 'order_deleted', 2], ['finance', 'shift_opened', 1]]) {
+    const scoped = scopedAdmins[scope];
+    const feedResponse = await fetch(`${baseUrl}/api/notifications`, { headers: { Authorization: `Bearer ${scoped.token}` } });
+    assert.equal(feedResponse.status, 200, `${scope} can read its notification feed`);
+    const feed = await feedResponse.json();
+    assert.equal(feed.items.length, expectedCount, `${scope} sees only its permitted events`);
+    assert.ok(feed.items.every((item) => item.type === expectedType), `${scope} feed contains no other module's events`);
+    const scopedContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await scopedContext.addInitScript(({ token, user }) => { localStorage.setItem('crm_session_token', token); localStorage.setItem('crm_session_user', JSON.stringify(user)); }, { token: scoped.token, user: scoped.user });
+    const scopedPage = await scopedContext.newPage(); await scopedPage.goto(`${baseUrl}/${scope === 'orders' ? 'orders' : 'finance'}`, { waitUntil: 'domcontentloaded' });
+    await scopedPage.locator('#notification-bell').waitFor({ state: 'visible' });
+    await scopedPage.locator('#notification-bell').click();
+    await scopedPage.waitForFunction((count) => document.querySelectorAll('#notification-panel-content .notification-item').length === count, expectedCount);
+    assert.equal(await scopedPage.locator('#notification-panel-content .notification-item').count(), expectedCount);
+    await scopedContext.close();
+  }
+  let roleIndex = 0;
+  for (const [role, actor] of roleSessions) {
+    const expectedTypes = ['admin', 'manager'].includes(role) ? ['order_deleted', 'order_deleted', 'shift_opened'] : role === 'developer' ? ['shift_opened'] : [];
+    const feedResponse = await fetch(`${baseUrl}/api/notifications`, { headers: { Authorization: `Bearer ${actor.token}` } });
+    assert.equal(feedResponse.status, expectedTypes.length ? 200 : 403, `${role} feed permission`);
+    if (expectedTypes.length) {
+      const feed = await feedResponse.json();
+      assert.deepEqual(feed.items.map(item => item.type).sort(), expectedTypes.sort(), `${role} sees only allowed notification types`);
+    }
+    const roleContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', extraHTTPHeaders: { 'X-Forwarded-For': `127.0.2.${++roleIndex}` } });
+    await roleContext.addInitScript(({ token, user }) => { localStorage.setItem('crm_session_token', token); localStorage.setItem('crm_session_user', JSON.stringify(user)); }, { token: actor.token, user: actor.user });
+    const rolePage = await roleContext.newPage(); const roleErrors = []; rolePage.on('pageerror', error => roleErrors.push(error.message));
+    await rolePage.goto(`${baseUrl}/admin#notifications`, { waitUntil: 'domcontentloaded' });
+    try { await rolePage.locator('.notification-page-content').waitFor({ timeout: 5000 }); }
+    catch (error) { throw new Error(`${role} inline notifications missing at ${rolePage.url()}: ${(await rolePage.locator('body').innerText()).slice(0, 350)}`, { cause: error }); }
+    if (expectedTypes.length) {
+      await rolePage.waitForFunction(count => document.querySelectorAll('.notification-page-content .notification-item').length === count, expectedTypes.length);
+      assert.equal(await rolePage.locator('#notification-bell').isVisible(), true, `${role} bell visible`);
+      assert.equal(await rolePage.locator('.notification-page-content .notification-item').count(), expectedTypes.length, `${role} inline list count`);
+    } else {
+      assert.equal(await rolePage.locator('#notification-bell').isHidden(), true, `${role} bell hidden`);
+      assert.match(await rolePage.locator('.notification-page-content').innerText(), /недоступны для текущего профиля/, `${role} sees permission explanation`);
+    }
+    assert.equal(await rolePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${role} notification page fits 390px`);
+    assert.deepEqual(roleErrors, [], `${role} notification browser errors`);
+    await roleContext.close();
+  }
+  const demoContext = await browser.newContext({ viewport: { width: 390, height: 844 }, extraHTTPHeaders: { 'X-Forwarded-For': '127.0.3.1' } });
+  await demoContext.addInitScript(() => {
+    if (localStorage.getItem('crm_session_token') === 'demo-static-notification-qa') return;
+    localStorage.setItem('crm_session_token', 'demo-static-notification-qa');
+    localStorage.setItem('crm_session_user', JSON.stringify({ id: 'demo-owner', name: 'QA Owner', role: 'owner' }));
+    localStorage.setItem('territory_crm_demo_reset_v1', '1');
+    localStorage.setItem('territory_crm_demo_state', JSON.stringify({
+      shift: { id: 'demo-shift-new', venueId: 'demo-venue-territory', openedAt: '2026-10-22T10:00:00Z', closedAt: null },
+      networkVenues: [{ id: 'demo-venue-other', name: 'Other QA venue', status: 'active' }],
+      audit: [
+        { action: 'shift.opened', entityId: 'demo-shift-old', venueId: 'demo-venue-territory', createdAt: '2026-10-20T10:00:00Z' },
+        { action: 'shift.closed', entityId: 'demo-shift-old', venueId: 'demo-venue-territory', createdAt: '2026-10-20T20:00:00Z' },
+        { action: 'shift.opened', entityId: 'demo-shift-new', venueId: 'demo-venue-territory', createdAt: '2026-10-22T10:00:00Z' },
+        { action: 'shift.opened', entityId: 'demo-shift-other', venueId: 'demo-venue-other', createdAt: '2026-10-21T10:00:00Z' },
+      ],
+    }));
+  });
+  const demoPage = await demoContext.newPage(); await demoPage.goto(`${baseUrl}/admin#notifications`, { waitUntil: 'domcontentloaded' });
+  try { await demoPage.waitForFunction(() => document.querySelectorAll('.notification-page-content .notification-item').length === 3, undefined, { timeout: 10000 }); }
+  catch (error) { throw new Error(`demo notification count: ${await demoPage.locator('.notification-page-content .notification-item').count()}, URL ${demoPage.url()}, body ${(await demoPage.locator('body').innerText()).slice(0, 400)}`, { cause: error }); }
+  assert.match(await demoPage.locator('.notification-page-content').innerText(), /Смена закрыта/, 'older closed shift remains visible after a new shift opens');
+  await demoPage.evaluate(() => { const state = JSON.parse(localStorage.getItem('territory_crm_demo_state')); state.networkCurrentId = 'demo-venue-other'; localStorage.setItem('territory_crm_demo_state', JSON.stringify(state)); });
+  await demoPage.reload({ waitUntil: 'domcontentloaded' });
+  await demoPage.waitForFunction(() => document.querySelectorAll('.notification-page-content .notification-item').length === 1);
+  assert.equal(await demoPage.locator('.notification-page-content .notification-item').count(), 1, 'other venue does not receive default venue shifts');
+  await demoPage.evaluate(() => { const state = JSON.parse(localStorage.getItem('territory_crm_demo_state')); state.networkCurrentId = 'demo-venue-territory'; delete state.shift.venueId; state.audit.push({ action: 'shift.closed', entityId: 'demo-shift-new', createdAt: '2026-10-22T20:00:00Z' }); localStorage.setItem('territory_crm_demo_state', JSON.stringify(state)); });
+  await demoPage.reload({ waitUntil: 'domcontentloaded' });
+  await demoPage.waitForFunction(() => document.querySelectorAll('.notification-page-content .notification-item').length === 3);
+  assert.equal(await demoPage.locator('.notification-page-content .notification-item').count(), 3, 'ambiguous legacy shift is not assigned to the default venue when another venue exists');
+  await demoPage.evaluate(() => localStorage.setItem('crm_session_user', JSON.stringify({ id: 'demo-bartender', name: 'QA Bartender', role: 'bartender' })));
+  await demoPage.reload({ waitUntil: 'domcontentloaded' });
+  await demoPage.locator('.notification-page-content').waitFor();
+  assert.match(await demoPage.locator('.notification-page-content').innerText(), /недоступны для текущего профиля/, 'operational demo role renders its restricted notification page without a dashboard crash');
+  await demoContext.close();
   await emptyContext.close();
   await context.close();
-  console.log('NOTIFICATIONS BROWSER QA: 503/retry, desktop/tablet/mobile geometry, reduced motion, accessible name, focus trap/Escape, single/read-all, reload, unread filter, and cross-tab sync passed');
+  console.log('NOTIFICATIONS BROWSER QA: 503/retry, desktop/tablet/mobile geometry, eight login roles and scoped admins, reduced motion, accessible name, focus trap/Escape, single/read-all, reload, unread filter, and cross-tab sync passed');
 } finally { await browser.close(); child.kill('SIGTERM'); }

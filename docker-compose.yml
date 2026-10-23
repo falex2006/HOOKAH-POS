@@ -23,7 +23,7 @@ services:
       STAFF_PASSPORT_KEY: ${STAFF_PASSPORT_KEY:-}
       SAAS_OWNER_EMAIL: ${SAAS_OWNER_EMAIL:-}
       SAAS_OWNER_PASSWORD: ${SAAS_OWNER_PASSWORD:-}
-      DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD:-change_me}@db:5432/crm
+      DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/crm
       ALPHASAT_TRUST_PROXY: "true"
     labels:
       com.hookahpos.release-id: ${CRM_RELEASE_ID:-unreleased}
@@ -57,7 +57,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-crm}
       POSTGRES_USER: ${POSTGRES_USER:-crm}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro

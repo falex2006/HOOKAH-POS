@@ -14,16 +14,19 @@ const flush = async () => { for (let i = 0; i < 8; i += 1) await Promise.resolve
 function harness(pin = '') {
   const nodes = new Map([
     ['#lock-pin-message', { textContent: '', className: '' }],
+    ['#lock-timeout-message', { textContent: '', className: '' }],
     ['#lock-new-pin', { value: pin }], ['#lock-new-pin-confirm', { value: pin }],
     ['#lock-timeout-select', { value: '30' }], ['#lock-pin-state', { textContent: 'Не настроен' }],
+    ['.lock-settings-close', { disabled: false }],
     ['.lock-settings-save', { disabled: false, addEventListener(event, callback) { assert.equal(event, 'click'); this.callback = callback; } }],
   ]);
   const requests = [], storage = [], timers = [], cleared = [];
   let scheduled = 0, closed = 0;
-  const settingsDialog = { querySelector: selector => nodes.get(selector), close: () => { closed += 1; } };
+  const settingsDialog = { open: true, querySelector: selector => nodes.get(selector), close: () => { closed += 1; settingsDialog.open = false; } };
   const context = vm.createContext({ settingsDialog, user: { id: 'fixture-staff', pinConfigured: false, preferences: { lockTimeoutMinutes: 15, other: 'keep' } },
     timeoutMinutes: 15, timeoutKey: 'fixture-timeout', timeoutOptions: [0, 1, 5, 10, 15, 30, 60], autoLockEnabled: false, timer: 'existing-timer',
-    headers: () => ({}), clearTimeout: id => cleared.push(id), schedule: () => { scheduled += 1; },
+    headers: () => ({}), currentSession: () => true, settingsSavePending: false, settingsOpenEpoch: 1,
+    settingsClose: nodes.get('.lock-settings-close'), clearTimeout: id => cleared.push(id), schedule: () => { scheduled += 1; },
     localStorage: { setItem: (key, value) => storage.push([key, value]) }, window: { setTimeout: (fn, delay) => timers.push({ fn, delay }) },
     fetch: (url, options = {}) => new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })),
   });
@@ -47,8 +50,8 @@ for (const status of [400, 401, 503]) {
   h.reply(1, status, { error: 'fixture_preferences_error' }); await saving;
   check(`preferences ${status}: no timeout/storage/schedule/close commit`, () => {
     assert.deepEqual(h.snapshot(), initial);
-    assert.match(h.nodes.get('#lock-pin-message').textContent, /Не удалось сохранить настройки автоблокировки/);
-    assert.equal(h.nodes.get('#lock-pin-message').className, 'lock-pin-message error');
+    assert.match(h.nodes.get('#lock-timeout-message').textContent, /Не удалось сохранить настройки автоблокировки/);
+    assert.equal(h.nodes.get('#lock-timeout-message').className, 'lock-pin-message error');
   });
   h.reply(0, 200, { preferences: { lockTimeoutMinutes: 5 } }); await flush();
   check(`preferences ${status}: late startup GET cannot overwrite attempted save`, () => assert.deepEqual(h.snapshot(), initial));
@@ -85,7 +88,7 @@ for (const status of [400, 401, 503]) {
   check('PIN success plus preferences failure reports partial success with old timeout', () => {
     assert.deepEqual(h.snapshot(), initial);
     assert.equal(h.context.user.pinConfigured, true);
-    assert.match(h.nodes.get('#lock-pin-message').textContent, /PIN сохранён\. Не удалось сохранить настройки автоблокировки/);
+    assert.match(h.nodes.get('#lock-timeout-message').textContent, /PIN сохранён\. Не удалось сохранить настройки автоблокировки/);
     assert.equal(h.nodes.get('#lock-pin-state').textContent, 'Настроен');
   });
   const retry = h.save(); assert.equal(h.requests.length, 4); assert.equal(h.requests[3].url, '/api/session/preferences');

@@ -8,7 +8,7 @@ const apiStart = source.indexOf('const shiftApi=');
 const messageStart = source.indexOf('const shiftCloseFailureMessage=', apiStart);
 const refreshStart = source.indexOf('\nconst refreshShift=', messageStart);
 const closeActionStart = source.indexOf("document.querySelector('#shift-toggle')?.addEventListener('click'", refreshStart);
-const closeActionEnd = source.indexOf("document.querySelectorAll('.actions button')", closeActionStart);
+const closeActionEnd = source.indexOf('const refreshVisibleStaffShift=', closeActionStart);
 assert.ok(apiStart >= 0 && messageStart > apiStart && refreshStart > messageStart && closeActionStart > refreshStart && closeActionEnd > closeActionStart,
   'shift API, close feedback, and the close action are available');
 

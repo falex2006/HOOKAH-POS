@@ -33,8 +33,8 @@ assert.match(css, /inventory-stock-panel th:nth-child\(4\)\{width:18%\}\.velora-
   'desktop stock table must reserve enough width for replenishment, state and actions');
 assert.match(css, /\.velora-theme \.inventory-stock-panel th\{[^}]*line-height:1\.35;vertical-align:bottom;white-space:normal\}/,
   'desktop stock table headers must wrap cleanly instead of merging across narrow columns');
-assert.match(css, /@media\(min-width:651px\) and \(max-width:740px\)\{\.velora-theme \.visual-catalog\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/,
-  'visual catalog must reduce columns on the narrow Fold inner viewport instead of overflowing');
+assert.match(css, /@media\(max-width:760px\)\{[\s\S]*?\.velora-theme \.product-catalog-view-switch\{display:none\}[\s\S]*?\.velora-theme #visual-catalog \.product-list-row\{grid-template-columns:42px/,
+  'product catalog must use one compact list representation with no view switch on phone/Fold widths');
 assert.match(css, /\.auto-order-table-wrap table\{display:block;width:100%;min-width:0/,
   'mobile replenishment cards must not retain the desktop minimum width');
 assert.match(css, /\.auto-order-table-wrap tbody td:not\(\.auto-order-check-col\)\{[^}]*width:100%!important[^}]*justify-self:stretch[^}]*box-sizing:border-box/,
@@ -46,6 +46,10 @@ assert.match(css, /@media\(min-width:651px\) and \(max-width:1000px\)\{\.velora-
   'Fold/tablet KPI tiles must remain in a single balanced row');
 assert.match(css, /@media\(min-width:651px\) and \(max-width:760px\)\{\.velora-theme \.kpi-grid\.compact\.inventory-context-kpis\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}\}/,
   'Fold inner-width inventory KPIs must use two equal columns before the activity card spans the row');
+assert.match(portal, /target\.classList\.toggle\('inventory-listing-mode', \['products', 'recipes'\]\.includes\(view\)\)/,
+  'product and recipe pages must opt into their own compact listing header without changing other inventory views');
+assert.match(css, /@media\(max-width:430px\)\{\.velora-theme \.inventory-listing-mode \.inventory-context-kpis>\.kpi\{grid-template-columns:minmax\(0,1fr\);padding:8px 9px\}\.velora-theme \.inventory-listing-mode \.inventory-context-kpis>\.kpi>span\{font-size:10px\}\.velora-theme \.inventory-listing-mode \.inventory-context-kpis>\.kpi>small\{display:none\}/,
+  'phone-width product/recipe KPIs must avoid narrow inline label/value wrapping and secondary copy must collapse');
 assert.match(css, /@container crm-content \(min-width:961px\)[\s\S]*?inventory-page-title>\.toolbar-row\{display:flex;width:auto/,
   'warehouse title actions must stay on one line when the usable content area can support them');
 assert.match(css, /@container crm-content \(max-width:960px\)[\s\S]*?inventory-page-title>\.toolbar-row\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,
@@ -85,5 +89,7 @@ assert.match(css, /button\.button:not\(\.primary\):not\(\.danger\):not\(\.danger
   'neutral buttons must keep a visible premium control surface');
 assert.match(css, /@media\(max-width:980px\)\{\.velora-theme \.purchase-lines-head>\.button,\.velora-theme \.purchase-document-row>\.toolbar-row>\.button\{min-height:44px\}\}/,
   'receiving actions must meet the touch target on Fold/tablet widths');
+assert.match(css, /@media\(max-width:360px\)\{\.inventory-movements-mode \.purchase-document-filters\{grid-template-columns:minmax\(0,1fr\)\}\}/,
+  'narrow movement filters must stack so labels and selects do not collide in two compressed columns');
 
 console.log('INVENTORY RESPONSIVE CONTRACT: PASS');

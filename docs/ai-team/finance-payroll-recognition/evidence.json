@@ -1,0 +1,175 @@
+{
+  "suite": "pos-payroll-recognition",
+  "source": "authenticated_http",
+  "officialPayrollReadinessAttested": false,
+  "checks": [
+    {
+      "name": "new venue receives server-owned recognition epoch at venue creation"
+    },
+    {
+      "name": "HTTP order/item/discount/partial tender/close preserve immutable pricing and reject locked split/delete"
+    },
+    {
+      "name": "HTTP refund/replay conserves independent payout and merchandise amounts; historical membership/timezones and tenant boundary stay fixed"
+    },
+    {
+      "name": "partial then complete item return preserves cumulative rounding and source sequence"
+    },
+    {
+      "name": "open item delete and same-venue split work; moved item retains original attribution and recognizes only once"
+    },
+    {
+      "name": "actual final payment auto-close produces exactly one complete sale event"
+    },
+    {
+      "name": "HTTP empty close with a real zero canonical snapshot is known zero, distinct from missing pricing"
+    },
+    {
+      "name": "unknown seller, cross-venue seller and genuine pre144 null capture remain incomplete through real HTTP close"
+    },
+    {
+      "name": "concurrent authenticated refund attempts create one capped return and one recognition"
+    },
+    {
+      "name": "two stale RR snapshots cannot claim complete refund coverage after serialized payment locks"
+    },
+    {
+      "name": "pos_payroll_sale_events rejects update",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_sale_events rejects delete",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_sale_events rejects direct insert",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_sale_events rejects truncate",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_sale_line_events rejects update",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_sale_line_events rejects delete",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_sale_line_events rejects direct insert",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_sale_line_events rejects truncate",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_events rejects update",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_events rejects delete",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_events rejects direct insert",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_events rejects truncate",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_line_events rejects update",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_line_events rejects delete",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_line_events rejects direct insert",
+      "sqlState": "55000"
+    },
+    {
+      "name": "pos_payroll_refund_line_events rejects truncate",
+      "sqlState": "55000"
+    },
+    {
+      "name": "epoch rejects UPDATE",
+      "sqlState": "55000"
+    },
+    {
+      "name": "epoch rejects DELETE",
+      "sqlState": "55000"
+    },
+    {
+      "name": "epoch rejects INSERT",
+      "sqlState": "55000"
+    },
+    {
+      "name": "epoch rejects truncate",
+      "sqlState": "55000"
+    },
+    {
+      "name": "caller cannot rewrite captured item seller",
+      "sqlState": "55000"
+    },
+    {
+      "name": "caller cannot inject attribution capture",
+      "sqlState": "55000"
+    },
+    {
+      "name": "caller cannot inject refund recognition time",
+      "sqlState": "55000"
+    },
+    {
+      "name": "direct foreign-venue evidence cannot borrow original sale",
+      "sqlState": "55000"
+    },
+    {
+      "name": "item cannot move across venue",
+      "sqlState": "23514"
+    },
+    {
+      "name": "late tender cannot change sealed refund",
+      "sqlState": "55000"
+    },
+    {
+      "name": "late item cannot change sealed refund",
+      "sqlState": "55000"
+    },
+    {
+      "name": "two-connection queued late tender rechecks the seal after acquiring source lock"
+    },
+    {
+      "name": "deferred recognition is incomplete without tenders; full transaction rollback restores source balance and all evidence"
+    },
+    {
+      "name": "closed source without canonical pricing remains incomplete, never zero-value complete"
+    },
+    {
+      "name": "late canonical header cannot complete a sealed unknown sale",
+      "sqlState": "55000"
+    },
+    {
+      "name": "migration144 replay twice preserves every emitted source fact"
+    },
+    {
+      "name": "normal complete deployment migration chain replays on populated source facts",
+      "migrationCount": 145
+    },
+    {
+      "name": "true pre144 installation gets existing_at_install epoch and replay never resets the cutoff"
+    }
+  ],
+  "status": "passed",
+  "sourceIds": {
+    "orderId": "40f6725f-85cf-4d0b-8355-a2a27302e158",
+    "saleEventId": "f4a6343a-b018-4daf-8f18-7f24ae299349",
+    "refundId": "02c3bdef-11f9-472e-980f-12183d3e5eb6",
+    "refundEventId": "1bccc9c4-b600-4688-907e-202719766c3b"
+  }
+}

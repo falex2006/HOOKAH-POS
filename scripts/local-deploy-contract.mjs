@@ -14,6 +14,13 @@ const backup = read('backup-postgres.sh');
 const gitignore = read('.gitignore');
 const dockerfile = read('Dockerfile');
 
+assert.match(compose, /DATABASE_URL: postgresql:\/\/crm:\$\{POSTGRES_PASSWORD:\?POSTGRES_PASSWORD is required\}@db:5432\/crm/,
+  'CRM database URL must not fall back to a known PostgreSQL password');
+assert.match(compose, /POSTGRES_PASSWORD: \$\{POSTGRES_PASSWORD:\?POSTGRES_PASSWORD is required\}/,
+  'PostgreSQL must fail Compose interpolation when its password is missing');
+assert.doesNotMatch(compose, /POSTGRES_PASSWORD:[^\n]*change_me/, 'Compose must not contain a known password fallback');
+assert.match(envExample, /^POSTGRES_PASSWORD\s*=\s*$/m, 'sample PostgreSQL password must be blank');
+
 for (const script of [deploy, migrate]) {
   assert.match(script, /docker compose version/, 'deployment scripts must require Compose plugin');
 }

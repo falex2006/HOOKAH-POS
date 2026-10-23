@@ -6,7 +6,7 @@ export async function verifyRecurringPartialMonth({page,base,api,db,venueId,sele
   const category=await api('/api/finance/categories','POST',{name,kind:'expense'});
   assert.equal(category.status,201);
   const categoryId=category.body.id;
-  await page.goto(`${base}/finance`,{waitUntil:'networkidle'});
+  await page.goto(`${base}/finance#business-obligations`,{waitUntil:'networkidle'});
   const panel=page.locator('#business-obligations');
   await panel.locator('[data-rule-new]').click();
   const form=panel.locator('[data-rule-form]');

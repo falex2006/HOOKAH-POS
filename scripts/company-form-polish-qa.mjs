@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 const source = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+const distPortal = readFileSync(new URL('../dist/portal.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+const distCss = readFileSync(new URL('../dist/style.css', import.meta.url), 'utf8');
+const staffProfile = readFileSync(new URL('../staff-profile.js', import.meta.url), 'utf8');
+const staffPhoneFields = readFileSync(new URL('../staff-phone-fields.js', import.meta.url), 'utf8');
+const distStaffPhoneFields = readFileSync(new URL('../dist/staff-phone-fields.js', import.meta.url), 'utf8');
+const staffAdminCard = readFileSync(new URL('../staff-admin-card.js', import.meta.url), 'utf8');
+const distStaffAdminCard = readFileSync(new URL('../dist/staff-admin-card.js', import.meta.url), 'utf8');
 const company = source.slice(source.indexOf("const companyPanel ="), source.indexOf('  let auditItems ='));
 const controls = new Map();
 const element = (tag = 'input') => ({ tag, value: '', files: [], textContent: '', hidden: false, disabled: false, dataset: {}, children: [], events: {}, options: [], addEventListener(type, callback) { this.events[type] = callback; }, replaceChildren(...children) { this.children = children; }, append(child) { this.children.push(child); if (this.tag === 'select') this.options.push(child); child.remove = () => { this.children = this.children.filter((item) => item !== child); this.options = this.options.filter((item) => item !== child); }; }, querySelectorAll(selector) { return selector === '[data-saved-timezone]' ? this.options.filter((item) => 'savedTimezone' in item.dataset) : []; } });
@@ -29,9 +36,42 @@ let count = 4; context.companyPhoneRows = () => Array(count).fill({});
 vm.runInContext(company.slice(company.indexOf('  let companyControlsDisabled ='), company.indexOf('  const renderCompanyPhones =')) + '\n globalThis.phoneLimit = refreshCompanyPhoneLimit; globalThis.enablePhones = () => { companyControlsDisabled = false; };', context);
 context.enablePhones(); context.phoneLimit(); assert.equal(controls.get('#company-add-phone').disabled, false); count = 5; context.phoneLimit(); assert.equal(controls.get('#company-add-phone').disabled, true); count = 4; context.phoneLimit(); assert.equal(controls.get('#company-add-phone').disabled, false);
 assert(!company.includes('vipRoomMinimums')); assert(!company.includes('vip-minimum-1')); assert(company.includes('Promise.resolve(companyLogoRemoved ? null : undefined)')); assert(company.includes('renderCompanyData(active)'));
+assert(staffProfile.includes('placeholder="Номер"'));
+assert(staffProfile.includes('type="tel" inputmode="tel" aria-label="Номер телефона"'));
+for (const portal of [source, distPortal]) {
+  assert(portal.includes('placeholder="Например, +7 912 345-67-89"'));
+  assert(portal.includes('Телефоны<input id="client-phone" type="tel" inputmode="tel" placeholder="Например, +7 912 345-67-89"><small class="muted">Можно указать несколько через точку с запятой</small>'));
+  assert(portal.includes('id="reservation-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Например, +7 912 345-67-89"'));
+  assert(portal.includes('id="delivery-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Например, +7 912 345-67-89"'));
+  assert(portal.includes('Проверьте номер телефона. Например: +7 912 345-67-89.'));
+  assert(!portal.includes('+7 (___) ___-__-__'), 'active phone placeholders and validation messages do not show underscore masks');
+  assert(portal.includes('id="staff-phone-primary" name="phone_primary" type="tel" inputmode="tel" placeholder="Номер телефона" autocomplete="tel"'));
+  assert(!portal.includes('id="staff-phone-primary" name="phone_primary" type="tel" placeholder="+7 (___) ___-__-__"'));
+}
+for (const fields of [staffPhoneFields, distStaffPhoneFields]) {
+  assert(fields.includes('<input type="tel" inputmode="tel" placeholder="Номер телефона" aria-label="Номер телефона">'));
+  assert(!fields.includes('placeholder="+7 (___) ___-__-__"'));
+}
+for (const card of [staffAdminCard, distStaffAdminCard]) {
+  assert(card.includes('<input type="tel" inputmode="tel" placeholder="Номер телефона">'));
+  assert(!card.includes('placeholder="+7 (___) ___-__-__"'));
+}
+assert(staffProfile.includes('aria-label="Добавить номер телефона" title="Добавить номер телефона">＋ Добавить</button>'));
 for (const guard of ['samePreferenceSession(identity)', 'expectedVenueId', 'companySaving', 'venue_refresh_failed', 'companyReadSequence']) assert(company.includes(guard), guard);
 assert(css.includes('animation:company-page-frame-pulse 8s ease-in-out infinite'));
 assert(css.includes('pointer-events:none;z-index:-1'));
 assert(css.includes('input[type=radio]{appearance:auto;width:18px;height:18px;min-width:18px;min-height:18px'));
 assert(css.includes('@media(prefers-reduced-motion:reduce){#page-content.company-page-active::before{animation:none'));
+for (const stylesheet of [css, distCss]) {
+  assert.match(stylesheet, /\.staff-admin-modal \.staff-admin-add,\.velora-theme \.staff-form \.staff-phone-list__add\{[^}]*min-height:44px[^}]*background:var\(--ui-input\);color:var\(--ui-text-secondary\)/);
+  assert.match(stylesheet, /\.staff-admin-modal \.staff-admin-add:hover,\.velora-theme \.staff-form \.staff-phone-list__add:hover\{border-color:var\(--ui-border-control\);background:var\(--ui-raised\);color:var\(--ui-text-primary\)\}/);
+  assert.match(stylesheet, /\.velora-theme #company #company-add-phone\{[^}]*background:var\(--ui-input\);color:var\(--ui-text-secondary\)/);
+  assert.match(stylesheet, /\.velora-theme #company #company-add-phone:hover\{background:var\(--ui-raised\);color:var\(--ui-text-primary\)\}/);
+  assert.match(stylesheet, /\.velora-theme #company #company-add-phone\{[^}]*min-height:44px/);
+  assert.match(stylesheet, /\.velora-theme #company #company-add-phone:focus-visible\{outline:2px solid var\(--ui-focus\);outline-offset:2px\}/);
+  assert.match(stylesheet, /\.staff-profile-dialog \.staff-profile-phone-add\{[^}]*min-height:44px[^}]*background:var\(--ui-input\);color:var\(--ui-text-secondary\)/);
+  assert.match(stylesheet, /\.staff-profile-dialog \.staff-profile-phone-add:hover\{background:var\(--ui-raised\);color:var\(--ui-text-primary\)\}/);
+  assert.match(stylesheet, /\.staff-profile-dialog \.staff-profile-phone-add:focus-visible\{outline:2px solid var\(--ui-focus\);outline-offset:2px\}/);
+  assert.match(stylesheet, /\.staff-phone-row__remove\{[^}]*color:#ff6e78/);
+}
 console.log('PASS company form polish: persisted/new/removed logo, stale preview, normalized data, non-Russian timezone, phone limit, payload and scoped visual contracts');

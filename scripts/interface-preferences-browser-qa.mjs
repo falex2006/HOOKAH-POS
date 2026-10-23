@@ -165,8 +165,15 @@ try {
   await page.route('**/api/session/preferences', (route) => route.request().method() === 'GET' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"preferences_unavailable"}' }) : route.continue());
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByText('Не удалось загрузить настройки с сервера. Показаны локальные значения; обновите страницу после восстановления связи.').waitFor();
+  const readWarning = settings.locator('[data-preference-read-warning]');
+  assert.equal(await readWarning.count(), 1, 'failed preference reads show one persistent warning');
+  assert.equal(await financeToggle.isVisible(), true, 'local controls remain available during read failure');
+  await page.setViewportSize({ width: 320, height: 800 });
+  await readWarning.evaluate(node => node.scrollIntoView({ block: 'center' }));
+  await page.screenshot({ path: path.join(fileURLToPath(new URL('../docs/ai-team/responsive-emulator/', import.meta.url)), 'interface-settings-read-warning-320.png') });
   await page.unroute('**/api/session/preferences');
   await page.reload({ waitUntil: 'networkidle' });
+  assert.equal(await settings.locator('[data-preference-read-warning]').count(), 0, 'warning clears after successful reload');
   assert.equal(await financeToggle.isChecked(), false, 'settings recover from initial GET failure after reload');
   for (const width of [320, 375, 768, 1440]) {
     await page.setViewportSize({ width, height: 800 });

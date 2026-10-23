@@ -3,6 +3,7 @@ const { venueTimezoneSql, refreshTableReservationStatus } = require('./reservati
 const { sanitizeAuditEvent } = require('./audit-privacy');
 const { tableMinimumForTime } = require('./table-minimum-schedule');
 const crypto = require('crypto');
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 
 const PURCHASE_UNIT_FACTORS = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
 
@@ -163,7 +164,7 @@ class InventoryRepository {
   async move(input) {
     const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginPayrollSourceProducerTransaction(client, input.venueId);
       const { rows: itemRows } = await client.query('SELECT id,name,unit FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [input.ingredientId, input.venueId]);
       const item = itemRows[0];
       if (!item) throw new Error('inventory_item_not_found');
@@ -191,7 +192,7 @@ class InventoryRepository {
   async receive(input) {
     const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginPayrollSourceProducerTransaction(client, input.venueId);
       const { rows: itemRows } = await client.query('SELECT id,name,unit,cost FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [input.ingredientId, input.venueId]);
       const item = itemRows[0];
       if (!item) throw new Error('inventory_item_not_found');
@@ -480,7 +481,7 @@ class PurchaseDocumentRepository {
   async post(venueId, id, actorId) {
     const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginPayrollSourceProducerTransaction(client, venueId);
       const docResult = await client.query('SELECT id,status,supplier_name AS "supplierName",document_number AS "documentNumber",source_auto_order_id AS "sourceAutoOrderId" FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 FOR UPDATE', [id, venueId]);
       const doc = docResult.rows[0];
       if (!doc) { const error = new Error('purchase_document_not_found'); throw error; }
@@ -554,7 +555,7 @@ class PurchaseDocumentRepository {
   async reverse(input) {
     const client = await this.pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginPayrollSourceProducerTransaction(client, input.venueId);
       const documentResult = await client.query(`SELECT d.id,d.status,d.venue_id AS "venueId",d.document_number AS "documentNumber",
           d.source_auto_order_id AS "sourceAutoOrderId",d.reversal_policy_version AS "policyVersion",
           d.reversal_policy_mode AS "policyMode",d.reversal_policy_enabled AS "policyEnabled",

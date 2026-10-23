@@ -34,10 +34,11 @@
   const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('crm_session_token') || ''}`, 'Content-Type': 'application/json' });
   const refreshUserFromSession = async () => {
     try {
+      if (!currentSession()) return false;
       const response = await fetch('/api/session', { headers: headers(), cache: 'no-store' });
       if (!response.ok) return false;
       const payload = await response.json().catch(() => ({}));
-      if (!payload?.user || String(payload.user.id || '') !== String(user.id || payload.user.id || '')) return false;
+      if (!currentSession() || !payload?.user || identity(payload.user) !== activeIdentity) return false;
       user = { ...user, ...payload.user };
       localStorage.setItem('crm_session_user', JSON.stringify(user));
       autoLockEnabled = Boolean(user.pinConfigured);
@@ -224,10 +225,18 @@
   const addLockButton = (host) => { if (!host || document.querySelector('#lock-screen-button')) return; const button = document.createElement('button'); button.type = 'button'; button.id = 'lock-screen-button'; button.className = 'lock-screen-button'; button.title = 'Заблокировать экран'; button.setAttribute('aria-label', 'Заблокировать экран'); button.innerHTML = '<svg class="lock-button-glyph" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:block!important" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V6a4 4 0 0 1 8 0v4"></path><path d="M12 14v3"></path></svg>'; button.addEventListener('click', () => lock('manual')); host.prepend(button); };
   const settingsDialog = document.createElement('dialog');
   settingsDialog.className = 'lock-settings-dialog';
-  settingsDialog.innerHTML = `<form method="dialog" class="lock-settings-card lock-settings-simple"><div class="lock-settings-head"><div><h2>Блокировка экрана</h2><p>Личные настройки</p></div><button type="submit" class="lock-settings-close" aria-label="Закрыть">${icon('x')}</button></div><div class="lock-pin-settings"><div class="lock-settings-section-head"><b>PIN-код</b><span id="lock-pin-state">${user.pinConfigured ? 'Установлен' : 'Не задан'}</span></div><div class="lock-pin-fields"><label>Новый PIN<input type="password" id="lock-new-pin" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры"></label><label>Повторите PIN<input type="password" id="lock-new-pin-confirm" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры"></label></div><p class="lock-settings-note">${user.pinConfigured ? 'Оставьте поля пустыми, чтобы сохранить текущий PIN.' : 'Задайте PIN для разблокировки экрана.'}</p><p class="lock-pin-message" id="lock-pin-message" role="alert"></p></div><label class="lock-timeout-label" for="lock-timeout-select">Блокировать при бездействии</label><select id="lock-timeout-select" name="lock-timeout">${timeoutOptions.map((value) => `<option value="${value}">${value ? `Через ${value} мин` : 'Не блокировать автоматически'}</option>`).join('')}</select><button type="button" class="button primary lock-settings-save">Сохранить</button></form>`;
+  settingsDialog.innerHTML = `<form method="dialog" class="lock-settings-card lock-settings-simple"><div class="lock-settings-head"><div><h2>Блокировка экрана</h2><p>Личные настройки</p></div><button type="button" class="lock-settings-close" aria-label="Закрыть">${icon('x')}</button></div><div class="lock-pin-settings"><div class="lock-settings-section-head"><b>PIN-код</b><span id="lock-pin-state">${user.pinConfigured ? 'Установлен' : 'Не задан'}</span></div><div class="lock-pin-fields"><label>Новый PIN<input type="password" id="lock-new-pin" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры"></label><label>Повторите PIN<input type="password" id="lock-new-pin-confirm" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры"></label></div><p class="lock-settings-note">${user.pinConfigured ? 'Оставьте поля пустыми, чтобы сохранить текущий PIN.' : 'Задайте PIN для разблокировки экрана.'}</p><p class="lock-pin-message" id="lock-pin-message" role="alert"></p></div><label class="lock-timeout-label" for="lock-timeout-select">Блокировать при бездействии</label><select id="lock-timeout-select" name="lock-timeout">${timeoutOptions.map((value) => `<option value="${value}">${value ? `Через ${value} мин` : 'Не блокировать автоматически'}</option>`).join('')}</select><p class="lock-pin-message" id="lock-timeout-message" role="alert"></p><button type="button" class="button primary lock-settings-save">Сохранить</button></form>`;
   document.body.append(settingsDialog);
   const syncSettings = () => { const select = settingsDialog.querySelector('#lock-timeout-select'); select.value = String(timeoutMinutes); select._customSelectRefresh?.(); };
-  const settingsButton = document.createElement('button'); settingsButton.type = 'button'; settingsButton.className = 'lock-settings-button'; settingsButton.title = 'Настройки автоблокировки'; settingsButton.setAttribute('aria-label', 'Настройки автоблокировки'); settingsButton.innerHTML = icon('settings'); const openLockSettings = () => { syncSettings(); settingsDialog.showModal(); }; window.__openLockSettings = openLockSettings; settingsButton.addEventListener('click', openLockSettings);
+  let settingsSavePending = false;
+  let settingsOpenEpoch = 0;
+  const clearPinDraft = () => { settingsDialog.querySelector('#lock-new-pin').value = ''; settingsDialog.querySelector('#lock-new-pin-confirm').value = ''; };
+  const settingsClose = settingsDialog.querySelector('.lock-settings-close');
+  settingsClose.addEventListener('click', () => { if (!settingsSavePending) settingsDialog.close(); });
+  settingsDialog.addEventListener('cancel', event => { if (settingsSavePending) event.preventDefault(); });
+  settingsDialog.addEventListener('close', () => { if (!settingsDialog.open) { settingsOpenEpoch += 1; clearPinDraft(); } });
+  settingsDialog.querySelector('form').addEventListener('submit', event => { event.preventDefault(); settingsDialog.querySelector('.lock-settings-save').click(); });
+  const settingsButton = document.createElement('button'); settingsButton.type = 'button'; settingsButton.className = 'lock-settings-button'; settingsButton.title = 'Настройки автоблокировки'; settingsButton.setAttribute('aria-label', 'Настройки автоблокировки'); settingsButton.innerHTML = icon('settings'); const openLockSettings = () => { if (!currentSession()) return; settingsOpenEpoch += 1; clearPinDraft(); settingsDialog.querySelector('#lock-pin-message').textContent = ''; settingsDialog.querySelector('#lock-timeout-message').textContent = ''; syncSettings(); settingsDialog.showModal(); }; window.__openLockSettings = openLockSettings; settingsButton.addEventListener('click', openLockSettings);
   document.addEventListener('click', (event) => { if (event.target.closest('#lock-screen-button')) { event.preventDefault(); event.stopPropagation(); lock('manual'); return; } if (event.target.closest('#lock-settings-button')) { event.preventDefault(); event.stopPropagation(); openLockSettings(); } }, true);
   window.addEventListener('storage', (event) => {
     if (event.key === sessionEventKey && event.newValue) {
@@ -271,7 +280,10 @@
   if (lockHost && !document.querySelector('#lock-settings-button')) { settingsButton.id = 'lock-settings-button'; lockHost.prepend(settingsButton); }
   let lockPreferenceGeneration = 0;
   settingsDialog.querySelector('.lock-settings-save').addEventListener('click', async () => {
+    if (settingsSavePending || !currentSession()) return;
     const pinMessage = settingsDialog.querySelector('#lock-pin-message');
+    const timeoutMessage = settingsDialog.querySelector('#lock-timeout-message');
+    pinMessage.textContent = ''; timeoutMessage.textContent = '';
     const newPin = settingsDialog.querySelector('#lock-new-pin').value.trim();
     const confirmPin = settingsDialog.querySelector('#lock-new-pin-confirm').value.trim();
     if ((newPin || confirmPin) && (!/^\d{4}$/.test(newPin) || newPin !== confirmPin)) {
@@ -280,35 +292,43 @@
     const selected = settingsDialog.querySelector('#lock-timeout-select');
     const selectedTimeout = Number(selected?.value || 0);
     const saveButton = settingsDialog.querySelector('.lock-settings-save');
-    if (saveButton.disabled) return;
-    saveButton.disabled = true;
+    const settingsControls = [saveButton, settingsClose, settingsDialog.querySelector('#lock-new-pin'), settingsDialog.querySelector('#lock-new-pin-confirm'), selected];
+    const saveEpoch = settingsOpenEpoch;
+    const requestHeaders = headers();
+    settingsSavePending = true;
+    settingsControls.forEach(control => { control.disabled = true; control._customSelectRefresh?.(); });
     lockPreferenceGeneration += 1;
     let pinSaved = false;
     try {
       if (newPin) {
-        const response = await fetch(`/api/staff/${encodeURIComponent(user.id)}/pin`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ pin: newPin }) });
+        const response = await fetch(`/api/staff/${encodeURIComponent(user.id)}/pin`, { method: 'PATCH', headers: requestHeaders, body: JSON.stringify({ pin: newPin }) });
         const payload = await response.json().catch(() => ({}));
+        if (!currentSession() || settingsOpenEpoch !== saveEpoch) return;
         if (!response.ok) throw new Error(payload.error || 'pin_save_failed');
         pinSaved = true; user.pinConfigured = true; autoLockEnabled = true;
         settingsDialog.querySelector('#lock-pin-state').textContent = 'Настроен';
         settingsDialog.querySelector('#lock-new-pin').value = ''; settingsDialog.querySelector('#lock-new-pin-confirm').value = '';
         pinMessage.textContent = 'PIN сохранён'; pinMessage.className = 'lock-pin-message success';
       }
-      const response = await fetch('/api/session/preferences', { method: 'PATCH', headers: headers(), body: JSON.stringify({ lockTimeoutMinutes: selectedTimeout }) });
+      if (!currentSession() || settingsOpenEpoch !== saveEpoch) return;
+      const response = await fetch('/api/session/preferences', { method: 'PATCH', headers: requestHeaders, body: JSON.stringify({ lockTimeoutMinutes: selectedTimeout }) });
       const payload = await response.json().catch(() => ({}));
+      if (!currentSession() || settingsOpenEpoch !== saveEpoch) return;
       if (!response.ok) throw new Error(payload.error || 'preferences_save_failed');
       timeoutMinutes = selectedTimeout;
       user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: timeoutMinutes };
       try { localStorage.setItem(timeoutKey, String(timeoutMinutes)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {}
       clearTimeout(timer); schedule();
-      window.setTimeout(() => settingsDialog.close(), newPin ? 500 : 0);
+      window.setTimeout(() => { if (currentSession() && settingsOpenEpoch === saveEpoch && settingsDialog.open) settingsDialog.close(); }, newPin ? 500 : 0);
     } catch (error) {
-      pinMessage.textContent = pinSaved ? 'PIN сохранён. Не удалось сохранить настройки автоблокировки — попробуйте ещё раз' : error.message === 'staff_pin_key_required' ? 'Не настроено хранилище PIN' : newPin ? 'Не удалось сохранить PIN или настройки автоблокировки' : 'Не удалось сохранить настройки автоблокировки';
-      pinMessage.className = 'lock-pin-message error';
-    } finally { saveButton.disabled = false; }
+      if (!currentSession() || settingsOpenEpoch !== saveEpoch) return;
+      const errorTarget = pinSaved || !newPin ? timeoutMessage : pinMessage;
+      errorTarget.textContent = pinSaved ? 'PIN сохранён. Не удалось сохранить настройки автоблокировки — попробуйте ещё раз' : error.message === 'staff_pin_key_required' ? 'Не настроено хранилище PIN' : newPin ? 'Не удалось сохранить PIN' : 'Не удалось сохранить настройки автоблокировки';
+      errorTarget.className = 'lock-pin-message error';
+    } finally { settingsSavePending = false; settingsControls.forEach(control => { control.disabled = false; control._customSelectRefresh?.(); }); }
   });
   const preferencesReadGeneration = lockPreferenceGeneration;
-  fetch('/api/session/preferences', { headers: headers() }).then((response) => response.ok ? response.json() : null).then((payload) => { if (preferencesReadGeneration !== lockPreferenceGeneration) return; const serverValue = Number(payload?.preferences?.lockTimeoutMinutes); if (!timeoutOptions.includes(serverValue)) return; timeoutMinutes = serverValue; user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: serverValue }; try { localStorage.setItem(timeoutKey, String(serverValue)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {} clearTimeout(timer); schedule(); }).catch(() => {});
+  fetch('/api/session/preferences', { headers: headers() }).then((response) => response.ok ? response.json() : null).then((payload) => { if (!currentSession() || preferencesReadGeneration !== lockPreferenceGeneration) return; const serverValue = Number(payload?.preferences?.lockTimeoutMinutes); if (!timeoutOptions.includes(serverValue)) return; timeoutMinutes = serverValue; user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: serverValue }; try { localStorage.setItem(timeoutKey, String(serverValue)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {} clearTimeout(timer); schedule(); }).catch(() => {});
   ['pointerdown', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach((eventName) => document.addEventListener(eventName, () => { if (!locked) schedule(); }, { passive: true }));
   schedule();
 })();

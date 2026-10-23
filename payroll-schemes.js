@@ -81,10 +81,19 @@ const setPath = (object, path, value) => {
 };
 const clone = (value) => structuredClone(value);
 const thresholdLeaf = path => /^(bracketRatesBps|milestoneBonusesCents)\.\d+$/.test(path);
-const PERSONAL_SCALAR_PATHS = new Set(['perShiftCents','stableRateBps','targetCents','baseRateBps','bonusRateBps','excessRatePolicy','lossPolicy','itemRuleBasis']);
-const PERSONAL_CAP_PATHS = new Set(['cap.rateBps', 'cap.basis']);
+// Exact opaque keys: do not normalize a key into another department or allow
+// malformed keys to silently select a zero turnover cap. Match PostgreSQL UTF8.
+const isDepartmentKey = value => typeof value === 'string' && value.length > 0
+  && value === value.trim() && [...value].length <= 80
+  && !/[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(value);
+const departmentParameterErrors = params => [
+  ...(params.department !== undefined && !isDepartmentKey(params.department) ? ['invalid_department'] : []),
+  ...(params.cap?.department !== undefined && !isDepartmentKey(params.cap.department) ? ['invalid_cap_department'] : [])
+];
+const PERSONAL_SCALAR_PATHS = new Set(['perShiftCents','stableRateBps','targetCents','teamWeight','baseRateBps','bonusRateBps','excessRatePolicy','lossPolicy','itemRuleBasis','department']);
+const PERSONAL_CAP_PATHS = new Set(['cap.rateBps', 'cap.basis', 'cap.department']);
 const effectivePersonalParameterErrors = params => {
-  const errors=[];
+  const errors=departmentParameterErrors(params);
   if(params.mode==='personal_target')errors.push(...targetParameterErrors(params));
   if(params.mode==='margin_target')errors.push(...marginParameterErrors(params));
   if(params.mode==='team_fund')errors.push(...teamParameterErrors(params));
@@ -94,7 +103,7 @@ const effectivePersonalParameterErrors = params => {
   if (params.cap !== undefined) {
     if (!params.cap || typeof params.cap !== 'object' || Array.isArray(params.cap)
         || !rateWithinRange(params.cap.rateBps) || !['venue_day', 'employee_department_day'].includes(params.cap.basis)) errors.push('invalid_personal_cap');
-    else if (params.cap.basis === 'employee_department_day' && !(params.cap.department || params.department)) errors.push('cap_department_required');
+    else if (params.cap.basis === 'employee_department_day' && !isDepartmentKey(params.cap.department ?? params.department)) errors.push('cap_department_required');
   }
   return errors;
 };
@@ -164,6 +173,7 @@ const validateScheme = (scheme) => {
   else {
     for (const [roleId, params] of Object.entries(roleParameters)) {
       if (!roleId || !params || typeof params !== 'object' || Array.isArray(params)) { errors.push('invalid_role_parameters'); continue; }
+      errors.push(...departmentParameterErrors(params));
       if (params.mode !== undefined && !MODES.has(params.mode)) errors.push('invalid_role_mode');
       const effectiveRoleMode = params.mode || scheme.mode;
       if (effectiveRoleMode === 'personal_target') errors.push(...targetParameterErrors(params));
@@ -181,7 +191,7 @@ const validateScheme = (scheme) => {
         }
       }
       if (params.cap !== undefined) {
-        if (!params.cap || typeof params.cap !== 'object' || !rateWithinRange(params.cap.rateBps) || !['venue_day', 'employee_department_day'].includes(params.cap.basis) || (params.cap.basis === 'employee_department_day' && !(params.cap.department || params.department))) errors.push('invalid_cap');
+        if (!params.cap || typeof params.cap !== 'object' || !rateWithinRange(params.cap.rateBps) || !['venue_day', 'employee_department_day'].includes(params.cap.basis) || (params.cap.basis === 'employee_department_day' && !isDepartmentKey(params.cap.department ?? params.department))) errors.push('invalid_cap');
       }
       if (params.milestoneBonusesCents !== undefined) {
         if (!params.milestoneBonusesCents || typeof params.milestoneBonusesCents !== 'object' || Array.isArray(params.milestoneBonusesCents)) errors.push('invalid_milestone_bonuses');
@@ -223,7 +233,7 @@ const validateScheme = (scheme) => {
   const seenOverrides = new Map();
   for (const override of Array.isArray(scheme.employeeOverrides) ? scheme.employeeOverrides : []) {
     if (!override || typeof override !== 'object' || Array.isArray(override)) { errors.push('invalid_employee_override'); continue; }
-    const pathAllowed = /^(mode|applyMilestones|milestoneEligibility|perShiftCents|stableRateBps|targetCents|teamWeight|baseRateBps|bonusRateBps|excessRatePolicy|lossPolicy|itemRuleBasis|bracketRatesBps\.\d+|cap\.(rateBps|basis)|milestoneBonusesCents\.\d+)$/.test(String(override?.path || ''));
+    const pathAllowed = /^(mode|applyMilestones|milestoneEligibility|perShiftCents|stableRateBps|targetCents|teamWeight|baseRateBps|bonusRateBps|excessRatePolicy|lossPolicy|itemRuleBasis|department|bracketRatesBps\.\d+|cap\.(rateBps|basis|department)|milestoneBonusesCents\.\d+)$/.test(String(override?.path || ''));
     if (!override?.employeeId || !pathAllowed || !['inherit', 'override'].includes(override.mode)) errors.push('invalid_employee_override');
     if (thresholdLeaf(String(override.path||''))) {
       const [family,key]=override.path.split('.'), number=Number(key);
@@ -231,6 +241,7 @@ const validateScheme = (scheme) => {
       if(!/^(0|[1-9]\d*)$/.test(key)&&!Object.values(roleParameters||{}).some(params=>own(params?.[family],key)))errors.push('noncanonical_new_personal_threshold');
     }
     if (override.mode === 'override' && override.value === undefined) errors.push('override_value_required');
+    if (override.mode === 'override' && ['department', 'cap.department'].includes(override.path) && !isDepartmentKey(override.value)) errors.push('invalid_employee_override_value');
     if (override.mode === 'override' && /^(perShiftCents|targetCents|teamWeight|milestoneBonusesCents\.\d+)$/.test(String(override.path || '')) && !isNonNegativeInteger(override.value)) errors.push('invalid_employee_override_value');
     if (override.mode === 'override' && /^(stableRateBps|baseRateBps|bonusRateBps|bracketRatesBps\.\d+|cap\.rateBps)$/.test(String(override.path || '')) && !rateWithinRange(override.value)) errors.push('invalid_employee_override_value');
     if (override.mode === 'override' && override.path === 'excessRatePolicy' && !['replace_base', 'add_to_base'].includes(override.value)) errors.push('invalid_employee_override_value');
@@ -397,7 +408,7 @@ const calculatePayrollScheme = (input) => {
         if (['progressive_daily', 'final_month_threshold'].includes(resolved.mode) && (!resolved.bracketRatesBps || !own(resolved.bracketRatesBps, '0'))) blockers.push('bracket_rates_required');
         if (['stable_percent', 'percent_only'].includes(resolved.mode) && resolved.stableRateBps === undefined) blockers.push('stable_rate_required');
         if (resolved.mode !== 'percent_only' && resolved.perShiftCents === undefined) blockers.push('per_shift_rate_required');
-        if (resolved.cap?.basis === 'employee_department_day' && !(resolved.cap.department || resolved.department)) blockers.push('cap_department_required');
+        if (resolved.cap?.basis === 'employee_department_day' && !isDepartmentKey(resolved.cap.department ?? resolved.department)) blockers.push('cap_department_required');
       }
     }
   }
@@ -445,7 +456,7 @@ const calculatePayrollScheme = (input) => {
   const sales = Array.isArray(input?.sales) ? input.sales : [];
   const seenSales = new Set();
   for (const line of sales) {
-    if (!line?.id || seenSales.has(line.id) || !isDate(line.date) || line.date < monthStart || line.date > monthEnd || (isDate(coverage?.through) && line.date > coverage.through) || !line.department || !isNonNegativeInteger(line.turnoverCents) || !isNonNegativeInteger(line.commissionBaseCents)) blockers.push('invalid_sales_line');
+    if (!line?.id || seenSales.has(line.id) || !isDate(line.date) || line.date < monthStart || line.date > monthEnd || (isDate(coverage?.through) && line.date > coverage.through) || !isDepartmentKey(line.department) || !isNonNegativeInteger(line.turnoverCents) || !isNonNegativeInteger(line.commissionBaseCents)) blockers.push('invalid_sales_line');
     if (line?.id) seenSales.add(line.id);
     if (line?.employeeId && !employeeIds.has(line.employeeId)) blockers.push('unknown_sales_employee');
     if (!line?.employeeId && isNonNegativeInteger(line?.turnoverCents) && line.turnoverCents > 0 && line.date >= input.periodFrom && line.date <= input.periodTo) blockers.push('unattributed_sales_line');
@@ -735,7 +746,7 @@ const calculatePayrollScheme = (input) => {
       if (params?.cap) {
         const capBase = params.cap.basis === 'venue_day'
           ? (dailyVenueTurnover.get(date)?.daily || 0n)
-          : (employeeDay.departmentTurnoverCents.get(params.cap.department || params.department) || 0n);
+          : (employeeDay.departmentTurnoverCents.get(params.cap.department ?? params.department) || 0n);
         capCents = rateAmountCents(capBase, params.cap.rateBps);
       }
       const cappedSubject = capCents === null || capSubject <= capCents ? capSubject : capCents;
@@ -800,4 +811,4 @@ const calculatePayrollScheme = (input) => {
   };
 };
 
-module.exports = { MODES: [...MODES], calculatePayrollScheme, validateScheme, validatePersonalThresholdAssignments, validatePersonalScalarAssignments };
+module.exports = { isDepartmentKey, MODES: [...MODES], calculatePayrollScheme, validateScheme, validatePersonalThresholdAssignments, validatePersonalScalarAssignments };

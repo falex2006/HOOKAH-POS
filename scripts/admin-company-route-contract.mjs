@@ -39,8 +39,8 @@ assert.ok(helperStart >= 0 && helperEnd > helperStart, 'shared predicate and pre
 const helperSource = portal.slice(helperStart, helperEnd);
 
 const runLatePreferenceCase = async (hash, visibleModules = []) => {
-  const moduleNames = ['kpi', 'insights', 'shift', 'quick', 'staff'];
-  const modules = moduleNames.map((name) => ({ id: name === 'staff' ? 'staff' : name === 'shift' ? 'shift-control' : `dashboard-${name}`, dataset: { dashboardModule: name }, hidden: false }));
+  const moduleNames = ['kpi', 'insights', 'shift', 'quick'];
+  const modules = moduleNames.map((name) => ({ id: name === 'shift' ? 'shift-control' : `dashboard-${name}`, dataset: { dashboardModule: name }, hidden: false }));
   const settings = { querySelector: () => null, querySelectorAll: () => [] };
   let resolvePreferences;
   const preferenceResponse = new Promise((resolve) => { resolvePreferences = resolve; });
@@ -59,13 +59,13 @@ const runLatePreferenceCase = async (hash, visibleModules = []) => {
   };
   vm.runInNewContext(`${helperSource}\nsetupDashboardModules();`, context);
   assert.ok(modules.every((node) => node.hidden === !visibleModules.includes(node.dataset.dashboardModule)), `initial focused modules match ${hash}`);
-  resolvePreferences({ preferences: { dashboardModules: { kpi: true, insights: true, shift: true, quick: true, staff: true } } });
+  resolvePreferences({ preferences: { dashboardModules: { kpi: true, insights: true, shift: true, quick: true } } });
   await new Promise((resolve) => setImmediate(resolve));
   assert.ok(modules.every((node) => node.hidden === !visibleModules.includes(node.dataset.dashboardModule)), `late preference restore must preserve focused visibility on ${hash}`);
 };
 
 for (const hash of ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit']) await runLatePreferenceCase(hash);
 await runLatePreferenceCase('#shift-control', ['shift']);
-await runLatePreferenceCase('#staff', ['staff']);
+await runLatePreferenceCase('#staff');
 
 console.log('ADMIN COMPANY ROUTE CONTRACT: PASS (shared focus predicate, late preference restore, title, visibility, reversal, scoped class)');

@@ -5,10 +5,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY db.js server.js payroll.js recipe-depletion.js purchase-document-validation.js staff-avatar-image.js loyalty-pricing.js loyalty-memory-reconciliation.js payroll-scheme-service.js payroll-scheme-routes.js payroll-scheme-ui.js payroll-schemes.js payroll-venue-turnover-source.js order-attention.js shift-close-contract.js payroll-attendance-manifest.js payroll-canonical-pricing-source.js payroll-incentive-math.js payroll-item-return-source.js payroll-milestone-evidence.js payroll-order-pricing-evidence.js payroll-order-refund-evidence.js payroll-personal-cap-policy.js payroll-snapshot-evidence.js payroll-snapshot-reconciliation.js payroll-snapshot-source-context.js payroll-source-policies.js payroll-source-readiness.js index.html admin.html login.html inventory.html finance.html finance-categories.html finance-report.html reservations.html clients.html orders.html integrations.html network.html delivery.html platform.html admin.js style.css platform.css app.js pos-dispatch.js pos-workspace.js pos-workspace.css portal.js portal-session.js header-shell.js login.js catalog-seed.js lock.js finance-payable-offsets.js finance-payables.js finance-recurring-calculation.js finance-income.js finance-unified-report.js finance-funding.js finance-balance-events.js payroll-sale-credit-source.js ./
+COPY payroll-source-fence.js ./
 COPY assets ./assets
 COPY notification-center.js ./
 COPY finance-payable-recognition.js finance-report-venue-access.js finance-other-income.js finance-expense-drafts.js finance-expense-corrections.js finance-expense-refunds.js ui-dialog.js ./
 COPY audit-privacy.js ./
+COPY payroll-snapshot-persistence.js payroll-typed-snapshot-serializer.js payroll-milestone-storage-serializer.js ./
 COPY effective-permissions.js order-preparation.js reservation-calendar.js ./
 COPY staff-schedule-domain.js staff-schedule-access.js staff-schedule-service.js staff-schedule-routes.js staff-schedule-personal.js ./
 COPY staff-schedule-ui.js staff-schedule-ui.css staff-schedule-personal-ui.js ./

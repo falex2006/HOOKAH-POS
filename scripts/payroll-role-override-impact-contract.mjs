@@ -42,6 +42,6 @@ const malicious = html([{ employeeId: '<img src=x>', path: 'mode', value: '<scri
 assert.match(malicious,/&lt;img/); assert.match(malicious,/&lt;script&gt;/); assert.match(malicious,/&lt;b&gt;/);
 assert.doesNotMatch(malicious, /<img|<script|<b>/);
 assert.match(source,/data-grid-role-impact/); assert.match(source,/definitionField.addEventListener\('input', refreshRoleImpact\)/);
-assert.match(source,/editorApply\(gridSource, rawGridFields\(\), rawGridOverrides\(\)\)/);
+assert.match(source,/editorApply\(currentGridDefinition\(\), rawGridFields\(\), rawGridOverrides\(\)\)/);
 assert.match(source,/data\.impactState|dataset\.impactState/);
 console.log('PAYROLL ROLE OVERRIDE IMPACT: PASS (calendar intersections, exact paths, inheritance, UUID comparisons, unsaved edits, escaping)');

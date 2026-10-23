@@ -421,11 +421,31 @@
       target.append(node); const previous = document.activeElement; let busy = false, dirty = false, guarded = false;
       let disabledBeforePending = new Map();
       node.setAttribute('aria-labelledby', `schedule-dialog-${crypto.randomUUID()}`); node.querySelector('h2').id=node.getAttribute('aria-labelledby');
-      const discard = () => !guarded || !dirty || window.confirm('Есть несохранённые изменения. Закрыть без сохранения?');
+      const actions = node.querySelector('.schedule-actions');
+      const discardPanel = document.createElement('section');
+      discardPanel.className = 'schedule-discard-confirm'; discardPanel.hidden = true;
+      discardPanel.innerHTML = '<p role="alert">Есть несохранённые изменения. Закрыть без сохранения?</p><div class="schedule-actions"><button type="button" class="button" data-keep-editing>Продолжить редактирование</button><button type="button" class="button" data-discard-changes>Закрыть без сохранения</button></div>';
+      actions.after(discardPanel);
+      let discardFocus = null;
+      const keepEditing = () => {
+        if (busy) return;
+        discardPanel.hidden = true; actions.hidden = false;
+        if (discardFocus?.isConnected && node.contains(discardFocus) && !discardFocus.disabled) discardFocus.focus();
+      };
+      const requestClose = () => {
+        if (busy) return;
+        if (!guarded || !dirty) { node.close(); return; }
+        if (!discardPanel.hidden) return;
+        discardFocus = document.activeElement; actions.hidden = true; discardPanel.hidden = false;
+        discardPanel.querySelector('[data-keep-editing]').focus();
+      };
+      discardPanel.querySelector('[data-keep-editing]').onclick = keepEditing;
+      discardPanel.querySelector('[data-discard-changes]').onclick = () => { if (!busy) node.close(); };
       const beforeUnload = event => { if (guarded && dirty) { event.preventDefault(); event.returnValue=''; } };
       window.addEventListener('beforeunload', beforeUnload);
-      node.querySelector('[data-close]').onclick = () => { if (!busy && discard()) node.close(); };
-      node.addEventListener('cancel', event => { if (busy || !discard()) event.preventDefault(); });
+      node.querySelector('[data-close]').onclick = requestClose;
+      node.addEventListener('cancel', event => { event.preventDefault(); if (busy) return; if (!discardPanel.hidden) keepEditing(); else requestClose(); });
+      node.addEventListener('keydown', event => { if (event.key !== 'Escape' || event.defaultPrevented) return; event.preventDefault(); event.stopPropagation(); if (busy) return; if (!discardPanel.hidden) keepEditing(); else requestClose(); });
       node.addEventListener('input', () => { dirty=true; }); node.addEventListener('change', () => { dirty=true; });
       node.addEventListener('close', () => { window.removeEventListener('beforeunload',beforeUnload); node.remove(); previous?.focus(); });
       node.showModal();

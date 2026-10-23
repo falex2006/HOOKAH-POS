@@ -1,62 +1,82 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import vm from 'node:vm';
-const source = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
-const start = source.indexOf('  const reservationDialog =');
-const end = source.indexOf('  const loadTables =', start);
-assert.ok(start > 0 && end > start);
-const nodes = new Map();
-const node = (id) => ({ id, value: '', disabled: false, hidden: false, dataset: {}, textContent: '', events: {}, isConnected: true,
-  classList: { contains: () => false }, selectedOptions: [{ textContent: 'Table 1' }],
-  addEventListener(type, callback) { this.events[type] = callback; },
-  focus() { focused = id; }, setCustomValidity(message) { this.validationMessage = message; },
-  checkValidity() { return this.disabled || (!this.validationMessage && !this.invalid); },
-  reportValidity() { reported = id; }, click() { this.events.click?.({ target: this }); },
-});
-let focused; let reported;
-for (const id of ['dialog', 'form', 'guest', 'phone', 'date', 'time', 'table', 'guests', 'deposit', 'notes', 'step-label', 'back', 'next', 'review', 'message', 'close', 'retry-tables']) nodes.set('#reservation-' + id, node(id));
-const get = (id) => nodes.get('#reservation-' + id);
-const panels = [['guest', 'phone'], ['date', 'time', 'table', 'guests'], ['deposit', 'notes']].map((ids, index) => ({ hidden: index !== 0, dataset: { reservationStep: String(index) }, querySelectorAll: () => ids.map(get), ids }));
-const submit = node('submit'); const form = get('form'); const dialog = get('dialog');
-form.querySelectorAll = () => panels;
-form.querySelector = (selector) => selector.includes('submit') ? submit : selector.endsWith(' input') ? get(panels[Number(selector.match(/"(\d)"/)[1])].ids[0]) : panels[Number(selector.match(/"(\d)"/)[1])];
-dialog.open = false; dialog.showModal = () => { dialog.open = true; }; dialog.close = () => { dialog.open = false; dialog.events.close(); };
-dialog.querySelector = () => null; dialog.getBoundingClientRect = () => ({ left: 10, right: 100, top: 10, bottom: 100 });
-const opener = node('opener');
-const context = vm.createContext({ document: { querySelector: (id) => nodes.get(id), activeElement: opener }, formatRuDate: (date) => date });
-vm.runInContext(source.slice(start, end) + '\nglobalThis.openWizard = openReservationDialog; globalThis.closeWizard = closeReservationDialog; globalThis.validateStep = validateReservationStep; globalThis.showStep = showReservationStep;', context);
-context.openWizard(opener); assert.equal(dialog.open, true); assert.equal(focused, 'guest');
-get('guest').value = '   '; get('next').click(); assert.equal(panels[0].hidden, false); assert.equal(reported, 'guest'); assert.match(get('message').textContent, /имя/);
-get('guest').value = 'Guest'; get('next').click(); assert.equal(panels[1].hidden, false); assert.equal(get('back').hidden, false);
-get('table').disabled = true; get('next').click(); assert.equal(panels[1].hidden, false); assert.equal(focused, 'retry-tables');
-get('table').disabled = false; get('table').value = 'table-1'; get('table').selectedOptions[0].disabled = true; assert.equal(context.validateStep(1), false);
-get('table').selectedOptions[0].disabled = false; vm.runInContext('reservationTablesLoading = true', context); assert.equal(context.validateStep(1), false, 'in-flight floor refresh blocks progression'); vm.runInContext('reservationTablesLoading = false', context);
-get('table').selectedOptions[0].disabled = false; get('date').value = '2026-11-01'; get('time').value = '21:00'; get('guests').value = '2'; get('next').click();
-assert.equal(panels[2].hidden, false); assert.equal(submit.hidden, false); assert.match(get('review').textContent, /Guest.*Без телефона/); assert.match(get('review').textContent, /2026-11-01/);
-get('guest').invalid = true; assert.equal(context.validateStep(0), false); assert.equal(panels[0].hidden, false, 'final validation reveals invalid earlier step'); get('guest').invalid = false;
-context.showStep(2); form.dataset.submitting = '1'; context.closeWizard(); assert.equal(dialog.open, true); get('back').click(); assert.equal(panels[2].hidden, false, 'pending request blocks back');
-let prevented = false; dialog.events.cancel({ preventDefault() { prevented = true; } }); assert.equal(prevented, true); assert.equal(dialog.open, true, 'pending request blocks Escape');
-form.dataset.submitting = '0'; dialog.events.cancel({ preventDefault() {} }); assert.equal(dialog.open, false); assert.equal(focused, 'opener');
-context.openWizard(opener); assert.equal(panels[2].hidden, false, 'reopening resumes draft step');
-let collapsed = false; const trigger = { setAttribute: (_key, value) => { collapsed = value === 'false'; }, focus() {} };
-dialog.querySelector = () => ({ classList: { remove() {} }, querySelector: () => trigger });
-dialog.events.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} }); assert.equal(collapsed, true); assert.equal(dialog.open, true, 'Escape closes select before dialog');
-dialog.querySelector = () => null;
-dialog.events.pointerdown({ target: dialog, clientX: 20, clientY: 20 }); dialog.events.click({ target: dialog }); assert.equal(dialog.open, true, 'dialog padding click does not close');
-dialog.events.pointerdown({ target: dialog, clientX: 0, clientY: 0 }); dialog.events.click({ target: dialog }); assert.equal(dialog.open, false, 'outside backdrop click closes');
-assert.match(source, /id="reservation-form"[^>]*novalidate/, 'wizard owns hidden-step validation');
-const requestedOpenLine = source.split(/\r?\n/).find((line) => line.includes("if (reservationParams.get('tableId')"));
-assert.ok(requestedOpenLine, 'deep-link opening has an explicit query guard');
-for (const [query, shouldOpen] of [
-  ['tableId=t1', true], ['reservationId=r1', false], ['tableId=t1&reservationId=r1', false],
-  ['tableId=t1&action=seat', false], ['action=seat', false], ['', false],
-]) {
-  let openedCount = 0;
-  const queryContext = vm.createContext({ reservationParams: new URLSearchParams(query), requestedTableApplied: false, openReservationDialog() { openedCount++; }, document: { querySelector: () => opener } });
-  vm.runInContext(requestedOpenLine, queryContext);
-  assert.equal(openedCount, Number(shouldOpen), `deep link ${query || '(empty)'} opens only new booking intent`);
-  vm.runInContext(requestedOpenLine, queryContext);
-  assert.equal(openedCount, Number(shouldOpen), 'floor refresh does not reopen an already applied deep link');
-}
-assert.doesNotMatch(source.slice(source.indexOf('function renderReservations()'), source.indexOf("if (page === 'dashboard' && location.hash === '#loyalty')")), /form\.scrollIntoView/, 'new and edit never scroll page to the form');
-console.log('RESERVATION WIZARD QA: PASS (step validation, unavailable place, hidden invalid fields, draft reopen, pending guards, Escape, backdrop, focus return)');
+import { createReservationFixture, validDraft, settle } from './ui042-reservation-fixture.mjs';
+
+// Runs the current wizard and shared modal against a lightweight DOM fixture.
+// Browser focus/pixels and API persistence are verified separately.
+const f = createReservationFixture();
+assert.equal(await f.context.openWizard(f.trigger), true, 'new booking opens through shared UI');
+let handle = f.context.getWindow();
+const panels = f.get('form').querySelectorAll('[data-reservation-step]');
+const next = f.get('next');
+
+f.get('guest').value = '   ';
+next.click();
+assert.equal(panels[0].hidden, false, 'empty guest stays on the first step');
+assert.match(f.get('message').textContent, /имя/i);
+
+f.get('guest').value = 'Guest';
+f.get('guest').dispatch('input');
+assert.equal(f.get('message').textContent, '', 'correcting the guest name clears its stale validation message immediately');
+assert.equal(panels[0].hidden, false, 'editing the guest never advances the wizard automatically');
+next.click();
+assert.equal(panels[1].hidden, false, 'valid guest advances to visit details');
+f.get('table').disabled = true;
+next.click();
+assert.equal(panels[1].hidden, false, 'unavailable place blocks progression');
+assert.match(f.get('message').textContent, /место|загруз/i);
+f.get('guest').value = 'Another Guest';
+f.get('guest').dispatch('input');
+assert.match(f.get('message').textContent, /место|загруз/i, 'guest edits do not clear an unrelated place error');
+
+validDraft(f);
+f.get('guest').value = 'Guest';
+f.get('table').disabled = false;
+next.click();
+assert.equal(panels[2].hidden, false, 'valid visit advances to confirmation');
+assert.match(f.get('review').textContent, /Guest/);
+assert.match(f.get('review').textContent, /2026-11-01/);
+
+assert.equal(handle.close(), true, 'unfinished wizard can be closed before submission');
+assert.equal(handle.element.isConnected, false);
+assert.equal(await f.context.openWizard(f.trigger), true, 'reopening resumes the existing draft');
+handle = f.context.getWindow();
+assert.equal(panels[2].hidden, false, 'reopened draft remains on the confirmation step');
+
+f.get('guest').value = '';
+handle.form.dispatch('submit');
+await settle();
+assert.equal(handle.pending, false, 'invalid draft never enters pending state');
+assert.equal(f.requests.length, 0, 'invalid draft does not call the API');
+assert.equal(panels[0].hidden, false, 'final validation reveals the earlier invalid step');
+
+f.get('guest').value = 'Guest';
+next.click(); next.click();
+handle.form.dispatch('submit');
+await settle();
+assert.equal(f.requests.length, 1);
+assert.equal(f.requests[0].url, '/api/reservations');
+assert.equal(f.requests[0].options.method, 'POST');
+assert.equal(handle.pending, true, 'save locks the modal while the request is pending');
+assert.equal(handle.close(), false, 'pending request cannot close the modal');
+assert.equal(f.get('back').disabled, true, 'pending request disables Back');
+f.get('back').click();
+assert.equal(panels[2].hidden, false, 'Back cannot move away from confirmation while saving');
+
+f.pending[0].reject(new Error('offline'));
+await settle();
+assert.equal(handle.pending, false);
+assert.equal(handle.element.isConnected, true, 'failed save keeps the wizard open');
+assert.equal(f.get('guest').value, 'Guest', 'failed save preserves the entered draft');
+assert.match(handle.element.querySelector('.ui-modal-message').textContent, /сохранить/i);
+
+handle.form.dispatch('submit');
+await settle();
+assert.equal(f.requests.length, 2, 'retry starts a new request after failure');
+f.pending[1].resolve({ id: 'reservation-qa' });
+const outcome = await handle.promise;
+await settle();
+assert.equal(outcome.reason, 'success');
+assert.equal(f.notices.at(-1)[0], 'Бронь подтверждена');
+assert.equal(f.get('list-date').value, '2026-11-01');
+assert.equal(f.get('filter').value, '');
+console.log('RESERVATION WIZARD QA: PASS (current shared modal, validation, unavailable place, review, pending close guard, failed-save draft, retry and POST success)');

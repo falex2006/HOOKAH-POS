@@ -34,6 +34,29 @@ try {
   await page.locator('#login-form button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.includes('/login'));
   await page.goto(`${base}/delivery`, { waitUntil: 'networkidle' });
+  await page.locator('#delivery-new').click();
+  const evidenceDir = path.resolve('docs/ai-team/responsive-emulator');
+  await mkdir(evidenceDir, { recursive: true });
+  for (const width of [320, 768, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    assert.equal(await page.locator('#delivery-new').isVisible(), false, `duplicate new-delivery action is hidden while editor is open at ${width}px`);
+    assert.equal(await page.locator('#delivery-close').isVisible(), true, `compact close remains available at ${width}px`);
+    const closeMetrics = await page.locator('#delivery-editor').evaluate((editor) => {
+      const bounds = (element) => { const rect = element.getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width }; };
+      const panel = bounds(editor), header = bounds(editor.querySelector('.panel-head')), close = bounds(editor.querySelector('#delivery-close'));
+      return { panel, header, close, pageWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth };
+    });
+    assert.ok(closeMetrics.close.width < closeMetrics.panel.width * 0.5, `close action is compact at ${width}px`);
+    assert.ok(Math.abs(closeMetrics.header.right - closeMetrics.close.right) <= 2, `close action aligns to the panel header edge at ${width}px: ${JSON.stringify(closeMetrics)}`);
+    assert.ok(closeMetrics.pageWidth <= closeMetrics.viewportWidth + 1, `delivery editor has no page overflow at ${width}px`);
+    if (width === 320 || width === 1440) await page.screenshot({ path: path.join(evidenceDir, `delivery-editor-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.locator('#delivery-close').click();
+  assert.equal(await page.locator('#delivery-editor').isVisible(), false, 'close collapses the editor');
+  assert.equal(await page.locator('#delivery-new').isVisible(), true, 'single new-delivery action returns after closing');
+  await page.locator('#delivery-new').click();
+  assert.equal(await page.locator('#delivery-new').isVisible(), false, 'reopening does not restore a duplicate action');
   await page.locator('#delivery-name').fill('QA delivery guest');
   await page.locator('#delivery-phone').fill('+7 1');
   await page.locator('#delivery-address').fill('Длинная улица, дом 12, квартира 345');
@@ -112,10 +135,10 @@ try {
   for (const width of [320, 768, 1440]) {
     await page.setViewportSize({ width, height: 800 });
     assert.equal(await page.evaluate(() => { const main = document.querySelector('.portal-main'); const row = document.querySelector('.delivery-row'); return document.documentElement.scrollWidth > innerWidth + 1 || main.scrollWidth > main.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1; }), false, `delivery overflow at ${width}px`);
-    if (width === 320) { const outputDir = path.resolve('docs/ai-team/responsive-emulator'); await mkdir(outputDir, { recursive: true }); await row.screenshot({ path: path.join(outputDir, 'delivery-filled-row-320.png') }); }
+    if (width === 320) await row.screenshot({ path: path.join(evidenceDir, 'delivery-filled-row-320.png') });
   }
   assert.deepEqual(exceptions.filter((message) => !message.includes('ViewTransition opt-in disabled')), []);
-  console.log('DELIVERY BROWSER QA: PASS (create/error/reload/filter, pending status redraw, status lifecycle, 3 widths)');
+  console.log('DELIVERY BROWSER QA: PASS (single disclosure action, compact aligned close at 320/768/1440, create/error/reload/filter, pending status redraw, status lifecycle, 3 widths)');
 } finally {
   await browser?.close();
   child.kill();

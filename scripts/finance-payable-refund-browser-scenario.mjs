@@ -12,7 +12,10 @@ export async function verifyPayableRefund({ page, base, api, db, venueId, venueD
   const payment = await api(`/api/finance/payables/${id}/payments`, 'POST', {amount:'100.00', paymentDate:venueDate, paymentMethod:'bank_transfer', paymentAccountId:bankId, idempotencyKey:randomUUID()});
   assert.equal(payment.status, 201, JSON.stringify(payment.body));
   const expenseId = (await db.query('SELECT expense_id FROM finance_payable_payment_links WHERE venue_id=$1 AND payable_id=$2',[venueId,id])).rows[0].expense_id;
-  await page.goto(`${base}/finance`, {waitUntil:'networkidle'});
+  await page.goto(`${base}/finance#business-obligations`, {waitUntil:'networkidle'});
+  await page.locator('#business-obligations [data-obligation-from]').fill(venueDate);
+  await page.locator('#business-obligations [data-obligation-to]').fill(venueDate);
+  await page.locator('#business-obligations [data-obligation-reload]').click();
   const row = page.locator('#business-obligations article.category-row').filter({hasText:title});
   await row.getByText('История оплат', {exact:true}).click();
   await row.locator(`[data-payable-payment-refund="${expenseId}"]`).click();
