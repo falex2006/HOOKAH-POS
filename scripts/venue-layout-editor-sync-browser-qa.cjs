@@ -41,6 +41,35 @@ server.stderr.on('data', chunk => output += chunk);
     const a = page.locator(`[data-floor-table="${ids.a}"]`);
     const b = page.locator(`[data-floor-table="${ids.b}"]`);
     await a.waitFor();
+    assert.equal(await b.isVisible(), false, 'closed disclosure keeps its fields hidden');
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const geometry = await a.evaluate(form => {
+        const box = form.getBoundingClientRect();
+        const controls = [...form.querySelectorAll('input,.custom-select-trigger')].map(node => node.getBoundingClientRect()).filter(r => r.width && r.height);
+        const label = form.querySelector('label');
+        const range = document.createRange(); range.selectNodeContents(label.firstChild);
+        const actions = [...form.querySelectorAll('.floor-editor-card__actions>button')].map(node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+        return { actions, nameTop: form.querySelector('[name=name]').getBoundingClientRect().top, labelBottom: range.getBoundingClientRect().bottom, width: box.width, controls: controls.map(r => ({ x: r.x - box.x, y: r.y - box.y, width: r.width, height: r.height })), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+      });
+      assert.equal(geometry.overflow, false, `page overflow at ${width}`);
+      assert.ok(geometry.nameTop >= geometry.labelBottom + 3, `name label must sit above its input at ${width}`);
+      assert.ok(Math.abs(geometry.actions[0].width - geometry.actions[1].width) < 1, `equal action widths at ${width}`);
+      assert.ok(geometry.actions.every(action => action.height >= 43.5), `touch action height at ${width}`);
+      if (width <= 480) assert.ok(geometry.actions[1].y >= geometry.actions[0].y + geometry.actions[0].height + 11, 'mobile actions stack with spacing');
+      else assert.ok(Math.abs(geometry.actions[0].y - geometry.actions[1].y) < 1, 'desktop actions share a line');
+      for (const box of geometry.controls) {
+        assert.ok(box.height >= 43.5, `readable touch control height at ${width}: ${box.height}`);
+        assert.ok(box.x >= -1 && box.x + box.width <= geometry.width + 1, `control fits editor at ${width}`);
+      }
+      for (let i = 0; i < geometry.controls.length; i++) for (let j = i + 1; j < geometry.controls.length; j++) {
+        const x = geometry.controls[i], y = geometry.controls[j];
+        assert.ok(x.x + x.width <= y.x + 1 || y.x + y.width <= x.x + 1 || x.y + x.height <= y.y + 1 || y.y + y.height <= x.y + 1, `editor controls overlap at ${width}`);
+      }
+    }
+    await page.evaluate(() => document.body.classList.add('light-theme'));
+    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('[data-floor-table] [name=name]')).backgroundColor.match(/\d+/)?.[0]) > 180);
+    await page.evaluate(() => document.body.classList.remove('light-theme'));
     const bDetails = b.locator('..');
     if (await bDetails.getAttribute('open') === null) await bDetails.locator('summary').click();
     await a.locator('[name=x]').fill('321');

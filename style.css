@@ -5945,3 +5945,26 @@ body.portal .action-modal .action-box>form>.action-footer>button{width:100%;min-
 .ui-modal .venue-layout-editor>.ui-modal-footer{display:grid;grid-template-columns:repeat(2,minmax(0,190px));justify-content:end;gap:12px}
 .ui-modal .venue-layout-editor>.ui-modal-footer>button{width:100%;min-width:0;min-height:44px;margin:0}
 @media(max-width:600px){.ui-modal .venue-layout-editor>.ui-modal-footer{grid-template-columns:minmax(0,1fr)}}
+/* Embedded floor controls use the same field rhythm as the modal editors. */
+.portal #floor-editor .floor-editor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;min-width:0}
+.portal #floor-editor .floor-editor-card-disclosure{min-width:0;border-bottom:1px solid var(--ui-border-control,#30343c)}
+.portal #floor-editor .floor-editor-card-disclosure>summary{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 0;cursor:pointer;list-style:none}
+.portal #floor-editor .floor-editor-card-disclosure>summary::-webkit-details-marker{display:none}
+.portal #floor-editor .floor-editor-card-disclosure>summary>span:first-child{min-width:0;overflow-wrap:anywhere}
+.portal #floor-editor .floor-editor-card-disclosure summary b{display:block}
+.portal #floor-editor .floor-editor-card-disclosure summary small{display:block;margin-top:4px;color:var(--ui-text-secondary,#a4acbb);line-height:1.4}
+.portal #floor-editor .floor-editor-summary-meta{display:flex;align-items:center;gap:8px}
+.portal #floor-editor .floor-editor-summary-chevron{display:grid;place-items:center;width:24px;height:24px;flex:none;transition:transform .15s}
+.portal #floor-editor .floor-editor-card-disclosure[open] .floor-editor-summary-chevron{transform:rotate(90deg)}
+.portal #floor-editor .floor-editor-card{display:grid;gap:12px;min-width:0;margin:0;padding:0 0 16px}
+.portal #floor-editor .floor-editor-card label{display:grid;gap:6px;min-width:0;margin:0;color:var(--ui-text-secondary,#a4acbb);font-size:13px;line-height:1.4}
+.portal #floor-editor .floor-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0}
+.portal #floor-editor .floor-editor-card input,.portal #floor-editor .floor-editor-card select,.portal #floor-editor .floor-editor-card .custom-select-trigger{box-sizing:border-box;width:100%;min-width:0;min-height:44px;max-width:100%;border:1px solid var(--ui-border-control,#39424c);border-radius:10px;background:var(--ui-input,#171d23);color:var(--ui-text-primary,#f3f6fb);font:inherit}
+.portal #floor-editor .floor-editor-card input,.portal #floor-editor .floor-editor-card select{padding:10px 12px}
+.portal #floor-editor .floor-editor-card .custom-select{display:block;min-width:0;width:100%}
+.portal #floor-editor .floor-editor-card input:focus-visible{outline:2px solid var(--ui-focus,#ff8a9b);outline-offset:2px}
+.portal #floor-editor .floor-editor-card__actions{display:grid;grid-template-columns:repeat(2,minmax(0,190px));justify-content:end;gap:12px}
+.portal #floor-editor .floor-editor-card__actions>button{width:100%;min-width:0;min-height:44px;margin:0}
+@media(max-width:480px){.portal #floor-editor .floor-editor-fields>label:has([name=capacity]),.portal #floor-editor .floor-editor-fields>label:has([name=shape]){grid-column:1/-1}.portal #floor-editor .floor-editor-card__actions{grid-template-columns:minmax(0,1fr)}}
+.portal #floor-editor .floor-editor-card>[data-floor-message]{margin:0}
+.portal #floor-editor .floor-editor-card>[data-floor-message]:empty{display:none}
