@@ -27,7 +27,10 @@
   }
   const messages = { schedule_overlap: 'Есть пересекающаяся смена или отсутствие.', schedule_version_conflict: 'Запись уже изменена. Закройте редактор и обновите график; ваши значения пока сохранены в форме.', schedule_forbidden: 'Доступ отозван или недостаточно прав.', schedule_past_reason_required: 'Для изменения прошлого периода укажите причину.', schedule_employee_unavailable: 'Сотрудник недоступен для назначения.', schedule_duration_invalid: 'Смена должна длиться больше 0 и не больше 24 часов.', schedule_break_invalid: 'Перерыв должен быть короче смены.',schedule_break_intervals_invalid:'Проверьте, что каждый перерыв целиком внутри смены и интервалы не пересекаются.',schedule_break_intervals_mismatch:'Сумма интервалов перерыва должна совпадать с указанным количеством минут.',schedule_open_shift_function_required:'Для свободной смены укажите рабочую функцию.', schedule_grant_conflict: 'Права уже изменены. Обновите список.', schedule_availability_unavailable:'Смена попадает на интервал недоступности.',schedule_availability_outside_window:'Смена выходит за доступное окно.',schedule_availability_time_ambiguous:'Часы доступности попадают на неоднозначное или несуществующее местное время.',schedule_warnings_confirmation_required:'Есть мягкое предупреждение. Подтвердите его и укажите причину перед сохранением.',schedule_demand_overlap:'Этот интервал пересекается с другим правилом потребности.',schedule_demand_version_conflict:'Правило уже изменено. Обновите список.',schedule_demand_timezone_changed:'Часовой пояс заведения изменился. Переподтвердите правила потребности.' };
   window.mountStaffSchedule = async target => {
+    const mountIdentity = {};
+    target._scheduleActiveMount = mountIdentity;
     target._schedulePersonalMount = null;
+    messages.schedule_unavailable = 'Сервис графика временно недоступен.';
     messages.schedule_plan_incomplete = 'Сначала уточните время исходной смены.';
     messages.schedule_series_horizon_invalid = 'Проверьте период серии: окончание не раньше начала, горизонт не больше 365 дней.';
     messages.schedule_series_recurrence_invalid = 'Проверьте повторение и интервалы серии. Для изменения структуры существующей серии создайте новую.';
@@ -35,11 +38,11 @@
     let generation = 0, employees = [], entries = [], actual = [], coverage = [], access, date, mode = 'week', ready = false, initialized = false;
     let monthReturnDate = null;
     const roleNames = { owner: 'Владелец', admin: 'Администратор', manager: 'Управляющий', developer: 'Разработчик', senior_bartender: 'Старший бармен', senior_hookah_master: 'Старший кальянщик', bartender: 'Бармен', hookah_master: 'Кальянщик', cleaner: 'Уборщица / уборщик', security: 'Охрана', technician: 'Техник', other_staff: 'Другая должность', staff: 'Сотрудник', waiter: 'Официант', hookah: 'Кальянный мастер' };
-    const alive = () => target.isConnected && location.hash === '#staff-schedule' && localStorage.getItem('crm_session_token') === token;
+    const alive = () => target._scheduleActiveMount === mountIdentity && target.isConnected && location.hash === '#staff-schedule' && localStorage.getItem('crm_session_token') === token;
     async function api(suffix = '', method = 'GET', input) {
       const response = await fetch('/api/staff/schedule' + suffix, { method, cache: 'no-store', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: input === undefined ? undefined : JSON.stringify(input) });
       const result = await response.json();
-      if (!response.ok) { const error = new Error(messages[result.error] || `Не удалось выполнить действие (${result.error || response.status}).`); error.code = result.error; throw error; }
+      if (!response.ok) { const error = new Error(messages[result.error] || (response.status >= 500 ? messages.schedule_unavailable : `Не удалось выполнить действие (${result.error || response.status}).`)); error.code = result.error; throw error; }
       if (!alive()) throw new Error('Контекст страницы изменился.');
       return result;
     }
@@ -203,7 +206,19 @@ ${guide.html}
           : from === to ? dayName(from) : `${dayName(from)} — ${dayName(to)}`;
       }
     }
-    const status = text => { if (alive()) q('[data-status]').textContent = text; };
+    const loadRetry = document.createElement('button');
+    loadRetry.type = 'button'; loadRetry.className = 'button'; loadRetry.dataset.scheduleLoadRetry = '';
+    loadRetry.textContent = 'Повторить загрузку'; loadRetry.hidden = true;
+    q('[data-status]').after(loadRetry);
+    loadRetry.onclick = () => initialize();
+    const status = (text, { retry = false } = {}) => {
+      if (!alive()) return;
+      const message = q('[data-status]');
+      message.setAttribute('role', retry ? 'alert' : 'status');
+      message.setAttribute('aria-live', retry ? 'assertive' : 'polite');
+      message.textContent = text;
+      loadRetry.hidden = !retry;
+    };
     const dayName = day => new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(day + 'T12:00Z'));
     function bounds() {
       if (mode === 'day') return [date, date];
@@ -308,7 +323,7 @@ ${guide.html}
       const daily = day => dailyByDay.get(day) || [];
       const staffing = day => new Set(daily(day).filter(e => e.kind === 'shift' && e.status === 'planned'&&e.userId).map(e => e.userId)).size;
       const openCount = day => daily(day).filter(e=>e.kind==='open_shift'&&e.status==='planned').length;
-      const desktop = mode === 'week' ? `<div class="schedule-week" tabindex="0" aria-label="График недели, прокручиваемая таблица"><table><thead><tr><th>Сотрудник / часы</th>${days.map(d => `<th class="${d === today ? 'is-today' : ''} ${d === date ? 'is-selected-date' : ''}"><button type="button" class="schedule-date-link" data-open-day="${d}"${d===today?' aria-current="date"':''}>${esc(dayName(d))}${d===today?'<span class="schedule-today-marker">Сегодня</span>':''}</button><small>На сменах: ${staffing(d)}${openCount(d)?` · свободно: ${openCount(d)}`:''}</small></th>`).join('')}</tr></thead><tbody>${people.map(p => `<tr><th>${personIdentity(p)}<small>${esc(roleNames[p.role] || p.role)} · ${hours(planned.filter(e => e.userId === p.id).reduce((sum,e) => sum + (planMinutes(e) ?? 0),0))}</small>${!p.active ? '<small>Неактивен</small>' : ''}</th>${days.map(d => `<td class="${d === today ? 'is-today' : ''} ${d === date ? 'is-selected-date' : ''}">${daily(d).filter(e => e.userId === p.id).map(e => card(e,d)).join('') || '<span class="schedule-cell-empty" aria-label="Не запланировано">—</span>'}${access.manage && p.active ? `<button type="button" class="schedule-add schedule-add-quiet" data-add="${esc(p.id)}" data-day="${d}" aria-label="Назначить: ${esc(p.name)}, ${d}">+</button>` : ''}</td>`).join('')}</tr>`).join('')}<tr class="schedule-open-shifts"><th>Свободные смены<small>Не входят в персональные часы</small></th>${days.map(d=>`<td class="${d===today?'is-today':''} ${d===date?'is-selected-date':''}">${daily(d).filter(e=>e.kind==='open_shift').map(e=>card(e,d)).join('')||'<small>Нет</small>'}</td>`).join('')}</tr></tbody></table></div>` : '';
+      const desktop = mode === 'week' ? `<div class="schedule-week" tabindex="0" aria-label="График недели, прокручиваемая таблица"><table><thead><tr><th>Сотрудник / часы</th>${days.map(d => `<th class="${d === today ? 'is-today' : ''} ${d === date ? 'is-selected-date' : ''}"><button type="button" class="schedule-date-link" data-open-day="${d}"${d===today?' aria-current="date"':''}>${esc(dayName(d))}${d===today?'<span class="schedule-today-marker">Сегодня</span>':''}</button><small>На сменах: ${staffing(d)}${openCount(d)?` · свободно: ${openCount(d)}`:''}</small></th>`).join('')}</tr></thead><tbody>${people.map(p => `<tr><th>${personIdentity(p)}<small>${esc(roleNames[p.role] || p.role)} · ${hours(planned.filter(e => e.userId === p.id).reduce((sum,e) => sum + (planMinutes(e) ?? 0),0))}</small>${!p.active ? '<small>Неактивен</small>' : ''}</th>${days.map(d => `<td class="${d === today ? 'is-today' : ''} ${d === date ? 'is-selected-date' : ''}">${daily(d).filter(e => e.userId === p.id).map(e => card(e,d)).join('') || (access.manage && p.active ? '' : '<span class="schedule-cell-empty" aria-label="Не запланировано">—</span>')}${access.manage && p.active ? `<button type="button" class="schedule-add schedule-add-quiet" title="Назначить смену" data-add="${esc(p.id)}" data-day="${d}" aria-label="Назначить: ${esc(p.name)}, ${d}">+</button>` : ''}</td>`).join('')}</tr>`).join('')}<tr class="schedule-open-shifts"><th>Свободные смены<small>Не входят в персональные часы</small></th>${days.map(d=>`<td class="${d===today?'is-today':''} ${d===date?'is-selected-date':''}">${daily(d).filter(e=>e.kind==='open_shift').map(e=>card(e,d)).join('')||'<small>Нет</small>'}</td>`).join('')}</tr></tbody></table></div>` : '';
       const strip = `<nav class="schedule-day-strip" aria-label="Дни недели">${days.map(d => `<button type="button" class="${d === date ? 'is-selected' : ''}" aria-pressed="${d === date}" data-select-day="${d}">${esc(dayName(d))}<small>${staffing(d)} чел.</small></button>`).join('')}</nav>`;
       const dayCards = day => {
         const records = daily(day), active = records.filter(entry => entry.status !== 'cancelled');
@@ -399,7 +414,7 @@ ${guide.html}
         helpButton.hidden = !access.view || !['owner','admin','manager'].includes(access.role);
         q('[data-create]').hidden = !access.manage; if (q('[data-copy-week]')) q('[data-copy-week]').hidden = !access.manage;
         draw(); status(entries.length ? '' : 'В выбранном периоде пока нет записей.'); return true;
-      } catch (error) { if (current === generation) status(error.message + ' Нажмите «Обновить».'); return false; }
+      } catch (error) { if (current === generation) status(error.message, { retry: true }); return false; }
       finally { if (alive() && current === generation) {
         q('[data-grid]').inert = !ready; q('[data-create]').disabled = !ready;q('[data-csv]').disabled=!ready;q('[data-print]').disabled=!ready;
         if (q('[data-copy-week]')) q('[data-copy-week]').disabled = !ready;
@@ -651,21 +666,23 @@ ${guide.html}
       const form = d.node.querySelector('form'), apply = form.querySelector('[type=submit]'), area = form.querySelector('[data-copy-preview]');
       apply.textContent = 'Копировать выбранные'; apply.disabled = true;
       const reasonLabel = document.createElement('label');
-      reasonLabel.textContent = 'Причина копирования (обязательна для прошлых дат)';
+      reasonLabel.textContent = 'Причина копирования (обязательна для смен и прошлых дат)';
       const reasonInput = document.createElement('textarea'); reasonInput.name = 'reason'; reasonInput.maxLength = 500;
       reasonLabel.append(reasonInput); area.after(reasonLabel);
       let preview = null, requestKey = crypto.randomUUID(), query = null,confirmWarnings=false;
-      reasonInput.addEventListener('input', () => { requestKey = crypto.randomUUID(); });
-      const invalidate = () => { preview = null; apply.disabled = true; area.textContent = 'Параметры изменены. Обновите предварительный просмотр.'; requestKey = crypto.randomUUID(); };
+      const resetConfirmation = () => { if (confirmWarnings) d.error('Параметры копирования изменены. Проверьте их и отправьте заново.'); confirmWarnings = false; apply.textContent = 'Копировать выбранные'; requestKey = crypto.randomUUID(); };
+      reasonInput.addEventListener('input', resetConfirmation);
+      const invalidate = () => { resetConfirmation(); preview = null; apply.disabled = true; area.textContent = 'Параметры изменены. Обновите предварительный просмотр.'; };
       form.querySelectorAll('[name=sourceFrom],[name=targetFrom],[name=person]').forEach(el => el.addEventListener('change', invalidate));
       form.querySelector('[data-preview]').onclick = async () => {
+        resetConfirmation();
         query = { sourceFrom: form.elements.sourceFrom.value, targetFrom: form.elements.targetFrom.value,
           userIds: [...form.querySelectorAll('[name=person]:checked')].map(el => el.value) };
         d.pending(true); d.error('Проверка…'); preview = null;
         try {
           preview = await api('/copy/preview', 'POST', query); requestKey = crypto.randomUUID();
           area.innerHTML = preview.items.map(item => `<label class="schedule-check"><input type="checkbox" data-source="${esc(item.sourceId)}" ${item.conflict ? 'disabled' : 'checked'}><span><b>${esc(item.employeeName)} · ${esc(dayName(item.workDate))}</b><small>${item.kind === 'shift' && item.plannedStart ? `${esc(local(item.plannedStart,access.timezone).replace('T',' '))} — ${esc(local(item.plannedEnd,access.timezone).replace('T',' '))}` : esc(labels[item.kind])}</small>${item.conflict ? `<small>Не будет скопировано: ${esc(messages[item.conflict] || item.conflict)}</small>` : ''}</span></label>`).join('') || '<p>В исходной неделе нет записей для выбранных сотрудников.</p>';
-          area.querySelectorAll('input').forEach(el => el.onchange = () => { requestKey = crypto.randomUUID(); apply.disabled = !area.querySelector('input:checked'); });
+          area.querySelectorAll('input').forEach(el => el.onchange = () => { resetConfirmation(); apply.disabled = !area.querySelector('input:checked'); });
           d.error(preview.items.some(item => item.workDate < preview.today)
             ? 'Внимание: в новой неделе есть прошлые даты. Для их сохранения укажите причину. Предпросмотр не меняет график.'
             : 'Предпросмотр не меняет график. Проверьте даты и выбранные записи.');
@@ -688,17 +705,30 @@ ${guide.html}
           await api('/copy/apply', 'POST', { ...query, fingerprint: preview.fingerprint, sourceIds, requestKey, reason: reasonInput.value,confirmWarnings });
           date = query.targetFrom; q('[data-date]').value = date; d.node.close();
           if (await load()) status('Выбранные записи скопированы.');
-        } catch (error) { if(error.code==='schedule_warnings_confirmation_required'){confirmWarnings=true;d.error('Проверьте предупреждения и причину. Повторное нажатие подтвердит их и продолжит копирование.');}else d.error(error.message + ' При изменении графика обновите предпросмотр.'); }
+        } catch (error) { if(error.code==='schedule_warnings_confirmation_required'){confirmWarnings=true;apply.textContent='Подтвердить копирование';d.error('Копирование смен требует подтверждения и причины. Проверьте даты и выбранные записи. Повторное нажатие подтвердит их и продолжит копирование.');}else d.error(error.message + ' При изменении графика обновите предпросмотр.'); }
         finally { d.pending(false); if (preview) preview.items.filter(item => item.conflict).forEach(item => { const el = area.querySelector(`[data-source="${item.sourceId}"]`); if (el) el.disabled = true; }); }
       };
     }
+    let grantsDialog = null;
     async function grants() {
-      try {
+      if (!alive()) return;
+      if (grantsDialog?.isConnected && grantsDialog.open) { grantsDialog.focus(); return; }
+      const d = dialog('Доступ к графику', '<p>Права выдаёт только владелец. Управление настройками графика — отдельное право и доступно только при включённом управлении графиком.</p><div data-grant-list></div>');
+      grantsDialog = d.node;
+      d.node.querySelector('button[type=submit]').remove();
+      d.node.querySelector('form').onsubmit = e => e.preventDefault();
+      const list = d.node.querySelector('[data-grant-list]');
+      let readGeneration = 0, loading = false;
+      const current = generation => alive() && d.node.isConnected && d.node.open && generation === readGeneration;
+      d.node.addEventListener('close', () => { readGeneration++; if (grantsDialog === d.node) grantsDialog = null; }, { once: true });
+      async function loadGrants() {
+        if (loading || !d.node.open || !d.node.isConnected || !alive()) return;
+        const generation = ++readGeneration; loading = true;
+        list.setAttribute('aria-busy', 'true');
+        list.innerHTML = '<p role="status">Загрузка прав доступа…</p>';
+        try {
         const result = await api('/grants');
-        const d = dialog('Доступ к графику', '<p>Права выдаёт только владелец. Управление настройками графика — отдельное право и доступно только при включённом управлении графиком.</p><div data-grant-list></div>');
-        d.node.querySelector('button[type=submit]').remove();
-        d.node.querySelector('form').onsubmit = e => e.preventDefault();
-        const list = d.node.querySelector('[data-grant-list]');
+        if (!current(generation)) return;
         list.innerHTML = result.items.map(p => `<fieldset><legend>${esc(p.name)}</legend><label>Действующий график<select data-user="${esc(p.userId)}">${[['none','Нет доступа'],['view','Только просмотр'],['manage','Управление графиком']].map(([key,label]) => `<option value="${key}" ${p.access === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="schedule-check"><input type="checkbox" data-publish-user="${esc(p.userId)}" ${p.canPublish?'checked':''} ${p.access!=='manage'?'disabled':''}>Публикация графиков</label><label class="schedule-check"><input type="checkbox" data-settings-user="${esc(p.userId)}" ${p.canManageSettings?'checked':''} ${p.access!=='manage'?'disabled':''}>Настройка функций, шаблонов и правил</label></fieldset>`).join('') || '<p>Нет администраторов и управляющих для выдачи прав.</p>';
         list.querySelectorAll('select').forEach(select => select.onchange = async () => {
           const person = result.items.find(p => p.userId === select.dataset.user); d.pending(true);
@@ -709,17 +739,45 @@ ${guide.html}
         list.querySelectorAll('[data-publish-user]').forEach(input=>input.onchange=async()=>{const person=result.items.find(p=>p.userId===input.dataset.publishUser);d.pending(true);try{Object.assign(person,await api('/grants','PUT',{userId:person.userId,access:person.access,version:person.version,canPublish:input.checked}));d.error('Право публикации сохранено.');}catch(error){d.error(error.message);}finally{d.pending(false);syncPublish();}});
         const syncSettings=()=>list.querySelectorAll('[data-settings-user]').forEach(input=>{const person=result.items.find(p=>p.userId===input.dataset.settingsUser);input.disabled=person.access!=='manage';input.checked=!!person.canManageSettings;});
         list.querySelectorAll('[data-settings-user]').forEach(input=>input.onchange=async()=>{const person=result.items.find(p=>p.userId===input.dataset.settingsUser);d.pending(true);try{Object.assign(person,await api('/grants','PUT',{userId:person.userId,access:person.access,version:person.version,canManageSettings:input.checked}));d.error('Право настройки графика сохранено.');}catch(error){d.error(error.message);}finally{d.pending(false);syncSettings();}});
-      } catch (error) { status(error.message); }
+        } catch (error) {
+          if (!current(generation)) return;
+          list.innerHTML = `<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-grants-load-retry>Повторить загрузку</button>`;
+          list.querySelector('[data-grants-load-retry]').onclick = loadGrants;
+        } finally { loading = false; if (current(generation)) list.removeAttribute('aria-busy'); }
+      }
+      await loadGrants();
     }
+    let demandDialog = null;
     async function demandSettings(){
+      if (!alive()) return;
+      if (demandDialog?.isConnected && demandDialog.open) { demandDialog.focus(); return; }
       const d=dialog('Потребность в сотрудниках',`<p class="muted">Задайте минимум людей на функции и интервал времени. Правило действует по местному времени заведения; датированный период заменяет недельные правила для этой функции. Это ориентир покрытия, а не запрет публикации.</p><div data-demand-list></div><fieldset><legend data-demand-title>Новое правило</legend><input type="hidden" name="ruleId"><input type="hidden" name="version" value="0"><label>Рабочая функция<select name="functionId" required></select></label><label>Повторение<select name="scope"><option value="weekly">Каждую неделю</option><option value="date_range">На выбранные даты</option></select></label><label data-demand-weekday>День недели<select name="weekday">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((day,i)=>`<option value="${i+1}">${day}</option>`).join('')}</select></label><div data-demand-dates hidden><label>С даты<input type="date" name="effectiveFrom"></label><label>По дату включительно<input type="date" name="effectiveTo"></label></div><label>Начало<input type="time" name="startTime" value="10:00" required></label><label>Окончание<input type="time" name="endTime" value="18:00" required></label><label>Завершение<select name="endDayOffset"><option value="0">В тот же день</option><option value="1">На следующий день</option></select></label><label>Сколько сотрудников нужно<input type="number" name="requiredCount" min="1" max="100" value="1" required></label><label class="schedule-check"><input type="checkbox" name="active" checked>Правило активно</label><button type="button" class="button" data-demand-new>Новое правило</button></fieldset>`);
+      demandDialog = d.node;
       const form=d.node.querySelector('form'),list=d.node.querySelector('[data-demand-list]');let functions=[],rules=[];
+      const fields=form.querySelector('fieldset'),submit=form.querySelector('[data-submit]');
+      let loading=false,loaded=false,readGeneration=0;
+      const current=generation=>alive()&&d.node.isConnected&&d.node.open&&generation===readGeneration;
+      d.node.addEventListener('close',()=>{readGeneration++;if(demandDialog===d.node)demandDialog=null;},{once:true});
       const reset=()=>{form.elements.ruleId.value='';form.elements.version.value='0';form.elements.scope.value='weekly';form.elements.weekday.value='1';form.elements.effectiveFrom.value='';form.elements.effectiveTo.value='';form.elements.startTime.value='10:00';form.elements.endTime.value='18:00';form.elements.endDayOffset.value='0';form.elements.requiredCount.value='1';form.elements.active.checked=true;d.node.querySelector('[data-demand-title]').textContent='Новое правило';sync();};
       const sync=()=>{const dated=form.elements.scope.value==='date_range';d.node.querySelector('[data-demand-weekday]').hidden=dated;d.node.querySelector('[data-demand-dates]').hidden=!dated;form.elements.effectiveFrom.required=dated;form.elements.effectiveTo.required=dated;};
       const draw=()=>{list.innerHTML=rules.map(rule=>`<div class="planning-list-item"><strong>${esc(functions.find(item=>item.id===rule.functionId)?.name||'Функция')} · ${rule.scope==='weekly'?['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][rule.weekday-1]:`${rule.effectiveFrom} — ${rule.effectiveTo}`}</strong><span>${esc(rule.startTime)}–${esc(rule.endTime)} · ${rule.requiredCount} чел. ${rule.active?'':'· в архиве'}</span><button type="button" class="button" data-demand-edit="${esc(rule.id)}">Изменить</button></div>`).join('')||'<p>Правила ещё не настроены. Можно задать недельный график или исключения на будущие даты.</p>';list.querySelectorAll('[data-demand-edit]').forEach(button=>button.onclick=()=>{const rule=rules.find(item=>item.id===button.dataset.demandEdit);form.elements.ruleId.value=rule.id;form.elements.version.value=String(rule.version);form.elements.functionId.value=rule.functionId;form.elements.scope.value=rule.scope;form.elements.weekday.value=String(rule.weekday||1);form.elements.effectiveFrom.value=rule.effectiveFrom||'';form.elements.effectiveTo.value=rule.effectiveTo||'';form.elements.startTime.value=rule.startTime;form.elements.endTime.value=rule.endTime;form.elements.endDayOffset.value=String(rule.endDayOffset);form.elements.requiredCount.value=String(rule.requiredCount);form.elements.active.checked=rule.active;d.node.querySelector('[data-demand-title]').textContent='Изменить правило';sync();});};
-      try{functions=(await api('/functions')).items.filter(item=>item.active);form.elements.functionId.innerHTML='<option value="">Выберите функцию</option>'+functions.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');rules=(await api('/demand-rules')).items;draw();}catch(error){d.error(error.message);}
+      async function loadDemand(){
+        if(loading||!alive()||!d.node.isConnected||!d.node.open)return;
+        const generation=++readGeneration;loading=true;loaded=false;fields.disabled=true;submit.disabled=true;
+        list.setAttribute('aria-busy','true');list.innerHTML='<p role="status">Загрузка функций и правил…</p>';
+        try{
+          const available=(await api('/functions')).items.filter(item=>item.active);if(!current(generation))return;
+          const result=await api('/demand-rules');if(!current(generation))return;
+          functions=available;rules=result.items;
+          form.elements.functionId.innerHTML='<option value="">Выберите функцию</option>'+functions.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
+          draw();loaded=true;fields.disabled=functions.length===0;submit.disabled=functions.length===0;
+          if(!functions.length){const hint='<p role="status">Нет активных рабочих функций. Добавьте или включите рабочую функцию в настройках графика, затем откройте потребность повторно.</p>';if(!rules.length)list.innerHTML=hint;else list.insertAdjacentHTML('afterbegin',hint);}
+        }catch(error){if(!current(generation))return;list.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-demand-load-retry>Повторить загрузку</button>`;list.querySelector('[data-demand-load-retry]').onclick=loadDemand;}
+        finally{loading=false;if(current(generation))list.removeAttribute('aria-busy');}
+      }
       form.elements.scope.onchange=sync;d.node.querySelector('[data-demand-new]').onclick=reset;
-      form.onsubmit=async event=>{event.preventDefault();const data=new FormData(form),ruleId=data.get('ruleId'),scope=data.get('scope'),body={functionId:data.get('functionId'),scope,weekday:scope==='weekly'?Number(data.get('weekday')):null,effectiveFrom:scope==='date_range'?data.get('effectiveFrom'):null,effectiveTo:scope==='date_range'?data.get('effectiveTo'):null,startTime:data.get('startTime'),endTime:data.get('endTime'),endDayOffset:Number(data.get('endDayOffset')),requiredCount:Number(data.get('requiredCount')),active:form.elements.active.checked,requestKey:crypto.randomUUID(),version:Number(data.get('version'))};d.pending(true);try{await api(`/demand-rules${ruleId?`/${ruleId}`:''}`,ruleId?'PATCH':'POST',body);rules=(await api('/demand-rules')).items;draw();reset();d.error('Правило сохранено и перечитано. Предпросмотр черновика обновится.');}catch(error){d.error(error.message);}finally{d.pending(false);}};
+      form.onsubmit=async event=>{event.preventDefault();if(!loaded||!functions.length||!alive()||!d.node.isConnected||!d.node.open)return;const data=new FormData(form),ruleId=data.get('ruleId'),scope=data.get('scope'),body={functionId:data.get('functionId'),scope,weekday:scope==='weekly'?Number(data.get('weekday')):null,effectiveFrom:scope==='date_range'?data.get('effectiveFrom'):null,effectiveTo:scope==='date_range'?data.get('effectiveTo'):null,startTime:data.get('startTime'),endTime:data.get('endTime'),endDayOffset:Number(data.get('endDayOffset')),requiredCount:Number(data.get('requiredCount')),active:form.elements.active.checked,requestKey:crypto.randomUUID(),version:Number(data.get('version'))};d.pending(true);try{await api(`/demand-rules${ruleId?`/${ruleId}`:''}`,ruleId?'PATCH':'POST',body);rules=(await api('/demand-rules')).items;draw();reset();d.error('Правило сохранено и перечитано. Предпросмотр черновика обновится.');}catch(error){d.error(error.message);}finally{d.pending(false);}};
+      await loadDemand();
     }
     q('[data-refresh]').onclick = () => initialize();
     async function initialize(initialAccess = null) {
@@ -777,8 +835,8 @@ ${guide.html}
       initialized = true;
       target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person],[data-month-jump]').forEach(el=>{el.disabled=false;el._customSelectRefresh?.();});
       await load();
-      } catch (error) { status(error.message + ' Нажмите «Обновить».'); }
-      finally { if (q('[data-refresh]')) q('[data-refresh]').disabled = false; }
+      } catch (error) { status(error.message, { retry: true }); }
+      finally { if (alive() && q('[data-refresh]')) q('[data-refresh]').disabled = false; }
     }
     await initialize(access);
   };

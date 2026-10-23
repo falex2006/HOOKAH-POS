@@ -9029,3 +9029,64 @@ Comparison diagnostic PG41373 stopped on a meaningful SQL guard: mixed-policy co
 - Final integrated DEFAULT PostgreSQL session78201 exited0. Evidence saved as payroll-integration-final-default-78201.log. Covers canonical+payroll+all5UI, all-mode initial/partial/full comparison, saved runs/replay, unpaid replacement and paid corrections/UI/HTTP/DB/reload. Subsequent changes are test-only: explicit foreign-owner comparison denial and missing optional cost isolation; focused session11225 running, no concurrent PostgreSQL suite.
 
 - Focused session11225 exited0 including actual foreign-owner HTTP404, staff/origin403, unchanged source/ledger hashes for both tenants and all-mode/mixed comparisons. Missing-cost isolation pure contract PASS. Finance category extracted-test fixture repaired by UI owner with independent code-health GO; full contract PASS. Shared product code unchanged by that fixture repair. All306 scoped paths reviewed; tmp/private settings excluded. Release branch codex/payroll-ui-release-20261023 created; publication/deployment pending exact commit and CI.
+
+## 2026-10-24 — Local worktime hidden-state package, release17d93081 base
+- Scoped results/backlog: docs/ai-team/SCHEDULE_ATTENDANCE_HIDDEN_STATES_20261023.md. Visible schedule retry, readable503, mount identity against stale responses, attendance error alert and compact unwrapped mobile view labels. No shared portal/server/style, schema, RBAC or payroll logic changes.
+- Final component browser34 observations390/1440 PASS, source/dist4pairs, syntax/diff, discard, lifecycle9, attendance14, graphite and runner42guards PASS. Visual/code-health scoped GO. Actual PG browser23 assertions PASS with terminal0/ownedDB cleanup, but BEFORE nonce/copy finalization; final PG recheck explicitly PENDING while slot belongs to PAYROLL. No VPS actions.
+- Initial PG failures classified as fixture-only (period reset on reload and hidden adaptive first match); no product visibility bypass. Frozen handoff to MASTER, broad audit goal not complete. Staff segmented/search-focus follow-up is separate user request; frozen package remains preserved.
+
+## 2026-10-24 — U4 empty schedule cell; exact frozen128f PG gate
+- Direct user request: removed status dash only beside an allowed assign-plus; readonly/inactive empty semantics retained. Added plus tooltip, preserved employee/date aria and datasets/handlers. Source/dist only render condition, no CSS/API/DB change. Component44 observations390/1440 including five calendar cases and keyboard PASS; mobile hidden-week DOM contract distinguished from visible daycards. Source/parity/syntax/discard/lifecycle9/graphite/diff and scoped code-health/visual GO.
+- Exact frozen128f final PostgreSQL recheck10765 terminal0/PASS23/ownedDB DROP+absenceassert/lockabsent. U4 was shelved during run, restored binarypatch SHA256 B4C8C2963F8EB99BA526E5FA9007720265BDA98237A0AE59A13097321887E67B matched; exact128f assets separately captured and MASTER verified. Slot returned PAYROLL209. Final128f pending superseded by this scoped PASS; U4 itself not called PG-tested. Details docs/ai-team/SCHEDULE_EMPTY_CELL_20261024.md.
+
+## 2026-10-24 — U2: schedule access dialog hidden GET states
+
+Reproduced duplicate grants GET/dialog while loading and missing in-dialog error retry. Immediate singleton dialog with close/reopen and mount/generation guards now passes source12/dist12 component states390/1440; preserved existing rights PUT handlers. Added scoped12px alert/retry gap. Baseline12 mismatches and screenshots retained; strengthened final capture visibility/focus/bounds checks, no production access. Lifecycle9/discard/graphite, syntax/parity/diff and independent code-health/visual GO; prior worktime44 regression PASS. See docs/ai-team/SCHEDULE_ACCESS_DIALOG_20261024.md for exact evidence boundaries. PG/RBAC/PUT and whole U2 completion not claimed; no GitHub/VPS changes. Package preserved separately for coordinator integration.
+
+## 2026-10-24 — U2 demand initial reads
+
+Confirmed Save remained enabled after rules GET failed following functions success; duplicate windows and missing local load/retry also reproduced. Minimal demand-only singleton/initial-read gate, atomic visible GET result, close/current-generation guards and nofunctions explanation. Source18/dist18 GET-only component PASS390/1440, RED32/14captures retained. Lifecycle9/discard/graphite/syntax/parity/diff PASS; root selfvisual/finaldiff, MASTER independent bounded review. Subagent final reviewers exhausted usage, not claimed successful. See SCHEDULE_DEMAND_LOADING_20261024.md. No migrations/API/backend/permission changes, no PG/actual writes/production checks; U2 and overall goal remain open. Saved separately for coordinated integration.
+
+## 2026-10-24 — attendance pending singleflight
+
+Confirmed RED duplicate opposing decisions and selfsubmit in mounted UI; fields editable after send. One mutation perattendanceview, native controls restore previousdisabled, manualrender/read preventedpending; internal success respects otherdraft. Source20/dist20 PASS390/1440 on corrected actualsection fixture; samekey failure/retry, synthetic success→GET, preserved otherformdraft, dispose/remount pending isolation. Priority14 +domain/access/recovery21 +syntax/parity/diff PASS. Root finalselfreview and MASTER independent bounded GO; no unavailable subagent GO. See ATTENDANCE_PENDING_20261024.md. No CSS/route/API/backend/DB/payroll writes or GitHub/VPS action; broader audit remains open. Frozen separately for integration, no wholesale dirty checkout copy.
+
+## 2026-10-24 — attendance approval PG journey preparation
+
+Added owned fixture helper and extended existingallowlistedworktime suite for real ownerpolicy/managerrequest/ownerdecision/managerstart-end at390/1440. No product orPGguard changes. First authorizedrun59256exit1(no timeout) failed fixture201 expectation vs actualroutecontract200; not a productbug/PASS. Sanitizedlog retained, runnercleanupnoerror/lockfalse/slotreturned. New responsecapture,bounded10swaits, unique run artifacts and14assetbefore/after hashes prepared; nextactualPGnotrun. MASTER independently confirmedroutecontract; fulljourneyremains pending. See ATTENDANCE_APPROVAL_JOURNEY_20261024.md, preserveold23PASS scope separately.
+
+## 2026-10-24 — attendance real journey accepted
+
+Actual guardedPG rerun61138exit0 ontestedce4f10b7 PASS69: owner/manager UI/API/SQL/reload request→approve→approvedstart→end390/1440, failure-beforeSQL/draft/samekey and opposingdecisions, managerdeny/foreignpolicy.14productassetSHA stable; MASTER14MATCH+report/terminal+actualvisual390/1440 boundedGO. Fresh unique run artifacts retained, historical23report excluded. Runnercleanupabsenceassert noerror/lockfalse/slotreturnedPAYROLL. Docs append supersedes prior pendingstatus only withinthisscope; overallgoal/U2 remains open, physicalFold/otherACL/errors notclaimed. No productchangesafter2d849f8b, no GitHub/VPS.
+
+## 2026-10-24 — copy confirmation belongs to current request
+
+Reproduced stickyconfirmation acrosschangedselection/reason/dates/fingerprint. Resetexistingflagandlabel onchanges/newpreview; explicitconfirm labelafter409; no unseenwarningdetailsinvented. Actual mountedcomponent RED8→source16/dist16PASS390/1440, samebodykeytransportretry andconflictexclusions. MASTER independentfinaldiff/dist16/mobilevisualGO, rootvisual2widths; lifecycle9/discard/graphite/syntax/parity/diffPASS. Frozen separately; no CSS/backend/domain/PG/GitHub/VPSchanges. Actualattendance69 is olderexactce4, not newcopyPGproof. See SCHEDULE_COPY_CONFIRMATION_20261024.md, broaderauditnotcomplete.
+
+## 2026-10-24 — planning home GET lifecycle closed in bounded scope
+
+Fixed confirmed reloadHome GET guard/error/retry/stalelist/errorclear/close blockers with local state; shared mutationpending unchanged. Baseline12→source12/dist12PASS390/1440 with forcedsingleflight and Escape/lateclosed-response. Scoped12pxalertspacing +planning-homevectorchevron keeps24pxfootprint and details/focus. MASTER independentbaseline/finaldiff/dist12+incrementalCSSvisualGO; rootvisual2widths. Lifecycle9/discard/graphite/syntax/parity/diffPASS. QAonlyGETfixture, no server/draftpublication/PG/roles changes. See PLANNING_HOME_READ_STATES_20261024.md, overallgoal/U2open. Frozen8paths separately, no GitHub/VPS.
+
+## 2026-10-24 — planning detail open/read lifecycle
+
+Confirmed duplicate nativeclick opens duplicate detail GET/windows; initial GET feedback/cancel/localretry missing. Minimal immediatechildsingleton/loading/errorretry/currentidentity guard, readonlyGETeditorentrycancel and publishedstate rendering. Source14/dist14PASS390/1440; RED14/10captures retained; lateclosed success/reject cannotchange newhome/detail. Scoped12pxcontentgrid/h3margin0/naturalretry; sharedmutationhelper/reload/body unchanged. MASTER independentJS/dist14/visualGO; CSSlastdelta selfreview/14focus documented. Lifecycle9/discard/graphite/syntax/parity/diffPASS. See PLANNING_DRAFT_OPEN_20261024.md. Saved8paths, noPG/GitHub/VPS; fullplanning/auditnotcomplete.
+
+## 2026-10-24 — planning submit and publication component gate
+
+Confirmed forcedduplicate submits caused invalidsecondPATCH/publish and earlycontrolunlock; previewfailure nativealert+parenterror duplication. Minimalplanningform inFlightguard +publication immediateownsingletonread/status/retry, readiness/capability gates and oldbody retained; scopedcorrectCSSwrapper. RED14→source24/dist24PASS390/1440, unchangedfailure retryexactbody/key, editsnewkey, savedGETfailurewithoutresave, latepreviewcontext, mandatorywarnings/blockedstates, retainedpublicationdraft, syntheticpublishedreadback. MASTER independentcodehealth/24dist/updated390visualGO; lifecycle9/discard/graphite/syntax/parity/diffPASS. Full evidence/fixturefixes/limits in PLANNING_DRAFT_WRITE_20261024.md. ActualDBwrite/publishgate notrun, payrollPGpriority; noGitHub/VPS and no wholeauditcompletion.
+
+## 2026-10-24 — real planning write and committed-response replay accepted
+
+Added owned UIjourney +explicitplanning mode to existingguardedworktimeQA, oldattendance path preserved, planningJS/dist addedto16assetmanifest. Exact62b8b947 terminal46821exit0 scenario planning PASS50/directasserts3901440: actualcreate/save/readretry then realCOMMITreply200 replacedwith503, samekeypayloadreplay200, exactly1receipt/audit/live mutation afterreload. MASTER independent16SHA/report/terminal/actualscreensGO; runnerownedDBdropabsenceassert nofailure/lockfalse/slotreturned. Freshreportbound to testedhead; no broaderrole/warning/DBclaims. See PLANNING_REAL_WRITE_20261024.md. Nextpublishedhistorycopy separate, no testedartifact rewriting/GitHub/VPS.
+
+## 2026-10-24 — published plan copy clarity
+
+Publishedhistory now says applied changes and past-tense actions, preserving open/discarded text exactly. No handlers/CSS/API/role edits. Reusedread14source/dist andnonemptydistwrite24 focusedbrowserfixtures390/1440, no new mirrortests. MASTER tinydiff/empty390GO; rootnonempty390visual. Evidence PLANNING_HISTORY_COPY_20261024.md +tmp/planning-history-copy. ActualDB50 remainsboundold62/assets, notnewPGclaim; otherauditstatesopen, noGitHub/VPS.
+
+
+## 2026-10-24 — employee settings context isolation
+
+Confirmed P1 A/B late-read mixing and wrong synthetic PUT recipient, old availability writable during loading, clear/defaults identity races. Atomic generation-bound reads, immediate invalidation, current loaded identity and captured save target, write singleflight, defaults captured qualifications, local retry and stale-message clearing. Baseline24 issues -> source16/dist16 screenshot observations PASS390/1440, zero issues/page errors; late rejection and closed-dialog success included. MASTER independent bounded code-health GO; root actual screenshots reviewed. Syntax/parity/diff PASS. See PLANNING_EMPLOYEE_CONTEXT_20261024.md. Synthetic API only, no new PG/production proof. User freezes further improvements and requests verified joint release; MASTER owns integration/deploy; full historical audit not claimed complete.
+## 2026-10-24 — Staff segmented view and neutral search focus
+- Direct user request via MASTER, scoped staff-only style.css/dist selectors; shared staff CSS boundary acknowledged by PAYROLL, Loyalty informed. Removed selected inner ring, kept one switch boundary and distinct neutral tonal fill; pointer search halo replaced by neutral border, keyboard inset2px focus retained. No portal/ARIA/RBAC/POS/calendar changes.
+- Actual memory portal new staff-directory-focus-browser-qa:3views1440/forcedlist390, pointer+keyboardfocus, equalgeometry/nojump/aria/search/overflow PASS; baseline9issues to0. Settled selected/group contrast1.4229669 in all3views, not full WCAG claim. Design/codehealth GO, syntax/visualrules/parity PASS. Evidence and limits docs/ai-team/STAFF_VIEW_FOCUS_20261024.md. No PG/VPS/new release. Frozen worktime128f preserved independently.

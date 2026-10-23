@@ -2520,15 +2520,15 @@ function renderScheduleRoute(target) {
   document.title = `Hookah POS — ${scheduleTitle}`;
   if (!scheduleAssetsPromise) scheduleAssetsPromise = new Promise((resolve, reject) => {
     if (!document.querySelector('[data-schedule-css]')) {
-      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=5'; css.dataset.scheduleCss = ''; document.head.append(css);
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=6'; css.dataset.scheduleCss = ''; document.head.append(css);
     }
-    const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=4';
+    const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=5';
     script.onload = () => {
       const personal = document.createElement('script'); personal.src = '/staff-schedule-personal-ui.js?rev=1';
       const permissions = new Set(window.__portalSessionVerified?.permissions || []);
       const selfOnly = permissions.has('staff_schedule_self') && !permissions.has('staff_schedule_view');
       const loadPlanning = () => {
-        const planning = document.createElement('script'); planning.src='/staff-schedule-planning-ui.js?rev=3';
+        const planning = document.createElement('script'); planning.src='/staff-schedule-planning-ui.js?rev=4';
         planning.onload=resolve; planning.onerror=()=>{planning.remove();scheduleAssetsPromise=null;reject(new Error('schedule_planning_assets_unavailable'));}; document.head.append(planning);
       };
       personal.onload = () => selfOnly ? resolve() : loadPlanning();
@@ -2566,7 +2566,7 @@ function loadAttendanceAssets() {
       css.onerror = () => { css.remove(); };
       document.head.append(css);
     }
-    const script = document.createElement('script'); script.src = '/staff-attendance-ui.js?rev=4';
+    const script = document.createElement('script'); script.src = '/staff-attendance-ui.js?rev=5';
     script.onload = () => window.HOOKAH_ATTENDANCE?.mountManagement ? resolve(window.HOOKAH_ATTENDANCE) : reject(new Error('attendance_ui_unavailable'));
     script.onerror = () => { script.remove(); reject(new Error('attendance_ui_unavailable')); };
     document.head.append(script);

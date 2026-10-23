@@ -86,6 +86,7 @@
     let activeManagementTab = 'overview';
     let refreshTimer = null;
     let snapshot = null;
+    let mutationPending = false;
     const pendingKeys = new Map();
     const keyFor = (key, body) => {
       const fingerprint = JSON.stringify(body);
@@ -118,6 +119,10 @@
     };
     const busy = (button, value) => { if (button?.isConnected) { button.disabled = value; button.setAttribute('aria-busy', value ? 'true' : 'false'); } };
     const run = async ({ button, key, path, method = 'POST', body = {}, success, refresh = true, dirtyForm }) => {
+      if (mutationPending || disposed || !button?.isConnected) return;
+      mutationPending = true;
+      const controls = [...content.querySelectorAll('button,input,select,textarea')].map(node => ({ node, disabled: node.disabled }));
+      controls.forEach(({ node }) => { node.disabled = true; });
       busy(button, true); showFeedback('');
       try {
         const result = await apiCall(api, path, method, { ...body, requestKey: keyFor(key, body) });
@@ -126,18 +131,23 @@
         if (dirtyForm?.isConnected) delete dirtyForm.dataset.attendanceDirty;
         notifyAttendanceChanged();
         if (success) showFeedback(success, 'success');
-        if (refresh) await load({ preserveFeedback: true });
+        if (refresh) await load({ preserveFeedback: true, afterMutation: true });
         return result;
       } catch (error) {
         if (content?.isConnected && !disposed) showFeedback(errorText(error));
         throw error;
-      } finally { busy(button, false); }
+      } finally {
+        mutationPending = false;
+        controls.forEach(({ node, disabled }) => { if (node.isConnected) node.disabled = disabled; });
+        if (button.isConnected) button.setAttribute('aria-busy', 'false');
+      }
     };
     const hasUnsavedInput = () => Boolean(content.querySelector('[data-attendance-dirty="true"]'));
     content.addEventListener('input', event => { const form = event.target.closest('form[data-attendance-policy],form[data-attendance-grant],form[data-attendance-decision],form[data-session-close],form[data-attendance-start-form],form[data-attendance-request-form]'); if (form) form.dataset.attendanceDirty = 'true'; });
     content.addEventListener('change', event => { const form = event.target.closest('form[data-attendance-policy],form[data-attendance-grant],form[data-attendance-decision],form[data-session-close],form[data-attendance-start-form],form[data-attendance-request-form]'); if (form) form.dataset.attendanceDirty = 'true'; });
-    async function load({ preserveFeedback = false, force = false, automatic = false } = {}) {
+    async function load({ preserveFeedback = false, force = false, automatic = false, afterMutation = false } = {}) {
       if (disposed || !content?.isConnected) return;
+      if (mutationPending && !afterMutation) return;
       const activeElement = document.activeElement;
       const focusedInForm = Boolean(activeElement && [...content.querySelectorAll('form')].some(form => form.contains(activeElement)));
       if (automatic && (focusedInForm || content.querySelector('details[open]') || content.querySelector('[aria-expanded="true"]'))) return;
@@ -156,7 +166,7 @@
         kind === 'self' ? renderSelf() : renderManagement();
       } catch (error) {
         if (disposed || !content?.isConnected || generation !== readGeneration) return;
-        content.innerHTML = `<div class="attendance-empty"><h2>Не удалось загрузить данные</h2><p>${escapeHtml(errorText(error))}</p><button class="button" type="button" data-attendance-retry>Повторить</button></div>`;
+        content.innerHTML = `<div class="attendance-empty" role="alert"><h2>Не удалось загрузить данные</h2><p>${escapeHtml(errorText(error))}</p><button class="button" type="button" data-attendance-retry>Повторить</button></div>`;
         content.querySelector('[data-attendance-retry]')?.addEventListener('click', () => load());
       }
     }
@@ -246,6 +256,7 @@
       const overview = activeManagementTab === 'overview' ? `<div class="attendance-management-grid">${sessionsSection}${requestSection}${outsideScheduleSection}<aside class="attendance-card attendance-management-help"><h2>Ежедневная сводка</h2><p>Проверяйте, кто сейчас отмечен работающим, и просматривайте ожидающие запросы. Напоминание о долго открытой отметке — только повод уточнить статус, не автоматическое завершение и не вывод о нарушении.</p><p class="attendance-quiet-note">Личная отметка, кассовая смена и расчёт оплаты — отдельные процессы.</p></aside></div>` : settingsSection;
       content.innerHTML = `${tabs}<div data-attendance-tabpanel="${activeManagementTab}">${overview}</div>`;
       content.querySelectorAll('[data-attendance-tab]').forEach(button => button.addEventListener('click', () => {
+        if (mutationPending) return;
         if (hasUnsavedInput()) { showDraftGuard(); return; }
         activeManagementTab = button.dataset.attendanceTab;
         renderManagement();
@@ -262,7 +273,7 @@
     }
     load();
     refreshTimer = window.setInterval(() => { if (document.visibilityState === 'visible') load({ automatic: true }); }, 20000);
-    return { refresh: load, openOverview() { if (kind !== 'management') return; if (hasUnsavedInput()) { showDraftGuard(); return; } activeManagementTab = 'overview'; renderManagement(); }, dispose() { disposed = true; if (refreshTimer) window.clearInterval(refreshTimer); pendingKeys.clear(); document.body.classList.remove('attendance-route'); } };
+    return { refresh: load, openOverview() { if (kind !== 'management' || mutationPending) return; if (hasUnsavedInput()) { showDraftGuard(); return; } activeManagementTab = 'overview'; renderManagement(); }, dispose() { disposed = true; if (refreshTimer) window.clearInterval(refreshTimer); pendingKeys.clear(); document.body.classList.remove('attendance-route'); } };
   }
 
   window.HOOKAH_ATTENDANCE = Object.freeze({

@@ -17,19 +17,25 @@
     const dialogIsOpen=d=>!!d?.node?.isConnected&&d.node.open===true;
     const markFormDirty=form=>{form.dispatchEvent(new Event('input',{bubbles:true}));form.dispatchEvent(new Event('change',{bubbles:true}));};
     function submit(d, action) {
-      const form=d.node.querySelector('form');let key=crypto.randomUUID();
+      const form=d.node.querySelector('form');let key=crypto.randomUUID(),inFlight=false;
       form.addEventListener('input',()=>{key=crypto.randomUUID();});form.addEventListener('change',()=>{key=crypto.randomUUID();});
-      form.onsubmit=async e=>{e.preventDefault();const data=new FormData(form);d.pending(true);d.error('');try{await action(form,data,key);}catch(error){d.error(error.message);}finally{d.pending(false);}};
+      form.onsubmit=async e=>{e.preventDefault();if(inFlight||!dialogIsOpen(d))return;inFlight=true;try{const data=new FormData(form);d.pending(true);d.error('');await action(form,data,key);}catch(error){d.error(error.message);}finally{inFlight=false;d.pending(false);}};
     }
-    let home,templatesParent;
+    let home,templatesParent,homeLoading=false;
     async function reloadHome(){
-      if(!home?.node.isConnected)return;
-      home.pending(true);
+      const panel=home;
+      if(!dialogIsOpen(panel)||homeLoading)return;
+      homeLoading=true;panel.error('');
+      const area=panel.node.querySelector('[data-drafts]');
+      const controls=[...panel.node.querySelectorAll('.planning-home-actions button,[data-drafts] button')].map(node=>({node,disabled:node.disabled}));
+      controls.forEach(({node})=>{node.disabled=true;});
+      area.innerHTML='<p role="status">Загрузка планов…</p>';
       try{
-        const result=await api('/drafts');if(!home.node.isConnected)return;
-        home.node.querySelector('[data-drafts]').innerHTML=result.items.map(d=>`<button type="button" class="planning-list-item" data-draft="${esc(d.id)}"><strong>${esc(d.name)}</strong><span>${esc(d.from)} — ${esc(d.to)} · ${esc(states[d.state])}</span><small>${d.operations.length} изменений · версия ${d.version}</small></button>`).join('')||'<p>Черновиков пока нет. Создайте план на выбранный период.</p>';
-        home.node.querySelectorAll('[data-draft]').forEach(b=>b.onclick=()=>openDraft(b.dataset.draft));
-      }catch(error){home.error(error.message);}finally{home.pending(false);}
+        const result=await api('/drafts');if(!dialogIsOpen(panel))return;
+        panel.node.querySelector('[data-drafts]').innerHTML=result.items.map(d=>`<button type="button" class="planning-list-item" data-draft="${esc(d.id)}"><strong>${esc(d.name)}</strong><span>${esc(d.from)} — ${esc(d.to)} · ${esc(states[d.state])}</span><small>${d.operations.length} изменений · версия ${d.version}</small></button>`).join('')||'<p>Черновиков пока нет. Создайте план на выбранный период.</p>';
+        panel.node.querySelectorAll('[data-draft]').forEach(b=>b.onclick=()=>openDraft(b.dataset.draft));
+      }catch(error){if(!dialogIsOpen(panel))return;area.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-drafts-retry>Повторить загрузку</button>`;area.querySelector('[data-drafts-retry]').onclick=reloadHome;}
+      finally{homeLoading=false;controls.forEach(({node,disabled})=>{if(node.isConnected)node.disabled=disabled;});}
     }
     function createDraft(){
       const monthStart = day => day.slice(0,7)+'-01';
@@ -46,18 +52,34 @@
       for(const field of [form.elements.from,form.elements.to])field.addEventListener('input',()=>{form.elements.periodPreset.value='custom';form.elements.periodPreset._customSelectRefresh?.();});
         submit(d,async(form,data,key)=>{const saved=await api('/drafts','POST',{name:data.get('name'),from:data.get('from'),to:data.get('to'),userIds:users(form),requestKey:key});d.node.close();await reloadHome();if(dialogIsOpen(home))await openDraft(saved.id);});
     }
+    let draftDialog=null;
     async function openDraft(id){
+      if(!dialogIsOpen(home))return;
+      if(draftDialog?.isConnected&&draftDialog.open){draftDialog.focus();return;}
       try{
-        let draft=await api(`/drafts/${id}`);if(!dialogIsOpen(home))return;
-        const d=plainDialog(draft.name,'<div data-draft-content></div>');
+        let draft,loading=false;
+        const d=plainDialog('План графика','<div data-draft-content></div>');
+        draftDialog=d.node;
+        d.node.addEventListener('close',()=>{if(draftDialog===d.node)draftDialog=null;},{once:true});
         const area=d.node.querySelector('[data-draft-content]');
+        const current=()=>dialogIsOpen(home)&&dialogIsOpen(d)&&draftDialog===d.node;
+        async function loadInitial(){
+          if(loading||!current())return;loading=true;area.innerHTML='<p role="status">Загрузка плана…</p>';d.error('');
+          try{const result=await api(`/drafts/${id}`);if(!current())return;draft=result;d.node.querySelector('h2').textContent=draft.name;draw();}
+          catch(error){if(!current())return;area.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-draft-load-retry>Повторить загрузку</button>`;area.querySelector('[data-draft-load-retry]').onclick=loadInitial;}
+          finally{loading=false;}
+        }
         async function reload(){
           try{draft=await api(`/drafts/${id}`);if(d.node.isConnected){draw();d.error('');}await reloadHome();}
           catch(error){if(!d.node.isConnected)return;area.replaceChildren();d.error('Изменение сохранено, но обновить черновик не удалось. '+error.message);const retry=document.createElement('button');retry.type='button';retry.className='button';retry.dataset.draftRetry='';retry.textContent='Повторить загрузку черновика';retry.onclick=async()=>{d.pending(true);try{await reload();}finally{d.pending(false);}};area.append(retry);}
         }
         function draw(){
           const editable=draft.state==='open';
-          area.innerHTML=`<p><strong>${esc(states[draft.state])}</strong> · ${esc(draft.from)} — ${esc(draft.to)} · версия ${draft.version}</p><p class="muted">Изменения ниже — предложения. Неизменённые смены сохраняются. До публикации расчёты используют действующий график.</p>${editable?'<div class="schedule-toolbar"><button type="button" class="button" data-new-op>Добавить смену / отсутствие</button><button type="button" class="button" data-range>Заполнить период</button></div>':''}<h3>Предлагаемые изменения (${draft.operations.length})</h3><div class="planning-operations">${draft.operations.map((op,i)=>`<article><strong>${esc({create:'Добавить',update:'Изменить',cancel:'Отменить'}[op.operation])}</strong><p>${esc(summary(op.payload||draft.baseItems.find(b=>b.id===op.sourceId)||{}))}</p>${op.sourceTemplate?`<small>Источник: шаблон «${esc(op.sourceTemplate.templateName)}», версия ${op.sourceTemplate.templateVersion}</small>`:''}${op.sourceSeries?`<small>Источник: серия · occurrence ${esc(op.sourceSeries.occurrenceDate)} · версия ${op.sourceSeries.seriesVersion}</small>`:''}${op.reason?`<small>${esc(op.reason)}</small>`:''}${editable?`<div class="schedule-toolbar">${op.operation!=='cancel'?`<button type="button" class="button" data-edit-op="${i}">Изменить</button>`:''}<button type="button" class="button" data-remove-op="${i}">Убрать предложение</button></div>`:''}</article>`).join('')||'<p>Изменений ещё нет.</p>'}</div><details><summary>Действующий график при создании (${draft.baseItems.length})</summary>${draft.baseItems.map(p=>`<article><p>${esc(summary(p))}${p.status==='cancelled'?' · отменена':''}</p>${editable&&p.status==='planned'?`<button type="button" class="button" data-edit-base="${esc(p.id)}">Предложить изменение</button><button type="button" class="button" data-cancel-base="${esc(p.id)}">Предложить отмену</button>`:''}</article>`).join('')||'<p>В выбранном периоде нет записей.</p>'}</details>${editable?`<div class="schedule-toolbar planning-footer"><button type="button" class="button primary" data-publish-preview>Проверить перед публикацией</button><button type="button" class="button" data-discard>Закрыть без публикации</button></div>${!draft.capabilities.canPublish?'<p>Публикация доступна владельцу или сотруднику с отдельно выданным правом.</p>':''}`:''}`;
+          const published=draft.state==='published';
+          const intro=published?'План опубликован. Ниже — история применённых изменений.':'Изменения ниже — предложения. Неизменённые смены сохраняются. До публикации расчёты используют действующий график.';
+          const operationTitle=published?'Применённые изменения':'Предлагаемые изменения',emptyOperations=published?'В истории публикации нет изменений.':'Изменений ещё нет.';
+          const operationLabels=published?{create:'Добавлено',update:'Изменено',cancel:'Отменено'}:{create:'Добавить',update:'Изменить',cancel:'Отменить'};
+          area.innerHTML=`<p><strong>${esc(states[draft.state])}</strong> · ${esc(draft.from)} — ${esc(draft.to)} · версия ${draft.version}</p><p class="muted">${esc(intro)}</p>${editable?'<div class="schedule-toolbar"><button type="button" class="button" data-new-op>Добавить смену / отсутствие</button><button type="button" class="button" data-range>Заполнить период</button></div>':''}<h3>${esc(operationTitle)} (${draft.operations.length})</h3><div class="planning-operations">${draft.operations.map((op,i)=>`<article><strong>${esc(operationLabels[op.operation])}</strong><p>${esc(summary(op.payload||draft.baseItems.find(b=>b.id===op.sourceId)||{}))}</p>${op.sourceTemplate?`<small>Источник: шаблон «${esc(op.sourceTemplate.templateName)}», версия ${op.sourceTemplate.templateVersion}</small>`:''}${op.sourceSeries?`<small>Источник: серия · occurrence ${esc(op.sourceSeries.occurrenceDate)} · версия ${op.sourceSeries.seriesVersion}</small>`:''}${op.reason?`<small>${esc(op.reason)}</small>`:''}${editable?`<div class="schedule-toolbar">${op.operation!=='cancel'?`<button type="button" class="button" data-edit-op="${i}">Изменить</button>`:''}<button type="button" class="button" data-remove-op="${i}">Убрать предложение</button></div>`:''}</article>`).join('')||`<p>${esc(emptyOperations)}</p>`}</div><details><summary>Действующий график при создании (${draft.baseItems.length})</summary>${draft.baseItems.map(p=>`<article><p>${esc(summary(p))}${p.status==='cancelled'?' · отменена':''}</p>${editable&&p.status==='planned'?`<button type="button" class="button" data-edit-base="${esc(p.id)}">Предложить изменение</button><button type="button" class="button" data-cancel-base="${esc(p.id)}">Предложить отмену</button>`:''}</article>`).join('')||'<p>В выбранном периоде нет записей.</p>'}</details>${editable?`<div class="schedule-toolbar planning-footer"><button type="button" class="button primary" data-publish-preview>Проверить перед публикацией</button><button type="button" class="button" data-discard>Закрыть без публикации</button></div>${!draft.capabilities.canPublish?'<p>Публикация доступна владельцу или сотруднику с отдельно выданным правом.</p>':''}`:''}`;
           const baseDetails=[...area.querySelectorAll('details')].find(item=>item.querySelector('[data-edit-base]'));
           if(editable&&baseDetails){const bulk=document.createElement('div');bulk.className='schedule-toolbar schedule-bulk-actions';bulk.innerHTML='<label class="schedule-check"><input type="checkbox" data-bulk-all>Выбрать все доступные</label><button type="button" class="button" data-bulk-shift>Сдвинуть время выбранных</button><button type="button" class="button" data-bulk-cancel>Отменить выбранные</button>';baseDetails.querySelector('summary').after(bulk);
             baseDetails.querySelectorAll('[data-edit-base]').forEach(button=>{const item=draft.baseItems.find(row=>row.id===button.dataset.editBase),existing=draft.operations.find(op=>op.sourceId===item.id),disabled=item.kind!=='shift'||!item.plannedStart||!item.plannedEnd||!!item.seriesId||existing?.operation==='cancel';const label=document.createElement('label');label.className='schedule-check schedule-bulk-select';label.title=disabled?(item.seriesId?'Смену серии корректируйте отдельно, чтобы сохранить исключение occurrence.':'Для массового действия нужны обычные смены с заданным временем.'):'Выбрать эту смену для одного массового действия в черновике';label.innerHTML=`<input type="checkbox" data-bulk-select="${esc(item.id)}" ${disabled?'disabled':''}>${disabled?'Недоступно для группового изменения':'Выбрать смену'}`;button.closest('article').querySelector('p').before(label);});
@@ -75,8 +97,8 @@
           area.querySelector('[data-publish-preview]')?.addEventListener('click',()=>publishEditor(draft,async()=>{await reload();await refresh();},d));
           area.querySelector('[data-discard]')?.addEventListener('click',async()=>{if(!window.confirm('Закрыть черновик без публикации? Предложения сохранятся в истории.'))return;d.pending(true);try{await api(`/drafts/${id}/discard`,'POST',{version:draft.version,requestKey:crypto.randomUUID()});await reload();}catch(error){d.error(error.message);}finally{d.pending(false);}});
         }
-        draw();
-      }catch(error){home.error(error.message);}
+        await loadInitial();
+      }catch(error){if(dialogIsOpen(home))home.error(error.message);}
     }
     async function editOperation(draft,op,index,done,parent){
       const p=op?.payload||(op?.sourceId?draft.baseItems.find(item=>item.id===op.sourceId):null)||{}, day=p.workDate||draft.from;
@@ -114,15 +136,27 @@
     }
     function conflictsText(conflicts){return conflicts.map(c=>typeof c==='string'?(errors[c]||c):`${errors[c.code]||c.code||'Конфликт'}${c.userId?' · '+name(c.userId):''}${c.workDate?' · '+c.workDate:''}`).join('; ');}
     const coverageText=coverage=>(coverage?.advisories||[]).map(item=>`${errors[item.code]||item.code}${item.userId?` · ${name(item.userId)}`:''}${item.workDate?` · ${item.workDate}`:''}${item.start&&item.end?` · ${local(item.start,access.timezone).slice(11)}–${local(item.end,access.timezone).slice(11)}`:''}${item.required!==undefined?` · нужно ${item.required}, есть ${item.covered}`:''}`).join('; ');
+    let publicationDialog=null;
     async function publishEditor(draft,done,parent){
-      try{
-        const preview=await api(`/drafts/${draft.id}/publish-preview`,'POST',{version:draft.version});
-        if(!dialogIsOpen(parent))return;const cover=coverageText(preview.coverage);
-        const d=dialog('Проверка публикации',`<p>Будет применено изменений: ${preview.operations.length}. Неизменённые записи останутся прежними.</p><div class="planning-operations">${preview.operations.map(op=>`<p>${esc({create:'Добавить',update:'Изменить',cancel:'Отменить'}[op.operation])}: ${esc(summary(op.payload||draft.baseItems.find(b=>b.id===op.sourceId)||{}))}</p>`).join('')}</div><p>${preview.conflicts.length?esc(conflictsText(preview.conflicts)):'Пересечений при проверке не найдено. Перед сохранением сервер проверит всё повторно.'}</p>${cover?`<div role="status"><strong>Покрытие потребности (справочно):</strong><p>${esc(cover)}</p><small>Открытые смены считаются незакрытыми местами; неизвестное положение перерыва показано отдельно.</small></div>`:''}${preview.warnings.length?`<div role="status"><strong>Предупреждения доступности:</strong><p>${esc(conflictsText(preview.warnings))}</p><label class="schedule-check"><input type="checkbox" name="confirmWarnings" required>Подтверждаю публикацию с этими предупреждениями</label></div>`:''}<label>Причина публикации${preview.warnings.length?' и подтверждения предупреждений':''} (обязательна для прошлого периода)<textarea name="reason" maxlength="500" ${preview.warnings.length?'required':''}></textarea></label>`);
-        const button=d.node.querySelector('[type=submit]');button.textContent='Опубликовать график';
-        if(!preview.canPublish||preview.conflicts.length||!preview.operations.length){button.remove();d.node.querySelector('form').onsubmit=e=>e.preventDefault();d.error(!preview.canPublish?'Нет права публикации. Владелец может выдать его отдельно.':preview.conflicts.length?'Сначала устраните конфликты.':'Нет изменений для публикации.');return;}
-        submit(d,async(form,data,key)=>{await api(`/drafts/${draft.id}/publish`,'POST',{version:draft.version,fingerprint:preview.fingerprint,reason:data.get('reason'),confirmWarnings:!!form.elements.confirmWarnings?.checked,requestKey:key});d.node.close();await done();});
-      }catch(error){if(dialogIsOpen(parent)){parent.error(error.message);window.alert(error.message);}}
+      if(!dialogIsOpen(parent))return;
+      if(publicationDialog?.isConnected&&publicationDialog.open){publicationDialog.focus();return;}
+      const d=dialog('Проверка публикации','<div data-publish-content></div>');publicationDialog=d.node;
+      d.node.addEventListener('close',()=>{if(publicationDialog===d.node)publicationDialog=null;},{once:true});
+      const area=d.node.querySelector('[data-publish-content]'),form=d.node.querySelector('form'),button=form.querySelector('[type=submit]');
+      button.textContent='Опубликовать график';button.hidden=true;button.disabled=true;form.onsubmit=e=>e.preventDefault();
+      let loading=false;const current=()=>dialogIsOpen(parent)&&dialogIsOpen(d)&&publicationDialog===d.node;
+      async function loadPreview(){
+        if(loading||!current())return;loading=true;area.innerHTML='<p role="status">Проверка публикации…</p>';d.error('');
+        try{
+          const preview=await api(`/drafts/${draft.id}/publish-preview`,'POST',{version:draft.version});if(!current())return;const cover=coverageText(preview.coverage);
+          area.innerHTML=`<p>Будет применено изменений: ${preview.operations.length}. Неизменённые записи останутся прежними.</p><div class="planning-operations">${preview.operations.map(op=>`<p>${esc({create:'Добавить',update:'Изменить',cancel:'Отменить'}[op.operation])}: ${esc(summary(op.payload||draft.baseItems.find(b=>b.id===op.sourceId)||{}))}</p>`).join('')}</div><p>${preview.conflicts.length?esc(conflictsText(preview.conflicts)):'Пересечений при проверке не найдено. Перед сохранением сервер проверит всё повторно.'}</p>${cover?`<div role="status"><strong>Покрытие потребности (справочно):</strong><p>${esc(cover)}</p><small>Открытые смены считаются незакрытыми местами; неизвестное положение перерыва показано отдельно.</small></div>`:''}${preview.warnings.length?`<div role="status"><strong>Предупреждения доступности:</strong><p>${esc(conflictsText(preview.warnings))}</p><label class="schedule-check"><input type="checkbox" name="confirmWarnings" required>Подтверждаю публикацию с этими предупреждениями</label></div>`:''}<label>Причина публикации${preview.warnings.length?' и подтверждения предупреждений':''} (обязательна для прошлого периода)<textarea name="reason" maxlength="500" ${preview.warnings.length?'required':''}></textarea></label>`;
+          if(!preview.canPublish||preview.conflicts.length||!preview.operations.length){button.remove();form.onsubmit=e=>e.preventDefault();d.error(!preview.canPublish?'Нет права публикации. Владелец может выдать его отдельно.':preview.conflicts.length?'Сначала устраните конфликты.':'Нет изменений для публикации.');return;}
+          button.hidden=false;button.disabled=false;
+          submit(d,async(form,data,key)=>{await api(`/drafts/${draft.id}/publish`,'POST',{version:draft.version,fingerprint:preview.fingerprint,reason:data.get('reason'),confirmWarnings:!!form.elements.confirmWarnings?.checked,requestKey:key});d.node.close();await done();});
+        }catch(error){if(!current())return;area.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-publish-load-retry>Повторить проверку</button>`;area.querySelector('[data-publish-load-retry]').onclick=loadPreview;}
+        finally{loading=false;}
+      }
+      await loadPreview();
     }
     const defaultDefinition=()=>({pattern:{type:'weekdays',weekdays:[1,2,3,4,5]},slots:[{kind:'shift',startTime:'10:00',endTime:'18:00',endDayOffset:0,breakMinutes:0,note:''}]});
     function patternFields(def=defaultDefinition(),functions=[]){
@@ -144,7 +178,9 @@
     }
     async function scheduleSettings(){
       const d=plainDialog('Настройки графика','<p>Рабочие функции отделены от должностей и CRM-прав. Архивирование скрывает функцию для новых назначений, но сохраняет историю прошлых графиков.</p><div class="schedule-toolbar"><button type="button" class="button primary" data-add-function>Добавить функцию</button></div><div data-function-list></div><hr><h3>Функции и доступность сотрудников</h3><label>Сотрудник<select data-employee><option value="">Выберите сотрудника</option></select></label><div data-employee-functions></div><div class="schedule-toolbar"><button type="button" class="button" data-save-functions disabled>Сохранить функции сотрудника</button><button type="button" class="button" data-defaults-open disabled>Время по умолчанию</button></div><section data-availability-panel hidden><hr><h3>Доступность и предпочтения</h3><p>Недоступность блокирует назначение; доступные часы ограничивают смены только на указанные дни; предпочтение показывает мягкое предупреждение. Запланированное отсутствие в графике имеет приоритет.</p><h4>Повторяющиеся правила</h4><div data-availability-rules></div><button type="button" class="button" data-add-availability-rule>Добавить правило по дням</button><h4>Исключения по датам</h4><div data-availability-exceptions></div><button type="button" class="button" data-add-availability-exception>Добавить исключение</button><div class="schedule-toolbar"><button type="button" class="button primary" data-save-availability disabled>Сохранить доступность</button></div></section>');
-      const list=d.node.querySelector('[data-function-list]'),person=d.node.querySelector('[data-employee]'),assignments=d.node.querySelector('[data-employee-functions]'),save=d.node.querySelector('[data-save-functions]'),defaultsButton=d.node.querySelector('[data-defaults-open]'),availabilityPanel=d.node.querySelector('[data-availability-panel]'),rulesNode=d.node.querySelector('[data-availability-rules]'),exceptionsNode=d.node.querySelector('[data-availability-exceptions]'),saveAvailability=d.node.querySelector('[data-save-availability]');let catalog=[],employeeState=null,availabilityState=null;
+      const list=d.node.querySelector('[data-function-list]'),person=d.node.querySelector('[data-employee]'),assignments=d.node.querySelector('[data-employee-functions]'),save=d.node.querySelector('[data-save-functions]'),defaultsButton=d.node.querySelector('[data-defaults-open]'),availabilityPanel=d.node.querySelector('[data-availability-panel]'),rulesNode=d.node.querySelector('[data-availability-rules]'),exceptionsNode=d.node.querySelector('[data-availability-exceptions]'),saveAvailability=d.node.querySelector('[data-save-availability]');let catalog=[],employeeState=null,availabilityState=null,employeeGeneration=0,employeeWritePending=false;
+      const currentEmployee=(selected,generation)=>dialogIsOpen(d)&&person.value===selected&&employeeGeneration===generation;
+      const employeeReady=()=>!!employeeState&&!!availabilityState&&employeeState.userId===person.value&&availabilityState.userId===person.value&&dialogIsOpen(d);
       const today=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10),weekdayOptions=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((day,index)=>`<option value="${index+1}">${day}</option>`).join(''),kindOptions='<option value="available">Доступен</option><option value="unavailable">Недоступен</option><option value="preferred">Предпочтительно</option>';
       function availabilityCard(value={},exception=false){return `<fieldset ${exception?'data-availability-exception':'data-availability-rule'}><legend>${exception?'Исключение по дате':'Повторяющееся правило'}</legend>${exception?`<label>Дата<input type="date" data-av-date value="${esc(value.workDate||today)}" required></label>`:`<label>День недели<select data-av-weekday>${weekdayOptions.replace(`value="${value.weekday||1}"`,`value="${value.weekday||1}" selected`)}</select></label><label>Действует с<input type="date" data-av-from value="${esc(value.effectiveFrom||today)}" required></label><label>Действует до (необязательно)<input type="date" data-av-to value="${esc(value.effectiveTo||'')}"></label>`}<label>Тип<select data-av-kind>${kindOptions.replace(`value="${value.kind||'available'}"`,`value="${value.kind||'available'}" selected`)}</select></label><label>С<input type="time" data-av-start value="${esc(value.startTime||'10:00')}" required></label><label>До<input type="time" data-av-end value="${esc(value.endTime||'18:00')}" required></label><label>Окончание<select data-av-offset><option value="0" ${Number(value.endDayOffset||0)===0?'selected':''}>В тот же день</option><option value="1" ${Number(value.endDayOffset||0)===1?'selected':''}>На следующий день</option></select></label><label>Примечание<input data-av-note maxlength="500" value="${esc(value.note||'')}"></label><button type="button" class="button" data-remove-availability>Убрать</button></fieldset>`;}
       function renderAvailability(){if(!availabilityState){availabilityPanel.hidden=true;return;}availabilityPanel.hidden=false;rulesNode.innerHTML=availabilityState.rules.map(rule=>availabilityCard(rule)).join('')||'<p>Нет повторяющихся правил.</p>';exceptionsNode.innerHTML=availabilityState.exceptions.map(item=>availabilityCard(item,true)).join('')||'<p>Нет исключений.</p>';availabilityPanel.querySelectorAll('[data-remove-availability]').forEach(button=>button.onclick=()=>{button.closest('fieldset').remove();saveAvailability.disabled=false;});availabilityPanel.querySelectorAll('input,select').forEach(input=>input.onchange=()=>{saveAvailability.disabled=false;});saveAvailability.disabled=true;}
@@ -160,46 +196,58 @@
         }catch(error){d.error(error.message);}finally{d.pending(false);save.disabled=true;defaultsButton.disabled=!loaded||!employeeState;saveAvailability.disabled=true;}
       }
       async function loadEmployee(){
-        const selected=person.value;if(!selected){employeeState=null;availabilityState=null;assignments.innerHTML='<p>Выберите сотрудника.</p>';save.disabled=true;defaultsButton.disabled=true;saveAvailability.disabled=true;renderAvailability();return;}
-        save.disabled=true;defaultsButton.disabled=true;assignments.textContent='Загрузка функций сотрудника…';
+        const selected=person.value,generation=++employeeGeneration;d.error('');
+        employeeState=null;availabilityState=null;save.disabled=true;defaultsButton.disabled=true;saveAvailability.disabled=true;renderAvailability();rulesNode.replaceChildren();exceptionsNode.replaceChildren();
+        if(!selected){assignments.innerHTML='<p>Выберите сотрудника.</p>';return;}
+        assignments.textContent='Загрузка функций сотрудника…';
         try{
-          employeeState=await api(`/employees/${selected}/functions`);const selectedIds=employeeState.items.map(item=>item.functionId),primary=employeeState.items.find(item=>item.isPrimary)?.functionId||'';
-          availabilityState=await api(`/employees/${selected}/availability`);renderAvailability();
+          const functions=await api(`/employees/${selected}/functions`);
+          if(!currentEmployee(selected,generation))return;
+          const availability=await api(`/employees/${selected}/availability`);
+          if(!currentEmployee(selected,generation))return;
+          employeeState=functions;availabilityState=availability;
+          const selectedIds=functions.items.map(item=>item.functionId),primary=functions.items.find(item=>item.isPrimary)?.functionId||'';
+          renderAvailability();
           const active=catalog.filter(item=>item.active);
           assignments.innerHTML=`<fieldset><legend>Допустимые рабочие функции</legend>${active.map(item=>`<label class="schedule-check"><input type="checkbox" name="employeeFunction" value="${esc(item.id)}" ${selectedIds.includes(item.id)?'checked':''}>${esc(item.name)}</label>`).join('')||'<p>Сначала создайте активную функцию.</p>'}</fieldset><label>Основная функция<select data-primary-function><option value="">Не задана</option>${active.map(item=>`<option value="${esc(item.id)}" ${primary===item.id?'selected':''}>${esc(item.name)}</option>`).join('')}</select></label><small>Несколько функций разрешены. Основная используется только как подсказка и не меняет права доступа.</small>`;
           assignments.querySelectorAll('[name=employeeFunction],[data-primary-function]').forEach(input=>input.addEventListener('change',()=>{save.disabled=false;}));
-           defaultsButton.disabled=false;
-        }catch(error){employeeState=null;availabilityState=null;assignments.textContent=error.message;renderAvailability();}
+          defaultsButton.disabled=false;
+        }catch(error){
+          if(!currentEmployee(selected,generation))return;
+          assignments.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-employee-load-retry>Повторить загрузку</button>`;
+          assignments.querySelector('[data-employee-load-retry]').onclick=loadEmployee;
+        }
       }
       person.onchange=loadEmployee;
       defaultsButton.onclick=async()=>{
-        if(!employeeState||!person.value)return;
-        const employeeId=person.value;
+        if(!employeeReady()||employeeWritePending)return;
+        const employeeId=person.value,generation=employeeGeneration,binding=employeeState;
         try{
           const [defaults,templatesResult]=await Promise.all([api(`/employees/${employeeId}/defaults`),api('/templates')]);
-          if(!dialogIsOpen(d))return;
+          if(!currentEmployee(employeeId,generation)||!employeeReady())return;
           const templates=templatesResult.items.filter(t=>!t.archived&&(
             t.definition?.mode==='team' ? t.definition.members?.some(m=>m.userId===employeeId&&m.slots?.length===1&&m.slots[0].kind==='shift') : t.definition?.slots?.length===1&&t.definition.slots[0].kind==='shift'));
-          const qualified=employeeState.items.map(item=>item.functionId);
+          const qualified=binding.items.map(item=>item.functionId);
           const editor=dialog(`Время по умолчанию · ${name(employeeId)}`,`<p>Это только подсказка при назначении. В календаре время можно изменить вручную.</p><label>Рабочая функция<select name="functionId"><option value="">Общее значение</option>${catalog.filter(item=>item.active&&qualified.includes(item.id)).map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('')}</select></label><p data-default-current></p><label>Источник<select name="source"><option value="time">Указать часы</option><option value="template">Взять из шаблона</option></select></label><div data-default-time><label>С<input type="time" name="startTime" value="10:00"></label><label>До<input type="time" name="endTime" value="18:00"></label><label>Окончание<select name="endDayOffset"><option value="0">В тот же день</option><option value="1">На следующий день</option></select></label><label>Перерыв, мин<input type="number" name="breakMinutes" min="0" step="1" value="0"></label></div><div data-default-template hidden><label>Шаблон<select name="templateId"><option value="">Выберите шаблон</option>${templates.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></label></div>`);
           editor.guard();const form=editor.node.querySelector('form');let current=defaults.items;
           const render=()=>{const item=current.find(row=>(row.functionId||'')===form.elements.functionId.value);form.querySelector('[data-default-current]').textContent=item?`Сохранено · версия ${item.version}`:'Значение пока не задано';form.elements.source.value=item?.templateId&&!item.startTime?'template':'time';form.elements.startTime.value=item?.startTime||'10:00';form.elements.endTime.value=item?.endTime||'18:00';form.elements.endDayOffset.value=String(item?.endDayOffset||0);form.elements.breakMinutes.value=String(item?.breakMinutes||0);form.elements.templateId.value=item?.templateId||'';form.querySelector('[data-default-time]').hidden=form.elements.source.value!=='time';form.querySelector('[data-default-template]').hidden=form.elements.source.value!=='template';};
           form.elements.functionId.onchange=render;form.elements.source.onchange=()=>{form.querySelector('[data-default-time]').hidden=form.elements.source.value!=='time';form.querySelector('[data-default-template]').hidden=form.elements.source.value!=='template';};render();
           submit(editor,async(_form,_data,key)=>{const item=current.find(row=>(row.functionId||'')===form.elements.functionId.value),template=form.elements.source.value==='template';if(template&&!form.elements.templateId.value)throw new Error('Выберите шаблон смены.');await api(`/employees/${employeeId}/defaults`,'PUT',{functionId:form.elements.functionId.value||null,templateId:template?form.elements.templateId.value:null,startTime:template?null:form.elements.startTime.value,endTime:template?null:form.elements.endTime.value,endDayOffset:template?0:Number(form.elements.endDayOffset.value),breakMinutes:template?0:Number(form.elements.breakMinutes.value),version:item?.version||0,requestKey:key});current=(await api(`/employees/${employeeId}/defaults`)).items;editor.node.close();d.error('Значение сохранено и повторно загружено.');});
-        }catch(error){d.error(error.message);}
+        }catch(error){if(currentEmployee(employeeId,generation))d.error(error.message);}
       };
       save.onclick=async()=>{
-        if(!employeeState)return;
+        if(!employeeReady()||employeeWritePending)return;
+        const selected=person.value,generation=employeeGeneration,binding=employeeState;
         const functionIds=[...assignments.querySelectorAll('[name=employeeFunction]:checked')].map(input=>input.value),primaryFunctionId=assignments.querySelector('[data-primary-function]').value||null;
         if(primaryFunctionId&&!functionIds.includes(primaryFunctionId)){d.error('Основная функция должна быть отмечена в допустимых функциях.');return;}
-        let saved=false;d.pending(true);
-        try{employeeState=await api(`/employees/${employeeState.userId}/functions`,'PUT',{version:employeeState.version,functionIds,primaryFunctionId,requestKey:crypto.randomUUID()});d.error('Функции сохранены.');await loadEmployee();saved=true;}
-        catch(error){d.error(error.message);}
-        finally{d.pending(false);save.disabled=saved;}
+        let saved=false;employeeWritePending=true;d.pending(true);
+        try{await api(`/employees/${selected}/functions`,'PUT',{version:binding.version,functionIds,primaryFunctionId,requestKey:crypto.randomUUID()});if(currentEmployee(selected,generation)){await loadEmployee();if(employeeReady())d.error('Функции сохранены.');saved=true;}}
+        catch(error){if(currentEmployee(selected,generation))d.error(error.message);}
+        finally{employeeWritePending=false;d.pending(false);save.disabled=saved||!employeeReady();defaultsButton.disabled=!employeeReady();if(!employeeReady())saveAvailability.disabled=true;}
       };
       d.node.querySelector('[data-add-availability-rule]').onclick=()=>{rulesNode.insertAdjacentHTML('beforeend',availabilityCard({weekday:1,effectiveFrom:today}));rulesNode.querySelectorAll('[data-remove-availability]').forEach(button=>button.onclick=()=>{button.closest('fieldset').remove();saveAvailability.disabled=false;});rulesNode.querySelectorAll('input,select').forEach(input=>input.onchange=()=>{saveAvailability.disabled=false;});saveAvailability.disabled=false;};
       d.node.querySelector('[data-add-availability-exception]').onclick=()=>{exceptionsNode.insertAdjacentHTML('beforeend',availabilityCard({workDate:today},true));exceptionsNode.querySelectorAll('[data-remove-availability]').forEach(button=>button.onclick=()=>{button.closest('fieldset').remove();saveAvailability.disabled=false;});exceptionsNode.querySelectorAll('input,select').forEach(input=>input.onchange=()=>{saveAvailability.disabled=false;});saveAvailability.disabled=false;};
-      saveAvailability.onclick=async()=>{if(!availabilityState)return;const rules=[...rulesNode.querySelectorAll('[data-availability-rule]')].map(card=>({weekday:Number(card.querySelector('[data-av-weekday]').value),kind:card.querySelector('[data-av-kind]').value,startTime:card.querySelector('[data-av-start]').value,endTime:card.querySelector('[data-av-end]').value,endDayOffset:Number(card.querySelector('[data-av-offset]').value),effectiveFrom:card.querySelector('[data-av-from]').value,effectiveTo:card.querySelector('[data-av-to]').value||null,note:card.querySelector('[data-av-note]').value}));const exceptions=[...exceptionsNode.querySelectorAll('[data-availability-exception]')].map(card=>({workDate:card.querySelector('[data-av-date]').value,kind:card.querySelector('[data-av-kind]').value,startTime:card.querySelector('[data-av-start]').value,endTime:card.querySelector('[data-av-end]').value,endDayOffset:Number(card.querySelector('[data-av-offset]').value),note:card.querySelector('[data-av-note]').value}));let saved=false;d.pending(true);try{availabilityState=await api(`/employees/${availabilityState.userId}/availability`,'PUT',{version:availabilityState.version,rules,exceptions,requestKey:crypto.randomUUID()});renderAvailability();d.error('Доступность сохранена и повторно загружена.');saved=true;}catch(error){d.error(error.message);}finally{d.pending(false);saveAvailability.disabled=saved;}};
+      saveAvailability.onclick=async()=>{if(!employeeReady()||employeeWritePending)return;const selected=person.value,generation=employeeGeneration,binding=availabilityState;const rules=[...rulesNode.querySelectorAll('[data-availability-rule]')].map(card=>({weekday:Number(card.querySelector('[data-av-weekday]').value),kind:card.querySelector('[data-av-kind]').value,startTime:card.querySelector('[data-av-start]').value,endTime:card.querySelector('[data-av-end]').value,endDayOffset:Number(card.querySelector('[data-av-offset]').value),effectiveFrom:card.querySelector('[data-av-from]').value,effectiveTo:card.querySelector('[data-av-to]').value||null,note:card.querySelector('[data-av-note]').value}));const exceptions=[...exceptionsNode.querySelectorAll('[data-availability-exception]')].map(card=>({workDate:card.querySelector('[data-av-date]').value,kind:card.querySelector('[data-av-kind]').value,startTime:card.querySelector('[data-av-start]').value,endTime:card.querySelector('[data-av-end]').value,endDayOffset:Number(card.querySelector('[data-av-offset]').value),note:card.querySelector('[data-av-note]').value}));let saved=false;employeeWritePending=true;d.pending(true);try{const result=await api(`/employees/${selected}/availability`,'PUT',{version:binding.version,rules,exceptions,requestKey:crypto.randomUUID()});if(currentEmployee(selected,generation)){availabilityState=result;renderAvailability();d.error('Доступность сохранена и повторно загружена.');saved=true;}}catch(error){if(currentEmployee(selected,generation))d.error(error.message);}finally{employeeWritePending=false;d.pending(false);saveAvailability.disabled=saved||!employeeReady();defaultsButton.disabled=!employeeReady();if(!employeeReady())save.disabled=true;}};
       d.node.querySelector('[data-add-function]').onclick=()=>editFunction(null,load);await load();
     }
     async function venuePolicySettings(){
