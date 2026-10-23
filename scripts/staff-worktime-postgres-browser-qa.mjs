@@ -8,8 +8,11 @@ import path from 'node:path';
 import pg from 'pg';
 import { assertQaDatabaseIdentity, validateQaDatabaseUrl } from './postgres-qa-safety.mjs';
 import { attendanceApprovalJourney } from './staff-attendance-approval-browser-journey.mjs';
+import { planningWriteJourney } from './staff-schedule-planning-write-browser-journey.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const scenario = process.env.WORKTIME_BROWSER_SCENARIO || 'attendance';
+assert.ok(['attendance', 'planning'].includes(scenario), 'Unknown worktime browser scenario');
 const target = validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL, 'Worktime UI QA database');
 assert.match(target.database, /^orders_qa_[a-f0-9]{16}$/i);
 assert.equal(target.database, process.env.LOCAL_FULL_PG_OWNED_DATABASE, 'requires a runner-owned disposable database');
@@ -24,7 +27,7 @@ const artifactRoot = path.join(root, 'tmp', 'staff-worktime-postgres');
 const artifacts = path.join(artifactRoot, `run-${Date.now()}-${randomBytes(3).toString('hex')}`); fs.mkdirSync(artifacts, { recursive: true });
 const testedHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim();
 fs.writeFileSync(path.join(artifactRoot, 'latest-run.json'), JSON.stringify({ testedHead, artifacts, note: 'Run pointer only; PASS requires this directory report plus terminal and runner cleanup' }, null, 2));
-const assetPaths = ['staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-attendance-ui.js', 'staff-attendance-ui.css', 'app.js', 'portal.js', 'style.css'];
+const assetPaths = ['staff-schedule-planning-ui.js', 'staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-attendance-ui.js', 'staff-attendance-ui.css', 'app.js', 'portal.js', 'style.css'];
 const assetHashes = () => Object.fromEntries(assetPaths.flatMap(file => [file, `dist/${file}`]).map(file => [file, createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
 const testedAssets = assetHashes();
 fs.writeFileSync(path.join(artifacts, 'tested-assets-before.json'), JSON.stringify({ testedHead, testedAssets }, null, 2));
@@ -57,6 +60,9 @@ try {
   assert.ok(base, 'owned worktime QA server starts');
   check((await (await fetch(base + '/api/health')).json()).database === 'postgres', 'real PostgreSQL server');
   browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
+  if (scenario === 'planning') {
+    await planningWriteJourney({ browser, db, base, ids, logins, password, artifacts, check, errors });
+  } else {
   for (const width of [390, 1440]) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, locale: 'ru-RU', reducedMotion: 'reduce' });
     const page = await context.newPage(); page.setDefaultTimeout(10000); page.on('pageerror', error => errors.push(error.message));
@@ -116,10 +122,12 @@ try {
       check((await foreign.json()).settings?.preparationMinutes === 0, 'foreign tenant cannot read saved policy');
     }
   }
-  await request.close(); check(errors.length === 0, 'no browser JS errors');
+  await request.close();
+  }
+  check(errors.length === 0, 'no browser JS errors');
   assert.deepEqual(assetHashes(), testedAssets, 'tested product assets stay unchanged throughout the suite');
-  fs.writeFileSync(path.join(artifacts, 'report.json'), JSON.stringify({ checks, widths: [390, 1440], baseCommit: '17d93081', testedHead, testedAssets, scope: 'actual owner schedule/policy and manager attendance request/approval/start/end UI/API/DB/reload; manager management denial and foreign tenant policy API; injected GET503 and initial request POST503, held real approval POST', errors }, null, 2));
-  console.log(`WORKTIME POSTGRES BROWSER QA: PASS (${checks} assertions; actual owner UI/API/DB/reload3901440; manager denial; tenant policy isolation)`);
+  fs.writeFileSync(path.join(artifacts, 'report.json'), JSON.stringify({ checks, widths: [390, 1440], baseCommit: '17d93081', scenario, testedHead, testedAssets, scope: scenario === 'planning' ? 'actual owner draft creation/save/read-failure recovery/publication with committed lost-response same-key replay; SQL receipt/planning-audit/live-row audit exactly-once; reload3901440; no full role/tenant/customACL coverage' : 'actual owner schedule/policy and manager attendance request/approval/start/end UI/API/DB/reload; manager management denial and foreign tenant policy API; injected GET503 and initial request POST503, held real approval POST', errors }, null, 2));
+  console.log(`WORKTIME POSTGRES BROWSER QA: PASS (${checks} assertions; scenario=${scenario}; actual UI/API/DB/reload3901440)`);
 } finally {
   try { await browser?.close(); }
   finally {
