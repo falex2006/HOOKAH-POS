@@ -15,6 +15,8 @@ const { resolveAccess: resolveScheduleAccess } = require('./staff-schedule-acces
 const { normalizeTableMinimumSchedule, tableMinimumForTime, tableMinimumForClock } = require('./table-minimum-schedule');
 const { orderAttentionReasons } = require('./order-attention');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
+const { persistSaleCostEvidence } = require('./pos-sale-cost-evidence');
+const { createInventoryOrderCostCapture, unavailableInventoryOrderCostCapture } = require('./inventory-order-cost-capture');
 const { validateDataUrl: validatePurchasePaymentDocument } = require('./purchase-document-validation');
 const { normalizeStaffAvatarData } = require('./staff-avatar-image');
 const { evaluateLoyaltyPricing, subtotalFromLines } = require('./loyalty-pricing');
@@ -478,7 +480,7 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
     if (ownsTransaction) await client.query('BEGIN');
     let requirements = [];
     const cardProductIds = new Set();
-    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", p.inventory_mode AS "inventoryMode",
+    const { rows: cards } = await client.query(`SELECT oi.id AS "orderItemId", oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", p.inventory_mode AS "inventoryMode",
         EXISTS (SELECT 1 FROM recipes legacy_recipe JOIN recipe_items legacy_item ON legacy_item.product_id=legacy_recipe.product_id
           JOIN ingredients legacy_ingredient ON legacy_ingredient.id=legacy_item.ingredient_id AND legacy_ingredient.venue_id=p.venue_id
           WHERE legacy_recipe.product_id=oi.product_id AND legacy_item.quantity>0) AS "hasLegacyRecipe",
@@ -496,6 +498,7 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
         LIMIT 1
       ) rc ON true
       WHERE oi.order_id=$1`, [orderId, venueId]);
+    const costCapture = createInventoryOrderCostCapture(cards);
     for (const card of cards) {
       if (card.inventoryMode === 'non_stock') continue;
       if (card.inventoryMode === 'needs_review') throw Object.assign(new Error('product_inventory_mode_required'), { code: 'product_inventory_mode_required', productId: card.productId, productName: card.productName });
@@ -514,7 +517,7 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
       for (const item of scaledIngredients) {
         const name = String(item.name || '').trim(); const ingredientId = String(item.ingredientId || '').trim();
         if (!name || !/^[0-9a-f-]{36}$/i.test(ingredientId)) throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', productId: card.productId });
-        requirements.push({ ingredientId, name, quantityText: String(item.quantity || ''), sourceUnit: String(item.unit || '') });
+        requirements.push({ orderItemId: card.orderItemId, ingredientId, name, quantityText: String(item.quantity || ''), sourceUnit: String(item.unit || '') });
       }
     }
     // Older recipe rows remain a fallback only for products without an active
@@ -533,7 +536,13 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
       if (error.code !== '42P01') throw error;
       await client.query('ROLLBACK TO SAVEPOINT legacy_recipe_lookup');
     }
-    if (!requirements.length) { if (ownsTransaction) await client.query('COMMIT'); return { lines: [], totalCost: 0 }; }
+    if (!requirements.length) {
+      const prior = await client.query(`SELECT EXISTS(SELECT 1 FROM stock_movements WHERE venue_id=$1 AND order_id=$2 AND direction='out')
+        OR EXISTS(SELECT 1 FROM order_costs WHERE venue_id=$1 AND order_id=$2) AS historical`, [venueId, orderId]);
+      const costEvidenceInput = prior.rows[0]?.historical === true ? unavailableInventoryOrderCostCapture() : costCapture.snapshot();
+      if (ownsTransaction) await client.query('COMMIT');
+      return { lines: [], totalCost: 0, costEvidenceInput };
+    }
     const ids = requirements.map((item) => item.ingredientId).filter((item) => /^[0-9a-f-]{36}$/i.test(String(item || '')));
     const names = requirements.map((item) => String(item.name || '').toLowerCase()).filter(Boolean);
     const queryIds = ids.length ? ids : ['00000000-0000-0000-0000-000000000000'];
@@ -544,7 +553,7 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
       const snapshot = await client.query('SELECT cost FROM order_costs WHERE venue_id=$1 AND order_id=$2', [venueId, orderId]);
       const historicalCost = snapshot.rows[0] ? Number(snapshot.rows[0].cost) : Number(existing.rows[0].cost);
       if (ownsTransaction) await client.query('COMMIT');
-      return { lines: [], totalCost: historicalCost, alreadyDepleted: true };
+      return { lines: [], totalCost: historicalCost, alreadyDepleted: true, costEvidenceInput: unavailableInventoryOrderCostCapture() };
     }
     const { rows: stock } = await client.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','transfer','adjustment') THEN sm.quantity WHEN sm.direction IN ('out','waste') THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, queryIds, queryNames]);
     const byId = new Map(stock.map((item) => [item.id, item])); const byName = new Map(stock.map((item) => [item.name.toLowerCase(), item]));
@@ -556,17 +565,19 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
       const parsed = parseRecipeQuantity(item.quantityText, found.unit, item.sourceUnit || null);
       if (parsed.error) throw Object.assign(new Error(parsed.error), { code: parsed.error, ingredient: found.name, sourceUnit: parsed.sourceUnit, targetUnit: parsed.targetUnit });
       const converted = Number((parsed.amount * parsed.factor).toFixed(6));
+      costCapture.recordRequirement(item, found, converted);
       const previous = grouped.get(found.id);
       grouped.set(found.id, { ingredientId: found.id, name: found.name, unit: found.unit, quantity: (previous?.quantity || 0) + converted, stock: found });
     }
     const finalRequirements = [...grouped.values()]; const missing = finalRequirements.filter((item) => !item.stock || Number(item.stock.on_hand || 0) < Number(item.quantity));
     if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((item) => ({ ...item, onHand: Number(item.stock?.on_hand || 0) })); throw error; }
     for (const item of finalRequirements) {
-      const { rows: movementRows } = await client.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6) RETURNING id`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
+      const { rows: movementRows } = await client.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6) RETURNING id,quantity::text AS quantity`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
+      costCapture.recordMovement(item.ingredientId, movementRows[0]);
       await allocatePremixBatchConsumption(client, { venueId, ingredientId: item.ingredientId, stockMovementId: movementRows[0].id, quantity: item.quantity, onHandBefore: Number(item.stock?.on_hand || 0), createdBy: actorId, reason: `Списание по заказу ${orderId}` });
     }
     if (ownsTransaction) await client.query('COMMIT');
-    return { lines: finalRequirements, totalCost: finalRequirements.reduce((sum, item) => sum + Number(item.quantity) * Number(item.stock?.cost || 0), 0) };
+    return { lines: finalRequirements, totalCost: finalRequirements.reduce((sum, item) => sum + Number(item.quantity) * Number(item.stock?.cost || 0), 0), costEvidenceInput: costCapture.snapshot() };
   } catch (error) {
     if (ownsTransaction) await client.query('ROLLBACK').catch(() => {});
     throw error;
@@ -4687,7 +4698,7 @@ if (staffProfile && req.method === 'PATCH') {
     const input = await body(req); const userId = String(input.userId || '').trim(); const startedAt = new Date(input.startedAt || ''); const endedAt = input.endedAt ? new Date(input.endedAt) : null;
     const source = String(input.source || 'manual');
     if (!/^[0-9a-f-]{36}$/i.test(userId) || Number.isNaN(startedAt.getTime()) || (endedAt && Number.isNaN(endedAt.getTime())) || (endedAt && endedAt <= startedAt) || !['manual','shift','device'].includes(source)) return json(res, 400, { error: 'invalid_work_log' });
-    if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const employee = await client.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL FOR UPDATE', [userId,venueDbId]); if (!employee.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_member_not_found' }); } const overlapping = await client.query(`SELECT id FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at < COALESCE($4::timestamptz,'infinity'::timestamptz) AND COALESCE(ended_at,'infinity'::timestamptz) > $3::timestamptz LIMIT 1 FOR UPDATE`, [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null]); if (overlapping.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'work_log_overlaps_existing' }); } const { rows } = await client.query('INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null,source,String(input.note || '').slice(0,500) || null]); await client.query('COMMIT'); recordAudit(req, 'staff.work_time_recorded', 'staff', rows[0].user_id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'work_log_save_failed', detail: error.message }); } finally { client?.release(); } }
+    if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await beginPayrollSourceProducerTransaction(client, venueDbId); const employee = await client.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL FOR UPDATE', [userId,venueDbId]); if (!employee.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_member_not_found' }); } const overlapping = await client.query(`SELECT id FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at < COALESCE($4::timestamptz,'infinity'::timestamptz) AND COALESCE(ended_at,'infinity'::timestamptz) > $3::timestamptz LIMIT 1 FOR UPDATE`, [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null]); if (overlapping.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'work_log_overlaps_existing' }); } const { rows } = await client.query('INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null,source,String(input.note || '').slice(0,500) || null]); await client.query('COMMIT'); recordAudit(req, 'staff.work_time_recorded', 'staff', rows[0].user_id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'work_log_save_failed', detail: error.message }); } finally { client?.release(); } }
   }
   if (pathname === '/api/payroll/rules' && req.method === 'GET') {
     if (denyUnless(req, res, 'finance')) return;
@@ -4857,9 +4868,14 @@ if (staffProfile && req.method === 'PATCH') {
     const id = payrollEntryPath ? decodeURIComponent(payrollEntryPath[1]) : '';
     if (id && !/^[0-9a-f-]{36}$/i.test(id)) return json(res, 400, { error: 'invalid_payroll_entry_id' });
     try {
-      const { rows } = await repositories.pool.query(`SELECT pe.id,pe.user_id AS "userId",u.full_name AS "userName",pe.rule_id AS "ruleId",pr.name AS "ruleName",pr.rule_type AS "ruleType",pe.period_from AS "periodFrom",pe.period_to AS "periodTo",pe.amount,pe.status,pe.finance_category_id AS "financeCategoryId",pe.finance_category_name_snapshot AS "financeCategoryNameSnapshot",pe.payment_date AS "paymentDate",pe.expense_id AS "expenseId",e.finance_account_id AS "paymentAccountId",e.finance_account_name_snapshot AS "paymentAccountNameSnapshot",e.payment_method AS "paymentMethod",e.shift_id AS "shiftId",CASE WHEN e.finance_account_id IS NULL THEN 'unknown_legacy' ELSE 'assigned' END AS "accountCoverage",pe.approved_at AS "approvedAt",pe.paid_at AS "paidAt",pe.cancelled_at AS "cancelledAt",COALESCE(work.hours,0)::numeric AS hours FROM payroll_entries pe JOIN users u ON u.id=pe.user_id LEFT JOIN payroll_rules pr ON pr.id=pe.rule_id AND pr.venue_id=pe.venue_id JOIN venues v ON v.id=pe.venue_id LEFT JOIN organizations org ON org.id=v.organization_id LEFT JOIN expenses e ON e.venue_id=pe.venue_id AND e.id=pe.expense_id LEFT JOIN LATERAL (WITH bounds AS (SELECT (pe.period_from::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) starts_at,((pe.period_to+1)::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) ends_at),clipped AS (SELECT GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at FROM bounds b JOIN staff_work_logs w ON w.venue_id=pe.venue_id AND w.user_id=pe.user_id AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at),ordered AS (SELECT *,MAX(ends_at) OVER (ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT SUM(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600)) hours FROM merged) work ON true WHERE pe.venue_id=$1 AND ($2::date IS NULL OR pe.period_to >= $2::date) AND ($3::date IS NULL OR pe.period_from <= $3::date) AND ($4::uuid IS NULL OR pe.user_id=$4) AND ($5::text='' OR pe.status=$5) AND ($6::uuid IS NULL OR pe.id=$6) ORDER BY pe.period_from DESC,u.full_name`, [venueDbId, from === '1900-01-01' ? null : from, to === '2999-12-31' ? null : to, userId || null, status, id || null]);
+      const { rows } = await repositories.pool.query(`SELECT pe.id,pe.user_id AS "userId",COALESCE(to_jsonb(pe)->>'employee_name_snapshot',u.full_name) AS "userName",pe.rule_id AS "ruleId",COALESCE(to_jsonb(pe)->>'calculation_scheme_name_snapshot',pr.name) AS "ruleName",pr.rule_type AS "ruleType",to_jsonb(pe)->>'calculation_run_id' AS "calculationRunId",(to_jsonb(pe)->>'calculation_gross_cents')::bigint::text AS "calculationGrossCents",pe.period_from AS "periodFrom",pe.period_to AS "periodTo",pe.amount,pe.status,pe.finance_category_id AS "financeCategoryId",pe.finance_category_name_snapshot AS "financeCategoryNameSnapshot",pe.payment_date AS "paymentDate",pe.expense_id AS "expenseId",e.finance_account_id AS "paymentAccountId",e.finance_account_name_snapshot AS "paymentAccountNameSnapshot",e.payment_method AS "paymentMethod",e.shift_id AS "shiftId",pt.settlement_kind AS "settlementKind",CASE WHEN pt.settlement_kind='zero' THEN 'not_applicable' WHEN e.finance_account_id IS NULL THEN 'unknown_legacy' ELSE 'assigned' END AS "accountCoverage",pe.approved_at AS "approvedAt",pe.paid_at AS "paidAt",pe.cancelled_at AS "cancelledAt",COALESCE(work.hours,0)::numeric AS hours FROM payroll_entries pe JOIN users u ON u.id=pe.user_id LEFT JOIN payroll_rules pr ON pr.id=pe.rule_id AND pr.venue_id=pe.venue_id JOIN venues v ON v.id=pe.venue_id LEFT JOIN organizations org ON org.id=v.organization_id LEFT JOIN expenses e ON e.venue_id=pe.venue_id AND e.id=pe.expense_id LEFT JOIN payroll_calculation_entry_transitions pt ON pt.venue_id=pe.venue_id AND pt.entry_id=pe.id AND pt.action='pay' LEFT JOIN LATERAL (WITH bounds AS (SELECT (pe.period_from::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) starts_at,((pe.period_to+1)::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg')) ends_at),clipped AS (SELECT GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at FROM bounds b JOIN staff_work_logs w ON w.venue_id=pe.venue_id AND w.user_id=pe.user_id AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at),ordered AS (SELECT *,MAX(ends_at) OVER (ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT SUM(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600)) hours FROM merged) work ON true WHERE pe.venue_id=$1 AND ($2::date IS NULL OR pe.period_to >= $2::date) AND ($3::date IS NULL OR pe.period_from <= $3::date) AND ($4::uuid IS NULL OR pe.user_id=$4) AND ($5::text='' OR pe.status=$5) AND ($6::uuid IS NULL OR pe.id=$6) ORDER BY pe.period_from DESC,u.full_name`, [venueDbId, from === '1900-01-01' ? null : from, to === '2999-12-31' ? null : to, userId || null, status, id || null]);
       if (id && !rows[0]) return json(res, 404, { error: 'payroll_entry_not_found' });
-      return json(res, 200, id ? rows[0] : { items: rows.map((row) => ({ ...row, amount: Number(row.amount || 0), hours: Number(Number(row.hours || 0).toFixed(2)) })) });
+      const items = rows.map((row) => ({ ...row, amount: Number(row.amount || 0),
+        hours: row.calculationRunId ? null : Number(Number(row.hours || 0).toFixed(2)),
+        ...(row.calculationRunId ? { origin: 'calculation_run', grossCents: Number(row.calculationGrossCents),
+          amountCents: Math.round(Number(row.amount) * 100), allowedActions: [],
+          transitionStateRequired: true, transitionStateUrl: `/api/payroll/calculation-entries/${row.id}/state` } : {}) }));
+      return json(res, 200, id ? items[0] : { items });
     } catch (error) { return json(res, 503, { error: 'payroll_entries_unavailable', detail: error.message }); }
   }
   if (pathname === '/api/payroll/entries' && req.method === 'POST') {
@@ -4888,7 +4904,7 @@ if (staffProfile && req.method === 'PATCH') {
       if (!rows[0]) return json(res, 409, { error: 'payroll_entry_not_editable' });
       const entry = rows[0]; recordAudit(req, 'payroll.entry_drafted', 'payroll_entry', entry.id, null, { ...entry, hours });
       return json(res, 201, { ...entry, amount: Number(entry.amount), hours: Number(hours.toFixed(2)), expenseId: entry.expense_id || null, financeCategoryId: entry.finance_category_id || null, financeCategoryNameSnapshot: entry.finance_category_name_snapshot || null });
-    } catch (error) { return json(res, 409, { error: 'payroll_entry_save_failed', detail: error.message }); }
+    } catch (error) { return json(res, 409, { error: error.code === '23P01' && ['payroll_entries_active_period_exclusion','payroll_entries_mixed_calculation_overlap','payroll_entries_calculation_overlap'].includes(error.constraint) ? 'payroll_period_overlap' : 'payroll_entry_save_failed', detail: error.message }); }
   }
   if (payrollEntryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'finance')) return;
@@ -4906,13 +4922,16 @@ if (staffProfile && req.method === 'PATCH') {
       client = await repositories.pool.connect(); await client.query('BEGIN');
       const locked = await client.query("SELECT *, to_char(period_from,'DD.MM.YYYY') AS period_from_label, to_char(period_to,'DD.MM.YYYY') AS period_to_label FROM payroll_entries WHERE id=$1 AND venue_id=$2 FOR UPDATE", [id, venueDbId]); before = locked.rows[0];
       if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'payroll_entry_not_found' }); }
+      if (before.calculation_run_id) {
+        await client.query('ROLLBACK'); return json(res, 409, { error: 'payroll_calculation_entry_owner_transition_required' });
+      }
       if (!canTransitionPayroll(before.status, action)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'payroll_transition_not_allowed', status: before.status, action }); }
       const findPayrollPeriodOverlap = async () => {
         // Serialize approve/pay transitions for one employee and rule so two
         // overlapping entries cannot be approved or paid at the same time.
-        await client.query("SELECT pg_advisory_xact_lock(hashtext('territory_crm_payroll_period'),hashtext($1::text || ':' || $2::text || ':' || $3::text))", [venueDbId, before.user_id, before.rule_id]);
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('territory_crm_payroll_period'),hashtext($1::text || ':' || $2::text || ':' || COALESCE($3::text,'legacy-null-rule')))", [venueDbId, before.user_id, before.rule_id]);
         return client.query(`SELECT id FROM payroll_entries
-          WHERE venue_id=$1 AND user_id=$2 AND rule_id=$3 AND id<>$4
+          WHERE venue_id=$1 AND user_id=$2 AND rule_id IS NOT DISTINCT FROM $3::uuid AND id<>$4
             AND status IN ('approved','paid')
             AND period_from <= $6::date AND period_to >= $5::date
           LIMIT 1`, [venueDbId, before.user_id, before.rule_id, id, before.period_from, before.period_to]);
@@ -4965,7 +4984,7 @@ if (staffProfile && req.method === 'PATCH') {
       await client.query('COMMIT');
       recordAudit(req, `payroll.entry_${action === 'pay' ? 'paid' : action === 'approve' ? 'approved' : 'cancelled'}`, 'payroll_entry', id, before, updated);
       return json(res, 200, { ...updated, amount: Number(updated.amount), expenseId: updated.expense_id || null, financeCategoryId: updated.finance_category_id || null, financeCategoryNameSnapshot: updated.finance_category_name_snapshot || null });
-    } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'payroll_entry_transition_failed', detail: error.message }); }
+    } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: error.code === '23P01' && ['payroll_entries_active_period_exclusion','payroll_entries_mixed_calculation_overlap','payroll_entries_calculation_overlap'].includes(error.constraint) ? 'payroll_period_overlap' : 'payroll_entry_transition_failed', detail: error.message }); }
     finally { client?.release(); }
   }
   if (pathname === '/api/inventory/auto-orders' && req.method === 'GET') {
@@ -6766,6 +6785,7 @@ if (staffProfile && req.method === 'PATCH') {
           if (!closedRows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
           await writePosOrderIncomeCategorySnapshot(client,{venueId:venueDbId,orderId:paymentPath[1]});
           await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]);
+          await persistSaleCostEvidence(client, { venueId: venueDbId, orderId: paymentPath[1], capture: depletion.costEvidenceInput });
           if (persisted.tableId) await refreshTableReservationStatus(client, persisted.tableId, venueDbId);
         }
         await repositories.audit.record({venueId:venueDbId,actorId:/^[0-9a-f-]{36}$/i.test(req.user?.id||'')?req.user.id:null,action:'order.payment_added',entityType:'payment',entityId:rows[0].id,afterData:{...rows[0],orderId:paymentPath[1],...(method==='reservation'?{receiptId,reservationId:persisted.reservationId}:{}),paid:nextPaid,due,closed}},client);
@@ -6860,6 +6880,7 @@ if (staffProfile && req.method === 'PATCH') {
         if (!rows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
         await writePosOrderIncomeCategorySnapshot(client,{venueId:venueDbId,orderId:orderPath[1]});
         await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]);
+        await persistSaleCostEvidence(client, { venueId: venueDbId, orderId: orderPath[1], capture: depletion.costEvidenceInput });
         if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id,finance_account_id,finance_account_name_snapshot) VALUES ($1,$2,$3,$4,$5,$6,$7)', [orderPath[1], paymentMethod, remaining, 'paid', closePaymentAccount.kind==='pos_cashbox'?activeShiftId:null,closePaymentAccount.id,closePaymentAccount.name]);
         if (persisted.tableId) await refreshTableReservationStatus(client, persisted.tableId, venueDbId);
         result = { ...rows[0], ...pricing, subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: pricing.minimumAdjustment, paymentMethod, loyaltyBonusPercent: loyaltyAccrual.percent, loyaltyBonusBase: loyaltyAccrual.base, loyaltyBonusEarned: loyaltyAccrual.earned, loyaltyBonusBalance: loyaltyAccrual.balance };
@@ -7030,7 +7051,7 @@ function staticFile(req, res) {
   const publicFiles = new Set([
     '/staff-attendance-ui.js', '/staff-attendance-ui.css',
     '/staff-schedule-ui.js', '/staff-schedule-ui.css', '/staff-schedule-planning-ui.js', '/staff-schedule-personal-ui.js',
-    '/phone-format.js', '/staff-display-name.js', '/management-theme.js', '/management-theme.css',
+    '/help-content.js', '/phone-format.js', '/staff-display-name.js', '/management-theme.js', '/management-theme.css',
     ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/pos-dispatch.js', '/pos-workspace.js', '/pos-workspace.css', '/portal.js', '/portal-session.js', '/header-shell.js', '/ui-dialog.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js', '/shift-close-contract.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',

@@ -801,6 +801,8 @@ const permissionScopeLabels = { orders: 'Заказы', reservations: 'Брон�
 const permissionScopeMarkup = (selected = []) => `<details class="permission-scope-fields"><summary>Права доступа по направлениям</summary><small class="muted">Выберите разделы, которыми сможет управлять сотрудник. Пустой список оставляет только базовые права роли.</small><div class="scope-grid">${Object.entries(permissionScopeLabels).map(([scope, label]) => `<label class="scope-option"><input type="checkbox" name="permissionScopes" value="${scope}" ${selected.includes(scope) ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></details>`;
 const authHeaders = () => { const token = localStorage.getItem('crm_session_token'); return token ? { Authorization: `Bearer ${token}` } : {}; };
 // UI-04.1: one awaited runtime loader; failures remain retryable.
+let helpLoadAttempt = 0;
+const loadHelpArticles = () => import(`/help-content.js?rev=1&attempt=${helpLoadAttempt}`).catch(error => { helpLoadAttempt++; throw error; });
 const loadSharedUI = () => {
   if (window.HOOKAH_UI) return Promise.resolve(window.HOOKAH_UI);
   if (window.__hookahUIReady) return window.__hookahUIReady;
@@ -2669,7 +2671,24 @@ function renderDashboard() {
   };
   const knowledgeMarkup = knowledgeTopics.map((topic) => `<details class="help-topic"><summary><span><b>${topic.title}</b><small>${topic.audience}</small></span><span class="help-topic-chevron">⌄</span></summary><ol>${topic.steps.map((step) => `<li>${step}</li>`).join('')}</ol>${canOpenHelpTopic(topic) ? `<a class="button small" href="${topic.link}">${topic.linkLabel}</a>` : `<small class="muted help-topic-access-note">${topic.link === '/admin#permissions' ? 'Этот раздел доступен владельцу.' : 'Этот раздел недоступен для вашей роли. По вопросам доступа обратитесь к управляющему.'}</small>`}</details>`).join('');
   helpPanel.innerHTML = `<div class="help-topics" aria-label="Категории базы знаний">${knowledgeMarkup}</div><section class="help-feedback-card"><div><h3>Не нашли ответ?</h3><p class="muted">Опишите вопрос и передайте его управляющему. Текст не отправляется автоматически.</p></div><form id="help-feedback-form" class="stack-form"><label>Что произошло<textarea id="help-feedback" rows="3" maxlength="1000" required placeholder="Опишите вопрос или проблему"></textarea></label><div class="help-feedback-actions"><button class="button primary small" type="submit">Скопировать текст</button><small id="help-feedback-message" class="form-message" role="status"></small></div></form></section>`;
+  const sharedHelp = document.createElement('section'); sharedHelp.className = 'knowledge-guides';
+  sharedHelp.innerHTML = '<h3>Подробные инструкции по разделам</h3><div data-knowledge-articles><p role="status">Загрузка инструкций…</p></div>';
+  helpPanel.querySelector('.help-feedback-card').before(sharedHelp);
+  const helpSession = preferenceSessionIdentity();
+  const loadKnowledgeGuides = async () => {
+    const container = sharedHelp.querySelector('[data-knowledge-articles]');
+    try {
+      const library = await loadHelpArticles();
+      if (!sharedHelp.isConnected || !samePreferenceSession(helpSession) || location.hash !== '#help') return;
+      container.innerHTML = library.helpArticles.map(article => `<details class="knowledge-guide" data-help-article="${article.id}"><summary><span><b>${esc(article.title)}</b><small>${esc(article.audience)}</small></span><span class="help-topic-chevron" aria-hidden="true">⌄</span></summary><div class="knowledge-guide-content">${article.html}</div>${canOpenHelpTopic({link:article.route}) ? `<a class="button small" href="${article.route}">Открыть раздел</a>` : '<p class="muted">Доступность действий зависит от ваших прав. Если раздел недоступен, обратитесь к владельцу.</p>'}</details>`).join('');
+      container.querySelectorAll('.knowledge-guide-content > section').forEach(section => { const title = section.querySelector('h3'); if (!title) return; const details = document.createElement('details'); const summary = document.createElement('summary'); summary.textContent = title.textContent; title.remove(); details.append(summary,...section.childNodes); section.replaceWith(details); });
+      const topicId = new URLSearchParams(location.search).get('helpTopic');
+      if (library.getHelpArticle(topicId)) { const topic = [...container.querySelectorAll('[data-help-article]')].find(node => node.dataset.helpArticle === topicId); topic.open = true; const summary = topic.querySelector('summary'); summary.focus({preventScroll:true}); topic.scrollIntoView({block:'start'}); }
+    } catch { if (sharedHelp.isConnected && samePreferenceSession(helpSession)) container.innerHTML = '<p role="alert">Не удалось загрузить инструкции.</p><button type="button" class="button small" data-knowledge-retry>Повторить</button>'; }
+  };
+  sharedHelp.addEventListener('click', event => { if (event.target.closest('[data-knowledge-retry]')) loadKnowledgeGuides(); });
   target.append(helpPanel);
+  if (location.hash === '#help') loadKnowledgeGuides();
   const helpFeedbackForm = helpPanel.querySelector('#help-feedback-form');
   const helpFeedbackField = helpPanel.querySelector('#help-feedback');
   const helpFeedbackMessage = helpPanel.querySelector('#help-feedback-message');
@@ -2770,8 +2789,8 @@ function renderDashboard() {
   };
   const staffDirectoryIdentity = String(portalUser.id || portalUser.login || portalUser.name || portalUser.role || 'user').trim().toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_').slice(0, 80) || 'user';
   const staffDirectoryStorageKey = `hookah_pos_staff_directory_${staffDirectoryIdentity}`;
-  const staffDirectoryDefaults = { view: 'cards', cardScale: 2 };
-  const normalizeStaffDirectory = (value = {}) => ({ view: ['cards', 'list', 'table'].includes(value?.view) ? value.view : 'cards', cardScale: Number.isInteger(Number(value?.cardScale)) ? Math.max(1, Math.min(4, Number(value.cardScale))) : 2 });
+  const staffDirectoryDefaults = { view: 'cards', cardScale: 1 };
+  const normalizeStaffDirectory = (value = {}) => ({ view: ['cards', 'list', 'table'].includes(value?.view) ? value.view : 'cards', cardScale: 1 });
   let staffDirectoryPreference = staffDirectoryDefaults;
   try { staffDirectoryPreference = normalizeStaffDirectory(JSON.parse(localStorage.getItem(staffDirectoryStorageKey) || '{}')); } catch (_) {}
   let currentStaffItems = [];
@@ -2805,17 +2824,12 @@ function renderDashboard() {
       const roleLabel = labels[person.role] || person.role || "Сотрудник"; const accessLabel = person.customRoleName ? `${roleLabel} · роль: ${person.customRoleName}` : roleLabel;
       const identity = `<div class="staff-card-identity"><h3>${name}</h3><p>${esc(accessLabel)}</p></div>`;
       if (view === 'list') return `<article class="staff-directory-row staff-row${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}"><div class="staff-directory-avatar">${avatar}</div>${identity}<div class="staff-card-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</div>${status}${actions}</article>`;
-      if (view === 'table') return `<tr class="staff-table-row staff-row${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}"><td data-label="Сотрудник"><div class="staff-table-person">${avatar}<strong>${name}</strong>${person.role === 'owner' ? `<span class="staff-card-owner" title="Владелец заведения" aria-label="Владелец заведения">${staffCardIcon('crown')}</span>` : ''}</div></td><td data-label="Должность">${esc(roleLabel)}</td><td data-label="Роль доступа">${esc(person.customRoleName || (nonCrmStaffRoles.includes(person.role) ? 'Без доступа к CRM' : 'Стандартная'))}</td><td data-label="Дата приёма">${esc(formatRuDate(person.employmentStartedAt))}</td><td data-label="Контакты" class="staff-table-contacts"><div class="staff-card-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</div></td><td data-label="Статус">${status}</td><td data-label="Действия">${actions}</td></tr>`;
-      return `<article class="staff-card${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}">
-        <div class="staff-card-portrait">
-          ${avatar}
-          ${person.role === 'owner' ? `<span class="staff-card-owner" title="Владелец заведения" aria-label="Владелец заведения">${staffCardIcon('crown')}</span>` : ''}
-        </div>
-        ${status}
-        ${identity}
-        <div class="staff-card-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</div>
-        ${person.workNotes ? `<p class="staff-card-note">${esc(person.workNotes)}</p>` : ''}
-        ${actions}
+      if (view === 'table') return `<tr class="staff-table-row staff-row${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}"><td data-label="Сотрудник"><div class="staff-table-person">${avatar}<strong>${name}</strong>${person.role === 'owner' ? `<span class="staff-card-owner" title="Владелец заведения" aria-label="Владелец заведения">${staffCardIcon('crown')}</span>` : ''}</div></td><td data-label="Должность">${esc(roleLabel)}<small class="staff-table-access-compact">${esc(person.customRoleName || (nonCrmStaffRoles.includes(person.role) ? 'Без доступа к CRM' : 'Стандартная роль доступа'))}</small></td><td data-label="Роль доступа">${esc(person.customRoleName || (nonCrmStaffRoles.includes(person.role) ? 'Без доступа к CRM' : 'Стандартная'))}</td><td data-label="Дата приёма">${esc(formatRuDate(person.employmentStartedAt))}</td><td data-label="Контакты" class="staff-table-contacts"><div class="staff-card-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</div></td><td data-label="Статус">${status}</td><td data-label="Действия">${actions}</td></tr>`;
+      const compactName = esc([person.firstName, person.lastName].filter(Boolean).join(' ') || String(person.name || 'Сотрудник').trim().split(/\s+/).slice(0, 2).join(' '));
+      return `<article class="staff-card${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}" data-search="${esc([person.name, accessLabel, phone, email, telegram, person.workNotes].filter(Boolean).join(' '))}" aria-label="${name}${person.active ? '' : ' — заблокирован'}" title="${person.active ? '' : 'Сотрудник заблокирован'}">
+        <div class="staff-card-portrait">${avatar}</div>
+        <div class="staff-card-identity"><h3>${compactName}</h3></div>
+        <div class="staff-card-contacts">${phone ? `<span>${esc(phone)}</span>` : '<span class="staff-card-contact-empty">Телефон не указан</span>'}</div>
       </article>`;
     });
     if (!items.length) { list.innerHTML = '<div class="empty">Сотрудники ещё не добавлены</div>'; return; }
@@ -2866,7 +2880,7 @@ function renderDashboard() {
   const staffList = document.querySelector('#staff-list');
   if (staffPanel && staffHead && staffList) {
     const staffTools = document.createElement('div'); staffTools.className = 'staff-list-tools';
-    staffTools.innerHTML = '<input id="staff-search" class="table-search" type="search" placeholder="Поиск сотрудника" aria-label="Поиск сотрудника"><select id="staff-role-filter" aria-label="Фильтр по роли"><option value="">Все роли</option><option value="admin">Администратор</option><option value="manager">Управляющий</option><option value="senior_bartender">Старший бармен</option><option value="bartender">Бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="hookah_master">Кальянщик</option><option value="cleaner">Уборщица / уборщик</option><option value="security">Охрана</option><option value="technician">Техник</option><option value="other_staff">Другая должность</option></select><select id="staff-status-filter" aria-label="Фильтр по статусу"><option value="">Все статусы</option><option value="active">Активные</option><option value="inactive">Заблокированные</option></select><div class="staff-directory-view-controls" role="group" aria-label="Вид списка сотрудников"><span class="staff-view-label">Вид отображения</span><div class="staff-view-switch"><button type="button" data-staff-view="cards" aria-pressed="true">Плитки</button><button type="button" data-staff-view="list" aria-pressed="false">Список</button><button type="button" data-staff-view="table" aria-pressed="false">Таблица</button></div><div class="staff-card-scale" role="group" aria-label="Размер плиток сотрудников"><span>Размер плиток</span><div class="staff-card-scale-control"><button type="button" data-staff-scale="1" aria-label="Компактные плитки" title="Компактные плитки">S</button><button type="button" data-staff-scale="2" aria-label="Средние плитки" title="Средние плитки">M</button><button type="button" data-staff-scale="3" aria-label="Крупные плитки" title="Крупные плитки">L</button><button type="button" data-staff-scale="4" aria-label="Очень крупные плитки" title="Очень крупные плитки">XL</button></div></div></div>';
+    staffTools.innerHTML = '<input id="staff-search" class="table-search" type="search" placeholder="Поиск сотрудника" aria-label="Поиск сотрудника"><select id="staff-role-filter" aria-label="Фильтр по роли"><option value="">Все роли</option><option value="admin">Администратор</option><option value="manager">Управляющий</option><option value="senior_bartender">Старший бармен</option><option value="bartender">Бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="hookah_master">Кальянщик</option><option value="cleaner">Уборщица / уборщик</option><option value="security">Охрана</option><option value="technician">Техник</option><option value="other_staff">Другая должность</option></select><select id="staff-status-filter" aria-label="Фильтр по статусу"><option value="">Все статусы</option><option value="active">Активные</option><option value="inactive">Заблокированные</option></select><div class="staff-directory-view-controls" role="group" aria-label="Вид списка сотрудников"><span class="staff-view-label">Вид отображения</span><div class="staff-view-switch"><button type="button" data-staff-view="cards" aria-pressed="true">Плитки</button><button type="button" data-staff-view="list" aria-pressed="false">Список</button><button type="button" data-staff-view="table" aria-pressed="false">Таблица</button></div></div>';
     staffPanel.insertBefore(staffTools, staffPanel.querySelector('.staff-layout'));
     if (canCreateStaff) {
       const addButton = document.createElement('button'); addButton.type = 'button'; addButton.className = 'button primary staff-add-button'; addButton.textContent = '＋ Добавить сотрудника'; staffHead.append(addButton);
@@ -2907,22 +2921,13 @@ function renderDashboard() {
         drawer.querySelectorAll('[data-staff-drawer-close]').forEach((node) => node.addEventListener('click', closeDrawer));
       }
     }
-    const filterRenderedStaff = () => { const query = String(document.querySelector('#staff-search')?.value || '').trim().toLocaleLowerCase('ru-RU'); const role = document.querySelector('#staff-role-filter')?.value || ''; const status = document.querySelector('#staff-status-filter')?.value || ''; const rows = [...staffList.querySelectorAll('.staff-card, .staff-directory-row, .staff-table-row, .staff-row')]; rows.forEach((row) => { const text = row.textContent.toLocaleLowerCase('ru-RU'); const roleMatch = !role || row.dataset.role === role; const statusMatch = !status || (status === 'active' ? row.classList.contains('inactive') === false : row.classList.contains('inactive')); row.hidden = Boolean((query && !text.includes(query)) || !roleMatch || !statusMatch); }); let empty = staffList.querySelector('.staff-filter-empty'); if (rows.length && !rows.some((row) => !row.hidden)) { if (!empty) { empty = document.createElement('div'); empty.className = 'empty staff-filter-empty'; empty.setAttribute('role', 'status'); empty.textContent = 'По текущему поиску и фильтрам сотрудников нет'; staffList.append(empty); } } else empty?.remove(); };
+    const filterRenderedStaff = () => { const query = String(document.querySelector('#staff-search')?.value || '').trim().toLocaleLowerCase('ru-RU'); const role = document.querySelector('#staff-role-filter')?.value || ''; const status = document.querySelector('#staff-status-filter')?.value || ''; const rows = [...staffList.querySelectorAll('.staff-card, .staff-directory-row, .staff-table-row, .staff-row')]; rows.forEach((row) => { const text = `${row.dataset.search || row.dataset.name || ''} ${row.textContent}`.toLocaleLowerCase('ru-RU'); const roleMatch = !role || row.dataset.role === role; const statusMatch = !status || (status === 'active' ? row.classList.contains('inactive') === false : row.classList.contains('inactive')); row.hidden = Boolean((query && !text.includes(query)) || !roleMatch || !statusMatch); }); let empty = staffList.querySelector('.staff-filter-empty'); if (rows.length && !rows.some((row) => !row.hidden)) { if (!empty) { empty = document.createElement('div'); empty.className = 'empty staff-filter-empty'; empty.setAttribute('role', 'status'); empty.textContent = 'По текущему поиску и фильтрам сотрудников нет'; staffList.append(empty); } } else empty?.remove(); };
     renderStaff = ((base) => (items) => { base(items); filterRenderedStaff(); })(renderStaff);
     ['staff-search','staff-role-filter','staff-status-filter'].forEach((id) => document.querySelector(`#${id}`)?.addEventListener('input', filterRenderedStaff));
     ['staff-role-filter','staff-status-filter'].forEach((id) => document.querySelector(`#${id}`)?.addEventListener('change', filterRenderedStaff));
     const viewButtons = [...staffTools.querySelectorAll('[data-staff-view]')];
-    const scaleButtons = [...staffTools.querySelectorAll('[data-staff-scale]')];
-    const scaleLabel = staffTools.querySelector('.staff-card-scale');
     const applyStaffDirectoryPreference = () => {
       viewButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.staffView === staffDirectoryPreference.view)));
-      const cardsView = staffDirectoryPreference.view === 'cards';
-      scaleLabel.classList.toggle('is-disabled', !cardsView);
-      scaleLabel.hidden = !cardsView;
-      scaleButtons.forEach((button) => {
-        button.disabled = !cardsView;
-        button.setAttribute('aria-pressed', String(Number(button.dataset.staffScale) === staffDirectoryPreference.cardScale));
-      });
       if (staffList) { staffList.dataset.view = window.matchMedia("(max-width: 800px)").matches ? "list" : staffDirectoryPreference.view; staffList.dataset.cardScale = String(staffDirectoryPreference.cardScale); }
       if (currentStaffItems.length) { renderStaff(currentStaffItems); filterRenderedStaff(); }
     };
@@ -2940,7 +2945,6 @@ function renderDashboard() {
       }
     };
     viewButtons.forEach((button) => button.addEventListener('click', () => updateStaffDirectoryPreference({ view: button.dataset.staffView })));
-    scaleButtons.forEach((button) => button.addEventListener('click', () => updateStaffDirectoryPreference({ cardScale: Number(button.dataset.staffScale) })));
     const staffViewport = window.matchMedia('(max-width: 800px)');
     const onStaffViewportChange = () => { if (staffPanel.isConnected) applyStaffDirectoryPreference(); };
     staffViewport.addEventListener('change', onStaffViewportChange);
@@ -4024,7 +4028,21 @@ function renderInventory() {
     loadAlcoholCatalog();
   }
   if (canWriteInventory || hasPortalPermission('inventory_read') || hasPortalPermission('inventory_categories')) {
-    const categoryPanel = document.createElement('section'); categoryPanel.className = 'panel inventory-departments-panel'; categoryPanel.innerHTML = `<div class="panel-head"><div class="toolbar-row"><label class="directory-search">Поиск категорий<input type="search" id="inventory-category-search" placeholder="Название категории"></label><details class="inventory-directory-guide"><summary>Как устроено</summary><p>Цех → подцех → категория. Категория без подцеха доступна всему цеху. Позиции добавляются в остатках; архив сохраняет историю.</p></details><button type="button" class="button small" id="open-products">Каталог товаров</button></div><div class="toolbar-row directory-status-toolbar"></div></div><div class="catalog-tree-section"><div class="section-title-row"><h3>Цехи <span class="directory-count" id="directory-department-count">—</span></h3>${canWriteInventory ? '<button type="button" class="button small" id="new-inventory-department" aria-label="Добавить цех">+ Цех</button>' : ''}</div><p class="directory-column-hint">Направления склада</p><div id="inventory-department-list" class="category-list" tabindex="0" role="region" aria-label="Цехи"><div class="empty">Загрузка цехов…</div></div></div><div class="catalog-tree-section" id="inventory-subdepartment-section"><div class="section-title-row"><h3>Подцехи <span class="directory-count" id="directory-subdepartment-count">—</span></h3>${canWriteInventory ? '<button type="button" class="button small" id="new-inventory-subdepartment" aria-label="Добавить подцех">+ Подцех</button>' : ''}</div><p class="directory-column-hint" id="directory-subdepartment-context">Выберите цех</p><div id="inventory-subdepartment-list" class="category-list" tabindex="0" role="region" aria-label="Подцехи"><div class="empty">Загрузка подцехов…</div></div></div><div class="catalog-tree-section"><div class="section-title-row"><h3>Категории <span class="directory-count" id="directory-category-count">—</span></h3>${canWriteInventory ? '<button type="button" class="button small" id="new-product-category" aria-label="Добавить категорию">+ Категория</button>' : ''}</div><p class="directory-column-hint" id="directory-category-context">Все цеха</p><div id="product-category-list" class="category-list" tabindex="0" role="region" aria-label="Категории"><div class="empty">Загрузка категорий…</div></div></div><form id="product-category-form" class="product-editor" hidden><input type="hidden" id="product-category-id"><label>Цех<select id="product-category-department" required><option value="kitchen">Кухня</option><option value="bar">Бар</option><option value="hookah">Кальяны</option><option value="inventory">Инвентарь</option></select></label><label>Подцех<select id="product-category-subdepartment"><option value="">Весь цех</option></select><small class="field-hint">Оставьте «Весь цех», если категория подходит для всего направления. Выберите подцех, если она нужна только его позициям.</small></label><label>Категория<input id="product-category-name" maxlength="80" required placeholder="Например, Фруктовые сиропы"></label><div class="toolbar-row"><button class="button" id="cancel-product-category" type="button">Отмена</button><button class="button primary" type="submit">Сохранить</button><button class="button danger-outline" id="delete-product-category" type="button" hidden>Скрыть</button></div><p class="form-message" id="product-category-message"></p></form>`; const tobaccoCatalogPanel = target.querySelector('.inventory-tobacco-catalog-panel'); if (tobaccoCatalogPanel) target.insertBefore(categoryPanel, tobaccoCatalogPanel); else target.append(categoryPanel);
+    const categoryPanel = document.createElement('section'); categoryPanel.className = 'panel inventory-departments-panel'; categoryPanel.innerHTML = `<div class="panel-head"><div class="toolbar-row"><label class="directory-search">Поиск категорий<input type="search" id="inventory-category-search" placeholder="Название категории"></label><button type="button" class="directory-help-button" id="inventory-directory-help" aria-label="Справка по цехам и категориям" aria-haspopup="dialog" title="Справка по цехам и категориям"><span class="directory-help-icon" aria-hidden="true">?</span><span class="directory-help-label">Справка</span></button><button type="button" class="button small" id="open-products">Каталог товаров</button></div><div class="toolbar-row directory-status-toolbar"></div></div><div class="catalog-tree-section"><div class="section-title-row"><h3>Цехи <span class="directory-count" id="directory-department-count">—</span></h3>${canWriteInventory ? '<button type="button" class="button small" id="new-inventory-department" aria-label="Добавить цех">+ Цех</button>' : ''}</div><p class="directory-column-hint">Направления склада</p><div id="inventory-department-list" class="category-list" tabindex="0" role="region" aria-label="Цехи"><div class="empty">Загрузка цехов…</div></div></div><div class="catalog-tree-section" id="inventory-subdepartment-section"><div class="section-title-row"><h3>Подцехи <span class="directory-count" id="directory-subdepartment-count">—</span></h3>${canWriteInventory ? '<button type="button" class="button small" id="new-inventory-subdepartment" aria-label="Добавить подцех">+ Подцех</button>' : ''}</div><p class="directory-column-hint" id="directory-subdepartment-context">Выберите цех</p><div id="inventory-subdepartment-list" class="category-list" tabindex="0" role="region" aria-label="Подцехи"><div class="empty">Загрузка подцехов…</div></div></div><div class="catalog-tree-section"><div class="section-title-row"><h3>Категории <span class="directory-count" id="directory-category-count">—</span></h3>${canWriteInventory ? '<button type="button" class="button small" id="new-product-category" aria-label="Добавить категорию">+ Категория</button>' : ''}</div><p class="directory-column-hint" id="directory-category-context">Все цеха</p><div id="product-category-list" class="category-list" tabindex="0" role="region" aria-label="Категории"><div class="empty">Загрузка категорий…</div></div></div><form id="product-category-form" class="product-editor" hidden><input type="hidden" id="product-category-id"><label>Цех<select id="product-category-department" required><option value="kitchen">Кухня</option><option value="bar">Бар</option><option value="hookah">Кальяны</option><option value="inventory">Инвентарь</option></select></label><label>Подцех<select id="product-category-subdepartment"><option value="">Весь цех</option></select><small class="field-hint">Оставьте «Весь цех», если категория подходит для всего направления. Выберите подцех, если она нужна только его позициям.</small></label><label>Категория<input id="product-category-name" maxlength="80" required placeholder="Например, Фруктовые сиропы"></label><div class="toolbar-row"><button class="button" id="cancel-product-category" type="button">Отмена</button><button class="button primary" type="submit">Сохранить</button><button class="button danger-outline" id="delete-product-category" type="button" hidden>Скрыть</button></div><p class="form-message" id="product-category-message"></p></form>`; const tobaccoCatalogPanel = target.querySelector('.inventory-tobacco-catalog-panel'); if (tobaccoCatalogPanel) target.insertBefore(categoryPanel, tobaccoCatalogPanel); else target.append(categoryPanel);
+    const directoryHelpButton = categoryPanel.querySelector('#inventory-directory-help');
+    const directoryHelp = document.createElement('dialog');
+    directoryHelp.className = 'directory-editor-modal directory-help-dialog';
+    directoryHelp.setAttribute('aria-labelledby', 'directory-help-title');
+    directoryHelp.innerHTML = `<div class="modal-head"><h2 id="directory-help-title">Цехи и категории: справка</h2><button type="button" class="icon-button modal-close" aria-label="Закрыть справку">${icon('x')}</button></div>
+      <div class="directory-help-content" tabindex="0" role="region" aria-label="Темы справки"><p role="status">Загрузка справки…</p></div><div class="directory-help-footer"><a class="button" href="/admin?helpTopic=inventory-directories#help">В базе знаний</a><button type="button" class="button" data-directory-help-close>Закрыть</button></div>`;
+    categoryPanel.append(directoryHelp);
+    const closeDirectoryHelp = () => directoryHelp.close();
+    const loadDirectoryHelp = async () => { const body = directoryHelp.querySelector('.directory-help-content'); try { const library = await loadHelpArticles(); if (!directoryHelp.isConnected) return; body.innerHTML = library.getHelpArticle('inventory-directories').html; } catch { if (directoryHelp.isConnected) body.innerHTML = '<p role="alert">Не удалось загрузить справку.</p><button type="button" class="button" data-help-retry>Повторить</button>'; } };
+    directoryHelp.addEventListener('click', event => { if (event.target.closest('[data-help-retry]')) loadDirectoryHelp(); });
+    directoryHelpButton.addEventListener('click', async () => { if (!directoryHelp.open) { directoryHelp.querySelectorAll('details').forEach(topic => { topic.open = false; }); directoryHelp.querySelector('.directory-help-content').scrollTop = 0; directoryHelp.showModal(); await loadDirectoryHelp(); } });
+    directoryHelp.querySelectorAll('.modal-close,[data-directory-help-close]').forEach(button => button.addEventListener('click', closeDirectoryHelp));
+    directoryHelp.addEventListener('close', () => { if (directoryHelpButton.isConnected) directoryHelpButton.focus({ preventScroll: true }); });
+    directoryHelp.addEventListener('click', event => { if (event.target !== directoryHelp) return; const box = directoryHelp.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeDirectoryHelp(); });
     const directoryControls = document.createElement('div'); directoryControls.className = 'inventory-directory-controls'; directoryControls.innerHTML = '<span class="inventory-directory-controls-label">Показывать:</span><div class="segmented-control" role="group" aria-label="Состояние справочников"><button type="button" class="is-active" data-inventory-directory-status="active" aria-pressed="true">Активные</button><button type="button" data-inventory-directory-status="archived" aria-pressed="false">Архив</button></div><span class="muted">Архивные записи можно восстановить; окончательное удаление требует подтверждения владельца.</span>'; categoryPanel.querySelector('.directory-status-toolbar')?.append(directoryControls);
     document.querySelector('#open-products').addEventListener('click', () => setInventoryView('products'));
     const deletionRequestsPanel = document.createElement('section'); deletionRequestsPanel.id = 'inventory-deletion-requests'; deletionRequestsPanel.className = 'catalog-tree-section inventory-deletion-requests'; deletionRequestsPanel.hidden = true; categoryPanel.insertBefore(deletionRequestsPanel, categoryPanel.querySelector('.catalog-tree-section'));
@@ -5569,7 +5587,11 @@ function renderFinanceCategories() {
   const target = document.querySelector('#page-content'); if (!target) return;
   target.classList.add('ui-financial-pages', 'finance-category-workspace');
   const canWrite = hasPortalPermission('finance');
-  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">ФИНАНСОВЫЙ СПРАВОЧНИК</p><h1>Категории доходов и расходов</h1><p class="muted">«Аренда» — категория. «Аренда за октябрь — 50 000 ₽» — расход внутри неё. Выберите категорию ниже, чтобы оформить операцию.</p><details class="finance-category-help"><summary>Как используются категории</summary><p class="muted">Категории расходов используются в журнале затрат. Создание статьи не создаёт операцию. Ручные расходы выбирают статью «Расход»; продажи POS группируются по составу меню. Архивные категории сохраняют историю и могут быть восстановлены.</p><p class="muted">Счётчики ниже показывают связанные записи за всё время и включают все статусы. Источники перечислены отдельно: один расходный платёж может также относиться к обязательству, закупке или выплате зарплаты, поэтому эти числа нельзя складывать в общее число операций. Регулярные правила — это настройки будущих обязательств, а не расходы.</p></details></div><div class="toolbar-row"><a class="button" href="/finance">${icon('arrow-left')} Финансы</a>${canWrite ? `<button class="button primary" id="new-finance-category" type="button">${icon('plus')} Новая категория</button>` : '<span class="badge">Только просмотр</span>'}</div></div><section class="panel wide finance-categories-panel"><div class="panel-head"><div><h2>Справочник категорий</h2><span class="muted" id="finance-category-count">Загрузка…</span></div><div class="toolbar-row finance-category-filters"><label>Поиск<input class="table-search" id="finance-category-search" aria-label="Поиск категорий" placeholder="Поиск по названию"></label><details class="finance-category-filter-options"><summary>Фильтры</summary><div class="finance-category-filter-fields"><label>Тип<select id="finance-category-type"><option value="">Все типы</option><option value="expense">Расход</option><option value="income">Доход</option></select></label><label class="inline-filter">Статус<select id="finance-category-status" aria-label="Фильтр по статусу"><option value="active">Активные</option>${canWrite ? '<option value="all">Включая архивные</option>' : ''}</select></label></div></details></div></div>${canWrite ? '<form id="finance-category-form" class="product-editor" hidden><input type="hidden" id="finance-category-id"><label>Название<input id="finance-category-name" maxlength="80" required placeholder="Например, Аренда"></label><label>Тип<select id="finance-category-kind"><option value="expense">Расход</option><option value="income">Доход</option></select></label><div class="toolbar-row"><button class="button primary" type="submit">Сохранить</button><button class="button" id="cancel-finance-category" type="button">Отмена</button><button class="button danger-outline" id="archive-finance-category" type="button" hidden>Архивировать</button></div><p class="form-message" id="finance-category-message" role="status" aria-live="polite"></p></form>' : ''}<div class="category-list" id="finance-category-list"><div class="empty">Загрузка категорий…</div></div></section>`;
+  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">ФИНАНСОВЫЙ СПРАВОЧНИК</p><h1>Категории доходов и расходов</h1><p class="muted">«Аренда» — категория. «Аренда за октябрь — 50 000 ₽» — расход внутри неё. Выберите категорию ниже, чтобы оформить операцию.</p><details class="finance-category-help"><summary>Как используются категории</summary><div data-finance-help-body><p role="status">Загрузка справки…</p></div><a class="button small" href="/admin?helpTopic=finance-categories#help">В базе знаний</a></details></div><div class="toolbar-row"><a class="button" href="/finance">${icon('arrow-left')} Финансы</a>${canWrite ? `<button class="button primary" id="new-finance-category" type="button">${icon('plus')} Новая категория</button>` : '<span class="badge">Только просмотр</span>'}</div></div><section class="panel wide finance-categories-panel"><div class="panel-head"><div><h2>Справочник категорий</h2><span class="muted" id="finance-category-count">Загрузка…</span></div><div class="toolbar-row finance-category-filters"><label>Поиск<input class="table-search" id="finance-category-search" aria-label="Поиск категорий" placeholder="Поиск по названию"></label><label class="inline-filter">Статус<select id="finance-category-status" aria-label="Фильтр по статусу"><option value="active">Активные</option>${canWrite ? '<option value="archived">Архив</option><option value="all">Все категории</option>' : ''}</select></label><details class="finance-category-filter-options"><summary>Фильтры</summary><div class="finance-category-filter-fields"><label>Тип<select id="finance-category-type"><option value="">Все типы</option><option value="expense">Расход</option><option value="income">Доход</option></select></label></div></details></div></div>${canWrite ? '<form id="finance-category-form" class="product-editor" hidden><input type="hidden" id="finance-category-id"><label>Название<input id="finance-category-name" maxlength="80" required placeholder="Например, Аренда"></label><label>Тип<select id="finance-category-kind"><option value="expense">Расход</option><option value="income">Доход</option></select></label><div class="toolbar-row"><button class="button primary" type="submit">Сохранить</button><button class="button" id="cancel-finance-category" type="button">Отмена</button><button class="button danger-outline" id="archive-finance-category" type="button" hidden>Архивировать</button></div><p class="form-message" id="finance-category-message" role="status" aria-live="polite"></p></form>' : ''}<div class="category-list" id="finance-category-list"><div class="empty">Загрузка категорий…</div></div></section>`;
+  const financeHelp = target.querySelector('.finance-category-help');
+  const loadFinanceHelp = async () => { try { const library = await loadHelpArticles(); if (financeHelp.isConnected) financeHelp.querySelector('[data-finance-help-body]').innerHTML = library.getHelpArticle('finance-categories').html; } catch { if (financeHelp.isConnected) financeHelp.querySelector('[data-finance-help-body]').innerHTML = '<p role="alert">Не удалось загрузить справку.</p><button type="button" class="button small" data-help-retry>Повторить</button>'; } };
+  financeHelp.addEventListener('toggle', () => { if (financeHelp.open) loadFinanceHelp(); });
+  financeHelp.addEventListener('click', event => { if (event.target.closest('[data-help-retry]')) loadFinanceHelp(); });
   let items = [];
   const incomeMappingPanel = document.createElement('section');
   incomeMappingPanel.className = 'panel wide finance-categories-panel';
@@ -5693,17 +5715,18 @@ function renderFinanceCategories() {
     if (categoryLoadError || categoryLoading) return;
     const query = document.querySelector('#finance-category-search').value.trim().toLocaleLowerCase('ru-RU');
     const kind = target.querySelector('#finance-category-type').value;
-    const visible = items.filter((item) => (!kind || item.kind === kind) && (!query || item.name.toLocaleLowerCase('ru-RU').includes(query)));
-    document.querySelector('#finance-category-count').textContent = `${visible.length} из ${items.length} категорий`;
-    document.querySelector('#finance-category-list').innerHTML = visible.length ? visible.map((item) => `<div class="category-row"><div><b>${esc(displayName(item.name))}</b><small>${item.kind === 'income' ? 'Доход' : 'Расход'}</small><details class="finance-category-links"><summary>Связанные записи</summary><small>${Number(item.expenseOperationCount || 0)} расходных записей · ${Number(item.expenseCorrectionCount || 0)} ссылок в истории исправлений · ${Number(item.incomeOperationCount || 0)} продаж · ${Number(item.obligationCount || 0)} обязательств · ${Number(item.recurringRuleCount || 0)} регулярных правил · ${Number(item.purchaseDocumentCount || 0)} документов закупки · ${Number(item.otherIncomeDocumentCount || 0)} документов дохода вне POS · ${item.payrollAccrualCount == null ? '—' : Number(item.payrollAccrualCount)} начислений зарплаты</small></details></div><span class="badge ${item.active === false ? 'warning' : 'success'}">${item.active === false ? 'В архиве' : 'Активна'}</span><div class="finance-category-actions">${canWrite && item.kind === 'expense' && item.active !== false ? `<button class="button small" type="button" data-category-start="${esc(item.id)}" aria-haspopup="dialog">Оформить расход</button>` : ''}${canWrite && item.kind === 'income' && item.active !== false ? `<a class="button small" data-category-income href="/finance?action=other-income&amp;categoryId=${encodeURIComponent(item.id)}#other-income">Добавить прочий доход</a>` : ''}<button class="button small" type="button" title="Операции за текущий месяц" data-category-report="${esc(item.id)}" data-category-report-archived="${item.active === false}">Посмотреть операции</button>${canWrite ? `<button class="button small finance-category-edit" type="button" data-category="${esc(item.id)}">Изменить категорию</button><details class="finance-category-overflow"><summary class="button small" aria-label="Другие действия">&#8943;</summary><div class="finance-category-overflow-menu"><button class="button small ${item.active === false ? 'primary' : 'danger-outline'}" type="button" data-category-status="${esc(item.id)}" data-active="${item.active === false ? 'false' : 'true'}">${item.active === false ? 'Восстановить' : 'Архивировать'}</button></div></details>` : ''}</div></div>`).join('') : `<div class="empty">${items.length ? 'По этому запросу категорий нет' : 'Категорий пока нет. Создайте категорию, чтобы выбирать её в финансовых операциях.'}</div>`;
+    const status = target.querySelector('#finance-category-status').value;
+    const statusItems = items.filter(item => status === 'all' || (status === 'archived' ? item.active === false : item.active !== false));
+    const visible = statusItems.filter((item) => (!kind || item.kind === kind) && (!query || item.name.toLocaleLowerCase('ru-RU').includes(query)));
+    document.querySelector('#finance-category-count').textContent = `${visible.length} из ${statusItems.length} категорий`;
+    document.querySelector('#finance-category-list').innerHTML = visible.length ? visible.map((item) => `<div class="category-row"><div><b>${esc(displayName(item.name))}</b><small>${item.kind === 'income' ? 'Доход' : 'Расход'}</small><details class="finance-category-links"><summary>Связанные записи</summary><small>${Number(item.expenseOperationCount || 0)} расходных записей · ${Number(item.expenseCorrectionCount || 0)} ссылок в истории исправлений · ${Number(item.incomeOperationCount || 0)} продаж · ${Number(item.obligationCount || 0)} обязательств · ${Number(item.recurringRuleCount || 0)} регулярных правил · ${Number(item.purchaseDocumentCount || 0)} документов закупки · ${Number(item.otherIncomeDocumentCount || 0)} документов дохода вне POS · ${item.payrollAccrualCount == null ? '—' : Number(item.payrollAccrualCount)} начислений зарплаты</small></details></div><span class="badge ${item.active === false ? 'warning' : 'success'}">${item.active === false ? 'В архиве' : 'Активна'}</span><div class="finance-category-actions">${canWrite && item.kind === 'expense' && item.active !== false ? `<button class="button small" type="button" data-category-start="${esc(item.id)}" aria-haspopup="dialog">Оформить расход</button>` : ''}${canWrite && item.kind === 'income' && item.active !== false ? `<a class="button small" data-category-income href="/finance?action=other-income&amp;categoryId=${encodeURIComponent(item.id)}#other-income">Добавить прочий доход</a>` : ''}<button class="button small" type="button" title="Операции за текущий месяц" data-category-report="${esc(item.id)}" data-category-report-archived="${item.active === false}">Посмотреть операции</button>${canWrite ? `<button class="button small finance-category-edit" type="button" data-category="${esc(item.id)}">Изменить категорию</button>${item.active === false ? `<button class="button small" type="button" data-category-status="${esc(item.id)}" data-active="false">Восстановить</button>` : `<details class="finance-category-overflow"><summary class="button small" aria-label="Другие действия">&#8943;</summary><div class="finance-category-overflow-menu"><button class="button small danger-outline" type="button" data-category-status="${esc(item.id)}" data-active="true">Архивировать</button></div></details>`}` : ''}</div></div>`).join('') : `<div class="empty">${query || kind ? 'По выбранным фильтрам категорий нет. Очистите поиск или измените тип.' : status === 'archived' ? 'Архив пуст. Здесь появятся архивированные категории; их можно восстановить.' : status === 'all' ? 'Категорий пока нет. Создайте первую категорию.' : canWrite ? 'Активных категорий нет. Создайте категорию или проверьте «Архив», чтобы восстановить прежнюю.' : 'Активных категорий пока нет. Для настройки справочника обратитесь к владельцу.'}</div>`;
     if (categoryMutationPending) setCategoryMutationPending(true);
   };
-  const load = () => { const requestId = ++categoryLoadRequestId; categoryLoading = true; const list = target.querySelector('#finance-category-list'); list.setAttribute('aria-busy', 'true'); list.innerHTML = '<div class="empty" role="status">Загрузка категорий…</div>'; target.querySelector('#finance-category-count').textContent = 'Загрузка…'; const query = document.querySelector('#finance-category-status').value === 'all' ? '?includeArchived=true' : ''; return api(`/api/finance/categories${query}`).then((data) => { if (requestId !== categoryLoadRequestId) return false; categoryLoading = false; list.setAttribute('aria-busy', 'false'); categoryLoadError = false; items = data.items || []; draw(); loadIncomeMappings(); return true; }).catch(() => { if (requestId !== categoryLoadRequestId) return false; categoryLoading = false; list.setAttribute('aria-busy', 'false'); categoryLoadError = true; items = []; document.querySelector('#finance-category-count').textContent = '—'; document.querySelector('#finance-category-list').innerHTML = '<div class="empty" role="alert">Не удалось загрузить категории. <button type="button" class="button small" data-finance-category-retry>Повторить</button></div>'; portalNotice('Не удалось загрузить категории финансов', 'error'); return false; }); };
+  const load = () => { const requestId = ++categoryLoadRequestId; categoryLoading = true; const list = target.querySelector('#finance-category-list'); list.setAttribute('aria-busy', 'true'); list.innerHTML = '<div class="empty" role="status">Загрузка категорий…</div>'; target.querySelector('#finance-category-count').textContent = 'Загрузка…'; const query = document.querySelector('#finance-category-status').value !== 'active' ? '?includeArchived=true' : ''; return api(`/api/finance/categories${query}`).then((data) => { if (requestId !== categoryLoadRequestId) return false; categoryLoading = false; list.setAttribute('aria-busy', 'false'); categoryLoadError = false; items = data.items || []; draw(); loadIncomeMappings(); return true; }).catch(() => { if (requestId !== categoryLoadRequestId) return false; categoryLoading = false; list.setAttribute('aria-busy', 'false'); categoryLoadError = true; items = []; document.querySelector('#finance-category-count').textContent = '—'; document.querySelector('#finance-category-list').innerHTML = '<div class="empty" role="alert">Не удалось загрузить категории. <button type="button" class="button small" data-finance-category-retry>Повторить</button></div>'; portalNotice('Не удалось загрузить категории финансов', 'error'); return false; }); };
   const filterSummary = document.querySelector('.finance-category-filter-options summary');
   const updateFilterSummary = () => {
     const type = document.querySelector('#finance-category-type').value;
-    const archived = document.querySelector('#finance-category-status').value === 'all';
-    filterSummary.textContent = ['Фильтры', type === 'expense' ? 'Расходы' : type === 'income' ? 'Доходы' : '', archived ? 'С архивом' : ''].filter(Boolean).join(' · ');
+    filterSummary.textContent = ['Фильтры', type === 'expense' ? 'Расходы' : type === 'income' ? 'Доходы' : ''].filter(Boolean).join(' · ');
   };
   ['#finance-category-type', '#finance-category-status'].forEach((selector) => document.querySelector(selector).addEventListener('change', updateFilterSummary));
   document.querySelector('#finance-category-search').addEventListener('input', draw);
@@ -5734,11 +5757,11 @@ function renderFinanceCategories() {
         return;
       }
       const statusButton = event.target.closest('[data-category-status]');
-      if (statusButton) { if (categoryMutationPending) return; const item = items.find((entry) => entry.id === statusButton.dataset.categoryStatus); if (!item) return; const active = statusButton.dataset.active === 'true'; setCategoryMutationPending(true); try { if (active && !await portalConfirm('Архивировать категорию?', 'Категория исчезнет из выбора для новых операций. Все связанные записи сохранятся в истории. Категорию можно восстановить позже.', 'Архивировать')) return; await api(`/api/finance/categories/${encodeURIComponent(item.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !active }) }); const refreshed = await load(); portalNotice(refreshed ? active ? 'Категория помещена в архив' : 'Категория восстановлена' : 'Категория изменена, но список не обновился. Повторите загрузку.', refreshed ? 'success' : 'error'); } catch (error) { portalNotice(error.payload?.error === 'finance_category_has_active_income_mappings' ? 'Сначала переназначьте POS-источники на другую статью с будущего месяца.' : error.payload?.error === 'finance_category_has_active_recurring_rules' ? 'Сначала завершите связанное регулярное правило.' : error.payload?.error === 'finance_category_has_drafts' ? 'Сначала перенесите или отмените черновики этой статьи.' : 'Не удалось изменить категорию', 'error'); } finally { setCategoryMutationPending(false); } return; }
+      if (statusButton) { if (categoryMutationPending) return; const item = items.find((entry) => entry.id === statusButton.dataset.categoryStatus); if (!item) return; const active = statusButton.dataset.active === 'true'; setCategoryMutationPending(true); try { if (active && !await portalConfirm('Архивировать категорию?', 'Категория исчезнет из выбора для новых операций. Все связанные записи сохранятся в истории. Найти и восстановить категорию можно над списком: «Статус → Архив».', 'Архивировать')) return; await api(`/api/finance/categories/${encodeURIComponent(item.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !active }) }); const refreshed = await load(); portalNotice(refreshed ? active ? 'Категория помещена в архив. Найти её можно в «Статус → Архив».' : 'Категория восстановлена и доступна в «Активные».' : 'Категория изменена, но список не обновился. Повторите загрузку.', refreshed ? 'success' : 'error'); } catch (error) { portalNotice(error.payload?.error === 'finance_category_has_active_income_mappings' ? 'Сначала переназначьте POS-источники на другую статью с будущего месяца.' : error.payload?.error === 'finance_category_has_active_recurring_rules' ? 'Сначала завершите связанное регулярное правило.' : error.payload?.error === 'finance_category_has_drafts' ? 'Сначала перенесите или отмените черновики этой статьи.' : 'Не удалось изменить категорию', 'error'); } finally { setCategoryMutationPending(false); } return; }
       const button = event.target.closest('[data-category]'); if (!button || categoryMutationPending) return; const item = items.find((entry) => entry.id === button.dataset.category); if (!item) return; reset(); form.hidden = false; form.dataset.originalKind = item.kind; document.querySelector('#finance-category-id').value = item.id; document.querySelector('#finance-category-name').value = item.name; document.querySelector('#finance-category-kind').value = item.kind; archiveButton.hidden = false; archiveButton.textContent = item.active === false ? 'Восстановить' : 'Архивировать'; openEditor('Изменить категорию');
     });
     form.addEventListener('submit', (event) => { event.preventDefault(); if (categoryMutationPending) return; const portalNotice = bindManagementNotice(event.currentTarget); const id = document.querySelector('#finance-category-id').value; const message = document.querySelector('#finance-category-message'); const kindControl = document.querySelector('#finance-category-kind'); const payload = { name: document.querySelector('#finance-category-name').value.trim(), kind: kindControl.value }; setCategoryMutationPending(true); api(id ? `/api/finance/categories/${encodeURIComponent(id)}` : '/api/finance/categories', { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(async () => { reset(); const refreshed = await load(); portalNotice(refreshed ? 'Категория сохранена' : 'Категория сохранена, но список не обновился. Повторите загрузку.', refreshed ? 'success' : 'error'); }).catch((error) => { const code = error.payload?.error; if (code === 'finance_category_has_operations') { kindControl.value = form.dataset.originalKind || kindControl.value; kindControl._customSelectRefresh?.(); message.textContent = 'Тип нельзя изменить: статья уже указана в финансовой истории. Создайте новую категорию нужного типа.'; } else { message.textContent = code === 'finance_category_exists' ? 'Активная категория с таким названием уже есть' : 'Не удалось сохранить категорию'; } message.className = 'form-message error-message'; }).finally(() => { setCategoryMutationPending(false); }); });
-    archiveButton.addEventListener('click', async () => { if (categoryMutationPending) return; const id = document.querySelector('#finance-category-id').value; const item = items.find((entry) => entry.id === id); if (!item) return; const active = item.active !== false; setCategoryMutationPending(true); try { if (active && !await portalConfirm('Архивировать категорию?', 'Категория исчезнет из выбора для новых операций. Все связанные записи сохранятся в истории. Категорию можно восстановить позже.', 'Архивировать')) return; await api(`/api/finance/categories/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !active }) }); reset(); const refreshed = await load(); portalNotice(refreshed ? active ? 'Категория помещена в архив' : 'Категория восстановлена' : 'Категория изменена, но список не обновился. Повторите загрузку.', refreshed ? 'success' : 'error'); } catch (error) { portalNotice(error.payload?.error === 'finance_category_has_active_income_mappings' ? 'Сначала переназначьте POS-источники на другую статью с будущего месяца.' : error.payload?.error === 'finance_category_has_active_recurring_rules' ? 'Сначала завершите связанное регулярное правило.' : 'Не удалось изменить категорию', 'error'); } finally { setCategoryMutationPending(false); } });
+    archiveButton.addEventListener('click', async () => { if (categoryMutationPending) return; const id = document.querySelector('#finance-category-id').value; const item = items.find((entry) => entry.id === id); if (!item) return; const active = item.active !== false; setCategoryMutationPending(true); try { if (active && !await portalConfirm('Архивировать категорию?', 'Категория исчезнет из выбора для новых операций. Все связанные записи сохранятся в истории. Найти и восстановить категорию можно над списком: «Статус → Архив».', 'Архивировать')) return; await api(`/api/finance/categories/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !active }) }); reset(); const refreshed = await load(); portalNotice(refreshed ? active ? 'Категория помещена в архив. Найти её можно в «Статус → Архив».' : 'Категория восстановлена и доступна в «Активные».' : 'Категория изменена, но список не обновился. Повторите загрузку.', refreshed ? 'success' : 'error'); } catch (error) { portalNotice(error.payload?.error === 'finance_category_has_active_income_mappings' ? 'Сначала переназначьте POS-источники на другую статью с будущего месяца.' : error.payload?.error === 'finance_category_has_active_recurring_rules' ? 'Сначала завершите связанное регулярное правило.' : 'Не удалось изменить категорию', 'error'); } finally { setCategoryMutationPending(false); } });
   }
   load();
 }
@@ -6901,6 +6924,114 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
   });
   let expenseEntryReady = Promise.resolve();
   if (canDecideFinance) { loadExpenses(); expenseEntryReady = Promise.all([loadExpenseCategories(),loadExpenseAccounts()]).then(loadExpenseDrafts); } else if (canReadExpenseDrafts) { loadExpenses(); loadExpenseDrafts(); } else expenseList.innerHTML = '<div class="empty">Подробный журнал расходов доступен финансовым ролям</div>';
+  // Calculation-entry retry contract. Kept independent of DOM rendering so a
+  // lost response can be recovered with the exact request after a reload.
+  const createPayrollLinkedController = ({ request, storage, identity, makeKey }) => {
+    const scope = identity();
+    const prefix = `hookah-pos:payroll-entry-transition:${scope}:`;
+    const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
+    const sha = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+    const cents = value => Number.isSafeInteger(value) && value >= 0 && value <= 999999999999;
+    const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    const fail = code => { throw Object.assign(new Error(code), { code }); };
+    const ensureOwner = () => { if (!scope || identity() !== scope) fail('payroll_ui_owner_required'); };
+    const payloadValid = payload => payload && Object.keys(payload).sort().join(',') === 'action,expectedStateHash,idempotencyKey,paymentAccountId,paymentDate,paymentMethod,reason'
+      && ['approve', 'pay', 'cancel'].includes(payload.action) && sha(payload.expectedStateHash)
+      && typeof payload.idempotencyKey === 'string' && /^[A-Za-z0-9_.:-]{8,120}$/.test(payload.idempotencyKey)
+      && (payload.action === 'pay' ? date(payload.paymentDate) && payload.reason === null
+        && ((payload.paymentAccountId === null && payload.paymentMethod === null)
+          || (uuid(payload.paymentAccountId) && ['cash', 'card', 'bank_transfer', 'other'].includes(payload.paymentMethod)))
+        : payload.paymentDate === null && payload.paymentAccountId === null && payload.paymentMethod === null
+          && (payload.action === 'approve' ? payload.reason === null : typeof payload.reason === 'string' && payload.reason.trim().length >= 3 && payload.reason.length <= 500));
+    const entryValid = (entry, id) => entry && entry.id === id && uuid(entry.calculationRunId)
+      && ['draft', 'approved', 'paid', 'cancelled'].includes(entry.status) && entry.currency === 'RUB'
+      && sha(entry.provenanceSha256) && cents(entry.grossCents) && cents(entry.amountCents)
+      && entry.amountCents <= entry.grossCents && date(entry.periodFrom) && date(entry.periodTo);
+    const pending = id => {
+      ensureOwner();
+      if (!uuid(id)) fail('payroll_ui_entry_invalid');
+      let raw;
+      try { raw = storage().getItem(prefix + id); } catch (_) { fail('payroll_ui_retry_storage_unavailable'); }
+      if (raw === null) return null;
+      let attempt;
+      try { attempt = JSON.parse(raw); } catch (_) { fail('payroll_ui_retry_storage_invalid'); }
+      if (!attempt || attempt.entryId !== id || !payloadValid(attempt.payload)
+          || !date(attempt.periodFrom) || !date(attempt.periodTo)) fail('payroll_ui_retry_storage_invalid');
+      return attempt;
+    };
+    const listPending = () => {
+      ensureOwner();
+      const ids = [];
+      try {
+        const saved = storage();
+        for (let index = 0; index < saved.length; index++) {
+          const key = saved.key(index);
+          if (key?.startsWith(prefix) && uuid(key.slice(prefix.length))) ids.push(key.slice(prefix.length));
+        }
+      } catch (_) { fail('payroll_ui_retry_storage_unavailable'); }
+      return ids.sort().map(pending).filter(Boolean);
+    };
+    const clear = attempt => {
+      try {
+        const current = pending(attempt.entryId);
+        if (!current || JSON.stringify(current.payload) !== JSON.stringify(attempt.payload)) return !current;
+        storage().removeItem(prefix + attempt.entryId);
+        return storage().getItem(prefix + attempt.entryId) === null;
+      } catch (_) { return false; }
+    };
+    const check = async id => {
+      ensureOwner();
+      if (!uuid(id)) fail('payroll_ui_entry_invalid');
+      if (pending(id)) fail('payroll_ui_retry_required');
+      const result = await request(`/api/payroll/calculation-entries/${encodeURIComponent(id)}/state`);
+      ensureOwner();
+      if (result?.schemaVersion !== 1 || !entryValid(result.entry, id) || !sha(result.stateHash)
+          || !Array.isArray(result.allowedActions) || result.allowedActions.some(action => !['approve', 'pay', 'cancel'].includes(action))
+          || !['current', 'blocked', 'not_required'].includes(result.sourceStatus)) fail('payroll_ui_response_invalid');
+      const legal = { draft: ['approve', 'cancel'], approved: ['pay', 'cancel'], paid: [], cancelled: [] }[result.entry.status];
+      return { ...result, allowedActions: result.allowedActions.filter(action => legal.includes(action)
+        && (action === 'cancel' || result.sourceStatus === 'current')) };
+    };
+    const begin = (entry, input) => {
+      ensureOwner();
+      if (!uuid(entry.id) || !date(entry.periodFrom) || !date(entry.periodTo)) fail('payroll_ui_entry_invalid');
+      if (pending(entry.id)) fail('payroll_ui_retry_required');
+      const attempt = { entryId: entry.id, periodFrom: entry.periodFrom, periodTo: entry.periodTo,
+        payload: { ...input, idempotencyKey: makeKey() } };
+      if (!payloadValid(attempt.payload)) fail('payroll_ui_command_invalid');
+      const raw = JSON.stringify(attempt);
+      try { storage().setItem(prefix + entry.id, raw); if (storage().getItem(prefix + entry.id) !== raw) throw new Error('storage_readback'); }
+      catch (_) { fail('payroll_ui_retry_storage_unavailable'); }
+      return attempt;
+    };
+    const retry = async id => {
+      ensureOwner();
+      const attempt = pending(id);
+      if (!attempt) fail('payroll_ui_retry_missing');
+      try {
+        const result = await request(`/api/payroll/calculation-entries/${encodeURIComponent(id)}/transition`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(attempt.payload)
+        });
+        ensureOwner();
+        const expected = { approve: 'approved', pay: 'paid', cancel: 'cancelled' }[attempt.payload.action];
+        if (result?.schemaVersion !== 1 || !uuid(result.transitionId) || result.action !== attempt.payload.action
+            || typeof result.replayed !== 'boolean' || !entryValid(result.entry, id) || result.entry.status !== expected
+            || (result.currentEntry && !entryValid(result.currentEntry, id))) fail('payroll_ui_response_invalid');
+        return { ...result, retryPending: !clear(attempt) };
+      } catch (error) {
+        const code = String(error.payload?.error || error.code || '');
+        const rejected = (Number(error.status) === 404 && code === 'payroll_entry_lifecycle_not_found')
+          || [400, 409].includes(Number(error.status))
+          && /^payroll_(?:entry_(?:transition|lifecycle|evidence|corrections)_|lifecycle_|correction_)/.test(code)
+          && !/idempotency|integrity/.test(code);
+        error.payrollAttemptRetained = !rejected || !clear(attempt);
+        throw error;
+      }
+    };
+    return { pending, listPending, check, begin, retry };
+  };
+  // End calculation-entry retry contract.
   let loadPayroll = () => Promise.resolve();
   if (canDecideFinance && !employeeFinanceView) {
     const todayDate = localDateKey();
@@ -6922,6 +7053,71 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
     let payrollReady = false;
     let payrollRequestId = 0;
     const payrollPendingEntries = new Set();
+    const linkedPayrollIdentity = () => {
+      const user = window.__portalSessionVerified?.user;
+      return user?.role === 'owner' && user.id && user.venueId && !window.__portalSessionGate?.blocked
+        ? `${user.venueId}:${user.id}` : '';
+    };
+    const linkedPayrollOwner = linkedPayrollIdentity();
+    const linkedPayrollAlive = () => payrollSection.isConnected && linkedPayrollOwner && linkedPayrollIdentity() === linkedPayrollOwner;
+    const linkedPayroll = createPayrollLinkedController({ request: api, storage: () => localStorage,
+      identity: linkedPayrollIdentity, makeKey: () => globalThis.crypto.randomUUID() });
+    const linkedPayrollStates = new Map();
+    const linkedPayrollMessages = new Map();
+    const linkedPayrollActionNames = { approve: 'Утверждение', pay: 'Выплата', cancel: 'Отмена' };
+    const linkedPayrollError = error => {
+      const code = String(error?.payload?.error || error?.code || error?.message || '');
+      if (/storage/.test(code)) return 'Не удалось прочитать или сохранить запрос в браузере. Действие не отправлено. Проверьте доступ к хранилищу.';
+      if (/owner_required|forbidden|authentication/.test(code)) return 'Действия доступны владельцу. Войдите под своей учётной записью.';
+      if (/state_stale|ledger_changed|plan_stale/.test(code)) return 'Начисление изменилось. Проверьте его снова перед подтверждением.';
+      if (/source|freshness|assessment|replay|evidence|correction/.test(code)) return 'Утверждение и выплата заблокированы: исходные данные или корректировки требуют проверки. Начисление можно отменить.';
+      if (/account_inactive/.test(code)) return 'Счёт архивирован. Выберите активный счёт.';
+      if (/account_not_found/.test(code)) return 'Счёт выплаты не найден. Обновите список счетов.';
+      if (/method_account|payment_details|payment_method/.test(code)) return 'Проверьте счёт и разрешённый для него способ выплаты.';
+      if (/cash_payment_date/.test(code)) return 'Выплата из кассы смены доступна только сегодняшней датой заведения.';
+      if (/open_shift/.test(code)) return 'Для выплаты из кассы нужна одна открытая смена.';
+      if (/payment_date/.test(code)) return 'Укажите корректную дату выплаты.';
+      if (/reason/.test(code)) return 'Укажите причину отмены длиной от 3 до 500 символов.';
+      if (/retry_required/.test(code)) return 'Сначала проверьте результат предыдущего действия сохранённым запросом.';
+      return 'Не удалось подтвердить действие. Обновите проверку или повторите сохранённый запрос.';
+    };
+    const linkedPayrollPending = id => {
+      if (!linkedPayrollAlive()) return null;
+      try { return linkedPayroll.pending(id); }
+      catch (error) { return { invalid: true, message: linkedPayrollError(error) }; }
+    };
+    const linkedPayrollRecovery = () => {
+      if (!linkedPayrollAlive()) return '';
+      try {
+        const attempts = linkedPayroll.listPending();
+        if (!attempts.length) return '';
+        return `<div class="payroll-cancel-editor stack-form" data-payroll-linked-recovery><b>Есть действия без подтверждённого ответа</b><p class="muted">Повтор отправляет сохранённый запрос. Повторной выплаты не создаёт.</p>${attempts.map(attempt => `<div class="toolbar-row"><span>${esc(linkedPayrollActionNames[attempt.payload.action])} · ${esc(formatRuDate(attempt.periodFrom))} — ${esc(formatRuDate(attempt.periodTo))}</span><button type="button" class="button small" data-payroll-linked-retry="${esc(attempt.entryId)}" ${payrollPendingEntries.has(attempt.entryId) ? 'disabled' : ''}>Проверить результат</button></div>`).join('')}</div>`;
+      } catch (error) { return `<p class="form-message error-message" role="alert">${esc(linkedPayrollError(error))}</p>`; }
+    };
+    const renderLinkedPayrollActions = (item, state, pending, busy) => {
+      if (!linkedPayrollAlive()) return '<small class="muted">Действия с расчётным начислением доступны владельцу.</small>';
+      if (pending?.invalid) return `<small role="alert">${esc(pending.message)}</small>`;
+      if (pending) return `<span class="muted">${esc(linkedPayrollActionNames[pending.payload.action])}: ответ ещё не подтверждён.</span><button type="button" class="button small" data-payroll-linked-retry="${esc(item.id)}" ${busy ? 'disabled' : ''}>Проверить результат</button>`;
+      if (!['draft', 'approved'].includes(item.status)) return '<small class="muted">Операция завершена</small>';
+      const buttons = [`<button type="button" class="button small" data-payroll-linked-check="${esc(item.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Проверяем…' : state ? 'Проверить ещё раз' : 'Проверить и открыть действия'}</button>`];
+      if (!state) return buttons.join('');
+      if (state.allowedActions.includes('approve')) buttons.push(`<button type="button" class="button small primary" data-payroll-action="approve" data-entry="${esc(item.id)}" ${busy ? 'disabled' : ''}>Утвердить начисление</button>`);
+      if (state.allowedActions.includes('pay')) {
+        const accounts = financeAccountItems.filter(account => account.active !== false);
+        const account = accounts.find(candidate => candidate.kind !== 'pos_cashbox') || accounts[0];
+        const zero = state.entry.amountCents === 0;
+        buttons.push(`<label class="payroll-payment-date">Дата ${zero ? 'завершения' : 'выплаты'}<input type="date" data-payroll-payment-date="${esc(item.id)}" value="${todayDate}" required ${busy ? 'disabled' : ''}></label>`);
+        if (zero) buttons.push('<small class="muted">К выплате 0 ₽. Завершение без денежного расхода.</small>');
+        else {
+          buttons.push(`<label>Счёт выплаты<select data-payroll-payment-account="${esc(item.id)}" required ${busy || !accounts.length ? 'disabled' : ''}>${accounts.map(candidate => `<option value="${esc(candidate.id)}" ${candidate.id === account?.id ? 'selected' : ''}>${esc(candidate.name)}${candidate.kind === 'pos_cashbox' ? ' · касса смены' : ''}</option>`).join('')}</select></label>`);
+          buttons.push(`<label>Способ<select data-payroll-payment-method="${esc(item.id)}" required ${busy || !account?.allowedPaymentMethods?.length ? 'disabled' : ''}>${(account?.allowedPaymentMethods || []).map(method => `<option value="${esc(method)}">${esc(({ cash: 'Наличные', card: 'Карта', bank_transfer: 'Банковский перевод', other: 'Другое' })[method] || method)}</option>`).join('')}</select></label>`);
+          if (!accounts.length) buttons.push('<small class="muted">Нет доступных счетов выплаты. Обновите финансовые счета и повторите проверку.</small>');
+        }
+        buttons.push(`<button type="button" class="button small primary" data-payroll-action="pay" data-entry="${esc(item.id)}" ${busy || (!zero && !account?.allowedPaymentMethods?.length) ? 'disabled' : ''}>${zero ? 'Завершить без выплаты' : 'Подтвердить выплату'}</button>`);
+      }
+      if (state.allowedActions.includes('cancel')) buttons.push(`<button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}" ${busy ? 'disabled' : ''}>Отменить</button>`);
+      return buttons.join('');
+    };
     const filterOptions = (selector, values, allLabel) => {
       const field = payrollSection.querySelector(selector); const previous = field.value;
       const options = [...new Map(values.filter((item) => item.id && item.name).map((item) => [String(item.id), { id: item.id, name: item.name }])).values()];
@@ -6933,27 +7129,38 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       const userId = payrollSection.querySelector('#payroll-filter-user').value;
       const ruleId = payrollSection.querySelector('#payroll-filter-rule').value;
       const rows = payrollItems.filter((item) => (!userId || String(item.userId) === userId) && (!ruleId || String(item.ruleId) === ruleId));
-      if (!rows.length) { register.innerHTML = '<div class="empty">За выбранный период начислений нет</div>'; return; }
+      if (!rows.length) { register.innerHTML = linkedPayrollRecovery() + '<div class="empty">За выбранный период начислений нет</div>'; return; }
       register.innerHTML = rows.map((item) => {
-        const [statusLabel, statusStyle] = entryStatuses[item.status] || [String(item.status || 'Неизвестно'), 'warning'];
+        const [statusLabel, statusStyle] = item.settlementKind === 'zero' && item.status === 'paid' ? ['Завершено без выплаты', 'success'] : entryStatuses[item.status] || [String(item.status || 'Неизвестно'), 'warning'];
         const period = `${formatRuDate(item.periodFrom)} — ${formatRuDate(item.periodTo)}`;
-        const payout = item.paymentDate ? `Дата выплаты: ${formatRuDate(item.paymentDate)}${item.paymentAccountNameSnapshot ? ` · ${esc(item.paymentAccountNameSnapshot)} · ${{cash:'Наличные',card:'Карта',bank_transfer:'Банковский перевод',other:'Другое'}[item.paymentMethod]||'способ не указан'}${item.shiftId?' · кассовая смена':''}` : item.accountCoverage==='unknown_legacy'?' · счёт не указан':''}` : 'Дата выплаты не указана';
-        const canCancel = item.status === 'draft' || item.status === 'approved';
+        const payout = item.settlementKind === 'zero' ? `Завершено без денежной выплаты${item.paymentDate ? ` · ${formatRuDate(item.paymentDate)}` : ''}` : item.paymentDate ? `Дата выплаты: ${formatRuDate(item.paymentDate)}${item.paymentAccountNameSnapshot ? ` · ${esc(item.paymentAccountNameSnapshot)} · ${{cash:'Наличные',card:'Карта',bank_transfer:'Банковский перевод',other:'Другое'}[item.paymentMethod]||'способ не указан'}${item.shiftId?' · кассовая смена':''}` : item.accountCoverage==='unknown_legacy'?' · счёт не указан':''}` : 'Дата выплаты не указана';
+        const linkedRun = item.origin === 'calculation_run' || Boolean(item.calculationRunId);
+        const linkedState = linkedRun ? linkedPayrollStates.get(item.id) : null;
+        const linkedPending = linkedRun ? linkedPayrollPending(item.id) : null;
+        const canCancel = linkedRun ? linkedPayrollAlive() && !linkedPending && linkedState?.allowedActions.includes('cancel')
+          : item.status === 'draft' || item.status === 'approved';
         const payoutAccounts=financeAccountItems.filter((account)=>account.active!==false);
         const payoutAccount=payoutAccounts.find((account)=>account.kind!=='pos_cashbox')||payoutAccounts[0];
         const payoutMethodLabel=(method)=>({cash:'Наличные',card:'Карта',bank_transfer:'Банковский перевод',other:'Другое'})[method]||method;
         const paymentPending=payrollPendingEntries.has(String(item.id));
         const payoutControlsDisabled=!payoutAccounts.length||paymentPending;
-        const actions = item.status === 'draft' ? `<button type="button" class="button small primary" data-payroll-action="approve" data-entry="${esc(item.id)}">Утвердить</button><button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}">Отменить</button>` : item.status === 'approved' ? `<label class="payroll-payment-date">Дата выплаты<input type="date" data-payroll-payment-date="${esc(item.id)}" value="${todayDate}" aria-label="Дата выплаты сотруднику" ${paymentPending?'disabled':''}></label><label>Счёт выплаты<select data-payroll-payment-account="${esc(item.id)}" required ${payoutControlsDisabled?'disabled':''}>${payoutAccounts.map((account)=>`<option value="${esc(account.id)}" ${account.id===payoutAccount?.id?'selected':''}>${esc(account.name)}${account.kind==='pos_cashbox'?' · касса смены':''}</option>`).join('')}</select></label><label>Способ<select data-payroll-payment-method="${esc(item.id)}" required ${payoutControlsDisabled?'disabled':''}>${(payoutAccount?.allowedPaymentMethods||[]).map((method)=>`<option value="${esc(method)}">${esc(payoutMethodLabel(method))}</option>`).join('')}</select></label><button type="button" class="button small primary" data-payroll-action="pay" data-entry="${esc(item.id)}" ${payoutControlsDisabled?'disabled':''}>Отметить выплаченным</button><button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}" ${paymentPending?'disabled':''}>Отменить</button>` : '<small class="muted">Операция завершена</small>';
+        const legacyActions = item.status === 'draft' ? `<button type="button" class="button small primary" data-payroll-action="approve" data-entry="${esc(item.id)}">Утвердить</button><button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}">Отменить</button>` : item.status === 'approved' ? `<label class="payroll-payment-date">Дата выплаты<input type="date" data-payroll-payment-date="${esc(item.id)}" value="${todayDate}" aria-label="Дата выплаты сотруднику" ${paymentPending?'disabled':''}></label><label>Счёт выплаты<select data-payroll-payment-account="${esc(item.id)}" required ${payoutControlsDisabled?'disabled':''}>${payoutAccounts.map((account)=>`<option value="${esc(account.id)}" ${account.id===payoutAccount?.id?'selected':''}>${esc(account.name)}${account.kind==='pos_cashbox'?' · касса смены':''}</option>`).join('')}</select></label><label>Способ<select data-payroll-payment-method="${esc(item.id)}" required ${payoutControlsDisabled?'disabled':''}>${(payoutAccount?.allowedPaymentMethods||[]).map((method)=>`<option value="${esc(method)}">${esc(payoutMethodLabel(method))}</option>`).join('')}</select></label><button type="button" class="button small primary" data-payroll-action="pay" data-entry="${esc(item.id)}" ${payoutControlsDisabled?'disabled':''}>Отметить выплаченным</button><button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}" ${paymentPending?'disabled':''}>Отменить</button>` : '<small class="muted">Операция завершена</small>';
+        const actions = linkedRun ? renderLinkedPayrollActions(item, linkedState, linkedPending, paymentPending) : legacyActions;
+        const workedLabel = linkedRun ? 'По сохранённому расчёту' : `Отработано: ${Number(item.hours || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ч`;
+        const grossCents = linkedState?.entry.grossCents ?? item.grossCents;
+        const netCents = linkedState?.entry.amountCents ?? item.amountCents ?? Math.round(Number(item.amount) * 100);
+        const linkedNotice = linkedRun ? `${Number.isSafeInteger(grossCents) && Number.isSafeInteger(netCents) && grossCents >= netCents ? `<small data-payroll-linked-totals>Начислено: ${money(grossCents / 100)} · Корректировки: ${money((grossCents - netCents) / 100)} · ${item.status === 'cancelled' ? 'Сумма при отмене' : item.status === 'paid' ? 'Выплачено' : 'К выплате'}: ${money(netCents / 100)}</small>` : ''}<small class="muted" data-payroll-linked-status role="status">${esc(linkedPayrollMessages.get(item.id) || (linkedState?.sourceStatus === 'blocked' ? 'Утверждение и выплата заблокированы: требуется проверка исходных данных или корректировок.' : linkedState?.sourceStatus === 'current' ? 'Данные проверены. При подтверждении сервер проверит их повторно.' : ['draft', 'approved'].includes(item.status) ? 'Перед подтверждением проверьте актуальность расчёта.' : 'Сохранено в истории начисления.'))}</small>` : '';
         const cancelEditor = canCancel ? `<form class="payroll-cancel-editor stack-form" data-payroll-cancel-editor="${esc(item.id)}" hidden><label>Причина отмены <span class="required-mark">*</span><textarea rows="2" minlength="3" maxlength="500" required data-payroll-cancel-reason aria-label="Причина отмены начисления" placeholder="Укажите причину (от 3 до 500 символов)"></textarea></label><p class="form-message" data-payroll-cancel-message role="status" aria-live="polite"></p><div class="toolbar-row"><button type="submit" class="button small danger-outline" data-payroll-action="cancel" data-entry="${esc(item.id)}">Подтвердить отмену</button><button type="button" class="button small" data-payroll-cancel-close="${esc(item.id)}">Назад</button></div></form>` : '';
-        return `<article class="payment-row payroll-entry-row" data-payroll-entry="${esc(item.id)}"><span><b>${esc(displayName(item.userName || 'Сотрудник не указан'))}</b><small>${esc(displayName(item.ruleName || 'Модель не указана'))} · ${esc(period)}</small><small>Отработано: ${Number(item.hours || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ч · ${esc(payout)} · Статья: ${esc(item.financeCategoryNameSnapshot || item.financeCategoryName || 'не указана')}</small></span><span class="badge ${statusStyle}">${esc(statusLabel)}</span><strong>${money(item.amount)}</strong><div class="toolbar-row payroll-entry-actions">${actions}</div>${cancelEditor}</article>`;
+        return `<article class="payment-row payroll-entry-row" data-payroll-entry="${esc(item.id)}"><span><b>${esc(displayName(item.employeeName || item.userName || 'Сотрудник не указан'))}</b><small>${esc(displayName(item.schemeName || item.ruleName || 'Модель не указана'))} · ${esc(period)}</small><small>${esc(workedLabel)} · ${esc(payout)} · Статья: ${esc(item.financeCategoryNameSnapshot || item.financeCategoryName || 'не указана')}</small>${linkedNotice}</span><span class="badge ${statusStyle}">${esc(statusLabel)}</span><strong>${money(item.amount)}</strong><div class="toolbar-row payroll-entry-actions">${actions}</div>${cancelEditor}</article>`;
       }).join('');
+      register.insertAdjacentHTML('afterbegin', linkedPayrollRecovery());
       register.querySelectorAll('[data-payroll-entry]').forEach((row) => {
         if (payrollPendingEntries.has(row.dataset.payrollEntry)) row.querySelectorAll('input,select,textarea,button').forEach((field) => { field.disabled = true; field._customSelectRefresh?.(); });
       });
     };
     loadPayroll = async () => {
       const requestId = ++payrollRequestId;
+      linkedPayrollStates.clear();
       payrollReady = false;
       payrollItems = [];
       if (staticDemo()) { register.innerHTML = '<div class="empty">В демо-режиме зарплатные начисления не подменяются тестовыми данными. Откройте подключённый серверный реестр.</div>'; return; }
@@ -6982,11 +7189,113 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       }
     };
     const refreshPayrollViews = () => Promise.allSettled([loadPayroll(), loadExpenses(), load()]);
+    const checkLinkedPayroll = async entryId => {
+      if (!linkedPayrollAlive() || payrollPendingEntries.has(entryId)) return;
+      const requestId = payrollRequestId;
+      payrollPendingEntries.add(entryId);
+      linkedPayrollMessages.set(entryId, 'Проверяем расчёт и исходные данные…');
+      drawPayroll();
+      try {
+        const state = await linkedPayroll.check(entryId);
+        if (!linkedPayrollAlive() || requestId !== payrollRequestId) return;
+        linkedPayrollStates.set(entryId, state);
+        linkedPayrollMessages.delete(entryId);
+        payrollItems = payrollItems.map(item => item.id === entryId ? { ...item, ...state.entry,
+          origin: 'calculation_run', amount: state.entry.amountCents / 100 } : item);
+      } catch (error) {
+        if (!linkedPayrollAlive() || requestId !== payrollRequestId) return;
+        linkedPayrollStates.delete(entryId);
+        linkedPayrollMessages.set(entryId, linkedPayrollError(error));
+      } finally {
+        payrollPendingEntries.delete(entryId);
+        if (linkedPayrollAlive()) drawPayroll();
+      }
+    };
+    const sendLinkedPayroll = async entryId => {
+      if (!linkedPayrollAlive() || payrollPendingEntries.has(entryId)) return;
+      payrollPendingEntries.add(entryId);
+      linkedPayrollStates.delete(entryId);
+      linkedPayrollMessages.set(entryId, 'Ожидаем подтверждение операции…');
+      registerMessage.className = 'form-message'; registerMessage.textContent = 'Отправляем сохранённый запрос…';
+      drawPayroll();
+      try {
+        const result = await linkedPayroll.retry(entryId);
+        if (!linkedPayrollAlive()) return;
+        const entry = result.currentEntry || result.entry;
+        const message = result.action === 'approve' ? 'Начисление утверждено.'
+          : result.action === 'cancel' ? 'Начисление отменено. Применённые корректировки освобождены.'
+            : result.entry.amountCents === 0 ? 'Начисление завершено без денежной выплаты.' : 'Выплата сохранена. Расход создан один раз.';
+        linkedPayrollMessages.set(entryId, message);
+        payrollItems = payrollItems.map(item => item.id === entryId ? { ...item, ...entry, origin: 'calculation_run', amount: entry.amountCents / 100 } : item);
+        await refreshPayrollViews();
+        if (!linkedPayrollAlive()) return;
+        registerMessage.className = result.retryPending ? 'form-message error-message' : 'form-message success-message';
+        registerMessage.textContent = message + (result.retryPending ? ' Не удалось удалить сохранённый запрос из браузера; повторная сверка безопасна.'
+          : !payrollReady ? ' Реестр не обновился — повторите загрузку.' : result.currentEntry && result.currentEntry.status !== result.entry.status ? ' Текущий статус записи уже изменился; реестр обновлён.' : '');
+      } catch (error) {
+        if (!linkedPayrollAlive()) return;
+        const message = error.payrollAttemptRetained
+          ? 'Ответ не подтверждён. Данные запроса сохранены. Нажмите «Проверить результат» — повторная выплата не создаётся.'
+          : linkedPayrollError(error);
+        linkedPayrollMessages.set(entryId, message);
+        registerMessage.className = 'form-message error-message'; registerMessage.textContent = message;
+      } finally {
+        payrollPendingEntries.delete(entryId);
+        if (linkedPayrollAlive()) drawPayroll();
+      }
+    };
+    const handleLinkedPayrollAction = async (entry, action, button) => {
+      if (!linkedPayrollAlive()) return;
+      const state = linkedPayrollStates.get(entry.id);
+      if (!state || !state.allowedActions.includes(action)) {
+        registerMessage.className = 'form-message error-message'; registerMessage.textContent = 'Сначала проверьте начисление и доступные действия.'; return;
+      }
+      const row = button.closest('.payroll-entry-row');
+      const payload = { action, expectedStateHash: state.stateHash, paymentDate: null, paymentAccountId: null, paymentMethod: null, reason: null };
+      if (action === 'pay') {
+        payload.paymentDate = row.querySelector('[data-payroll-payment-date]')?.value || '';
+        if (state.entry.amountCents > 0) {
+          payload.paymentAccountId = row.querySelector('[data-payroll-payment-account]')?.value || '';
+          payload.paymentMethod = row.querySelector('[data-payroll-payment-method]')?.value || '';
+          if (!payload.paymentAccountId || !payload.paymentMethod) { registerMessage.textContent = 'Выберите счёт и способ выплаты.'; return; }
+        }
+      } else if (action === 'cancel') {
+        const field = row.querySelector('[data-payroll-cancel-reason]');
+        payload.reason = field?.value.trim() || '';
+        if (payload.reason.length < 3 || payload.reason.length > 500) {
+          registerMessage.textContent = 'Укажите причину отмены длиной от 3 до 500 символов.'; field?.focus(); return;
+        }
+      }
+      try { linkedPayroll.begin(state.entry, payload); }
+      catch (error) { registerMessage.className = 'form-message error-message'; registerMessage.textContent = linkedPayrollError(error); return; }
+      await sendLinkedPayroll(entry.id);
+    };
+    document.addEventListener('payroll-run-entry-created', () => {
+      if (payrollSection.isConnected) void loadPayroll();
+    });
+    document.addEventListener('payroll-run-entry-open', async event => {
+      if (!payrollSection.isConnected) return;
+      const { entryId, from, to } = event.detail || {};
+      if (!entryId || !/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) return;
+      payrollSection.querySelector('#payroll-filter-from').value = from;
+      payrollSection.querySelector('#payroll-filter-to').value = to;
+      for (const selector of ['#payroll-filter-user', '#payroll-filter-rule']) payrollSection.querySelector(selector).value = '';
+      await loadPayroll();
+      if (!payrollSection.isConnected) return;
+      const row = [...register.querySelectorAll('[data-payroll-entry]')].find(item => item.dataset.payrollEntry === entryId);
+      const target = row || register;
+      target.tabIndex = -1; target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.focus({ preventScroll: true });
+      if (payrollReady && !row) registerMessage.textContent = 'Начисление не найдено в текущем реестре. Обновите статусы в сохранённом расчёте.';
+    });
     for (const selector of ['#payroll-filter-user', '#payroll-filter-rule']) payrollSection.querySelector(selector).addEventListener('change', drawPayroll);
     payrollSection.addEventListener('change',(event)=>{const accountSelect=event.target.closest('select[data-payroll-payment-account]');if(!accountSelect)return;const methodSelect=[...payrollSection.querySelectorAll('select[data-payroll-payment-method]')].find((field)=>field.dataset.payrollPaymentMethod===accountSelect.dataset.payrollPaymentAccount);const account=financeAccountItems.find((item)=>item.id===accountSelect.value&&item.active!==false);if(!methodSelect)return;methodSelect.innerHTML=(account?.allowedPaymentMethods||[]).map((method)=>`<option value="${esc(method)}">${esc(({cash:'Наличные',card:'Карта',bank_transfer:'Банковский перевод',other:'Другое'})[method]||method)}</option>`).join('');methodSelect.disabled=!methodSelect.options.length;methodSelect._customSelectRefresh?.();});
     for (const selector of ['#payroll-filter-from', '#payroll-filter-to']) payrollSection.querySelector(selector).addEventListener('change', loadPayroll);
     payrollSection.querySelector('#payroll-reload').addEventListener('click', loadPayroll);
     const handlePayrollAction = async (event) => {
+      const linkedCheck = event.target.closest('[data-payroll-linked-check]');
+      if (linkedCheck) { if (!linkedCheck.disabled) await checkLinkedPayroll(linkedCheck.dataset.payrollLinkedCheck); return; }
+      const linkedRetry = event.target.closest('[data-payroll-linked-retry]');
+      if (linkedRetry) { if (!linkedRetry.disabled) await sendLinkedPayroll(linkedRetry.dataset.payrollLinkedRetry); return; }
       const cancelOpen = event.target.closest('[data-payroll-cancel-open]');
       if (cancelOpen) { const row = cancelOpen.closest('.payroll-entry-row'); if (payrollPendingEntries.has(cancelOpen.dataset.payrollCancelOpen)) return; const editor = row?.querySelector('[data-payroll-cancel-editor]'); if (editor) { editor.hidden = false; cancelOpen.hidden = true; editor.querySelector('textarea')?.focus(); } return; }
       const cancelClose = event.target.closest('[data-payroll-cancel-close]');
@@ -6997,6 +7306,10 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       const action = button.dataset.payrollAction; const entryId = button.dataset.entry;
       if (payrollPendingEntries.has(entryId)) return;
       const entry = payrollItems.find((item) => String(item.id) === String(entryId)); if (!entry) return;
+      if (entry.origin === 'calculation_run' || entry.calculationRunId) {
+        await handleLinkedPayrollAction(entry, action, button);
+        return;
+      }
       const payload = { action };
       if (action === 'pay') {
         payload.paymentDate = [...payrollSection.querySelectorAll('[data-payroll-payment-date]')].find((field) => field.dataset.payrollPaymentDate === entryId)?.value || '';
@@ -7025,7 +7338,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       } catch (error) {
         const code = String(error.payload?.error || error.message || '');
         registerMessage.className = 'form-message error-message';
-        const messages={finance_payment_account_required:'Выберите счёт выплаты.',invalid_payroll_payment_method:'Выберите допустимый способ выплаты.',finance_account_not_found:'Счёт не найден в этом заведении. Обновите список.',finance_account_inactive:'Счёт архивирован. Выберите активный счёт.',finance_payment_method_account_mismatch:'Выбранный способ не разрешён для этого счёта.',finance_pos_cash_payment_date_must_be_today:'Выплата из кассы смены фиксируется сегодняшней датой заведения.',finance_payment_open_shift_required:'Для выплаты из кассы смены нужна одна открытая смена.',payroll_expense_attribution_conflict:'У начисления уже есть расход с другой или неизвестной финансовой атрибуцией. Сверьте его отдельно; второй расход не создан.'};
+        const messages={finance_payment_account_required:'Выберите счёт выплаты.',invalid_payroll_payment_method:'Выберите допустимый способ выплаты.',finance_account_not_found:'Счёт не найден в этом заведении. Обновите список.',finance_account_inactive:'Счёт архивирован. Выберите активный счёт.',finance_payment_method_account_mismatch:'Выбранный способ не разрешён для этого счёта.',finance_pos_cash_payment_date_must_be_today:'Выплата из кассы смены фиксируется сегодняшней датой заведения.',finance_payment_open_shift_required:'Для выплаты из кассы смены нужна одна открытая смена.',payroll_expense_attribution_conflict:'У начисления уже есть расход с другой или неизвестной финансовой атрибуцией. Сверьте его отдельно; второй расход не создан.',payroll_period_overlap:'У сотрудника уже есть начисление за пересекающиеся даты. Проверьте период в реестре.'};
         registerMessage.textContent = messages[code] || (code.includes('404') ? 'Сервис изменения статуса недоступен. Изменение не сохранено.' : code.includes('payroll_transition') ? 'Это изменение недоступно для текущего статуса начисления.' : code.includes('payment_date') ? 'Проверьте дату выплаты.' : code.includes('reason') ? 'Укажите причину отмены.' : `Не удалось изменить начисление${code ? ` (${code})` : ''}. Изменение не сохранено.`);
       } finally {
         payrollPendingEntries.delete(entryId);
@@ -7174,7 +7487,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
         } else {
           createMessage.className = 'form-message error-message'; createMessage.textContent = 'Черновик сохранён, но список не обновился. Повторите загрузку.';
         }
-      } catch (error) { createMessage.className = 'form-message error-message'; createMessage.textContent = 'Не удалось подтвердить сохранение. Обновите реестр и проверьте начисление перед повтором.'; }
+      } catch (error) { createMessage.className = 'form-message error-message'; createMessage.textContent = error.payload?.error === 'payroll_period_overlap' ? 'У сотрудника уже есть начисление за пересекающиеся даты. Проверьте период в реестре.' : 'Не удалось подтвердить сохранение. Обновите реестр и проверьте начисление перед повтором.'; }
       finally { creationPending = false; creationControls.forEach(({field, disabled}) => { field.disabled = disabled; field._customSelectRefresh?.(); }); }
     });
     loadPayroll();

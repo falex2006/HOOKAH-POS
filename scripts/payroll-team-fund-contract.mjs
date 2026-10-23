@@ -72,6 +72,11 @@ assert.deepEqual(calculate(noSalesMember).employees.map((row) => row.teamFundCen
 assert.equal(calculate(noSalesMember).payoutEligible, false, 'configured weights intentionally include active member without sales');
 const inactive = fixture(); inactive.employees[1].activeFrom = '2026-10-02'; inactive.sales.pop();
 assert.deepEqual(calculate(inactive).daily[0].teamFunds[0].memberIds, ['a']);
+const rehiredMember = fixture(); rehiredMember.periodTo = '2026-10-02';
+rehiredMember.coverage.through = '2026-10-02'; rehiredMember.attendanceCoverage.through = '2026-10-02';
+rehiredMember.employees[1] = { id: 'b', activeIntervals: [{ from: '2026-10-01', to: '2026-10-01' }] };
+assert.deepEqual(calculate(rehiredMember).daily[1].teamFunds[0].memberIds, ['a'],
+  'a member in a rehire gap is excluded from configured-weight pool recipients');
 const reset = fixture(); reset.periodTo = '2026-10-02'; reset.coverage.through = '2026-10-02'; reset.attendanceCoverage.through = '2026-10-02';
 reset.sales.push(...reset.sales.map((row) => ({ ...row, id: `${row.id}2`, date: '2026-10-02' })));
 assert.deepEqual(calculate(reset).daily.map((day) => day.teamFunds[0].fundCents), [9600, 9600]);

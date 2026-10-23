@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
+import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-safety.mjs';
+const require = createRequire(import.meta.url);
+const { Client } = require('pg');
+const { readPayrollEntryOverlapPreflight: preflight } = require('../payroll-entry-overlap-preflight');
+const target = validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL);
+const db = new Client({ connectionString: target.url.href });
+const schema = `payroll_overlap_preflight_${process.pid}_${Date.now()}`;
+try {
+  await db.connect();
+  assertQaDatabaseIdentity((await db.query('SELECT current_database() AS database,inet_server_addr() AS address,inet_server_port() AS port,(SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser')).rows[0], target.database, Number(target.url.port));
+  await db.query('BEGIN');
+  await db.query(`CREATE SCHEMA "${schema}"`);
+  await db.query(`SET LOCAL search_path TO "${schema}"`);
+  await db.query('CREATE TABLE payroll_entries(id uuid PRIMARY KEY,venue_id uuid,user_id uuid,rule_id uuid,status text,period_from date,period_to date)');
+  const venue = randomUUID(), employee = randomUUID();
+  const add = async (from, to, status = 'draft', rule = null, user = employee, site = venue) => {
+    const id = randomUUID();
+    await db.query('INSERT INTO payroll_entries VALUES($1,$2,$3,$4,$5,$6,$7)', [id, site, user, rule, status, from, to]); return id;
+  };
+  await add('2026-10-01', '2026-10-10');
+  await add('2026-10-11', '2026-10-20', 'paid', randomUUID());
+  await add('2026-10-01', '2026-10-31', 'cancelled');
+  await add('2026-10-01', '2026-10-31', 'draft', null, randomUUID());
+  await add('2026-10-01', '2026-10-31', 'draft', null, employee, randomUUID());
+  assert.equal((await preflight(db)).status, 'clear');
+  const touch = await add('2026-10-10', '2026-10-11', 'approved', randomUUID());
+  let result = await preflight(db);
+  assert.equal(result.status, 'blocked'); assert.equal(result.conflicts.length, 2);
+  assert.ok(result.conflicts.every(row => [row.left_id, row.right_id].includes(touch)));
+  await add(null, '2026-10-31');
+  await add('2026-11-02', '2026-11-01');
+  await add('2026-11-01', 'infinity');
+  const before = (await db.query('SELECT * FROM payroll_entries ORDER BY id')).rows;
+  result = await preflight(db); assert.equal(result.invalidRows.length, 3);
+  assert.equal(result.automaticallyResolved, false);
+  assert.equal(result.diagnosticOnly, true); assert.equal(result.constraintInstallationAuthorized, false);
+  assert.deepEqual((await db.query('SELECT * FROM payroll_entries ORDER BY id')).rows, before, 'preflight never cancels or repairs legacy entries');
+  await db.query('ROLLBACK');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1', [schema])).rows[0].n, 0);
+  console.log('PASS payroll-entry-overlap-preflight-contract (all rules, inclusive dates, invalid ranges, no mutation, schema rollback)');
+} finally { await db.query('ROLLBACK').catch(() => {}); await db.end(); }

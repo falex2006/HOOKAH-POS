@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 const { createHash } = require('node:crypto');
 const { UUID } = require('./staff-schedule-domain');
 const { AttendanceError, policy, reason } = require('./staff-attendance-domain');
@@ -18,7 +19,7 @@ async function mutate(pool, principal, action, input, capability, operation) {
   const fingerprint = createHash('sha256').update(JSON.stringify(stable({ action, input }))).digest('hex');
   const db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     // All attendance writers use this order, including grant and policy changes.
     await db.query("SELECT pg_advisory_xact_lock(hashtext('staff_attendance'),hashtext($1::text))", [principal.venueId]);
     // Scheduler batch publication locks rows in operation order. Share its

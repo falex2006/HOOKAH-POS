@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 
 // Stage 04: one personal shift default per (venue, employee, work function).
 // Routes deliberately live elsewhere; see the exported functions below.
@@ -114,7 +115,7 @@ async function putEmployeeDefault(pool, principal, employeeId, input) {
   const signature = fingerprint({ operation: 'putEmployeeDefault', employeeId: employee, ...next });
   const db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     const access = await resolveAccess(db, principal, true);
     if (!access.canManageSettings) fail('schedule_settings_forbidden', 403);

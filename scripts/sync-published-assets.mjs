@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '2026102305';
+const cssRevision = '2026102306';
 const managementThemeRevision = '2026102305';
-const portalRevision = '2026102305';
+const portalRevision = '2026102306';
 const portalSessionRevision = '2026102305';
 // This employee-page iteration invalidates only its own HTML asset URLs.
 const employeePaymentsCssRevision = '2026102305';
@@ -24,7 +24,7 @@ const loginRevision = '2026101803';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '2026102305';
-const payrollSchemeUiRevision = '21';
+const payrollSchemeUiRevision = '37';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
 const speedDialRevision = '1';
@@ -46,10 +46,21 @@ const brandHead = `<!-- Hookah POS brand icons -->
 // unrelated HTML revisions, server modules, or deploying anything.
 if (process.argv.includes('--staff-schedule-only')) {
   mkdirSync(resolve(root, 'dist'), { recursive: true });
-  for (const name of ['app.js', 'portal.js', 'portal-session.js', 'staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js', 'staff-schedule-personal-ui.js']) {
+  for (const name of ['help-content.js', 'app.js', 'portal.js', 'portal-session.js', 'staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js', 'staff-schedule-personal-ui.js']) {
     cpSync(resolve(root, name), resolve(root, 'dist', name));
   }
   console.log('Synced staff schedule browser assets locally; no publication.');
+  process.exit(0);
+}
+if (process.argv.includes('--payroll-scheme-ui-only')) {
+  cpSync(resolve(root, 'payroll-scheme-ui.js'), resolve(root, 'dist', 'payroll-scheme-ui.js'));
+  for (const name of ['finance.html', 'dist/finance.html', 'dist/finance/index.html']) {
+    const path = resolve(root, name);
+    const html = readFileSync(path, 'utf8');
+    if (!/payroll-scheme-ui\.js\?rev=\d+/.test(html)) throw new Error(`Missing payroll UI asset URL in ${name}`);
+    writeFileSync(path, html.replace(/payroll-scheme-ui\.js\?rev=\d+/g, `payroll-scheme-ui.js?rev=${payrollSchemeUiRevision}`));
+  }
+  console.log('Synced payroll scheme UI browser asset and finance cache revisions only; no publication.');
   process.exit(0);
 }
 // Keep the full-project sync below for coordinated application releases.
@@ -148,7 +159,7 @@ writeFileSync(resolve(root, 'portal-session.js'), portalBootstrap);
 cpSync(resolve(root, 'portal-session.js'), resolve(root, 'dist', 'portal-session.js'));
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 for (const name of ['staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-schedule-planning-ui.js', 'staff-schedule-personal-ui.js']) cpSync(resolve(root, name), resolve(root, 'dist', name));
-for (const name of ['staff-attendance-ui.js', 'staff-attendance-ui.css']) cpSync(resolve(root, name), resolve(root, 'dist', name));
+for (const name of ['help-content.js', 'staff-attendance-ui.js', 'staff-attendance-ui.css']) cpSync(resolve(root, name), resolve(root, 'dist', name));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
 for (const asset of ['pos-dispatch.js', 'pos-workspace.js', 'pos-workspace.css']) cpSync(resolve(root, asset), resolve(root, 'dist', asset));

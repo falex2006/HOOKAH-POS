@@ -3,14 +3,46 @@
 // Persistence API for payroll-owned version configuration. Route callers must
 // build the principal from authenticated server session state. Scenario preview
 // uses caller-supplied data; the separate venue-turnover preview reads a
-// source-backed venue total. Neither path attests payroll data or persists it.
+// source-backed venue total. Preview paths never persist calculations. The
+// createVerifiedRun collects and saves its own source-fenced snapshot.
 const { createHash, randomUUID } = require('node:crypto');
+const { buildPayrollPersonalRevenueSource } = require('./payroll-personal-revenue-source');
+const { collectPayrollRefundAwareCalculationInTransaction, readPayrollRefundAwareSourceArgsInTransaction,
+  collectPayrollRefundAwareComparisonInTransaction } = require('./payroll-refund-aware-source');
+const { buildPayrollRefundAwareRunProvenance, rebuildPayrollRefundAwareRunProvenance,
+  ENGINE_VERSION: REFUND_RUN_ENGINE } = require('./payroll-refund-aware-provenance');
 const { calculatePayrollScheme, validateScheme, validatePersonalThresholdAssignments, validatePersonalScalarAssignments } = require('./payroll-schemes');
 const { makePayrollVenueTurnoverSource } = require('./payroll-venue-turnover-source');
 const { makePayrollAttendanceManifestService } = require('./payroll-attendance-manifest');
 const { normalizePayrollSourcePolicies, requiredPayrollSourceFacts } = require('./payroll-source-policies');
 const { collectPersonalCapIncreases } = require('./payroll-personal-cap-policy');
-const { parsePayrollReadinessPeriod, readPayrollSourceReadinessInTransaction } = require('./payroll-source-readiness');
+const { parsePayrollReadinessPeriod, readPayrollSourceReadinessInTransaction, readPayrollSourceReadinessEvidenceInTransaction } = require('./payroll-source-readiness');
+const { buildPayrollSourcedPreview } = require('./payroll-sourced-preview');
+const { buildPayrollCandidateCalculation } = require('./payroll-candidate-calculation');
+const { buildPayrollCandidateSnapshotBundle } = require('./payroll-candidate-snapshot-bundle');
+const { buildPayrollSourcedComparison } = require('./payroll-sourced-comparison');
+const { buildPayrollVerifiedSnapshotInput } = require('./payroll-verified-snapshot-input');
+const { buildPayrollRunProvenance, ENGINE_VERSION: VERIFIED_RUN_ENGINE } = require('./payroll-run-provenance');
+const { persistPayrollSnapshotBundleInTransaction } = require('./payroll-snapshot-persistence');
+const savedRunReader = require('./payroll-saved-run-reader');
+const { checkPayrollRunSourceFreshnessInTransaction } = require('./payroll-run-source-freshness');
+const { collectPayrollRefundReviewAssessment } = require('./payroll-refund-review-assessment');
+const refundReviewStore = require('./payroll-refund-review-store');
+const reviewedCorrectionStore = require('./payroll-reviewed-correction-store');
+const { normalizeReviewedCorrectionPreview, normalizeReviewedCorrectionCommand } = require('./payroll-reviewed-correction-command');
+const calculationEntryBridge = require('./payroll-calculation-entry-bridge');
+const calculationEntryLifecycle = require('./payroll-calculation-entry-lifecycle');
+const { validateCalculatorReplay } = require('./payroll-calculator-replay');
+const { buildPayrollModeAvailability } = require('./payroll-mode-availability');
+const { buildPayrollCalculatorSales } = require('./payroll-team-fund-source');
+const { normalizeEligibilityPeriods, eligibilityPayloadSha256, loadLatestEligibilitySourceInTransaction,
+  buildEligibleEmployees } = require('./payroll-employment-eligibility');
+const { loadLatestProductDepartmentMappingInTransaction, mappingPayloadSha256, normalizeProductDepartmentMappings } = require('./payroll-product-department-source');
+const { normalRevisionRequest, retroactiveRevisionRequest, buildNextDayDepartmentSnapshot, assertHistoryPreserved } = require('./payroll-product-department-revisions');
+const { readPayrollEntryOverlapDiagnostic } = require('./payroll-entry-overlap-diagnostic');
+const { buildPayrollOrderRevenueReconciliation } = require('./payroll-order-revenue-reconciliation');
+const { beginPayrollSourceProducerTransaction, acquirePayrollSourceSnapshotLock, beginPayrollVerifiedRunSourceTransaction,
+  beginPayrollVerifiedReadSourceTransaction } = require('./payroll-source-fence');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAYOUT_RISK_ACK_POLICY = 'payroll-own-revenue-ceiling-v1';
@@ -79,7 +111,7 @@ const recordPayoutRiskAcknowledgement = async (db, actor, definition, acknowledg
   }
   const timestamp = await db.query('SELECT now() AS acknowledged_at');
   const audit = {
-    policyCode: PAYOUT_RISK_ACK_POLICY, configDigest,
+    confirmed: true, policyCode: PAYOUT_RISK_ACK_POLICY, configDigest,
     acknowledgedBy: actor.userId, acknowledgedByName: actor.name,
     acknowledgedAt: timestamp.rows[0].acknowledged_at
   };
@@ -263,6 +295,15 @@ const loadVersion = async (db, venueId, versionId) => {
     employeeOverrides: overrides.rows.map((row) => ({ ...row, value: row.mode === 'override' ? row.value : undefined })),
     itemRules: itemRules.rows
   };
+  const acknowledgement = scheme.payoutRiskAcknowledgement;
+  const acknowledgementCurrent = Boolean(acknowledgement?.policyCode === PAYOUT_RISK_ACK_POLICY
+    && /^[a-f0-9]{64}$/.test(acknowledgement.configDigest || '')
+    && acknowledgement.configDigest === payoutConfigurationDigest(scheme)
+    && UUID.test(String(acknowledgement.acknowledgedBy || ''))
+    && typeof acknowledgement.acknowledgedByName === 'string' && acknowledgement.acknowledgedByName.trim()
+    && typeof acknowledgement.acknowledgedAt === 'string' && Number.isFinite(Date.parse(acknowledgement.acknowledgedAt)));
+  if (acknowledgementCurrent) scheme.payoutRiskAcknowledgement = { ...acknowledgement, confirmed: true };
+  scheme.payoutRiskAcknowledgementCurrent = acknowledgementCurrent;
   return scheme;
 };
 
@@ -277,10 +318,11 @@ const recordRevision = async (db, actor, scheme, changeKind) => {
   return revisionNo;
 };
 
-const withOwnerTransaction = async (pool, principal, callback) => {
+const withOwnerTransaction = async (pool, principal, callback, { sourceProducer = false } = {}) => {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    if (sourceProducer) await beginPayrollSourceProducerTransaction(client, principal?.venueId);
+    else await client.query('BEGIN');
     const actor = await assertOwner(client, principal, true);
     const result = await callback(client, actor);
     await client.query('COMMIT');
@@ -289,12 +331,16 @@ const withOwnerTransaction = async (pool, principal, callback) => {
     await client.query('ROLLBACK').catch(() => {});
     if (error instanceof PayrollSchemeServiceError) throw error;
     if (error?.code === '23505') fail('payroll_scheme_conflict', 409);
+    if (error?.code === '23P01' && error?.message === 'payroll employment periods overlap') fail('payroll_employment_periods_overlap', 409);
+    if (error?.code === '23P01' && String(error?.message || '').includes('payroll product department mapping periods overlap')) fail('payroll_product_department_mappings_overlap', 409);
     if (error?.code === '23P01') fail('payroll_scheme_effective_window_conflict', 409);
     if (error?.code === '23503') fail('payroll_scheme_reference_invalid', 400);
     if (error?.code === '23514' && ['payroll_scheme_versions_mode_check', 'payroll_employee_overrides_parameter_path_check'].includes(error.constraint)) {
       fail('payroll_personal_target_schema_required', 409);
     }
     if (error?.code === '23514') fail('payroll_scheme_configuration_rejected', 400);
+    if (error?.code === '42501') fail('payroll_scheme_owner_only', 403);
+    if (error?.code === '22023' && String(error?.message || '').includes('payroll product department')) fail('payroll_product_department_timezone_invalid', 409);
     if (error?.code === '22P02' || error?.code === '22003') fail('payroll_scheme_reference_invalid', 400);
     throw error;
   } finally {
@@ -302,20 +348,76 @@ const withOwnerTransaction = async (pool, principal, callback) => {
   }
 };
 
-const withOwnerRead = async (pool, principal, callback) => {
+const withOwnerRead = async (pool, principal, callback, { sourceSnapshot = false } = {}) => {
   const client = await pool.connect();
+  let releaseSourceLock = null;
+  let clientReusable = true;
+  let cleanupError = null;
   try {
-    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    if (sourceSnapshot) releaseSourceLock = await beginPayrollVerifiedReadSourceTransaction(client, principal?.venueId);
+    else await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     const actor = await assertOwner(client, principal, false);
     const result = await callback(client, actor);
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (error?.discardPayrollConnection) cleanupError = error;
+    await client.query('ROLLBACK').catch(error => { cleanupError = error; });
     throw error;
   } finally {
-    client.release();
+    if (releaseSourceLock) {
+      try { await releaseSourceLock(); }
+      catch (error) { clientReusable = false; client.release(error); throw error; }
+    }
+    if (clientReusable) client.release(cleanupError || undefined);
   }
+};
+
+// All review writers share the source fence, acquired before the RR snapshot.
+// The private capability also permits the recognition reader on this RW client.
+const withOwnerSourceWrite = async (pool, principal, callback, errorPrefix = 'payroll_refund_review') => {
+  if (!principal || Object.getPrototypeOf(principal) !== Object.prototype
+      || Object.values(Object.getOwnPropertyDescriptors(principal)).some(d => !Object.hasOwn(d, 'value'))
+      || typeof principal.userId !== 'string' || !UUID.test(principal.userId)
+      || typeof principal.venueId !== 'string' || !UUID.test(principal.venueId)) fail('authenticated_owner_required', 403);
+  const owner = { userId: principal.userId.toLowerCase(), venueId: principal.venueId.toLowerCase() };
+  const client = await pool.connect();
+  let releaseSourceLock = null, discardConnectionError = null;
+  try {
+    releaseSourceLock = await beginPayrollVerifiedRunSourceTransaction(client, owner.venueId);
+    const actor = await assertOwner(client, owner, true);
+    const result = await callback(client, actor);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    if (error?.discardPayrollConnection) discardConnectionError = error;
+    await client.query('ROLLBACK').catch(cleanupError => { discardConnectionError = cleanupError; });
+    if (['40001', '40P01'].includes(error?.code)) fail(`${errorPrefix}_retry_required`, 409);
+    if (error?.code === '23505') fail(`${errorPrefix}_conflict`, 409);
+    if (error?.code === '23P01') fail('payroll_period_overlap', 409);
+    if (['42P01', '42703'].includes(error?.code)) fail(`${errorPrefix}_schema_required`, 409);
+    if (errorPrefix === 'payroll_entry_materialization' && ['23514', '23503', '55000'].includes(error?.code)) fail('payroll_entry_materialization_rejected', 409);
+    if (errorPrefix === 'payroll_entry_lifecycle' && ['23514', '23503', '55000'].includes(error?.code)) fail('payroll_entry_lifecycle_rejected', 409);
+    if (errorPrefix === 'payroll_correction' && ['23514', '23503', '55000'].includes(error?.code)) fail('payroll_correction_rejected', 409);
+    throw error;
+  } finally {
+    try { if (releaseSourceLock) await releaseSourceLock(); }
+    catch (error) { discardConnectionError = error; throw error; }
+    finally { client.release(discardConnectionError || undefined); }
+  }
+};
+const reviewRequest = (id, input, decision = false) => {
+  const keys = decision ? ['decision', 'reason', 'expectedAssessmentHash', 'idempotencyKey'] : ['idempotencyKey'];
+  if (typeof id !== 'string' || !UUID.test(id) || !input || Object.getPrototypeOf(input) !== Object.prototype
+      || Reflect.ownKeys(input).length !== keys.length || keys.some(key => !Object.hasOwn(input, key))
+      || Object.values(Object.getOwnPropertyDescriptors(input)).some(d => !Object.hasOwn(d, 'value'))
+      || typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9_.:-]{8,120}$/.test(input.idempotencyKey)
+      || (decision && (!['hold_for_review', 'close_without_payroll_change', 'acknowledge_no_effect'].includes(input.decision)
+        || typeof input.reason !== 'string' || input.reason.trim().length < 3 || input.reason.length > 2000
+        || typeof input.expectedAssessmentHash !== 'string' || !/^[a-f0-9]{64}$/.test(input.expectedAssessmentHash)))) {
+    fail('invalid_payroll_refund_review_request');
+  }
+  return id.toLowerCase();
 };
 
 const calculateScenario = (scheme, previewInput) => {
@@ -359,12 +461,628 @@ const sumCentsSafely = (values) => {
 const makeService = (pool) => {
   if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') throw new TypeError('payroll_scheme_pool_required');
   const attendanceManifest = makePayrollAttendanceManifestService(pool);
+  const getEntryOverlapDiagnostic = (principal, input) => withOwnerRead(pool, principal, (db, actor) =>
+    readPayrollEntryOverlapDiagnostic(db, actor.venueId, input));
+  const listEmploymentEligibilityEmployees = async principal => withOwnerRead(pool, principal, async (db, actor) => {
+    const result = await db.query(`SELECT id::text AS id,full_name AS name,is_active AS active
+      FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name,id`, [actor.venueId]);
+    return { schemaVersion: 1, items: result.rows };
+  });
+  const getEmploymentEligibilityHistory = async principal => withOwnerRead(pool, principal, async (db, actor) => {
+    const source = await loadLatestEligibilitySourceInTransaction(db, actor.venueId);
+    if (source.component.status === 'unsupported') fail('payroll_employment_eligibility_schema_required', 503);
+    const history = await db.query(`SELECT id::text,revision_no AS "revisionNo",supersedes_revision_id::text AS "supersedesRevisionId",
+        reason,payload_sha256 AS "payloadSha256",period_count AS "periodCount",created_by_name AS "createdByName",created_at::text AS "createdAt"
+      FROM payroll_employment_eligibility_revisions WHERE venue_id=$1 ORDER BY revision_no DESC LIMIT 30`, [actor.venueId]);
+    return {
+      schemaVersion: 1,
+      current: source.revision ? { ...source.revision, periods: source.periods } : null,
+      component: source.component,
+      history: history.rows
+    };
+  });
+  const createEmploymentEligibilityRevision = async (principal, input) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.getPrototypeOf(input) !== Object.prototype
+        || Object.keys(input).length !== 4 || !Object.hasOwn(input, 'reason') || !Object.hasOwn(input, 'idempotencyKey')
+        || !Object.hasOwn(input, 'expectedRevisionId')
+        || !Object.hasOwn(input, 'periods')
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(descriptor => !Object.hasOwn(descriptor, 'value'))) {
+      fail('invalid_payroll_employment_revision');
+    }
+    if (input.expectedRevisionId !== null && !UUID.test(String(input.expectedRevisionId || ''))) fail('invalid_payroll_employment_revision');
+    const expectedRevisionId = input.expectedRevisionId === null ? null : String(input.expectedRevisionId).toLowerCase();
+    const reason = cleanText(input.reason, 1000, 'invalid_payroll_employment_reason');
+    if (reason.length < 8) fail('invalid_payroll_employment_reason');
+    const idempotencyKey = cleanText(input.idempotencyKey, 160, 'invalid_payroll_employment_idempotency_key');
+    if (idempotencyKey.length < 8) fail('invalid_payroll_employment_idempotency_key');
+    let periods;
+    try { periods = normalizeEligibilityPeriods(input.periods); }
+    catch (error) { fail(error.message === 'payroll_employment_periods_overlap'
+      ? error.message : 'invalid_payroll_employment_periods'); }
+    const payloadSha256 = eligibilityPayloadSha256(periods, reason, expectedRevisionId);
+    return withOwnerTransaction(pool, principal, async (db, actor) => {
+      // Serialize idempotency lookup and revision allocation even before the DB guard executes.
+      await db.query('SELECT id FROM venues WHERE id=$1 FOR UPDATE', [actor.venueId]);
+      const prior = await db.query(`SELECT id::text,revision_no,supersedes_revision_id::text AS "supersedesRevisionId" FROM payroll_employment_eligibility_revisions
+        WHERE venue_id=$1 AND idempotency_key=$2`, [actor.venueId, idempotencyKey]);
+      if (prior.rows[0]) {
+        const stored = await db.query(`SELECT payload_sha256 FROM payroll_employment_eligibility_revisions WHERE venue_id=$1 AND id=$2`,
+          [actor.venueId, prior.rows[0].id]);
+        if (stored.rows[0]?.payload_sha256 !== payloadSha256 || prior.rows[0].supersedesRevisionId !== expectedRevisionId) {
+          fail('payroll_employment_idempotency_conflict', 409);
+        }
+        const source = await loadLatestEligibilitySourceInTransaction(db, actor.venueId);
+        if (source.revision?.id === prior.rows[0].id) return { ...source.revision, periods: source.periods, replayed: true };
+        const revision = await db.query(`SELECT id::text,revision_no AS "revisionNo",supersedes_revision_id::text AS "supersedesRevisionId",
+            reason,payload_sha256 AS "payloadSha256",period_count AS "periodCount",created_by_name AS "createdByName",created_at::text AS "createdAt"
+          FROM payroll_employment_eligibility_revisions WHERE venue_id=$1 AND id=$2`, [actor.venueId, prior.rows[0].id]);
+        const rows = await db.query(`SELECT employee_id::text AS "employeeId",employee_name_snapshot AS "employeeName",
+            effective_from::text AS "effectiveFrom",effective_to::text AS "effectiveTo"
+          FROM payroll_employment_eligibility_periods WHERE venue_id=$1 AND revision_id=$2 ORDER BY employee_id,effective_from,id`,
+        [actor.venueId, prior.rows[0].id]);
+        return { ...revision.rows[0], periods: rows.rows.map(row => ({ ...row, effectiveTo: row.effectiveTo || null })), replayed: true };
+      }
+      const latest = await db.query(`SELECT id::text,revision_no FROM payroll_employment_eligibility_revisions
+        WHERE venue_id=$1 ORDER BY revision_no DESC LIMIT 1`, [actor.venueId]);
+      if ((latest.rows[0]?.id || null) !== expectedRevisionId) fail('payroll_employment_revision_conflict', 409);
+      const revisionNo = Number(latest.rows[0]?.revision_no || 0) + 1;
+      const created = await db.query(`INSERT INTO payroll_employment_eligibility_revisions
+        (venue_id,revision_no,supersedes_revision_id,reason,idempotency_key,payload_sha256,period_count,created_by,created_by_name)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id::text`,
+      [actor.venueId, revisionNo, latest.rows[0]?.id || null, reason, idempotencyKey, payloadSha256, periods.length, actor.userId, actor.name]);
+      const revisionId = created.rows[0].id;
+      for (const period of periods) {
+        await db.query(`INSERT INTO payroll_employment_eligibility_periods
+          (venue_id,revision_id,employee_id,employee_name_snapshot,effective_from,effective_to)
+          VALUES ($1,$2,$3,'',$4,$5)`, [actor.venueId, revisionId, period.employeeId, period.effectiveFrom, period.effectiveTo]);
+      }
+      const source = await loadLatestEligibilitySourceInTransaction(db, actor.venueId);
+      if (source.revision?.id !== revisionId) fail('payroll_employment_revision_conflict', 409);
+      return { ...source.revision, periods: source.periods, replayed: false };
+    }, { sourceProducer: true });
+  };
+  const loadProductDepartmentRevision = async (db, venueId, revisionId) => {
+    const revision = (await db.query(`SELECT id::text,venue_id::text AS "venueId",revision_no AS "revisionNo",
+      supersedes_revision_id::text AS "supersedesRevisionId",reason,idempotency_key AS "idempotencyKey",
+      payload_sha256 AS "payloadSha256",mapping_count AS "mappingCount",effective_from::text AS "effectiveFrom",
+      retroactive_attested AS "retroactiveAttested",retroactive_reason AS "retroactiveReason",
+      created_by::text AS "createdBy",created_by_name AS "createdByName",
+      to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS "createdAt"
+      FROM payroll_product_department_revisions WHERE venue_id=$1 AND id=$2`, [venueId, revisionId])).rows[0];
+    if (!revision) return null;
+    const mappings = (await db.query(`SELECT product_id::text AS "productId",product_name_snapshot AS "productName",
+      department_code AS "departmentCode",department_name_snapshot AS "departmentName",effective_from::text AS "effectiveFrom",
+      effective_to::text AS "effectiveTo" FROM payroll_product_department_mappings
+      WHERE venue_id=$1 AND revision_id=$2 ORDER BY product_id,effective_from,effective_to NULLS LAST,department_code,department_name_snapshot`,
+    [venueId, revision.id])).rows;
+    const normalized = normalizeProductDepartmentMappings(mappings);
+    if (normalized.length !== revision.mappingCount || mappingPayloadSha256(normalized) !== revision.payloadSha256) {
+      fail('payroll_product_department_revision_integrity_failed', 503);
+    }
+    return { ...revision, mappings: normalized };
+  };
+  const getProductDepartmentMappings = async principal => withOwnerRead(pool, principal, async (db, actor) => {
+    const capability = (await db.query(`SELECT to_regclass('payroll_product_department_revisions') IS NOT NULL AS revisions,
+      to_regclass('payroll_product_department_mappings') IS NOT NULL AS mappings,
+      to_regclass('products') IS NOT NULL AS products`)).rows[0];
+    if (!capability?.revisions || !capability?.mappings || !capability?.products) fail('payroll_product_department_schema_required', 503);
+    const venueTimezone = (await db.query('SELECT timezone FROM venues WHERE id=$1', [actor.venueId])).rows[0]?.timezone;
+    if (typeof venueTimezone !== 'string' || !venueTimezone.trim()) fail('payroll_product_department_timezone_invalid', 503);
+    const localToday = (await db.query(`SELECT (transaction_timestamp() AT TIME ZONE $1)::date::text AS day`, [venueTimezone])).rows[0]?.day;
+    if (typeof localToday !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(localToday)) fail('payroll_product_department_timezone_invalid', 503);
+    const nextEffectiveFrom = new Date(Date.parse(`${localToday}T00:00:00.000Z`) + 86400000).toISOString().slice(0, 10);
+    const latestSource = await loadLatestProductDepartmentMappingInTransaction(db, actor.venueId);
+    const currentRevision = latestSource.revision ? await loadProductDepartmentRevision(db, actor.venueId, latestSource.revision.id) : null;
+    const history = (await db.query(`SELECT id::text,revision_no AS "revisionNo",supersedes_revision_id::text AS "supersedesRevisionId",
+      reason,payload_sha256 AS "payloadSha256",mapping_count AS "mappingCount",effective_from::text AS "effectiveFrom",
+      retroactive_attested AS "retroactiveAttested",retroactive_reason AS "retroactiveReason",
+      created_by_name AS "createdByName",to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS "createdAt"
+      FROM payroll_product_department_revisions WHERE venue_id=$1 ORDER BY revision_no DESC LIMIT 30`, [actor.venueId])).rows;
+    const products = (await db.query(`SELECT id::text AS id,name,category,is_active AS active FROM products
+      WHERE venue_id=$1 AND is_active=true ORDER BY lower(name),id LIMIT 10001`, [actor.venueId])).rows;
+    const departmentOptions = [...new Map((currentRevision?.mappings || []).map(row => [row.departmentCode,
+      { code: row.departmentCode, name: row.departmentName }])).values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    const productOptionsTruncated = products.length > 10000;
+    const currentAssignments = (currentRevision?.mappings || []).filter(row => row.effectiveFrom <= nextEffectiveFrom
+      && (!row.effectiveTo || row.effectiveTo >= nextEffectiveFrom)).map(row => ({ productId: row.productId,
+        departmentCode: row.departmentCode, departmentName: row.departmentName }));
+    return { schemaVersion: 1, venueId: actor.venueId, timezone: venueTimezone, nextEffectiveFrom, currentAssignments,
+      component: currentRevision ? { status: 'available', reasons: [], sourceWatermark: latestSource.component.sourceWatermark,
+        watermarkScope: latestSource.component.watermarkScope } : latestSource.component,
+      currentRevision, history, productOptions: products.slice(0, 10000), productOptionsTruncated, departmentOptions };
+  });
+  const getProductDepartmentRevision = async (principal, revisionId) => {
+    if (!UUID.test(String(revisionId || ''))) fail('invalid_payroll_product_department_revision_id');
+    return withOwnerRead(pool, principal, async (db, actor) => {
+      const capability = (await db.query(`SELECT to_regclass('payroll_product_department_revisions') IS NOT NULL AS revisions,
+        to_regclass('payroll_product_department_mappings') IS NOT NULL AS mappings`)).rows[0];
+      if (!capability?.revisions || !capability?.mappings) fail('payroll_product_department_schema_required', 503);
+      const revision = await loadProductDepartmentRevision(db, actor.venueId, String(revisionId).toLowerCase());
+      if (!revision) fail('payroll_product_department_revision_not_found', 404);
+      return revision;
+    });
+  };
+  const writeProductDepartmentRevision = async (principal, input, retroactive = false) => {
+    const request = retroactive ? retroactiveRevisionRequest(input) : normalRevisionRequest(input);
+    return withOwnerTransaction(pool, principal, async (db, actor) => {
+      await db.query('SELECT id FROM venues WHERE id=$1 FOR UPDATE', [actor.venueId]);
+      const capability = (await db.query(`SELECT to_regclass('payroll_product_department_revisions') IS NOT NULL AS revisions,
+        to_regclass('payroll_product_department_mappings') IS NOT NULL AS mappings, to_regclass('products') IS NOT NULL AS products`)).rows[0];
+      if (!capability?.revisions || !capability?.mappings || !capability?.products) fail('payroll_product_department_schema_required', 503);
+      const latestHeader = (await db.query(`SELECT id::text,revision_no AS "revisionNo",effective_from::text AS "effectiveFrom",
+        supersedes_revision_id::text AS "supersedesRevisionId" FROM payroll_product_department_revisions
+        WHERE venue_id=$1 ORDER BY revision_no DESC LIMIT 1`, [actor.venueId])).rows[0] || null;
+      const priorRequest = (await db.query(`SELECT id::text FROM payroll_product_department_revisions
+        WHERE venue_id=$1 AND idempotency_key=$2`, [actor.venueId, request.idempotencyKey])).rows[0];
+      if (priorRequest) {
+        const prior = await loadProductDepartmentRevision(db, actor.venueId, priorRequest.id);
+        const sameHeader = prior.reason === request.reason && prior.supersedesRevisionId === request.expectedRevisionId
+          && prior.retroactiveAttested === retroactive
+          && (retroactive ? prior.effectiveFrom === request.effectiveFrom && prior.retroactiveReason === request.retroactiveReason
+            && requestRetroMappingsMatchSnapshot(request.mappings, prior.mappings)
+            : !prior.retroactiveReason && requestAssignmentsMatchSnapshot(request.mappings, prior));
+        if (!sameHeader) fail('payroll_product_department_idempotency_conflict', 409);
+        return { ...prior, replayed: true };
+      }
+      if ((latestHeader?.id || null) !== request.expectedRevisionId) fail('payroll_product_department_revision_conflict', 409);
+      const timezone = (await db.query('SELECT timezone FROM venues WHERE id=$1', [actor.venueId])).rows[0]?.timezone;
+      if (typeof timezone !== 'string' || !timezone.trim()) fail('payroll_product_department_timezone_invalid', 409);
+      const localToday = (await db.query(`SELECT (transaction_timestamp() AT TIME ZONE $1)::date::text AS day`, [timezone])).rows[0]?.day;
+      if (typeof localToday !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(localToday)) fail('payroll_product_department_timezone_invalid', 409);
+      const effectiveFrom = retroactive ? request.effectiveFrom : new Date(Date.parse(`${localToday}T00:00:00.000Z`) + 86400000).toISOString().slice(0, 10);
+      if (retroactive && effectiveFrom > localToday) fail('payroll_product_department_retroactive_date_invalid');
+      const previousRevision = latestHeader ? await loadProductDepartmentRevision(db, actor.venueId, latestHeader.id) : null;
+      const previousMappings = previousRevision?.mappings || [];
+      let mappings;
+      if (retroactive) {
+        mappings = normalizeProductDepartmentMappings(request.mappings);
+        if (JSON.stringify(mappings) === JSON.stringify(previousMappings)) fail('payroll_product_department_retroactive_no_change');
+      } else {
+        const assignments = request.mappings;
+        const boundary = effectiveFrom;
+        const previousActive = new Map(previousMappings.filter(row => row.effectiveFrom <= boundary
+          && (!row.effectiveTo || row.effectiveTo >= boundary)).map(row => [row.productId, row]));
+        const productIdsNeedingCatalog = assignments.filter(row => {
+          const old = previousActive.get(row.productId);
+          return !old || old.departmentCode !== row.departmentCode || old.departmentName !== row.departmentName;
+        }).map(row => row.productId);
+        const productRows = productIdsNeedingCatalog.length ? (await db.query(`SELECT id::text,name,is_active FROM products
+          WHERE venue_id=$1 AND id=ANY($2::uuid[]) AND is_active=true`, [actor.venueId, productIdsNeedingCatalog])).rows : [];
+        const products = new Map(productRows.map(row => [row.id.toLowerCase(), { name: row.name, active: row.is_active }]));
+        mappings = buildNextDayDepartmentSnapshot({ previousMappings, assignments, products, effectiveFrom });
+        assertHistoryPreserved(previousMappings, mappings, effectiveFrom);
+      }
+      if (mappings.length > 10000) fail('payroll_product_department_mappings_invalid');
+      const changedProductIds = mappings.filter(row => !previousMappings.some(previous => JSON.stringify(previous) === JSON.stringify(row)))
+        .map(row => row.productId);
+      if (retroactive && changedProductIds.length) {
+        const sameVenueProducts = new Map((await db.query(`SELECT id::text,name FROM products WHERE venue_id=$1 AND id=ANY($2::uuid[])`,
+          [actor.venueId, [...new Set(changedProductIds)]])).rows.map(row => [row.id.toLowerCase(), row.name]));
+        // Rows already frozen in the previous snapshot remain valid if catalog items were archived/deleted.
+        const invalid = mappings.filter(row => changedProductIds.includes(row.productId)
+          && !sameVenueProducts.has(row.productId) && !previousMappings.some(previous => JSON.stringify(previous) === JSON.stringify(row)));
+        if (invalid.length) fail('payroll_product_department_product_invalid');
+        mappings = mappings.map(row => sameVenueProducts.has(row.productId)
+          ? { ...row, productName: String(sameVenueProducts.get(row.productId) || '').trim() } : row);
+      }
+      const payloadSha256 = mappingPayloadSha256(mappings), revisionNo = (latestHeader?.revisionNo || 0) + 1;
+      const header = await db.query(`INSERT INTO payroll_product_department_revisions
+        (venue_id,revision_no,supersedes_revision_id,reason,idempotency_key,payload_sha256,mapping_count,effective_from,
+         retroactive_attested,retroactive_reason,created_by,created_by_name)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id::text`,
+      [actor.venueId, revisionNo, latestHeader?.id || null, request.reason, request.idempotencyKey, payloadSha256, mappings.length,
+        effectiveFrom, retroactive, retroactive ? request.retroactiveReason : null, actor.userId, actor.name]);
+      const revisionId = header.rows[0].id;
+      for (const row of mappings) await db.query(`INSERT INTO payroll_product_department_mappings
+        (venue_id,revision_id,product_id,product_name_snapshot,department_code,department_name_snapshot,effective_from,effective_to)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [actor.venueId, revisionId, row.productId, row.productName, row.departmentCode,
+        row.departmentName, row.effectiveFrom, row.effectiveTo]);
+      const saved = await loadProductDepartmentRevision(db, actor.venueId, revisionId);
+      return { ...saved, replayed: false };
+    }, { sourceProducer: true });
+  };
+  const requestAssignmentsMatchSnapshot = (assignments, revision) => {
+    const atBoundary = revision.mappings.filter(row => row.effectiveFrom <= revision.effectiveFrom
+      && (!row.effectiveTo || row.effectiveTo >= revision.effectiveFrom)).map(row => ({ productId: row.productId,
+        departmentCode: row.departmentCode, departmentName: row.departmentName })).sort((a, b) => a.productId.localeCompare(b.productId));
+    return JSON.stringify(atBoundary) === JSON.stringify(assignments);
+  };
+  const requestRetroMappingsMatchSnapshot = (requested, stored) => {
+    const semantic = rows => rows.map(row => ({ productId: row.productId, departmentCode: row.departmentCode,
+      departmentName: row.departmentName, effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo }))
+      .sort((a, b) => a.productId.localeCompare(b.productId) || a.effectiveFrom.localeCompare(b.effectiveFrom));
+    return JSON.stringify(semantic(requested)) === JSON.stringify(semantic(stored));
+  };
   const getSourceReadiness = async (principal, versionId, input) => {
     const period = parsePayrollReadinessPeriod(input);
     return withOwnerRead(pool, principal, async (db, actor) => {
       const scheme = await loadVersion(db, actor.venueId, versionId);
       return readPayrollSourceReadinessInTransaction(db, actor, scheme, period, attendanceManifest);
-    });
+    }, { sourceSnapshot: true });
+  };
+  const collectSourcedPayrollContext = async (db, actor, scheme, period, sharedSources = undefined) => {
+      const evidence = await readPayrollSourceReadinessEvidenceInTransaction(db, actor, scheme, period, attendanceManifest,
+        sharedSources ? { recognitionManifest: sharedSources.recognitionManifest, sharedSources } : undefined);
+      const periodClosureRow = sharedSources?.closure ? { transaction_timestamp: sharedSources.closure.transactionTimestamp,
+        venue_local_date: sharedSources.closure.venueLocalDate, timezone: sharedSources.closure.timezone }
+        : (await db.query(`SELECT transaction_timestamp()::text AS transaction_timestamp,
+          (transaction_timestamp() AT TIME ZONE v.timezone)::date::text AS venue_local_date, v.timezone AS timezone
+        FROM venues v WHERE v.id=$1`, [actor.venueId])).rows[0];
+      if (!periodClosureRow) throw new Error('payroll_readiness_timezone_missing');
+      const closedOrdersResult = await db.query(`SELECT o.id::text AS order_id,
+          to_char(o.closed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS closed_at,
+          s.id::text AS pricing_snapshot_id,s.subtotal_minor::text,s.discount_minor::text,
+          s.minimum_adjustment_minor::text,s.final_total_minor::text,
+          (s.id IS NOT NULL AND s.subtotal_minor IS NOT NULL AND s.discount_minor IS NOT NULL
+            AND s.minimum_adjustment_minor IS NOT NULL AND s.final_total_minor IS NOT NULL
+            AND s.subtotal_minor>=s.discount_minor
+            AND s.final_total_minor=s.subtotal_minor-s.discount_minor+s.minimum_adjustment_minor) AS canonical_valid
+        FROM orders o JOIN venues v ON v.id=o.venue_id
+        LEFT JOIN pos_order_pricing_snapshots s ON s.venue_id=o.venue_id AND s.order_id=o.id
+        WHERE o.venue_id=$1 AND o.status='closed'
+          AND o.closed_at >= ($2::date::timestamp AT TIME ZONE v.timezone)
+          AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE v.timezone)
+        ORDER BY o.closed_at,o.id`, [actor.venueId, period.from, period.to]);
+      const orderRevenueReconciliation = buildPayrollOrderRevenueReconciliation({
+        venueId: actor.venueId, currency: scheme.currency, period,
+        venueTimezone: evidence.readiness.period.timezone,
+        orders: closedOrdersResult.rows.map(row => ({ orderId: row.order_id, closedAt: row.closed_at,
+          canonicalPricing: row.pricing_snapshot_id ? { snapshotId: row.pricing_snapshot_id,
+            subtotalMinor: row.subtotal_minor, discountMinor: row.discount_minor,
+            minimumAdjustmentMinor: row.minimum_adjustment_minor, finalTotalMinor: row.final_total_minor,
+            valid: row.canonical_valid === true } : null })),
+        recognitionManifest: evidence.recognitionManifest
+      });
+      // One owner-checked RR/RO transaction supplies both calculator evidence
+      // and candidate-only sale/refund rows. The latter never enter calculatorInput.
+      const components = {
+        recognitionManifest: { ...evidence.readiness.components.recognitionManifest,
+          venueId: actor.venueId, currency: scheme.currency, period: { from: period.from, to: period.to } },
+        recognizedLineRefunds: { ...evidence.readiness.components.recognizedLineRefunds,
+          venueId: actor.venueId, currency: scheme.currency, period: { from: period.from, to: period.to } },
+        fullEmployeeNetRevenue: { ...evidence.readiness.components.fullEmployeeNetRevenue,
+          venueId: actor.venueId, currency: scheme.currency, period: { from: period.from, to: period.to } }
+      };
+      for (const key of ['canonicalLinePricing', 'payrollSaleCredit', 'employeeRoleCoverage']) {
+        const component = evidence.readiness.components[key];
+        if (component) components[key] = { ...component, venueId: actor.venueId, currency: scheme.currency,
+          period: { from: period.from, to: period.to } };
+      }
+      for (const key of ['departmentShiftAllocation', 'teamMembershipAndWeights', 'marginCosts']) {
+        const component = evidence.readiness.components[key];
+        if (component) components[key] = { ...component, venueId: actor.venueId, currency: scheme.currency,
+          period: { from: period.from, to: period.to } };
+      }
+      const attestations = {};
+      if (evidence.departmentMappingSource) attestations.immutableDepartmentAttribution = {
+        status: evidence.departmentMappingSource.status, reasons: evidence.departmentMappingSource.reasons,
+        sourceWatermark: evidence.departmentMappingSource.sourceWatermark,
+        watermarkScope: evidence.departmentMappingSource.watermarkScope, venueId: actor.venueId,
+        currency: scheme.currency, period: { from: period.from, to: period.to }
+      };
+      if (evidence.readiness.components.immutableDepartmentAttribution) {
+        components.immutableDepartmentAttribution = { ...evidence.readiness.components.immutableDepartmentAttribution,
+          venueId: actor.venueId, currency: scheme.currency, period: { from: period.from, to: period.to } };
+      }
+      const calculatorInput = { periodFrom: period.from, periodTo: period.to };
+      let calculationSourceBundle = null;
+      {
+        // These collections are server-projected candidates only. They are
+        // sourced from the selected saved version and owner-attested history;
+        // missing sales, role coverage or other required facts still block
+        // the calculation input contract below.
+        calculatorInput.roleAssignments = structuredClone(scheme.roleAssignments || []);
+        const requiredFacts = buildPayrollModeAvailability(evidence.readiness.components, {}, scheme, period)[scheme.mode].requiredFacts;
+        let venueDailyTurnoverSource = null;
+        if (requiredFacts.includes('venueDailyTurnover')) {
+          try {
+            venueDailyTurnoverSource = await makePayrollVenueTurnoverSource(db).getVenueDailyTurnover(actor, {
+              from: `${period.from.slice(0, 7)}-01`, through: period.to
+            });
+            const component = { status: 'available', reasons: [], sourceWatermark: venueDailyTurnoverSource.sourceWatermark,
+              watermarkScope: 'owner_closed_order_turnover_pre_refund', venueId: actor.venueId, currency: scheme.currency,
+              period: { from: period.from, to: period.to } };
+            components.venueDailyTurnover = component;
+            attestations.venueDailyTurnover = component;
+            calculatorInput.venueDailyTurnover = structuredClone(venueDailyTurnoverSource.venueDailyTurnover);
+            calculatorInput.venueDailyTurnoverCoverage = { from: venueDailyTurnoverSource.from,
+              through: venueDailyTurnoverSource.through, complete: true, venueId: actor.venueId, currency: scheme.currency,
+              period: { from: period.from, to: period.to }, venueTimezone: venueDailyTurnoverSource.venueTimezone,
+              sourceWatermark: venueDailyTurnoverSource.sourceWatermark, watermarkScope: component.watermarkScope,
+              refundsIncluded: false, amountBasis: venueDailyTurnoverSource.amountBasis };
+          } catch (error) {
+            if (!error || typeof error.code !== 'string' || !error.code.startsWith('payroll_venue_turnover_')) throw error;
+            const component = { status: 'incomplete', reasons: [error.code], sourceWatermark: null,
+              watermarkScope: 'owner_closed_order_turnover_pre_refund', venueId: actor.venueId, currency: scheme.currency,
+              period: { from: period.from, to: period.to } };
+            components.venueDailyTurnover = component;
+            attestations.venueDailyTurnover = component;
+          }
+        }
+        if (requiredFacts.includes('approvedAttendance') && evidence.approvedAttendanceSource) {
+          const { attendance, attendanceCoverage } = evidence.approvedAttendanceSource;
+          calculatorInput.attendance = attendance;
+          calculatorInput.attendanceCoverage = attendanceCoverage;
+          components.approvedAttendance = { status: 'available', sourceWatermark: attendanceCoverage.watermark,
+            watermarkScope: 'owner_approved_attendance_snapshot', venueId: actor.venueId, currency: scheme.currency,
+            period: { from: period.from, to: period.to } };
+        }
+        if (evidence.employmentEligibilitySource?.revision) {
+          const source = evidence.employmentEligibilitySource;
+          components.employeeEligibility = { ...source.component, venueId: actor.venueId, currency: scheme.currency,
+            period: { from: period.from, to: period.to } };
+          calculatorInput.employmentEligibilityRevisionId = source.revision.id;
+          calculatorInput.employees = buildEligibleEmployees(source.periods.map(({ employeeId, effectiveFrom, effectiveTo }) =>
+            ({ employeeId, effectiveFrom, effectiveTo })), period.from, period.to);
+        }
+        calculatorInput.sales = structuredClone(evidence.calculatorSales || buildPayrollCalculatorSales({ currency: scheme.currency,
+          recognitionManifest: evidence.recognitionManifest, recognitionProjection: evidence.recognitionProjection,
+          departmentAttribution: evidence.departmentMappingSource, marginCostSource: evidence.marginCostSource }));
+        const salesCoverageWatermark = createHash('sha256').update(canonicalJson({ schemaVersion: 1,
+          venueId: actor.venueId, currency: scheme.currency, period: { from: period.from, to: period.to },
+          recognitionWatermark: evidence.recognitionManifest.watermark,
+          projectionWatermark: evidence.recognitionProjection.projectionWatermark || null,
+          departmentWatermark: evidence.departmentMappingSource?.sourceWatermark || null,
+          sales: calculatorInput.sales })).digest('hex');
+        calculatorInput.coverage = { kind: 'month_to_date_complete', from: `${period.from.slice(0, 7)}-01`,
+          through: period.to, complete: true, watermark: salesCoverageWatermark };
+        calculatorInput.personalRevenueSource = buildPayrollPersonalRevenueSource({ venueId: actor.venueId,
+          currency: scheme.currency, period, recognitionManifest: evidence.recognitionManifest,
+          sourcePolicies: scheme.sourcePolicies, fullEmployeeNetRevenue: evidence.fullEmployeeNetRevenueSource,
+          orderRevenueReconciliation });
+        if (requiredFacts.includes('approvedAttendance') && !evidence.approvedAttendanceSource) {
+          components.approvedAttendance = { status: evidence.readiness.components.approvedAttendance?.status || 'unsupported',
+            reasons: evidence.readiness.components.approvedAttendance?.reasons || ['payroll_approved_attendance_unavailable'],
+            sourceWatermark: evidence.readiness.components.approvedAttendance?.sourceWatermark || null,
+            watermarkScope: evidence.readiness.components.approvedAttendance?.watermarkScope || 'owner_approved_attendance_snapshot',
+            venueId: actor.venueId, currency: scheme.currency, period: { from: period.from, to: period.to } };
+        }
+        calculationSourceBundle = {
+          schemaVersion: 1, venueId: actor.venueId, schemeVersionId: scheme.versionId, currency: scheme.currency,
+          period: { from: period.from, to: period.to },
+          readinessWatermark: createHash('sha256').update(canonicalJson(evidence.readiness.components)).digest('hex'),
+          components,
+          recognizedLineProjection: {
+            schemaVersion: 1,
+            venueId: actor.venueId,
+            currency: scheme.currency,
+            period: { from: period.from, to: period.to },
+            sourceWatermark: evidence.recognitionManifest.watermark,
+            projectionWatermark: evidence.recognitionProjection.projectionWatermark || null,
+            sourceStatus: evidence.recognitionProjection.sourceStatus,
+            sourceReasons: evidence.recognitionProjection.sourceReasons,
+            saleLines: structuredClone(evidence.recognitionProjection.saleLines),
+            refundAdjustments: structuredClone(evidence.recognitionProjection.refundAdjustments)
+          },
+          ...(evidence.marginCostSource ? { marginCostSource: structuredClone(evidence.marginCostSource),
+            marginCostEvidenceByOrder: structuredClone(evidence.marginCostEvidenceByOrder) } : {}),
+          fullEmployeeNetRevenue: structuredClone(evidence.fullEmployeeNetRevenueSource),
+          orderRevenueReconciliation: structuredClone(orderRevenueReconciliation),
+          ...(venueDailyTurnoverSource ? { venueDailyTurnover: structuredClone(venueDailyTurnoverSource) } : {}),
+          ...(evidence.departmentMappingSource ? { departmentAttribution: structuredClone(evidence.departmentMappingSource) } : {}),
+          ...(evidence.teamFundEvidence ? { teamFundEvidence: structuredClone(evidence.teamFundEvidence) } : {}),
+          recognitionManifest: evidence.recognitionManifest,
+          ...(evidence.employmentEligibilitySource?.revision ? { employmentEligibility: evidence.employmentEligibilitySource } : {}),
+          ...(evidence.approvedAttendanceSource?.sourceAttendanceApproval
+            ? { sourceAttendanceApproval: structuredClone(evidence.approvedAttendanceSource.sourceAttendanceApproval) } : {}),
+          // Carry only verified source evidence. Missing calculator collections remain absent so
+          // neither an empty roster nor approved attendance can masquerade as a complete input.
+          calculatorInput
+        };
+        calculationSourceBundle.inputWatermark = createHash('sha256').update(canonicalJson(calculationSourceBundle)).digest('hex');
+      }
+      return { evidence, attestations, calculationSourceBundle, periodClosure: {
+        schemaVersion: 1, venueId: actor.venueId, period: { from: period.from, to: period.to },
+        transactionTimestamp: periodClosureRow.transaction_timestamp, venueLocalDate: periodClosureRow.venue_local_date,
+        timezone: periodClosureRow.timezone }, venueTimezone: evidence.readiness.period.timezone };
+  };
+  const assembleSourcedPreview = ({ actor, scheme, period, evidence, attestations, calculationSourceBundle, periodClosure }) => {
+      const candidateCalculation = buildPayrollCandidateCalculation({ venueId: actor.venueId, scheme, period,
+        readiness: evidence.readiness, attestations, sourceBundle: calculationSourceBundle });
+      let candidateSnapshot = null, candidateSnapshotStatus = 'not_applicable';
+      if (candidateCalculation.status === 'scenario_ready') {
+        try {
+          candidateSnapshot = buildPayrollCandidateSnapshotBundle({ venueId: actor.venueId, scheme, period,
+            venueTimezone: evidence.readiness.period.timezone, sourceBundle: calculationSourceBundle, candidateCalculation });
+          candidateSnapshotStatus = 'available';
+        } catch (error) {
+          if (error?.code !== 'payroll_candidate_snapshot_line_limit_exceeded') throw error;
+          candidateSnapshotStatus = 'size_limited';
+        }
+      }
+      return buildPayrollSourcedPreview({ venueId: actor.venueId, scheme, period,
+        readiness: evidence.readiness, recognitionManifest: evidence.recognitionManifest, calculationSourceBundle, attestations,
+        candidateCalculation, candidateSnapshot, candidateSnapshotStatus,
+        periodClosure });
+  };
+  const buildSourcedPreviewForScheme = async (db, actor, scheme, period, sharedSources = undefined) => {
+    const context = await collectSourcedPayrollContext(db, actor, scheme, period, sharedSources);
+    return assembleSourcedPreview({ actor, scheme, period, ...context });
+  };
+  const prepareVerifiedSnapshotInput = async (principal, versionId, input) => {
+    const expectedKeys = ['periodFrom', 'periodTo', 'runId'];
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.getPrototypeOf(input) !== Object.prototype
+        || Object.keys(input).length !== expectedKeys.length || expectedKeys.some(key => !Object.hasOwn(input, key))
+        || Object.keys(input).some(key => !expectedKeys.includes(key))
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(descriptor => !Object.hasOwn(descriptor, 'value'))
+        || typeof input.runId !== 'string' || !UUID.test(input.runId) || input.runId !== input.runId.toLowerCase()) {
+      fail('invalid_payroll_verified_snapshot_input_request');
+    }
+    const period = parsePayrollReadinessPeriod({ from: input.periodFrom, to: input.periodTo });
+    return withOwnerRead(pool, principal, async (db, actor) => {
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      const context = await collectSourcedPayrollContext(db, actor, scheme, period);
+      return buildPayrollVerifiedSnapshotInput({ venueId: actor.venueId, runId: input.runId,
+        venueTimezone: context.venueTimezone, scheme, period, readiness: context.evidence.readiness,
+        attestations: context.attestations, sourceBundle: context.calculationSourceBundle,
+        periodClosure: context.periodClosure });
+    }, { sourceSnapshot: true });
+  };
+  // Source collection, calculation and storage share one locked
+  // snapshot; no prepared object from a browser or another transaction is used.
+  const createVerifiedRun = async (principal, input) => {
+    const keys = ['schemeVersionId', 'periodFrom', 'periodTo', 'idempotencyKey'];
+    if (!input || Object.getPrototypeOf(input) !== Object.prototype
+        || Reflect.ownKeys(input).length !== keys.length
+        || keys.some(key => !Object.hasOwn(input, key))
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(d => !Object.hasOwn(d, 'value'))
+        || typeof input.schemeVersionId !== 'string' || !UUID.test(input.schemeVersionId)
+        || typeof input.idempotencyKey !== 'string' || !/^[\x21-\x7e]{8,120}$/.test(input.idempotencyKey)) {
+      fail('invalid_payroll_verified_run_request');
+    }
+    if (!principal || typeof principal.userId !== 'string' || typeof principal.venueId !== 'string'
+        || !UUID.test(principal.userId) || !UUID.test(principal.venueId)) {
+      fail('authenticated_owner_required', 403);
+    }
+    const owner = { userId: principal.userId.toLowerCase(), venueId: principal.venueId.toLowerCase() };
+    const versionId = input.schemeVersionId.toLowerCase();
+    const idempotencyKey = input.idempotencyKey;
+    const period = parsePayrollReadinessPeriod({ from: input.periodFrom, to: input.periodTo });
+    if (period.from.slice(0, 7) !== period.to.slice(0, 7)) fail('payroll_run_must_fit_one_month');
+    const client = await pool.connect();
+    let releaseSourceLock = null;
+    let discardConnectionError = null;
+    try {
+      releaseSourceLock = await beginPayrollVerifiedRunSourceTransaction(client, owner.venueId);
+      const actor = await assertOwner(client, owner, true);
+      const venue = (await client.query('SELECT id,timezone FROM venues WHERE id=$1 FOR SHARE', [actor.venueId])).rows[0];
+      if (!venue) fail('payroll_run_venue_unavailable', 403);
+      const version = (await client.query(`SELECT status,effective_from::text,effective_to::text
+        FROM payroll_scheme_versions WHERE venue_id=$1 AND id=$2 FOR SHARE`, [actor.venueId, versionId])).rows[0];
+      if (!version || !['active', 'retired'].includes(version.status)) fail('payroll_run_version_not_available', 409);
+      if (period.from < version.effective_from || (version.effective_to && period.to > version.effective_to)) {
+        fail('payroll_run_outside_scheme_version', 409);
+      }
+      const existing = (await client.query(`SELECT id,scheme_version_id,period_from::text,period_to::text,
+        status,engine_version,input_checksum FROM payroll_calculation_runs
+        WHERE venue_id=$1 AND idempotency_key=$2 FOR SHARE`, [actor.venueId, idempotencyKey])).rows[0];
+      if (existing) {
+        if (existing.scheme_version_id !== versionId || existing.period_from !== period.from
+            || existing.period_to !== period.to || existing.status !== 'ready' || existing.engine_version !== VERIFIED_RUN_ENGINE) {
+          fail('payroll_run_idempotency_conflict', 409);
+        }
+        const evidence = (await client.query(`SELECT capability_version,evidence_payload,evidence_sha256,total_amount_cents
+          FROM payroll_run_provenance WHERE venue_id=$1 AND run_id=$2`, [actor.venueId, existing.id])).rows[0];
+        if (!evidence || evidence.evidence_sha256 !== existing.input_checksum
+            || createHash('sha256').update(evidence.evidence_payload).digest('hex') !== existing.input_checksum
+            || evidence.capability_version !== 'employee_attributed_merchandise_net_no_refund_v1'
+            || !Number.isSafeInteger(Number(evidence.total_amount_cents))) fail('payroll_run_evidence_invalid', 409);
+        try {
+          const payload = JSON.parse(evidence.evidence_payload);
+          if (Object.hasOwn(payload, 'calculatorReplay')) {
+            if (!payload.calculatorReplay) fail('payroll_run_evidence_invalid', 409);
+            validateCalculatorReplay(payload.calculatorReplay, { schemeSnapshot: payload.schemeSnapshot,
+              sourceEvidence: payload.sourceEvidence, period: payload.period, currency: payload.currency });
+            const amounts = payload.calculatorReplay.result.employees.map(row => row.amountCents);
+            if (amounts.some(amount => !Number.isSafeInteger(amount) || amount < 0)
+                || amounts.reduce((sum, amount) => sum + BigInt(amount), 0n) !== BigInt(evidence.total_amount_cents)) {
+              fail('payroll_run_evidence_invalid', 409);
+            }
+          }
+        } catch (_) { fail('payroll_run_evidence_invalid', 409); }
+        await client.query('COMMIT');
+        return { status: 'ready', runId: existing.id, amountCents: Number(evidence.total_amount_cents),
+          capabilityVersion: evidence.capability_version, replayed: true, officialReady: false,
+          payoutEligible: false, persistence: 'snapshots' };
+      }
+      const scheme = await loadVersion(client, actor.venueId, versionId);
+      const context = await collectSourcedPayrollContext(client, actor, scheme, period);
+      if (context.venueTimezone !== venue.timezone) fail('payroll_run_timezone_mismatch', 409);
+      const runId = randomUUID();
+      const evidence = buildPayrollRunProvenance({ venueId: actor.venueId, runId,
+        venueTimezone: context.venueTimezone, scheme, period, readiness: context.evidence.readiness,
+        attestations: context.attestations, sourceBundle: context.calculationSourceBundle, periodClosure: context.periodClosure });
+      if (evidence.status !== 'verified_run_evidence') {
+        await client.query('COMMIT');
+        return { status: 'blocked', reasons: [...evidence.reasons], replayed: false,
+          officialReady: false, payoutEligible: false, persistence: 'none' };
+      }
+      const run = { id: runId, venue_id: actor.venueId, scheme_version_id: versionId,
+        period_from: period.from, period_to: period.to, status: 'ready', source_coverage: 'complete',
+        commission_basis: 'net_after_discounts_refunds', eligible_line_count: evidence.prepared.mappedRows.snapshotLines.length,
+        unattributed_line_count: 0, missing_net_line_count: 0, input_watermark: evidence.prepared.sourceWatermark,
+        input_checksum: evidence.provenance.evidence_sha256, engine_version: VERIFIED_RUN_ENGINE, blocked_reason: null,
+        idempotency_key: idempotencyKey, created_by: actor.userId, created_by_name: actor.name,
+        venue_timezone: context.venueTimezone, currency: scheme.currency };
+      await persistPayrollSnapshotBundleInTransaction(client, {
+        run, input: evidence.prepared.snapshotInput, provenance: evidence.provenance
+      });
+      await client.query('COMMIT');
+      return { status: 'ready', runId, amountCents: evidence.provenance.total_amount_cents,
+        capabilityVersion: evidence.provenance.capability_version, replayed: false,
+        officialReady: false, payoutEligible: false, persistence: 'snapshots' };
+    } catch (error) {
+      if (error?.discardPayrollConnection) discardConnectionError = error;
+      await client.query('ROLLBACK').catch(cleanupError => { discardConnectionError = cleanupError; });
+      if (error instanceof PayrollSchemeServiceError) throw error;
+      if (error?.code === '23505') fail('payroll_run_idempotency_conflict', 409);
+      if (['40001', '40P01'].includes(error?.code)) fail('payroll_run_retry_required', 409);
+      if (['42P01', '42703'].includes(error?.code) || String(error?.code || '').startsWith('payroll_snapshot_persistence_schema')) {
+        fail('payroll_run_schema_required', 409);
+      }
+      throw error;
+    } finally {
+      try {
+        if (releaseSourceLock) await releaseSourceLock();
+      } catch (error) {
+        discardConnectionError = error;
+        throw error;
+      } finally {
+        client.release(discardConnectionError || undefined);
+      }
+    }
+  };
+  const previewSourced = async (principal, versionId, input) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)
+        || Object.getPrototypeOf(input) !== Object.prototype
+        || Object.keys(input).length !== 2 || !Object.hasOwn(input, 'periodFrom') || !Object.hasOwn(input, 'periodTo')
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(descriptor => !Object.hasOwn(descriptor, 'value'))) {
+      fail('invalid_payroll_sourced_preview_request');
+    }
+    const period = parsePayrollReadinessPeriod({ from: input.periodFrom, to: input.periodTo });
+    return withOwnerRead(pool, principal, async (db, actor) => {
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      return buildSourcedPreviewForScheme(db, actor, scheme, period);
+    }, { sourceSnapshot: true });
+  };
+  const compareSourced = async (principal, input) => {
+    const expectedKeys = ['baselineVersionId', 'periodFrom', 'periodTo', 'versionIds'];
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.getPrototypeOf(input) !== Object.prototype
+        || Object.keys(input).length !== expectedKeys.length || expectedKeys.some(key => !Object.hasOwn(input, key))
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(descriptor => !Object.hasOwn(descriptor, 'value'))) {
+      fail('invalid_payroll_sourced_comparison_request');
+    }
+    const { versionIds, baselineVersionId } = input;
+    if (!Array.isArray(versionIds) || versionIds.length < 2 || versionIds.length > 8
+        || new Set(versionIds).size !== versionIds.length) fail('comparison_versions_required');
+    if (versionIds.some(versionId => typeof versionId !== 'string' || !UUID.test(versionId))
+        || typeof baselineVersionId !== 'string' || !UUID.test(baselineVersionId)) fail('invalid_payroll_scheme_version_id');
+    if (!versionIds.includes(baselineVersionId)) fail('comparison_baseline_required');
+    const period = parsePayrollReadinessPeriod({ from: input.periodFrom, to: input.periodTo });
+    return withOwnerRead(pool, principal, async (db, actor) => {
+      const schemes = [];
+      for (const versionId of versionIds) schemes.push(await loadVersion(db, actor.venueId, versionId));
+      if (new Set(schemes.map(scheme => scheme.currency)).size !== 1) fail('comparison_currency_mismatch', 409);
+      for (const scheme of schemes) {
+        if (period.from < scheme.effectiveFrom || (scheme.effectiveTo && period.to > scheme.effectiveTo)) {
+          fail('comparison_period_outside_scheme_effective_window', 409);
+        }
+      }
+      if (schemes.some(scheme => scheme.sourcePolicies?.schemaVersion === 2)) {
+        const legacyPreviewsByVersionId = Object.create(null);
+        return collectPayrollRefundAwareComparisonInTransaction(db, actor, schemes, period, attendanceManifest,
+          { baselineVersionId, legacyPreviewsByVersionId, onSharedSources: async sharedSources => {
+            for (const scheme of schemes) if (scheme.sourcePolicies?.schemaVersion !== 2) {
+              legacyPreviewsByVersionId[scheme.versionId] = await buildSourcedPreviewForScheme(db, actor, scheme, period,
+                sharedSources);
+            }
+          } });
+      }
+      const sourced = [];
+      for (const scheme of schemes) sourced.push(await buildSourcedPreviewForScheme(db, actor, scheme, period));
+      return buildPayrollSourcedComparison({ venueId: actor.venueId, currency: schemes[0].currency, period,
+        baselineVersionId, versions: schemes, previews: sourced });
+    }, { sourceSnapshot: true });
   };
 
   const listSchemes = async (principal) => {
@@ -443,6 +1161,7 @@ const makeService = (pool) => {
         persistence: 'none',
         scenario: true,
         sourceAttendanceApproval: attendanceSource.sourceAttendanceApproval,
+        attendanceContext: attendanceSource.attendanceContext,
         scheme,
         result
       };
@@ -604,8 +1323,209 @@ const makeService = (pool) => {
     return scheme;
   });
 
+  const createRefundReview = async (principal, runId, input) => {
+    runId = reviewRequest(runId, input);
+    return withOwnerSourceWrite(pool, principal, async (db, actor) => {
+      const replay = await refundReviewStore.readRefundReviewAssessmentReplay(db, actor, runId, input);
+      if (replay) return replay;
+      const assessment = await collectPayrollRefundReviewAssessment(db, actor, runId);
+      return refundReviewStore.saveRefundReviewAssessment(db, actor, assessment, input);
+    });
+  };
+  const decideRefundReview = async (principal, caseId, input) => {
+    caseId = reviewRequest(caseId, input, true);
+    return withOwnerSourceWrite(pool, principal, async (db, actor) => {
+      // A lost-response retry returns its immutable outcome even if a later
+      // refund arrived. A new request must assess current sources again.
+      const replay = await refundReviewStore.readRefundReviewDecisionReplay(db, actor, caseId, input);
+      if (replay) return replay;
+      const saved = await refundReviewStore.getRefundReview(db, actor, caseId);
+      const assessment = await collectPayrollRefundReviewAssessment(db, actor, saved.runId);
+      return refundReviewStore.saveRefundReviewDecision(db, actor, caseId, assessment, input);
+    });
+  };
+  const lifecycleServiceError = (error) => {
+    if (error instanceof PayrollSchemeServiceError) throw error;
+    if (typeof error?.code === 'string' && /^payroll_[a-z0-9_]{1,100}$/.test(error.code)) throw error;
+    fail('payroll_entry_lifecycle_unavailable', 503);
+  };
+  const lifecycleFreshness = (db, actor, runId) =>
+    checkPayrollRunSourceFreshnessInTransaction(db, actor, runId, collectSourcedPayrollContext,
+      (client, owner, scheme, period) => readPayrollRefundAwareSourceArgsInTransaction(client, owner, scheme, period, attendanceManifest));
+  const getCalculationEntryState = async (principal, entryId) => {
+    try {
+      return await withOwnerSourceWrite(pool, principal, (db, actor) =>
+        calculationEntryLifecycle.getPayrollCalculationEntryState(db, actor, entryId,
+          (client, owner, runId) => lifecycleFreshness(client, owner, runId)), 'payroll_entry_lifecycle');
+    } catch (error) { lifecycleServiceError(error); }
+  };
+  const transitionCalculationEntry = async (principal, entryId, input) => {
+    try {
+      return await withOwnerSourceWrite(pool, principal, (db, actor) =>
+        calculationEntryLifecycle.transitionPayrollCalculationEntry(db, actor, entryId, input,
+          (client, owner, runId) => lifecycleFreshness(client, owner, runId)), 'payroll_entry_lifecycle');
+    } catch (error) { lifecycleServiceError(error); }
+  };
+  const withReviewedCorrection = async (principal, callback) => {
+    try { return await withOwnerSourceWrite(pool, principal, callback, 'payroll_correction'); }
+    catch (error) {
+      if (error instanceof PayrollSchemeServiceError
+          || (typeof error?.code === 'string' && /^payroll_[a-z0-9_]{1,100}$/.test(error.code))) throw error;
+      fail('payroll_correction_unavailable', 503);
+    }
+  };
+  const getReviewedCorrectionContext = (principal, originalEntryId) => {
+    if (typeof originalEntryId !== 'string' || !UUID.test(originalEntryId)) fail('payroll_correction_entry_invalid');
+    return withReviewedCorrection(principal, (db, actor) =>
+      reviewedCorrectionStore.readReviewedCorrectionContext(db, actor, originalEntryId.toLowerCase()));
+  };
+  const previewReviewedCorrection = (principal, input) => {
+    const request = normalizeReviewedCorrectionPreview(input);
+    return withReviewedCorrection(principal, (db, actor) =>
+      reviewedCorrectionStore.previewReviewedCorrection(db, actor, request, lifecycleFreshness));
+  };
+  const applyReviewedCorrection = (principal, input) => {
+    const request = normalizeReviewedCorrectionCommand(input);
+    return withReviewedCorrection(principal, (db, actor) =>
+      reviewedCorrectionStore.applyReviewedCorrection(db, actor, request, lifecycleFreshness));
+  };
+  // Unrouted preparation: no run, entry, expense or browser-provided source DTO.
+  const withRefundAwareSources = async (principal, versionId, input, prepare) => {
+    if (!UUID.test(versionId || '') || !input || Object.getPrototypeOf(input) !== Object.prototype
+        || Object.keys(input).sort().join(',') !== 'periodFrom,periodTo'
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(d => !Object.hasOwn(d, 'value'))) fail('payroll_refund_aware_request_invalid');
+    const period = parsePayrollReadinessPeriod({ from: input.periodFrom, to: input.periodTo });
+    return withOwnerSourceWrite(pool, principal, async (db, actor) => {
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      if (!['active', 'retired'].includes(scheme.status)) fail('payroll_run_scheme_not_active', 409);
+      if (scheme.effectiveFrom > period.from || (scheme.effectiveTo && scheme.effectiveTo < period.to)) fail('payroll_run_scheme_period_outside_version', 409);
+      return prepare(db, actor, scheme, period);
+    }, 'payroll_refund_aware');
+  };
+  const prepareRefundAwareCalculation = (principal, versionId, input) => withRefundAwareSources(principal, versionId, input,
+    (db, actor, scheme, period) => collectPayrollRefundAwareCalculationInTransaction(db, actor, scheme, period, attendanceManifest));
+  const prepareRefundAwareRunEvidence = (principal, versionId, input) => withRefundAwareSources(principal, versionId, input,
+    async (db, actor, scheme, period) => {
+      const collected = await readPayrollRefundAwareSourceArgsInTransaction(db, actor, scheme, period, attendanceManifest);
+      return collected.status === 'source_arguments_collected'
+        ? buildPayrollRefundAwareRunProvenance({ ...collected.sourceArgs, runId: randomUUID() }) : collected;
+    });
+  // Explicit v2 writer; its separate endpoint never upgrades a legacy scheme.
+  // Run creation stores evidence only. Entry approval/payment are separate
+  // source-verified lifecycle operations with immutable settlement receipts.
+  const createRefundAwareRun = async (principal, input) => {
+    if (!input || Object.getPrototypeOf(input) !== Object.prototype
+        || Reflect.ownKeys(input).length !== 4 || Object.keys(input).sort().join(',') !== 'idempotencyKey,periodFrom,periodTo,schemeVersionId'
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(d => !Object.hasOwn(d, 'value'))
+        || !UUID.test(input.schemeVersionId || '') || typeof input.idempotencyKey !== 'string'
+        || !/^[\x21-\x7e]{8,120}$/.test(input.idempotencyKey)) fail('payroll_refund_aware_request_invalid');
+    const versionId = input.schemeVersionId.toLowerCase(), period = parsePayrollReadinessPeriod({ from: input.periodFrom, to: input.periodTo });
+    return withOwnerSourceWrite(pool, principal, async (db, actor) => {
+      const venue = (await db.query('SELECT timezone FROM venues WHERE id=$1 FOR SHARE', [actor.venueId])).rows[0];
+      const version = (await db.query(`SELECT status,effective_from::text,effective_to::text FROM payroll_scheme_versions
+        WHERE venue_id=$1 AND id=$2 FOR SHARE`, [actor.venueId, versionId])).rows[0];
+      if (!venue || !version || !['active','retired'].includes(version.status)) fail('payroll_run_version_not_available', 409);
+      if (period.from < version.effective_from || (version.effective_to && period.to > version.effective_to)) fail('payroll_run_outside_scheme_version', 409);
+      const prior = (await db.query(`SELECT r.id,r.scheme_version_id,r.period_from::text,r.period_to::text,r.status,r.engine_version,
+        r.input_checksum,p.evidence_payload,p.evidence_sha256 FROM payroll_calculation_runs r LEFT JOIN payroll_run_provenance p
+        ON p.venue_id=r.venue_id AND p.run_id=r.id WHERE r.venue_id=$1 AND r.idempotency_key=$2`, [actor.venueId,input.idempotencyKey])).rows[0];
+      if (prior) {
+        if (prior.engine_version !== REFUND_RUN_ENGINE || prior.status !== 'ready' || prior.scheme_version_id !== versionId
+            || prior.period_from !== period.from || prior.period_to !== period.to) fail('payroll_run_idempotency_conflict', 409);
+        if (typeof prior.evidence_payload !== 'string' || prior.input_checksum !== prior.evidence_sha256
+            || createHash('sha256').update(prior.evidence_payload).digest('hex') !== prior.evidence_sha256) fail('payroll_run_evidence_invalid', 409);
+        const rebuilt = rebuildPayrollRefundAwareRunProvenance(JSON.parse(prior.evidence_payload));
+        if (rebuilt.provenance.run_id !== prior.id || rebuilt.provenance.venue_id !== actor.venueId
+            || rebuilt.prepared.verifiedCalculation.schemeVersionId !== versionId) fail('payroll_run_evidence_invalid', 409);
+        return { status: 'ready', runId: prior.id, amountCents: rebuilt.provenance.total_amount_cents,
+          capabilityVersion: rebuilt.provenance.capability_version, replayed: true, officialReady: false, payoutEligible: false, persistence: 'snapshots' };
+      }
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      const collected = await readPayrollRefundAwareSourceArgsInTransaction(db, actor, scheme, period, attendanceManifest);
+      if (collected.status !== 'source_arguments_collected') return collected;
+      if (collected.sourceArgs.periodClosure.timezone !== venue.timezone) fail('payroll_run_timezone_mismatch', 409);
+      const runId = randomUUID(), evidence = buildPayrollRefundAwareRunProvenance({ ...collected.sourceArgs, runId });
+      if (evidence.status !== 'verified_run_evidence') return evidence;
+      const run = { id: runId, venue_id: actor.venueId, scheme_version_id: versionId, period_from: period.from, period_to: period.to,
+        status: 'ready', source_coverage: 'complete', commission_basis: 'net_after_discounts_refunds',
+        eligible_line_count: evidence.prepared.mappedRows.snapshotLines.length, unattributed_line_count: 0, missing_net_line_count: 0,
+        input_watermark: evidence.prepared.sourceWatermark, input_checksum: evidence.provenance.evidence_sha256,
+        engine_version: REFUND_RUN_ENGINE, blocked_reason: null, idempotency_key: input.idempotencyKey,
+        created_by: actor.userId, created_by_name: actor.name, venue_timezone: venue.timezone, currency: scheme.currency };
+      await persistPayrollSnapshotBundleInTransaction(db, { run, input: evidence.prepared.snapshotInput, provenance: evidence.provenance });
+      return { status: 'ready', runId, amountCents: evidence.provenance.total_amount_cents,
+        capabilityVersion: evidence.provenance.capability_version, replayed: false, officialReady: false, payoutEligible: false, persistence: 'snapshots' };
+    }, 'payroll_refund_aware');
+  };
+  const supersessionCallbacks = {
+    checkFreshness: lifecycleFreshness,
+    buildReplacement: async (db, actor, saved, runId) => {
+      const scheme = structuredClone(saved.evidence.schemeSnapshot), period = { ...saved.evidence.period };
+      const collected = await readPayrollRefundAwareSourceArgsInTransaction(db, actor, scheme, period, attendanceManifest);
+      if (collected.status !== 'source_arguments_collected') fail('payroll_supersession_sources_blocked', 409);
+      const built = buildPayrollRefundAwareRunProvenance({ ...collected.sourceArgs, runId });
+      if (built.status !== 'verified_run_evidence') fail('payroll_supersession_sources_blocked', 409);
+      const run = { id: runId, venue_id: actor.venueId, scheme_version_id: scheme.versionId, period_from: period.from, period_to: period.to,
+        status: 'ready', source_coverage: 'complete', commission_basis: 'net_after_discounts_refunds',
+        eligible_line_count: built.prepared.mappedRows.snapshotLines.length, unattributed_line_count: 0, missing_net_line_count: 0,
+        input_watermark: built.prepared.sourceWatermark, input_checksum: built.provenance.evidence_sha256,
+        engine_version: REFUND_RUN_ENGINE, blocked_reason: null, idempotency_key: `supersession-run:${runId}`,
+        supersedes_run_id: saved.header.runId,
+        created_by: actor.userId, created_by_name: actor.name, venue_timezone: collected.sourceArgs.periodClosure.timezone,
+        currency: scheme.currency };
+      return { run, input: built.prepared.snapshotInput, provenance: built.provenance };
+    }
+  };
+  const previewUnpaidRunSupersession = (principal, runId) => withOwnerSourceWrite(pool, principal, (db, actor) =>
+    require('./payroll-unpaid-run-supersession').previewUnpaidRunSupersession(db, actor, runId, supersessionCallbacks), 'payroll_supersession');
+  const commitUnpaidRunSupersession = (principal, runId, input) => withOwnerSourceWrite(pool, principal, (db, actor) =>
+    require('./payroll-unpaid-run-supersession').commitUnpaidRunSupersession(db, actor, runId, input, supersessionCallbacks), 'payroll_supersession');
+  const getRefundAwareCorrectionContext = (principal, originalEntryId) => {
+    if (typeof originalEntryId !== 'string' || !UUID.test(originalEntryId)) fail('payroll_correction_entry_invalid');
+    return withReviewedCorrection(principal, (db, actor) =>
+      require('./payroll-refund-aware-correction-store').readRefundAwareCorrectionContext(db, actor, originalEntryId.toLowerCase()));
+  };
+  const previewRefundAwareCorrection = (principal, input) => {
+    const request = normalizeReviewedCorrectionPreview(input);
+    return withReviewedCorrection(principal, (db, actor) =>
+      require('./payroll-refund-aware-correction-store').previewRefundAwareCorrection(db, actor, request, lifecycleFreshness));
+  };
+  const applyRefundAwareCorrection = (principal, input) => {
+    const request = normalizeReviewedCorrectionCommand(input);
+    return withReviewedCorrection(principal, (db, actor) =>
+      require('./payroll-refund-aware-correction-store').applyRefundAwareCorrection(db, actor, request, lifecycleFreshness));
+  };
   return { listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion,
-    preview, previewWithApprovedAttendance, previewWithVenueDailyTurnover, compare, getSourceReadiness,
+    previewUnpaidRunSupersession, commitUnpaidRunSupersession,
+    getRefundAwareCorrectionContext, previewRefundAwareCorrection, applyRefundAwareCorrection,
+    prepareRefundAwareCalculation,
+    prepareRefundAwareRunEvidence,
+    createRefundAwareRun,
+    createRefundReview, decideRefundReview,
+    getReviewedCorrectionContext, previewReviewedCorrection, applyReviewedCorrection,
+    getCalculationEntryState, transitionCalculationEntry,
+    materializeCalculationEntry: (principal, runId, input) => {
+      const request = calculationEntryBridge.normalizeEntryMaterialization(runId, input);
+      return withOwnerSourceWrite(pool, principal, (db, actor) => calculationEntryBridge.materializeCalculationEntry(db, actor, request,
+        lifecycleFreshness), 'payroll_entry_materialization');
+    },
+    listCalculationEntries: (principal, runId) => withOwnerRead(pool, principal,
+      (db, actor) => calculationEntryBridge.listCalculationEntries(db, actor, runId)),
+    listRefundReviews: (principal, query) => withOwnerRead(pool, principal, (db, actor) => refundReviewStore.listRefundReviews(db, actor, query)),
+    getRefundReview: (principal, caseId) => withOwnerRead(pool, principal, (db, actor) => refundReviewStore.getRefundReview(db, actor, caseId)),
+    listSavedRuns: (principal, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.listSavedRuns(db, actor.venueId, query)),
+    replaySavedRun: (principal, runId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.replaySavedRun(db, actor.venueId, runId)),
+    checkSavedRunFreshness: (principal, runId) => withOwnerRead(pool, principal,
+      (db, actor) => lifecycleFreshness(db, actor, runId), { sourceSnapshot: true }),
+    getSavedRun: (principal, runId, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRun(db, actor.venueId, runId, query)),
+    getSavedRunEmployee: (principal, runId, employeeId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunEmployee(db, actor.venueId, runId, employeeId)),
+    getSavedRunLines: (principal, runId, snapshotId, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunLines(db, actor.venueId, runId, snapshotId, query)),
+    listEmploymentEligibilityEmployees,
+    getEmploymentEligibilityHistory, createEmploymentEligibilityRevision,
+    getProductDepartmentMappings, getProductDepartmentRevision, writeProductDepartmentRevision,
+    preview, previewWithApprovedAttendance, previewWithVenueDailyTurnover, previewSourced, compareSourced, compare, getSourceReadiness,
+    prepareVerifiedSnapshotInput, createVerifiedRun,
+    getEntryOverlapDiagnostic,
     readAttendanceCoverage: attendanceManifest.readCoverage,
     approveAttendanceCoverage: attendanceManifest.approveCoverage };
 };

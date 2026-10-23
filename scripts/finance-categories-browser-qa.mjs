@@ -87,14 +87,24 @@ try {
   await revised.locator('[data-category-status]').click();
   await page.locator('.action-modal.open .action-footer button[type="submit"]').click();
   await page.waitForFunction(() => !document.querySelector('.category-row')?.textContent?.includes('QA browser rent revised'));
-  await page.locator('.finance-category-filter-options > summary').click();
-  await selectOption(page.locator('#finance-category-status'), 'all');
+  assert.equal(await page.locator('#finance-category-status').locator('xpath=ancestor::details').count(), 0, 'archive status is outside collapsed filters');
+  await selectOption(page.locator('#finance-category-status'), 'archived');
   const archived = page.locator('.category-row').filter({ hasText: 'QA browser rent revised' });
   await archived.waitFor();
   assert.match(await archived.textContent(), /В архиве/);
-  await archived.locator('details.finance-category-overflow > summary').click();
+  assert.equal(await archived.locator('[data-category-status]').isVisible(), true, 'restore is directly visible');
+  assert.equal(await page.locator('#finance-category-list .badge.success').count(), 0, 'archive excludes active rows');
+  await page.getByText('Категория помещена в архив. Найти её можно в «Статус → Архив».', { exact: true }).waitFor({ state: 'hidden', timeout: 10000 });
+  for (const width of [320, 768, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    await archived.locator('[data-category-status]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `tmp/finance-category-archive-${width}.png`, fullPage: true });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+  }
   await archived.locator('[data-category-status]').click();
-  await page.waitForFunction(() => { const row = [...document.querySelectorAll('.category-row')].find((item) => item.textContent?.toLocaleLowerCase('ru-RU').includes('qa browser rent revised')); return row && !row.textContent.includes('В архиве'); });
+  await page.waitForFunction(() => ![...document.querySelectorAll('.category-row')].some(item => item.textContent?.toLocaleLowerCase('ru-RU').includes('qa browser rent revised')));
+  await selectOption(page.locator('#finance-category-status'), 'active');
+  await row.waitFor();
   await page.reload({ waitUntil: 'networkidle' });
   await row.waitFor();
   assert.match(await row.textContent(), /QA Browser Rent Revised/i);

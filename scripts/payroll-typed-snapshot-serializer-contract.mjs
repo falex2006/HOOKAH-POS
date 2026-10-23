@@ -24,6 +24,18 @@ const fixture = (mode, costCents = 5000) => {
       grossCents: 20100, discountCents: 100, refundCents: 0, commissionBaseCents: 20000, turnoverCents: 20000,
       ...(mode === 'margin_target' ? { costSnapshot: structuredClone(costSnapshot) } : {}) }] };
 };
+const overnight = fixture('personal_target');
+Object.assign(overnight.sourceLines[0], { soldAt: '2026-09-30T18:59:00.654321Z',
+  recognizedAt: '2026-09-30T19:01:00.123456Z', recognizedLocalDate: '2026-10-01',
+  timezoneSnapshot: 'Asia/Yekaterinburg' });
+const overnightRows = map(overnight);
+assert.equal(overnightRows.snapshotLines[0].sold_at, '2026-09-30T18:59:00.654321Z');
+assert.equal(overnightRows.snapshotLines[0].local_date, '2026-10-01');
+assert.deepEqual(overnightRows.snapshotLines[0].incentive_json.sourceRecognition, {
+  recognizedAt: '2026-09-30T19:01:00.123456Z', recognizedLocalDate: '2026-10-01', timezoneSnapshot: 'Asia/Yekaterinburg'
+});
+overnightRows.snapshotLines[0].incentive_json.sourceRecognition.recognizedLocalDate = '2099-01-01';
+assert.equal(overnight.sourceLines[0].recognizedLocalDate, '2026-10-01');
 for (const mode of ['personal_target', 'team_fund', 'margin_target']) {
   const data = fixture(mode), before = structuredClone(data);
   const dto = map(data);

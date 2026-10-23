@@ -33,6 +33,7 @@ const service = {
   getVersion: async (principal, target) => { calls.push(['getVersion', principal, target]); return { ...scheme, versionId: target, status: 'draft' }; },
   listVersionRevisions: async (principal, target) => { calls.push(['listVersionRevisions', principal, target]); return []; },
   getSourceReadiness: async (principal, target, period) => { calls.push(['getSourceReadiness', principal, target, period]); return { officialReady: false }; },
+  getEntryOverlapDiagnostic: async (principal, period) => { calls.push(['getEntryOverlapDiagnostic', principal, period]); return { diagnosticOnly: true, snapshotProvenance: 'unknown', period }; },
   createScheme: async (principal, input) => { calls.push(['createScheme', principal, input]); return { ...scheme, ...input }; },
   createVersion: async (principal, target, definition, acknowledgement) => { calls.push(['createVersion', principal, target, definition, acknowledgement]); return { ...scheme, schemeId: target, versionId, ...definition }; },
   replaceDraftVersion: async (principal, target, definition, acknowledgement) => { calls.push(['replaceDraftVersion', principal, target, definition, acknowledgement]); return { ...scheme, versionId: target, ...definition }; },
@@ -44,9 +45,25 @@ const service = {
     return { official: false, persistence: 'none', scenario: true,
       sourceVenueTurnover: { official: false, persistence: 'none', previewOnly: true }, result: { status: 'blocked' } };
   },
+  previewSourced: async (principal, target, input) => {
+    calls.push(['previewSourced', principal, target, input]);
+    return { candidateOnly: true, officialReady: false, calculationStatus: 'unavailable', amount: null };
+  },
   compare: async (principal, ids, input, baseline) => { calls.push(['compare', principal, ids, input, baseline]); return { official: false, persistence: 'none', scenario: true, comparisons: [] }; },
+  compareSourced: async (principal, input) => { calls.push(['compareSourced', principal, input]);
+    return { comparisonKind: 'sourced_candidate', candidateOnly: true, officialReady: false, persistence: 'none' }; },
   readAttendanceCoverage: async (principal, period) => { calls.push(['readAttendanceCoverage', principal, period]); return { complete: true, sourceWatermark: 'a'.repeat(64) }; },
-  approveAttendanceCoverage: async (principal, input) => { calls.push(['approveAttendanceCoverage', principal, input]); return { revision: 1 }; }
+  approveAttendanceCoverage: async (principal, input) => { calls.push(['approveAttendanceCoverage', principal, input]); return { revision: 1 }; },
+  listEmploymentEligibilityEmployees: async principal => { calls.push(['listEmploymentEligibilityEmployees', principal]); return { schemaVersion: 1, items: [{ id, name: 'Owner', active: true }] }; },
+  getEmploymentEligibilityHistory: async principal => { calls.push(['getEmploymentEligibilityHistory', principal]); return { current: null, history: [] }; },
+  createEmploymentEligibilityRevision: async (principal, input) => {
+    calls.push(['createEmploymentEligibilityRevision', principal, input]); return { revisionNo: 1, replayed: false };
+  },
+  getProductDepartmentMappings: async principal => { calls.push(['getProductDepartmentMappings', principal]); return { currentRevision: null, history: [] }; },
+  getProductDepartmentRevision: async (principal, target) => { calls.push(['getProductDepartmentRevision', principal, target]); return { id: target }; },
+  writeProductDepartmentRevision: async (principal, input, retroactive) => {
+    calls.push(['writeProductDepartmentRevision', principal, input, retroactive]); return { revisionNo: 1, replayed: false };
+  }
 };
 const dispatch = async (req, { selectedService = service, body = bodyReader } = {}) => {
   const { response, json } = responseFor();
@@ -72,6 +89,64 @@ result = await dispatch({ ...requestFor('POST', '/api/payroll/attendance/approva
 assert.equal(result.status, 403);
 assert.equal(calls.length, attendanceCallsBeforeDenied, 'non-owner cannot reach attendance manifest service');
 
+result = await dispatch(requestFor('GET', '/api/payroll/employment-eligibility'));
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['getEmploymentEligibilityHistory', { userId: id, venueId }]);
+result = await dispatch(requestFor('GET', '/api/payroll/employment-eligibility/employees'));
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['listEmploymentEligibilityEmployees', { userId: id, venueId }]);
+result = await dispatch(requestFor('GET', '/api/payroll/employment-eligibility/employees?venueId=foreign'));
+assert.equal(result.status, 400);
+result = await dispatch(requestFor('POST', '/api/payroll/employment-eligibility/employees'));
+assert.equal(result.status, 405, 'minimal employee selector is read-only');
+result = await dispatch(requestFor('GET', '/api/payroll/employment-eligibility?venueId=foreign'));
+assert.equal(result.status, 400);
+assert.deepEqual(result.body, { error: 'invalid_payroll_employment_eligibility_request' });
+const employmentRevisionInput = { reason: 'Сверка кадрового состава', idempotencyKey: 'payroll-employment:qa-1', expectedRevisionId: null,
+  periods: [{ employeeId: id, effectiveFrom: '2026-01-01', effectiveTo: null }] };
+result = await dispatch({ ...requestFor('POST', '/api/payroll/employment-eligibility'), body: employmentRevisionInput });
+assert.equal(result.status, 201);
+assert.deepEqual(calls.at(-1), ['createEmploymentEligibilityRevision', { userId: id, venueId }, employmentRevisionInput]);
+result = await dispatch(requestFor('GET', '/api/payroll/product-department-mappings'));
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['getProductDepartmentMappings', { userId: id, venueId }]);
+result = await dispatch(requestFor('GET', `/api/payroll/product-department-mappings/revisions/${versionId}`));
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['getProductDepartmentRevision', { userId: id, venueId }, versionId]);
+const departmentRevisionInput = { expectedRevisionId: null, idempotencyKey: 'payroll-departments:qa-1',
+  reason: 'Начальная классификация', mappings: [] };
+result = await dispatch({ ...requestFor('POST', '/api/payroll/product-department-mappings/revisions'), body: departmentRevisionInput });
+assert.equal(result.status, 201);
+assert.deepEqual(calls.at(-1), ['writeProductDepartmentRevision', { userId: id, venueId }, departmentRevisionInput, false]);
+const retroDepartmentRevision = { ...departmentRevisionInput, effectiveFrom: '2026-01-01', retroactiveReason: 'Исправлена ошибка источника',
+  ownerAttestation: { confirmed: true, action: 'retroactive_payroll_product_department_mapping' } };
+result = await dispatch({ ...requestFor('POST', '/api/payroll/product-department-mappings/retroactive-revisions'), body: retroDepartmentRevision });
+assert.equal(result.status, 201);
+assert.deepEqual(calls.at(-1), ['writeProductDepartmentRevision', { userId: id, venueId }, retroDepartmentRevision, true]);
+result = await dispatch(requestFor('GET', '/api/payroll/product-department-mappings?venueId=foreign'));
+assert.equal(result.status, 400);
+result = await dispatch(requestFor('DELETE', '/api/payroll/product-department-mappings'));
+assert.equal(result.status, 405);
+const beforeForeignMapping = calls.length;
+result = await dispatch({ ...requestFor('POST', '/api/payroll/product-department-mappings/revisions'), user: { id, venueId, role: 'manager' }, body: departmentRevisionInput });
+assert.equal(result.status, 403);
+assert.equal(calls.length, beforeForeignMapping);
+result = await dispatch({ ...requestFor('POST', '/api/payroll/product-department-mappings/revisions'),
+  headers: { host: 'crm.example.test', origin: 'https://attacker.example.test', 'content-type': 'application/json' }, body: departmentRevisionInput });
+assert.equal(result.status, 403);
+assert.equal(calls.length, beforeForeignMapping);
+const employmentCallsBeforeDenied = calls.length;
+result = await dispatch({ ...requestFor('GET', '/api/payroll/employment-eligibility/employees'), user: { id, venueId, role: 'manager' } });
+assert.equal(result.status, 403);
+assert.equal(calls.length, employmentCallsBeforeDenied, 'non-owner cannot list payroll employees');
+result = await dispatch({ ...requestFor('POST', '/api/payroll/employment-eligibility'), user: { id, venueId, role: 'manager' }, body: employmentRevisionInput });
+assert.equal(result.status, 403);
+assert.equal(calls.length, employmentCallsBeforeDenied, 'non-owner cannot access or mutate historical payroll eligibility');
+result = await dispatch({ ...requestFor('POST', '/api/payroll/employment-eligibility'),
+  headers: { host: 'crm.example.test', origin: 'https://attacker.example.test', 'content-type': 'application/json' }, body: employmentRevisionInput });
+assert.equal(result.status, 403, 'employment eligibility writes require same-origin protection');
+assert.equal(calls.length, employmentCallsBeforeDenied);
+
 const spoofed = { name: 'Draft', venueId: 'forged-venue', userId: 'forged-user', definition: { mode: 'progressive_daily' }, payoutRiskAcknowledgement };
 result = await dispatch({ ...requestFor('POST', '/api/payroll/schemes'), body: spoofed });
 assert.equal(result.status, 201);
@@ -87,6 +162,16 @@ assert.deepEqual(calls.at(-1), ['getVersion', { userId: id, venueId }, versionId
 result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}/source-readiness?from=2026-10-01&to=2026-10-31`));
 assert.equal(result.status, 200);
 assert.deepEqual(calls.at(-1), ['getSourceReadiness', { userId: id, venueId }, versionId, { from: '2026-10-01', to: '2026-10-31' }]);
+result = await dispatch(requestFor('GET', '/api/payroll/entry-overlap-diagnostic?from=2026-10-01&to=2026-10-15'));
+assert.equal(result.status, 200);
+assert.deepEqual(calls.at(-1), ['getEntryOverlapDiagnostic', { userId: id, venueId }, { from: '2026-10-01', to: '2026-10-15' }]);
+for (const query of ['from=2026-10-01', 'from=2026-10-01&to=2026-10-15&venueId=foreign', 'from=2026-10-01&from=2026-10-02&to=2026-10-15']) {
+  const before = calls.length;
+  result = await dispatch(requestFor('GET', `/api/payroll/entry-overlap-diagnostic?${query}`));
+  assert.equal(result.status, 400); assert.equal(calls.length, before);
+}
+result = await dispatch({ ...requestFor('GET', '/api/payroll/entry-overlap-diagnostic?from=2026-10-01&to=2026-10-15'), user: { id, venueId, role: 'manager' } });
+assert.equal(result.status, 403);
 for (const query of ['from=2026-10-01', 'from=2026-10-01&from=2026-10-01&to=2026-10-31', 'from=2026-10-01&to=2026-10-31&coverage=complete']) {
   const before = calls.length;
   result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}/source-readiness?${query}`));
@@ -171,15 +256,48 @@ result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${version
 assert.equal(result.status, 409, 'source blockers map to their safe domain status');
 assert.deepEqual(result.body, { error: 'payroll_venue_turnover_snapshot_missing' });
 
+const sourcedPeriod = { periodFrom: '2026-10-01', periodTo: '2026-10-31' };
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/sourced`), body: sourcedPeriod });
+assert.equal(result.status, 200);
+assert.deepEqual(result.body, { candidateOnly: true, officialReady: false, calculationStatus: 'unavailable', amount: null });
+assert.deepEqual(calls.at(-1), ['previewSourced', { userId: id, venueId }, versionId, sourcedPeriod]);
+const callsBeforeExtraSourcedField = calls.length;
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/sourced`), body: { ...sourcedPeriod, sales: [] } });
+assert.equal(result.status, 400);
+assert.equal(result.body.error, 'invalid_payroll_sourced_preview_request');
+assert.equal(calls.length, callsBeforeExtraSourcedField, 'scenario values and extra fields never reach sourced preview service');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/sourced`),
+  user: { id, venueId, role: 'manager' }, body: sourcedPeriod });
+assert.equal(result.status, 403);
+assert.equal(calls.length, callsBeforeExtraSourcedField, 'non-owner is rejected before sourced preview service');
+result = await dispatch(requestFor('GET', `/api/payroll/versions/${versionId}/preview/sourced`));
+assert.equal(result.handled, false, 'sourced preview is POST-only');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/versions/${versionId}/preview/sourced`), body: sourcedPeriod }, {
+  selectedService: { ...service, previewSourced: async () => { throw new Error('database read failed'); } }
+});
+assert.equal(result.status, 503, 'technical source reads stay server failures, not missing-data results');
+assert.equal(result.body.error, 'payroll_scheme_unavailable');
+
 result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: { versionIds: [versionId, id], baselineVersionId: versionId, previewInput } });
 assert.equal(result.status, 200);
 assert.equal(calls.at(-1)[0], 'compare');
 assert.deepEqual(calls.at(-1).slice(1), [{ userId: id, venueId }, [versionId, id], previewInput, versionId]);
+const sourcedComparisonInput = { versionIds: [versionId, id], baselineVersionId: versionId,
+  periodFrom: '2026-11-01', periodTo: '2026-11-20' };
+result = await dispatch({ ...requestFor('POST', '/api/payroll/compare/sourced'), body: sourcedComparisonInput });
+assert.equal(result.status, 200);
+assert.equal(calls.at(-1)[0], 'compareSourced');
+assert.deepEqual(calls.at(-1).slice(1), [{ userId: id, venueId }, sourcedComparisonInput]);
+result = await dispatch({ ...requestFor('POST', '/api/payroll/compare/sourced'),
+  user: { id, venueId, role: 'manager' }, body: sourcedComparisonInput });
+assert.equal(result.status, 403, 'sourced comparisons are owner-only');
 const rejectingPool = {
   query: async () => { throw new Error('malformed comparison IDs must be rejected before DB access'); },
   connect: async () => { throw new Error('malformed comparison IDs must be rejected before DB access'); }
 };
 const validatingService = makePayrollSchemeService(rejectingPool);
+await assert.rejects(() => validatingService.compareSourced({ userId: id, venueId }, { ...sourcedComparisonInput, previewInput }),
+  error => error.code === 'invalid_payroll_sourced_comparison_request', 'sourced comparison rejects client-supplied sales scenarios');
 result = await dispatch({ ...requestFor('POST', '/api/payroll/compare'), body: {
   versionIds: ['not-a-uuid', id], baselineVersionId: id, previewInput
 } }, { selectedService: validatingService });
@@ -244,5 +362,6 @@ assert.match(server, /await handlePayrollSchemeRoute[\s\S]*?if \(pathname === '\
 assert.match(routeSource, /sameOriginMutation\(req\)/, 'scheme writes include CSRF origin validation');
 assert.match(routeSource, /req\.user\.role !== 'owner'/, 'scheme API rejects non-owners before calling the service');
 assert.doesNotMatch(routeSource, /payroll_entries|expenses/, 'scheme routes never create payroll entries or expenses');
+assert.match(routeSource, /isEntryOverlapDiagnostic/, 'entry overlap diagnostic is a strict owner-only read endpoint');
 
 console.log('PAYROLL SCHEME ROUTES CONTRACT: PASS (owner session boundary, CSRF, CRUD, revisions, scenario/source preview, compare and legacy isolation)');

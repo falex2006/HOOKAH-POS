@@ -11,7 +11,9 @@ const target = validateQaDatabaseUrl(process.env.MIGRATIONS_PG_TEST_DATABASE_URL
 const schema = `payroll_readiness_qa_${process.pid}_${Date.now()}`;
 assert.match(schema, /^payroll_readiness_qa_\d+_\d+$/);
 const db = new Client({ connectionString: target.url.href });
-const scoped = new URL(target.url); scoped.searchParams.set('options', `-c search_path=${schema},public`);
+// Restrict service resolution to the isolated fixture schema so public tables
+// cannot silently make dropped source capabilities appear installed.
+const scoped = new URL(target.url); scoped.searchParams.set('options', `-c search_path=${schema}`);
 let pool, created = false;
 try {
   await db.connect();
@@ -21,10 +23,29 @@ try {
   await db.query(readFileSync(path.join(root, 'schema.sql'), 'utf8'));
   // The base schema now includes later POS tables. This own disposable schema
   // explicitly models the original <=087 capability boundary before replay.
+  await db.query('DROP TRIGGER IF EXISTS venues_payroll_recognition_epoch ON venues');
+  await db.query('DROP TRIGGER IF EXISTS order_items_payroll_attribution_capture ON order_items');
+  await db.query('DROP TRIGGER IF EXISTS orders_payroll_sale_recognition ON orders');
+  await db.query(`DROP TABLE IF EXISTS pos_payroll_refund_line_events,pos_payroll_refund_events,
+    pos_payroll_sale_line_events,pos_payroll_sale_events,pos_payroll_recognition_epochs CASCADE`);
   await db.query('DROP TRIGGER IF EXISTS pos_order_item_after_snapshot ON order_items');
   await db.query('DROP TABLE IF EXISTS pos_order_pricing_snapshot_lines,pos_order_pricing_snapshots,order_refund_tenders,order_refunds CASCADE');
   for (const name of readdirSync(path.join(root, 'migrations')).filter(name => /^\d{3}.*\.sql$/.test(name) && Number(name.slice(0, 3)) <= 87).sort()) await db.query(readFileSync(path.join(root, 'migrations', name), 'utf8'));
-  pool = new Pool({ connectionString: scoped.href }); const service = makeService(pool);
+  // Keep the current schedule source shape while this fixture intentionally
+  // omits later POS pricing/recognition migrations.
+  for (const number of [101, 102, 103, 104, 191]) {
+    const name = readdirSync(path.join(root, 'migrations')).find(file => file.startsWith(`${number}_`) && file.endsWith('.sql'));
+    assert.ok(name, `required attendance QA migration ${number} exists`);
+    await db.query(readFileSync(path.join(root, 'migrations', name), 'utf8'));
+  }
+  await db.query(readFileSync(path.join(root, 'migrations/189_payroll_product_department_mapping_revisions.sql'), 'utf8'));
+  pool = new Pool({ connectionString: scoped.href });
+  const tracedQueries = [];
+  const tracedPool = { query: (...args) => pool.query(...args), connect: async () => {
+    const client = await pool.connect();
+    return { query: (...args) => { tracedQueries.push(String(args[0])); return client.query(...args); }, release: () => client.release() };
+  } };
+  const service = makeService(tracedPool);
   const venueId = (await db.query("INSERT INTO venues(name,timezone) VALUES('Readiness QA','Asia/Yekaterinburg') RETURNING id")).rows[0].id;
   const foreignVenue = (await db.query("INSERT INTO venues(name,timezone) VALUES('Foreign readiness','UTC') RETURNING id")).rows[0].id;
   const user = async (venue, role, name) => (await db.query('INSERT INTO users(venue_id,full_name,login,role) VALUES($1,$2,$3,$4) RETURNING id', [venue, name, `${schema}-${name}`, role])).rows[0].id;
@@ -35,11 +56,40 @@ try {
     payoutRiskAcknowledgement: { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' } });
   const version = createdScheme.versions[0].versionId;
   const read = () => service.getSourceReadiness(owner, version, period);
+  tracedQueries.length = 0;
+  const noDepartmentDependency = await read();
+  assert.equal(noDepartmentDependency.components.immutableDepartmentAttribution.status, 'not_required');
+  assert.ok(!tracedQueries.some(sql => sql.includes('payroll_product_department_')),
+    'a mode without department dependency must not query department mapping tables');
+  assert.ok(!tracedQueries.some(sql => sql.includes('pos_sale_cost_')),
+    'a mode without margin dependency must not query cost evidence');
+  const marginScheme = await service.createScheme(owner, { name: 'Missing cost schema', definition: {
+    mode: 'margin_target', currency: 'RUB', effectiveFrom: '2026-11-01', roleAssignments: [], employeeOverrides: [], itemRules: [],
+    roleParameters: { bar: { perShiftCents: 0, targetCents: 20000, baseRateBps: 1000, bonusRateBps: 2000,
+      excessRatePolicy: 'replace_base', lossPolicy: 'offset_daily_losses', itemRuleBasis: 'net_revenue' } } },
+    payoutRiskAcknowledgement: { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' } });
+  const noCostSchema = await service.getSourceReadiness(owner, marginScheme.versions[0].versionId, period);
+  assert.equal(noCostSchema.components.marginCosts.status, 'unsupported');
+  assert.deepEqual(noCostSchema.components.marginCosts.reasons, ['payroll_margin_cost_source_schema_missing']);
+  assert.equal((await pool.query('SELECT 1 AS alive')).rows[0].alive, 1, 'schema capability check must not abort connection');
   let result = await read(); assert.equal(result.officialReady, false);
   assert.equal(result.components.orderObservations.closedOrderCount, 0);
   assert.equal(result.components.canonicalLinePricing.status, 'unsupported');
+    assert.equal(result.components.recognitionManifest.status, 'unsupported', `pre-recognition schema must fail closed without aborting readiness: ${JSON.stringify(result.components.recognitionManifest)}`);
+    assert.deepEqual(result.components.recognitionManifest.reasons, ['recognition_source_schema_missing']);
   assert.equal(result.components.refundObservations.status, 'unsupported');
   assert.equal(result.components.refundObservations.eventCount, null);
+  const departmentScheme = await service.createScheme(owner, { name: 'Department cap readiness', definition: {
+    mode: 'stable_percent', currency: 'RUB', effectiveFrom: '2026-11-01', roleParameters: { bar: { perShiftCents: 0,
+      stableRateBps: 0, cap: { rateBps: 1000, basis: 'employee_department_day', department: 'bar' } } },
+    roleAssignments: [], employeeOverrides: [], itemRules: [] },
+    payoutRiskAcknowledgement: { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' } });
+  tracedQueries.length = 0;
+  const departmentReadiness = await service.getSourceReadiness(owner, departmentScheme.versions[0].versionId, period);
+  assert.equal(departmentReadiness.components.immutableDepartmentAttribution.status, 'incomplete');
+  assert.ok(departmentReadiness.components.immutableDepartmentAttribution.reasons.includes('payroll_product_department_mapping_revision_missing'));
+  assert.ok(tracedQueries.some(sql => sql.includes('payroll_product_department_revisions')),
+    'a configured department dependency loads the latest immutable revision');
   assert.equal(result.components.approvedAttendance.status, 'incomplete');
   await assert.rejects(() => service.getSourceReadiness({ venueId, userId: employee }, version, period), error => error.status === 403);
   await assert.rejects(() => service.getSourceReadiness({ venueId: foreignVenue, userId: foreignOwner }, version, period), error => error.status === 404);
@@ -205,7 +255,12 @@ try {
     const report = await service.getSourceReadiness(owner, selectedId, period);
     assert.deepEqual(report.requiredSourceFacts, [...commonFacts,...creditFacts[credit],...discountFacts[discount],refundFacts[recognition]].sort());
     assert.equal(report.components.sourcePolicies.status, 'available'); assert.equal(report.officialReady, false);
-    for (const component of ['canonicalLinePricing','payrollSaleCredit','recognizedLineRefunds','fullEmployeeNetRevenue','marginCosts','departmentShiftAllocation']) assert.equal(report.components[component].status, 'unsupported', component);
+    for (const component of ['canonicalLinePricing','payrollSaleCredit','marginCosts','departmentShiftAllocation']) assert.equal(report.components[component].status, 'unsupported', component);
+    const recognizedLinePolicySupported = credit === 'line_seller_snapshot' && discount === 'immutable_line_snapshot' && recognition === 'recognized_event_date';
+    if (recognizedLinePolicySupported) assert.ok(['available','incomplete'].includes(report.components.recognizedLineRefunds.status));
+    else assert.equal(report.components.recognizedLineRefunds.status, 'unsupported');
+    if (recognizedLinePolicySupported) assert.ok(['available','incomplete'].includes(report.components.fullEmployeeNetRevenue.status));
+    else assert.equal(report.components.fullEmployeeNetRevenue.status, 'unsupported');
     assert.deepEqual(report.components.orderObservations, isolated.components.orderObservations);
     assert.deepEqual(report.components.refundObservations, isolated.components.refundObservations);
     assert.deepEqual(await counts(), beforePolicyRead, 'policy readiness reads do not write revisions or postings');

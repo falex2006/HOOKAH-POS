@@ -21,6 +21,7 @@ let venueId = null;
 let userId = null;
 let posUserId = null;
 let legacyUserId = null;
+let nullRuleUserId = null;
 
 const callApi = async ({ path = '/api/payroll/entries', method = 'GET', body = {}, query = '' }) => {
   let response;
@@ -146,6 +147,30 @@ try {
   assert.equal(listing.status, 200);
   assert.deepEqual(listing.data.items.map((item) => item.status).sort(), ['approved','cancelled','paid']);
 
+  nullRuleUserId = (await setup.query(`INSERT INTO users(venue_id,full_name,login,role)
+    VALUES($1,'NULL rule QA',$2,'bartender') RETURNING id`,[venueId,'null-rule-qa-'+process.pid])).rows[0].id;
+  const nullEntries = (await setup.query(`INSERT INTO payroll_entries(venue_id,user_id,rule_id,period_from,period_to,amount,status)
+    VALUES($1,$2,NULL,'2026-06-01','2026-06-15',100,'draft'),
+      ($1,$2,NULL,'2026-06-15','2026-06-30',100,'draft') RETURNING id`,[venueId,nullRuleUserId])).rows;
+  const approvals = await Promise.all(nullEntries.map(entry=>callApi({path: '/api/payroll/entries/'+entry.id,
+    method:'PATCH',body:{action:'approve'}})));
+  assert.deepEqual(approvals.map(result=>result.status).sort(),[200,409], 'concurrent NULL-rule inclusive-boundary approval admits only one');
+  assert.equal(approvals.find(result=>result.status===409).data.error,'payroll_period_overlap');
+  const winner = nullEntries[approvals.findIndex(result=>result.status===200)].id;
+  const loser = nullEntries[approvals.findIndex(result=>result.status===409)].id;
+  assert.deepEqual((await setup.query('SELECT status FROM payroll_entries WHERE id=ANY($1::uuid[]) ORDER BY status',[nullEntries.map(row=>row.id)])).rows.map(row=>row.status),['approved','draft']);
+  // Model already-existing approved legacy overlap. This fixture mutation is
+  // intentional: pay must reject it independently of the approval endpoint.
+  await setup.query("UPDATE payroll_entries SET status='approved',approved_at=now(),approved_by=$2 WHERE id=$1",[loser,userId]);
+  const expenseCount = async () => Number((await setup.query('SELECT count(*) AS n FROM expenses WHERE venue_id=$1',[venueId])).rows[0].n);
+  const expensesBefore = await expenseCount();
+  const rejectedPay = await callApi({path:'/api/payroll/entries/'+loser,method:'PATCH',
+    body:{action:'pay',paymentDate:'2026-09-27',paymentMethod:'bank_transfer',paymentAccountId:bankAccountId}});
+  assert.equal(rejectedPay.status,409); assert.equal(rejectedPay.data.error,'payroll_period_overlap');
+  assert.equal(rejectedPay.data.conflictingEntryId,winner);
+  assert.equal(await expenseCount(),expensesBefore,'NULL-rule pay conflict creates no expense');
+  assert.deepEqual((await setup.query('SELECT status,expense_id FROM payroll_entries WHERE id=$1',[loser])).rows[0],{status:'approved',expense_id:null});
+
   console.log('PAYROLL POSTGRES API QA: PASS (real work logs → calculated draft → approve → overlap guard → one linked salary expense → cancel/list)');
 } finally {
   await pool.end();
@@ -156,6 +181,7 @@ try {
       await setup.query('DELETE FROM staff_work_logs WHERE venue_id=$1', [venueId]).catch(() => {});
       await setup.query('DELETE FROM payroll_rules WHERE venue_id=$1', [venueId]).catch(() => {});
       if (posUserId) await setup.query('DELETE FROM users WHERE id=$1', [posUserId]).catch(() => {});
+      if (nullRuleUserId) await setup.query('DELETE FROM users WHERE id=$1', [nullRuleUserId]).catch(() => {});
       if (legacyUserId) await setup.query('DELETE FROM users WHERE id=$1', [legacyUserId]).catch(() => {});
       await setup.query('DELETE FROM finance_accounts WHERE venue_id=$1 AND code IN (\'qa_payroll_bank\',\'qa_payroll_inactive\')', [venueId]).catch(() => {});
       if (userId) await setup.query('DELETE FROM users WHERE id=$1', [userId]).catch(() => {});

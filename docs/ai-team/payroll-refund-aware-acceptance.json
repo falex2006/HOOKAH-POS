@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "status": "locally_accepted_three_blocks",
+  "date": "2026-10-23",
+  "fullOriginalPayrollGoalComplete": false,
+  "publicationOrDeployment": false,
+  "sourceWorktree": "C:/Users/ADMIN/.codex/worktrees/payroll-source-integration/HOOKAH CRM 2",
+  "sourceHead": "7a75fe59c58289ef3346bdb7fb553797851d26eb",
+  "sourceHasUncommittedWork": true,
+  "command": "node scripts/local-full-pg-regression.cjs scripts/payroll-verified-run-postgres-qa.mjs",
+  "scope": "default complete suite, PAYROLL_QA_SCOPE unset",
+  "session": 11166,
+  "exitCode": 0,
+  "blocks": {
+    "204_refund_aware_calculation": {
+      "status": "passed",
+      "modes": 7,
+      "savedRuns": 21,
+      "paidEntries": 14,
+      "states": [
+        "initial",
+        "partial_merchandise_return",
+        "full_merchandise_return"
+      ],
+      "proof": "actual immutable producer sources, canonical typed storage/replay, unchanged original entries/expenses, whole-period nonlinear colleague deltas"
+    },
+    "207_atomic_unpaid_cohort_replacement": {
+      "status": "passed",
+      "cohort": "positive and zero employee entries, complete cancellation and replacement, chained subsequent replacement",
+      "realWriteRollbackStages": 8,
+      "additionalStorageGuards": 10,
+      "browser": "UI/HTTP/DB/reload, no-write preview, reason/confirmation, lost response and byte-exact retry, immutable original1000 and replacement500, no expense"
+    },
+    "208_paid_whole_period_correction": {
+      "status": "passed",
+      "policyCode": "reviewed_period_variable_pay_only_v1",
+      "planSchemaVersion": 3,
+      "realWriteRollbackStages": 6,
+      "storageGuards": 12,
+      "migration208ReplayCount": 2,
+      "journey": "original1000 paid; partial return potential500; apply500 to future draft; cancellation releases500; new future draft apply500 and zero settlement; later return potential1000 with immutable first claim500; waive remaining500",
+      "browser": "public v2 create/materialize/approve/pay/apply/cancel/waive, lost response/reload exact receipt, immutable paid original and one expense",
+      "finance": "original10RUB accrual once and10RUB cash expense once; zero settlement adds no expense",
+      "authorization": "staff403, foreign-owner read404/create409 version-unavailable, correction denial, foreign-origin403"
+    },
+    "sourced_comparison_v2": {
+      "status": "passed",
+      "modes": 7,
+      "stages": [
+        "initial",
+        "partial",
+        "full"
+      ],
+      "mixedLegacy": "percent, margin, team; ready without returns, blocked with returns",
+      "proof": "shared raw collection once, exact amounts, own/foreign tenant isolation, no financial writes, HTTP/UI/four widths"
+    }
+  },
+  "compatibility": {
+    "legacy203205206": "complete existing actual source/public HTTP/browser monetary path passed in same default execution",
+    "review201": "final zero/late/unallocated review, stale/terminal races, rollback, immutable history and populated migration replay passed",
+    "legacyPolicy": "old206 policy and11-field ledger hashes preserved; new period policy is explicit and versioned",
+    "unknownCapabilities": "closed"
+  },
+  "settlementCapture": {
+    "kind": "exact sorted immutable ledger event IDs plus hash; no timestamp cutoff",
+    "actualDatabase": "historical positive and zero settlements remain valid after subsequent outgoing apply/release/waive operations",
+    "unitOnly": "equal/earlier timestamps and delayed visibility of later outgoing rows, missing captured IDs, uncaptured incoming rejection",
+    "actualConcurrentDelayedCommitProbe": false
+  },
+  "responsiveWidths": [
+    1440,
+    768,
+    390,
+    344
+  ],
+  "artifacts": {
+    "policy": "tmp/payroll-policy-v2-ui-qa/1792775905129-3564",
+    "lifecycle": "tmp/payroll-lifecycle-ui-qa/1792775939355-3564",
+    "savedStale": "tmp/payroll-refund-aware-ui-qa/1792775964473-3564",
+    "savedCurrent": "tmp/payroll-refund-aware-ui-qa/1792775973270-3564",
+    "legacyCorrections": "tmp/payroll-correction-ui-qa/1792776047344-3564",
+    "unpaidReplacement": "tmp/payroll-unpaid-supersession-ui-qa/1792776060383-3564",
+    "public208": "tmp/payroll-refund-aware-public-ui-qa/1792776083233-3564",
+    "savedRuns": "tmp/payroll-saved-runs-qa/1792775998166-3564"
+  },
+  "limits": [
+    "All7 actual margin fixture uses real producer187 non-stock known-zero depletion cost; positive tracked-cost cases belong to separate source/producer contracts.",
+    "Historical fixture clock specializes only time calls and timestamp defaults in the owned disposable database. Exact function/default definitions are restored before COMMIT. This is source-consistency evidence, not production wall-clock POS acceptance.",
+    "No blanket readiness or payout permission is inferred from saved-run DTO flags. Each entry action remains owner/source/state verified.",
+    "Package still requires minimal shared-hunk integration against canonical origin/main and current dirty primary checkout, regenerated dist, and integration acceptance.",
+    "Full original-TZ acceptance still includes calendar substitution, complete analytics dashboard and half-month payout journeys."
+  ],
+  "latestIntegratedAcceptance": {
+    "worktree": "C:\\Users\\ADMIN\\.codex\\worktrees\\payroll-local-integration\\HOOKAH CRM 2",
+    "base": "8af548c07a084656d27ebc09e3c5f12cde3230d2",
+    "uiHead": "53fd690bccf496a1f5b2140be5e57fbbb05fdb08",
+    "fullDefaultSession": 78201,
+    "fullDefaultExitCode": 0,
+    "comparisonIsolationSession": 11225,
+    "comparisonIsolationExitCode": 0,
+    "publicationOrDeployment": false
+  }
+}

@@ -1,13 +1,13 @@
 'use strict';
 
-// Persists an owner-requested calculation attempt while required primary
-// sources are unavailable. This service is intentionally unable to create a
+// Persists an owner-requested calculation attempt while official source
+// coverage is unverified. This service is intentionally unable to create a
 // ready run or any snapshots, payroll entries, or expenses.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_KEY = /^[\x21-\x7e]{8,120}$/;
 const BLOCKED_REASON = [
   'official_payroll_sources_unavailable',
-  'Order-line sales attribution, line-level net after discounts and refunds, and approved attendance are not currently available from a verified payroll source adapter.'
+  'A complete, authoritative payroll source bundle for this period is not yet verified; candidate previews are not official payroll inputs.'
 ].join(': ');
 const BLOCKED_WATERMARK_PREFIX = 'blocked-source-attempt-v1:';
 

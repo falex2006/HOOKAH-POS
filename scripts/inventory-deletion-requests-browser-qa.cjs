@@ -104,10 +104,10 @@ const waitForGate = async current => {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'no horizontal document overflow at ' + width);
       if (width === 320) {
         const catalogBox = await page.locator('#open-products').boundingBox();
-        const guideBox = await page.locator('.inventory-directory-guide').boundingBox();
+        const guideBox = await page.locator('#inventory-directory-help').boundingBox();
         assert.equal(catalogBox.height, 44, 'catalog action keeps one line rather than splitting words');
         assert.equal(guideBox.height, 44, 'guide and catalog targets share height');
-        assert.ok(Math.abs(catalogBox.width - guideBox.width) < 1);
+        assert.ok(guideBox.width >= 44 && guideBox.x >= 0 && guideBox.x + guideBox.width <= width + 1, 'help target fits mobile viewport');
       }
       await page.screenshot({ path: path.join(folder, 'owner-' + width + '.png') });
     }

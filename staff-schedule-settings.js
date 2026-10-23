@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 
 const { createHash } = require('node:crypto');
 const { ScheduleError, UUID, version } = require('./staff-schedule-domain');
@@ -39,7 +40,7 @@ async function saveFunction(pool, principal, functionId, method, input) {
   const key = requestKey(input.requestKey), signature = fingerprint({ functionId, method, input });
   const db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     const access = await resolveAccess(db, principal, true);
     if (!access.canManageSettings) fail('schedule_settings_forbidden', 403);
@@ -113,7 +114,7 @@ async function setEmployeeFunctions(pool, principal, employeeId, input) {
   if (!Number.isSafeInteger(input.version) || input.version < 0) fail('schedule_function_version_required');
   const signature = fingerprint({ employee, input: { ...input, functionIds: [...functionIds].sort() } }), db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     const access = await resolveAccess(db, principal, true);
     if (!access.canManageSettings) fail('schedule_settings_forbidden', 403);
@@ -212,7 +213,7 @@ async function setEmployeeAvailability(pool, principal, employeeId, input) {
   const rules = availabilityItems(input.rules, false), exceptions = availabilityItems(input.exceptions, true);
   const signature = fingerprint({ employee, input: { version: input.version, rules, exceptions } }), db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     const access = await resolveAccess(db, principal, true);
     if (!access.canManageSettings) fail('schedule_settings_forbidden', 403);

@@ -118,6 +118,30 @@ const assert = require('node:assert/strict');
     fs.mkdirSync('tmp/inventory-directory-visual', { recursive: true });
     for (const width of [1920, 1366, 1281, 1280, 1101, 1024, 814, 761, 760, 720, 390, 320]) {
       await page.setViewportSize({ width, height: width < 500 ? 844 : 1000 });
+      const helpButton = page.locator('#inventory-directory-help');
+      await helpButton.click();
+      const help = page.locator('.directory-help-dialog[open]');
+      assert.equal(await help.count(), 1, 'one help dialog');
+      assert.equal(await page.locator('.inventory-directory-guide').count(), 0, 'old brief popup removed');
+      const helpBox = await help.boundingBox();
+      assert.ok(helpBox.x >= 0 && helpBox.x + helpBox.width <= width + 1, 'help fits width');
+      assert.ok(await help.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'help has no horizontal overflow');
+      await page.screenshot({ path: `tmp/inventory-directory-visual/help-start-${width}.png`, fullPage: true });
+      const titleBox = await help.locator('h2').boundingBox();
+      const closeBox = await help.locator('.modal-close').boundingBox();
+      assert.ok(titleBox.x + titleBox.width <= closeBox.x + 1, 'title does not overlap close');
+      for (const topic of await help.locator('summary').all()) { await topic.click(); }
+      assert.equal(await help.locator('details[open]').count(), 5, 'all help topics expand');
+      assert.equal(await help.locator('[data-directory-help-close]').isVisible(), true);
+      await page.screenshot({ path: `tmp/inventory-directory-visual/help-${width}.png`, fullPage: true });
+      await page.keyboard.press('Escape');
+      assert.equal(await help.count(), 0, 'Escape closes help');
+      assert.equal(await helpButton.evaluate(node => node === document.activeElement), true, 'help restores focus');
+      await helpButton.click();
+      await page.locator('.directory-help-dialog .modal-close').click();
+      await helpButton.click();
+      await page.locator('[data-directory-help-close]').click();
+
       if (width < 500) {
         const menu = page.locator('.sidebar-mobile-toggle');
         if (await menu.getAttribute('aria-expanded') === 'true') await menu.click();

@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 const { createHash } = require('node:crypto');
 const { ScheduleError, normalize, range, version, localDate, UUID } = require('./staff-schedule-domain');
 const { resolveAccess } = require('./staff-schedule-access');
@@ -74,7 +75,7 @@ async function save(pool, principal, input, id = null, transaction = null) {
   const fingerprint = createHash('sha256').update(JSON.stringify({ id, input })).digest('hex');
   const db = transaction || await pool.connect();
   try {
-    if (!transaction) await db.query('BEGIN');
+    if (!transaction) await beginPayrollSourceProducerTransaction(db, principal.venueId);
     // A single venue mutation lock prevents overlap races, including reassignment and batch operations.
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     // Hold actor row through commit. Grant revocation locks this row, giving a defined order.
@@ -159,7 +160,7 @@ async function saveBatch(pool, principal, input, transaction = null) {
   const fingerprint = createHash('sha256').update(JSON.stringify({ batch: input })).digest('hex');
   const db = transaction || await pool.connect();
   try {
-    if (!transaction) await db.query('BEGIN');
+    if (!transaction) await beginPayrollSourceProducerTransaction(db, principal.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     if (!(await resolveAccess(db, principal, true)).manage) fail('schedule_forbidden', 403);
     const replay = (await db.query('SELECT fingerprint,response FROM staff_schedule_requests WHERE venue_id=$1 AND actor_id=$2 AND request_key=$3', [principal.venueId, principal.userId, input.requestKey])).rows[0];

@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 
 const { createHash } = require('node:crypto');
 const { ScheduleError, UUID } = require('./staff-schedule-domain');
@@ -31,7 +32,7 @@ async function saveDemandRule(pool, principal, ruleId, input, expectedVersion = 
   const fingerprint=createHash('sha256').update(JSON.stringify({ruleId,input,expectedVersion})).digest('hex');
   const db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     // Share the exact venue lock used by draft publish so settings cannot race its final readback.
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     const access = await resolveAccess(db, principal, true);
