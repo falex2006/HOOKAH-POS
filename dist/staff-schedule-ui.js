@@ -666,21 +666,23 @@ ${guide.html}
       const form = d.node.querySelector('form'), apply = form.querySelector('[type=submit]'), area = form.querySelector('[data-copy-preview]');
       apply.textContent = 'Копировать выбранные'; apply.disabled = true;
       const reasonLabel = document.createElement('label');
-      reasonLabel.textContent = 'Причина копирования (обязательна для прошлых дат)';
+      reasonLabel.textContent = 'Причина копирования (обязательна для смен и прошлых дат)';
       const reasonInput = document.createElement('textarea'); reasonInput.name = 'reason'; reasonInput.maxLength = 500;
       reasonLabel.append(reasonInput); area.after(reasonLabel);
       let preview = null, requestKey = crypto.randomUUID(), query = null,confirmWarnings=false;
-      reasonInput.addEventListener('input', () => { requestKey = crypto.randomUUID(); });
-      const invalidate = () => { preview = null; apply.disabled = true; area.textContent = 'Параметры изменены. Обновите предварительный просмотр.'; requestKey = crypto.randomUUID(); };
+      const resetConfirmation = () => { if (confirmWarnings) d.error('Параметры копирования изменены. Проверьте их и отправьте заново.'); confirmWarnings = false; apply.textContent = 'Копировать выбранные'; requestKey = crypto.randomUUID(); };
+      reasonInput.addEventListener('input', resetConfirmation);
+      const invalidate = () => { resetConfirmation(); preview = null; apply.disabled = true; area.textContent = 'Параметры изменены. Обновите предварительный просмотр.'; };
       form.querySelectorAll('[name=sourceFrom],[name=targetFrom],[name=person]').forEach(el => el.addEventListener('change', invalidate));
       form.querySelector('[data-preview]').onclick = async () => {
+        resetConfirmation();
         query = { sourceFrom: form.elements.sourceFrom.value, targetFrom: form.elements.targetFrom.value,
           userIds: [...form.querySelectorAll('[name=person]:checked')].map(el => el.value) };
         d.pending(true); d.error('Проверка…'); preview = null;
         try {
           preview = await api('/copy/preview', 'POST', query); requestKey = crypto.randomUUID();
           area.innerHTML = preview.items.map(item => `<label class="schedule-check"><input type="checkbox" data-source="${esc(item.sourceId)}" ${item.conflict ? 'disabled' : 'checked'}><span><b>${esc(item.employeeName)} · ${esc(dayName(item.workDate))}</b><small>${item.kind === 'shift' && item.plannedStart ? `${esc(local(item.plannedStart,access.timezone).replace('T',' '))} — ${esc(local(item.plannedEnd,access.timezone).replace('T',' '))}` : esc(labels[item.kind])}</small>${item.conflict ? `<small>Не будет скопировано: ${esc(messages[item.conflict] || item.conflict)}</small>` : ''}</span></label>`).join('') || '<p>В исходной неделе нет записей для выбранных сотрудников.</p>';
-          area.querySelectorAll('input').forEach(el => el.onchange = () => { requestKey = crypto.randomUUID(); apply.disabled = !area.querySelector('input:checked'); });
+          area.querySelectorAll('input').forEach(el => el.onchange = () => { resetConfirmation(); apply.disabled = !area.querySelector('input:checked'); });
           d.error(preview.items.some(item => item.workDate < preview.today)
             ? 'Внимание: в новой неделе есть прошлые даты. Для их сохранения укажите причину. Предпросмотр не меняет график.'
             : 'Предпросмотр не меняет график. Проверьте даты и выбранные записи.');
@@ -703,7 +705,7 @@ ${guide.html}
           await api('/copy/apply', 'POST', { ...query, fingerprint: preview.fingerprint, sourceIds, requestKey, reason: reasonInput.value,confirmWarnings });
           date = query.targetFrom; q('[data-date]').value = date; d.node.close();
           if (await load()) status('Выбранные записи скопированы.');
-        } catch (error) { if(error.code==='schedule_warnings_confirmation_required'){confirmWarnings=true;d.error('Проверьте предупреждения и причину. Повторное нажатие подтвердит их и продолжит копирование.');}else d.error(error.message + ' При изменении графика обновите предпросмотр.'); }
+        } catch (error) { if(error.code==='schedule_warnings_confirmation_required'){confirmWarnings=true;apply.textContent='Подтвердить копирование';d.error('Копирование смен требует подтверждения и причины. Проверьте даты и выбранные записи. Повторное нажатие подтвердит их и продолжит копирование.');}else d.error(error.message + ' При изменении графика обновите предпросмотр.'); }
         finally { d.pending(false); if (preview) preview.items.filter(item => item.conflict).forEach(item => { const el = area.querySelector(`[data-source="${item.sourceId}"]`); if (el) el.disabled = true; }); }
       };
     }

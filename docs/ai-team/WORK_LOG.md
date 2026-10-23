@@ -9058,3 +9058,7 @@ Added owned fixture helper and extended existingallowlistedworktime suite for re
 ## 2026-10-24 — attendance real journey accepted
 
 Actual guardedPG rerun61138exit0 ontestedce4f10b7 PASS69: owner/manager UI/API/SQL/reload request→approve→approvedstart→end390/1440, failure-beforeSQL/draft/samekey and opposingdecisions, managerdeny/foreignpolicy.14productassetSHA stable; MASTER14MATCH+report/terminal+actualvisual390/1440 boundedGO. Fresh unique run artifacts retained, historical23report excluded. Runnercleanupabsenceassert noerror/lockfalse/slotreturnedPAYROLL. Docs append supersedes prior pendingstatus only withinthisscope; overallgoal/U2 remains open, physicalFold/otherACL/errors notclaimed. No productchangesafter2d849f8b, no GitHub/VPS.
+
+## 2026-10-24 — copy confirmation belongs to current request
+
+Reproduced stickyconfirmation acrosschangedselection/reason/dates/fingerprint. Resetexistingflagandlabel onchanges/newpreview; explicitconfirm labelafter409; no unseenwarningdetailsinvented. Actual mountedcomponent RED8→source16/dist16PASS390/1440, samebodykeytransportretry andconflictexclusions. MASTER independentfinaldiff/dist16/mobilevisualGO, rootvisual2widths; lifecycle9/discard/graphite/syntax/parity/diffPASS. Frozen separately; no CSS/backend/domain/PG/GitHub/VPSchanges. Actualattendance69 is olderexactce4, not newcopyPGproof. See SCHEDULE_COPY_CONFIRMATION_20261024.md, broaderauditnotcomplete.
