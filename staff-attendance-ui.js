@@ -156,7 +156,7 @@
         kind === 'self' ? renderSelf() : renderManagement();
       } catch (error) {
         if (disposed || !content?.isConnected || generation !== readGeneration) return;
-        content.innerHTML = `<div class="attendance-empty"><h2>Не удалось загрузить данные</h2><p>${escapeHtml(errorText(error))}</p><button class="button" type="button" data-attendance-retry>Повторить</button></div>`;
+        content.innerHTML = `<div class="attendance-empty" role="alert"><h2>Не удалось загрузить данные</h2><p>${escapeHtml(errorText(error))}</p><button class="button" type="button" data-attendance-retry>Повторить</button></div>`;
         content.querySelector('[data-attendance-retry]')?.addEventListener('click', () => load());
       }
     }

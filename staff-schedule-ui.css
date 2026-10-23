@@ -187,7 +187,7 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 #page-content.schedule-page .schedule-heading-actions>.button{font-size:13px;padding:10px 8px;min-width:0}#page-content.schedule-page .schedule-heading-actions>.schedule-help-button{padding:6px;min-width:44px}.schedule-heading-actions{gap:4px;flex-wrap:wrap}
 .schedule-page>.panel{padding:10px}.schedule-commandbar{flex-direction:row;flex-wrap:wrap;align-items:center}.schedule-period{justify-content:center;width:100%}.schedule-filters{flex:1}.schedule-more{margin-left:auto}
 .schedule-period-title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.schedule-period-picker{min-width:0;flex:1}.schedule-period-picker>summary{padding-inline:6px}.schedule-period{flex-wrap:nowrap;gap:4px}.schedule-period>button{flex-shrink:0}
-.schedule-view-tabs{width:100%;box-sizing:border-box}#page-content.schedule-page .schedule-view-tabs button{flex:1;min-width:0;min-height:44px;padding-inline:5px;font-size:13px}
+.schedule-view-tabs{width:100%;box-sizing:border-box}body.schedule-route #page-content.schedule-page .schedule-view-tabs>button[data-view-mode]{flex:1 1 0;min-width:0;min-height:44px;padding-inline:5px;font-size:13px;white-space:nowrap}
 .schedule-summary{gap:5px 12px;font-size:12px;margin:8px 0}.schedule-more-actions{min-width:210px;max-width:calc(100vw - 40px)}
 .schedule-filters .schedule-toolbar{display:grid;grid-template-columns:1fr}.schedule-explanation{margin:4px 0}.schedule-month-scroll{overflow-x:hidden}
 .schedule-month-day{min-height:70px;padding:6px 3px;gap:4px}.schedule-month-day strong{font-size:14px}.schedule-month-day>span,.schedule-month-day>small{font-size:11px}

@@ -27,7 +27,10 @@
   }
   const messages = { schedule_overlap: 'Есть пересекающаяся смена или отсутствие.', schedule_version_conflict: 'Запись уже изменена. Закройте редактор и обновите график; ваши значения пока сохранены в форме.', schedule_forbidden: 'Доступ отозван или недостаточно прав.', schedule_past_reason_required: 'Для изменения прошлого периода укажите причину.', schedule_employee_unavailable: 'Сотрудник недоступен для назначения.', schedule_duration_invalid: 'Смена должна длиться больше 0 и не больше 24 часов.', schedule_break_invalid: 'Перерыв должен быть короче смены.',schedule_break_intervals_invalid:'Проверьте, что каждый перерыв целиком внутри смены и интервалы не пересекаются.',schedule_break_intervals_mismatch:'Сумма интервалов перерыва должна совпадать с указанным количеством минут.',schedule_open_shift_function_required:'Для свободной смены укажите рабочую функцию.', schedule_grant_conflict: 'Права уже изменены. Обновите список.', schedule_availability_unavailable:'Смена попадает на интервал недоступности.',schedule_availability_outside_window:'Смена выходит за доступное окно.',schedule_availability_time_ambiguous:'Часы доступности попадают на неоднозначное или несуществующее местное время.',schedule_warnings_confirmation_required:'Есть мягкое предупреждение. Подтвердите его и укажите причину перед сохранением.',schedule_demand_overlap:'Этот интервал пересекается с другим правилом потребности.',schedule_demand_version_conflict:'Правило уже изменено. Обновите список.',schedule_demand_timezone_changed:'Часовой пояс заведения изменился. Переподтвердите правила потребности.' };
   window.mountStaffSchedule = async target => {
+    const mountIdentity = {};
+    target._scheduleActiveMount = mountIdentity;
     target._schedulePersonalMount = null;
+    messages.schedule_unavailable = 'Сервис графика временно недоступен.';
     messages.schedule_plan_incomplete = 'Сначала уточните время исходной смены.';
     messages.schedule_series_horizon_invalid = 'Проверьте период серии: окончание не раньше начала, горизонт не больше 365 дней.';
     messages.schedule_series_recurrence_invalid = 'Проверьте повторение и интервалы серии. Для изменения структуры существующей серии создайте новую.';
@@ -35,11 +38,11 @@
     let generation = 0, employees = [], entries = [], actual = [], coverage = [], access, date, mode = 'week', ready = false, initialized = false;
     let monthReturnDate = null;
     const roleNames = { owner: 'Владелец', admin: 'Администратор', manager: 'Управляющий', developer: 'Разработчик', senior_bartender: 'Старший бармен', senior_hookah_master: 'Старший кальянщик', bartender: 'Бармен', hookah_master: 'Кальянщик', cleaner: 'Уборщица / уборщик', security: 'Охрана', technician: 'Техник', other_staff: 'Другая должность', staff: 'Сотрудник', waiter: 'Официант', hookah: 'Кальянный мастер' };
-    const alive = () => target.isConnected && location.hash === '#staff-schedule' && localStorage.getItem('crm_session_token') === token;
+    const alive = () => target._scheduleActiveMount === mountIdentity && target.isConnected && location.hash === '#staff-schedule' && localStorage.getItem('crm_session_token') === token;
     async function api(suffix = '', method = 'GET', input) {
       const response = await fetch('/api/staff/schedule' + suffix, { method, cache: 'no-store', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: input === undefined ? undefined : JSON.stringify(input) });
       const result = await response.json();
-      if (!response.ok) { const error = new Error(messages[result.error] || `Не удалось выполнить действие (${result.error || response.status}).`); error.code = result.error; throw error; }
+      if (!response.ok) { const error = new Error(messages[result.error] || (response.status >= 500 ? messages.schedule_unavailable : `Не удалось выполнить действие (${result.error || response.status}).`)); error.code = result.error; throw error; }
       if (!alive()) throw new Error('Контекст страницы изменился.');
       return result;
     }
@@ -203,7 +206,19 @@ ${guide.html}
           : from === to ? dayName(from) : `${dayName(from)} — ${dayName(to)}`;
       }
     }
-    const status = text => { if (alive()) q('[data-status]').textContent = text; };
+    const loadRetry = document.createElement('button');
+    loadRetry.type = 'button'; loadRetry.className = 'button'; loadRetry.dataset.scheduleLoadRetry = '';
+    loadRetry.textContent = 'Повторить загрузку'; loadRetry.hidden = true;
+    q('[data-status]').after(loadRetry);
+    loadRetry.onclick = () => initialize();
+    const status = (text, { retry = false } = {}) => {
+      if (!alive()) return;
+      const message = q('[data-status]');
+      message.setAttribute('role', retry ? 'alert' : 'status');
+      message.setAttribute('aria-live', retry ? 'assertive' : 'polite');
+      message.textContent = text;
+      loadRetry.hidden = !retry;
+    };
     const dayName = day => new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(day + 'T12:00Z'));
     function bounds() {
       if (mode === 'day') return [date, date];
@@ -399,7 +414,7 @@ ${guide.html}
         helpButton.hidden = !access.view || !['owner','admin','manager'].includes(access.role);
         q('[data-create]').hidden = !access.manage; if (q('[data-copy-week]')) q('[data-copy-week]').hidden = !access.manage;
         draw(); status(entries.length ? '' : 'В выбранном периоде пока нет записей.'); return true;
-      } catch (error) { if (current === generation) status(error.message + ' Нажмите «Обновить».'); return false; }
+      } catch (error) { if (current === generation) status(error.message, { retry: true }); return false; }
       finally { if (alive() && current === generation) {
         q('[data-grid]').inert = !ready; q('[data-create]').disabled = !ready;q('[data-csv]').disabled=!ready;q('[data-print]').disabled=!ready;
         if (q('[data-copy-week]')) q('[data-copy-week]').disabled = !ready;
@@ -777,8 +792,8 @@ ${guide.html}
       initialized = true;
       target.querySelectorAll('[data-prev],[data-next],[data-date],[data-mode],[data-person],[data-month-jump]').forEach(el=>{el.disabled=false;el._customSelectRefresh?.();});
       await load();
-      } catch (error) { status(error.message + ' Нажмите «Обновить».'); }
-      finally { if (q('[data-refresh]')) q('[data-refresh]').disabled = false; }
+      } catch (error) { status(error.message, { retry: true }); }
+      finally { if (alive() && q('[data-refresh]')) q('[data-refresh]').disabled = false; }
     }
     await initialize(access);
   };

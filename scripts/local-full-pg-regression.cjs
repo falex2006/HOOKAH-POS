@@ -62,6 +62,7 @@ const suites = new Set([
   'acceptance-47-pos-journey-postgres-browser-qa.mjs',
   'recipe-cost-breakdown-postgres-browser-qa.mjs',
   'floor-table-archive-postgres-browser-qa.mjs',
+  'staff-worktime-postgres-browser-qa.mjs',
   'payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'finance-dialog-alignment-browser-qa.cjs', 'closed-shift-floor-browser-qa.mjs',
   'tobacco-catalog-auth-boundaries-postgres-qa.mjs',
   'acceptance-48-inventory-department-boundaries-postgres-qa.mjs',
@@ -354,7 +355,7 @@ async function runSuite(value) {
     }
     if (name === 'alcohol-catalog-api-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('alcohol_api_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'alcohol-catalog-schema-pg-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('orders_qa_' + crypto.randomBytes(8).toString('hex'));
-    if (['floor-table-archive-postgres-browser-qa.mjs', 'acceptance-47-pos-journey-postgres-browser-qa.mjs'].includes(name)) {
+    if (['floor-table-archive-postgres-browser-qa.mjs', 'staff-worktime-postgres-browser-qa.mjs', 'acceptance-47-pos-journey-postgres-browser-qa.mjs'].includes(name)) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
@@ -373,7 +374,7 @@ async function runSuite(value) {
       }
       if (name === 'payroll-scheme-browser-postgres-qa.mjs' || name === 'payroll-product-department-api-postgres-qa.mjs') env.PLAYWRIGHT_EXECUTABLE_PATH = env.CHROME_PATH;
     }
-    if (name === 'floor-table-archive-postgres-browser-qa.mjs') {
+    if (['floor-table-archive-postgres-browser-qa.mjs', 'staff-worktime-postgres-browser-qa.mjs'].includes(name)) {
       const candidates = [process.env.PLAYWRIGHT_PACKAGE_PATH, ...(process.platform === 'win32' ? [path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Codex', 'resources', 'app', 'node_modules', 'playwright')] : [])].filter(Boolean);
       env.PLAYWRIGHT_PACKAGE_PATH = candidates.find(candidate => fs.existsSync(candidate));
       assert.ok(env.PLAYWRIGHT_PACKAGE_PATH, 'Floor table archive browser QA requires the configured Playwright package');

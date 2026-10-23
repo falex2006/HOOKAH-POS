@@ -23,16 +23,16 @@ async function main() {
       return route.continue();
     });
     await page.goto(base+'/admin#staff-schedule');
-    await page.locator('[data-status]').filter({hasText:'Нажмите «Обновить»'}).waitFor();
+    await page.locator('[data-schedule-load-retry]').waitFor();
     assert.equal(await page.locator('[data-date]').isDisabled(),true);
     failEmployees=false;
-    await page.locator('[data-refresh]').click();
+    await page.locator('[data-schedule-load-retry]').click();
     await page.locator('[data-context]').filter({hasText:'Asia/Yekaterinburg'}).waitFor({state:'attached'});
     assert.equal(await page.locator('[data-copy-week]').count(),1);
     assert.equal(await page.locator('[data-create]').isDisabled(),false);
     failList=true;
     await page.locator('[data-next]').click();
-    await page.locator('[data-status]').filter({hasText:'Нажмите «Обновить»'}).waitFor();
+    await page.locator('[data-schedule-load-retry]').waitFor();
     assert.equal(await page.locator('[data-grid]').innerText(),'');
     assert.equal(await page.locator('[data-context]').innerText(),'');
     assert.equal(await page.locator('[data-create]').isDisabled(),true);
@@ -40,7 +40,7 @@ async function main() {
     await page.locator('[data-person]').dispatchEvent('change');
     assert.equal(await page.locator('[data-entry]').count(),0);
     failList=false;
-    await page.locator('[data-refresh]').click();
+    await page.locator('[data-schedule-load-retry]').click();
     await page.locator('[data-context]').filter({hasText:'Asia/Yekaterinburg'}).waitFor({state:'attached'});
     assert.equal(await page.locator('[data-create]').isDisabled(),false);
     assert.equal(await page.locator('[data-copy-week]').count(),1);
