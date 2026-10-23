@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
 const password = randomBytes(20).toString('hex');
 const variant = process.env.QA_ASSET_VARIANT === 'dist' ? 'dist' : 'source';
 const pgUrl = process.env.NETWORK_SWITCH_QA_PG_URL || '';
-let output = '', browser, server, db, venueId, ownerLogin = 'owner', staffLogin = 'staff';
+let output = '', browser, server, serverClosed, db, venueId, ownerLogin = 'owner', staffLogin = 'staff';
 (async () => {
   try {
     if (pgUrl) {
@@ -25,6 +25,7 @@ let output = '', browser, server, db, venueId, ownerLogin = 'owner', staffLogin 
     }
     server = spawn(process.execPath, ['server.js'], { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, HOST: '127.0.0.1', PORT: '0', DATABASE_URL: pgUrl, ...(venueId ? { VENUE_ID: venueId } : {}), AUTH_REQUIRED: 'true', DEMO_MODE: 'false', NODE_ENV: 'test', DEMO_OWNER_PASSWORD: password, DEMO_STAFF_PASSWORD: password } });
+    serverClosed = new Promise(resolve => server.once('close', resolve));
     server.stdout.on('data', c => output += c); server.stderr.on('data', c => output += c);
     const base = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(Error('Owned memory server startup timeout')), 15000);
@@ -151,5 +152,16 @@ let output = '', browser, server, db, venueId, ownerLogin = 'owner', staffLogin 
     assert.equal(denied, 403, 'staff cannot select venue');
     assert.deepEqual(errors, []);
     console.log(`NETWORK VERIFIED SWITCH ${pgUrl ? 'postgres' : 'memory'} ${variant}: PASS (verified venue reload, all create fields and hidden draft, gate503/retry and stale in-flight check, storage failure prevents POST, invalid/expired transfer rejection, logout cleanup, cancel without PATCH, staff403)`);
-  } finally { await browser?.close(); if (server && server.exitCode === null) { const closed = new Promise(resolve => server.once('close', resolve)); server.kill(); await closed; } await db?.end(); }
+  } finally {
+    try { await browser?.close(); }
+    finally {
+      try {
+        if (server && server.exitCode === null && server.signalCode === null) {
+          server.kill(); let timer;
+          try { await Promise.race([serverClosed, new Promise((_, reject) => { timer = setTimeout(() => reject(Error('Owned QA server did not stop')), 5000); })]); }
+          finally { clearTimeout(timer); }
+        }
+      } finally { await db?.end(); }
+    }
+  }
 })().catch(error => { console.error(error); process.exitCode = 1; });
