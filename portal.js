@@ -2453,7 +2453,7 @@ function setupVenueLayout() {
     if (archiveRoom || restoreRoom) {
       const button = archiveRoom || restoreRoom; const zone = zones.find((entry) => entry.id === button.dataset.zoneId); const table = zone?.tables?.find((entry) => entry.id === (button.dataset.roomArchive || button.dataset.roomRestore)); if (!table || !actionVenueId) return;
       const restoring = Boolean(restoreRoom); const action = restoring ? 'restore' : 'archive'; const archivedAt = restoring ? (button.dataset.archivedAt || table.archivedAt || table.archived_at) : null; const expectedArchiveVersion = Number(button.dataset.archiveVersion ?? archiveVersion(table));
-      if (!await portalConfirm(restoring ? `Восстановить стол «${table.name}»?` : `Переместить стол «${table.name}» в архив?`, restoring ? 'Стол вернётся в тот же зал. Его история заказов и бронирований сохранится.' : 'Стол исчезнет из активного списка. История заказов и бронирований сохранится; при открытом заказе архивация будет отклонена.', restoring ? 'Восстановить стол' : 'В архив')) return;
+      if (!await portalConfirm(restoring ? `Восстановить стол «${table.name}»?` : `Переместить стол «${table.name}» в архив?`, restoring ? 'Стол вернётся в тот же зал. Его история заказов и бронирований сохранится.' : 'Стол исчезнет из активного списка. История заказов и бронирований сохранится; при открытом заказе архивация будет отклонена.', restoring ? 'Восстановить стол' : 'В архив', !restoring)) return;
       button.disabled = true;
       try {
         await api(`/api/floor/tables/${encodeURIComponent(table.id)}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId, expectedArchivedAt: archivedAt, expectedArchiveVersion }) });
@@ -2470,25 +2470,31 @@ function setupVenueLayout() {
     }
     if (editZone) {
       const zone = zones.find((entry) => entry.id === editZone.dataset.zoneEdit); if (!zone) return;
-      const outcome = await editOrdinary({ key: `zone:${zone.id}`, opener: editZone, title: 'Изменить зону', description: 'Название будет показано сотрудникам в бронированиях и рабочей панели.', submitLabel: 'Сохранить', fields: [{ name: 'name', label: 'Название зоны / этажа', value: zone.name }],
+      const outcome = await editOrdinary({ key: `zone:${zone.id}`, dialogClass: 'venue-layout-editor', opener: editZone, title: 'Изменить зону', description: 'Название будет показано сотрудникам в бронированиях и рабочей панели.', submitLabel: 'Сохранить', fields: [{ name: 'name', label: 'Название зоны / этажа', value: zone.name }],
         isCurrent: () => hasPortalPermission('settings') && loadedVenueId === actionVenueId && zones.some(item => item.id === zone.id),
         validate: values => !values.name.trim() ? { field: 'name', message: 'Введите название зоны' } : null,
         onSubmit: values => api(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId, name: values.name.trim() }) }),
         errorMessage: error => error.payload?.error === 'venue_context_changed' ? 'Точка изменилась. Откройте актуальный зал.' : 'Не удалось изменить зону. Введённые данные сохранены — повторите попытку.'
       });
-      if (outcome?.reason === 'success') { await load(); outcome.restoreFocus?.(); }
+      if (outcome?.reason === 'success') {
+        document.querySelector('#floor-editor')?.dispatchEvent(new CustomEvent('venue-layout-edited', { detail: { venueId: actionVenueId, kind: 'zone', result: outcome.result } }));
+        await load(); outcome.restoreFocus?.();
+      }
     } else if (deleteZone) {
       const zone = zones.find((entry) => entry.id === deleteZone.dataset.zoneDelete); if (!zone || !await portalConfirm(`Удалить зону «${zone.name}»?`, 'Удалить можно только пустую зону. Зона со столами останется без изменений.', 'Удалить зону')) return;
       api(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId }) }).then(() => { load(); portalNotice('Зона удалена', 'success'); }).catch((error) => { if (error.payload?.error === 'venue_context_changed') load(); portalNotice(error.payload?.error === 'venue_context_changed' ? 'Точка изменилась. Откройте актуальный зал.' : error.payload?.error === 'zone_not_empty' ? 'Нельзя удалить зону, пока в ней есть столы' : 'Не удалось удалить зону', 'error'); });
     } else if (editRoom) {
       const zone = zones.find((entry) => entry.id === editRoom.dataset.zoneId); const table = zone?.tables?.find((entry) => entry.id === editRoom.dataset.roomEdit); if (!table) return;
-      const outcome = await editOrdinary({ key: `table:${table.id}`, opener: editRoom, title: 'Изменить объект', description: 'Диапазон гостей и депозит используются при бронировании и в контроле зала.', submitLabel: 'Сохранить', fields: [{ name: 'name', label: 'Название объекта', value: table.name }, { name: 'minCapacity', label: 'Минимум гостей', type: 'number', min: 1, max: 100, step: 1, value: String(table.minCapacity || table.capacity || 2) }, { name: 'maxCapacity', label: 'Максимум гостей', type: 'number', min: 1, max: 100, step: 1, value: String(table.maxCapacity || table.capacity || 2) }, { name: 'minimumOrderTotal', label: 'Минимальный чек заказа, ₽', type: 'number', min: 0, step: 1, value: String(table.minimumOrderTotal || 0) }, { name: 'minimumOrderStartTime', label: 'Минимум действует с', type: 'time', required: false, value: String(table.minimumOrderStartTime || '').slice(0,5) }, { name: 'minimumOrderEndTime', label: 'До', type: 'time', required: false, value: String(table.minimumOrderEndTime || '').slice(0,5) }, { name: 'playstation5', label: 'PlayStation 5 · Sony', type: 'checkbox', required: false, value: readAmenities(table).playstation5 }, { name: 'television', label: 'Телевизор', type: 'checkbox', required: false, value: readAmenities(table).television }],
+      const outcome = await editOrdinary({ key: `table:${table.id}`, dialogClass: 'venue-layout-editor', opener: editRoom, title: 'Изменить объект', description: 'Диапазон гостей и депозит используются при бронировании и в контроле зала.', submitLabel: 'Сохранить', fields: [{ name: 'name', label: 'Название объекта', value: table.name }, { name: 'minCapacity', label: 'Минимум гостей', type: 'number', min: 1, max: 100, step: 1, value: String(table.minCapacity || table.capacity || 2) }, { name: 'maxCapacity', label: 'Максимум гостей', type: 'number', min: 1, max: 100, step: 1, value: String(table.maxCapacity || table.capacity || 2) }, { name: 'minimumOrderTotal', label: 'Минимальный чек заказа, ₽', type: 'number', min: 0, step: 1, value: String(table.minimumOrderTotal || 0) }, { name: 'minimumOrderStartTime', label: 'Минимум действует с', type: 'time', required: false, value: String(table.minimumOrderStartTime || '').slice(0,5) }, { name: 'minimumOrderEndTime', label: 'До', type: 'time', required: false, value: String(table.minimumOrderEndTime || '').slice(0,5) }, { name: 'playstation5', label: 'PlayStation 5 · Sony', type: 'checkbox', required: false, value: readAmenities(table).playstation5 }, { name: 'television', label: 'Телевизор', type: 'checkbox', required: false, value: readAmenities(table).television }],
         isCurrent: () => hasPortalPermission('settings') && loadedVenueId === actionVenueId && zones.some(item => item.tables?.some(entry => entry.id === table.id)),
         validate: values => !values.name.trim() ? { field: 'name', message: 'Введите название объекта' } : Number(values.maxCapacity) < Number(values.minCapacity) ? { field: 'maxCapacity', message: 'Максимум гостей не может быть меньше минимума' } : !Number.isFinite(Number(values.minimumOrderTotal)) || Number(values.minimumOrderTotal) < 0 ? { field: 'minimumOrderTotal', message: 'Укажите неотрицательный минимальный чек заказа' } : Boolean(values.minimumOrderStartTime) !== Boolean(values.minimumOrderEndTime) ? { field: values.minimumOrderStartTime ? 'minimumOrderEndTime' : 'minimumOrderStartTime', message: 'Укажите оба времени или очистите оба поля' } : values.minimumOrderStartTime && values.minimumOrderStartTime === values.minimumOrderEndTime ? { field: 'minimumOrderEndTime', message: 'Начало и окончание должны различаться' } : null,
         onSubmit: values => { const minCapacity = Number(values.minCapacity); const maxCapacity = Number(values.maxCapacity); return api(`/api/floor/tables/${encodeURIComponent(table.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId, name: values.name.trim(), capacity: maxCapacity, minCapacity, maxCapacity, minimumOrderTotal: Number(values.minimumOrderTotal), minimumOrderStartTime: values.minimumOrderStartTime || null, minimumOrderEndTime: values.minimumOrderEndTime || null, layout: { amenities: { playstation5: Boolean(values.playstation5), television: Boolean(values.television) } } }) }); },
         errorMessage: error => error.payload?.error === 'venue_context_changed' ? 'Точка изменилась. Откройте актуальный объект.' : error.payload?.error === 'invalid_table_minimum_schedule' ? 'Укажите оба времени. Начало и окончание должны различаться.' : 'Не удалось изменить объект. Введённые данные сохранены — повторите попытку.'
       });
-      if (outcome?.reason === 'success') { await load(); outcome.restoreFocus?.(); }
+      if (outcome?.reason === 'success') {
+        document.querySelector('#floor-editor')?.dispatchEvent(new CustomEvent('venue-layout-edited', { detail: { venueId: actionVenueId, kind: 'table', result: outcome.result } }));
+        await load(); outcome.restoreFocus?.();
+      }
 
     }
   });  load();
@@ -3004,6 +3010,42 @@ function renderDashboard() {
     const status = floorEditor.querySelector('#floor-editor-status');
     let dragState = null;
     let floorReadRevision = 0;
+    let activeFloorRead = 0;
+    const committedFloorEdits = [];
+    floorEditor.addEventListener('venue-layout-edited', (event) => {
+      const { venueId, kind, result: saved } = event.detail || {};
+      const payload = floorEditor._payload;
+      if (!floorEditor.isConnected || !hasPortalPermission('settings') || !venueId || !saved?.id || typeof saved.name !== 'string' || !['zone', 'table'].includes(kind)) return;
+      if (!event.detail.replay && activeFloorRead) committedFloorEdits.push({ revision: activeFloorRead, detail: { ...event.detail, replay: true } });
+      if (!payload || String(venueId) !== floorEditor.dataset.venueId) return;
+      const zone = (payload.zones || []).find((item) => kind === 'zone' ? String(item.id) === String(saved.id) : item.tables?.some((table) => String(table.id) === String(saved.id)));
+      if (!zone || !['zone', 'table'].includes(kind)) return;
+      // Apply committed metadata in place; geometry drafts, node identity and drag/focus survive.
+      if (kind === 'zone') {
+        zone.name = saved.name;
+        [...floorZoneTabs.querySelectorAll('[data-floor-zone-tab]')].filter((node) => node.dataset.floorZoneTab === String(zone.id)).forEach((node) => { node.textContent = zone.name; });
+      } else {
+        const table = zone.tables.find((item) => String(item.id) === String(saved.id));
+        if (!Number.isFinite(Number(saved.capacity)) || Number(saved.capacity) < 1) return;
+        for (const key of ['name', 'capacity', 'minCapacity', 'maxCapacity', 'minimumOrderTotal', 'minimumOrderStartTime', 'minimumOrderEndTime']) {
+          if (Object.prototype.hasOwnProperty.call(saved, key)) table[key] = saved[key];
+        }
+        if (saved.layout?.amenities) table.layout = { ...table.layout, amenities: saved.layout.amenities };
+        [...canvas.querySelectorAll('[data-floor-drag]')].filter((node) => node.dataset.floorDrag === String(table.id)).forEach((node) => { node.textContent = table.name; });
+        const form = [...grid.querySelectorAll('[data-floor-table]')].find((node) => node.dataset.floorTable === String(table.id));
+        if (form) {
+          form.elements.namedItem('name').value = table.name;
+          form.elements.namedItem('capacity').value = String(table.capacity);
+          form.dataset.capacity = String(table.capacity);
+          form.closest('details')?.querySelector('summary b')?.replaceChildren(document.createTextNode(table.name));
+        }
+      }
+      for (const table of zone.tables || []) {
+        const form = [...grid.querySelectorAll('[data-floor-table]')].find((node) => node.dataset.floorTable === String(table.id));
+        const caption = form?.closest('details')?.querySelector('summary small');
+        if (caption) caption.textContent = `${zone.name || ''} · ${Number(table.capacity || 2)} мест`;
+      }
+    });
     let editorStale = false;
     let retryExcludeId = '';
     const pendingTables = new Set();
@@ -3027,15 +3069,22 @@ function renderDashboard() {
     };
     const reloadFloorEditor = (options = {}) => {
       const revision = ++floorReadRevision;
+      activeFloorRead = revision;
       return api('/api/floor').then((payload) => {
         if (revision !== floorReadRevision) return false;
         editorStale = false;
         drawFloorEditor(payload, options);
+        // Keep the pending read's geometry/status and replay newer committed metadata over it.
+        for (const edit of committedFloorEdits.splice(0)) {
+          if (edit.revision === revision) floorEditor.dispatchEvent(new CustomEvent('venue-layout-edited', { detail: edit.detail }));
+        }
         retryExcludeId = '';
         status.hidden = true;
         pendingTables.forEach((id) => setFloorPending(id, true));
         return true;
-      }).catch((error) => { if (revision !== floorReadRevision) return false; throw error; });
+      }).catch((error) => { if (revision !== floorReadRevision) return false; throw error; }).finally(() => {
+        if (activeFloorRead === revision) { activeFloorRead = 0; committedFloorEdits.length = 0; }
+      });
     };
     const contextChanged = (error) => error.payload?.error === 'venue_context_changed';
     const showFloorError = (error, fallback) => {
@@ -7937,7 +7986,7 @@ function renderIntegrations() {
 function renderNetwork() {
   const target = document.querySelector('#page-content'); if (!target) return;
   target.classList.add('ui-connected-pages');
-  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">СЕТЕВОЕ УПРАВЛЕНИЕ</p><h1>Заведения сети</h1><p class="muted">Здесь управляются точки сети. Данные текущего заведения меняются в разделе «Настройки».</p></div></div><section class="panel wide network-panel"><div class="panel-head"><div><h2>Точки сети</h2><span class="muted" id="network-count">Загрузка…</span></div><button class="button primary small" id="network-add-toggle" type="button" aria-expanded="false" aria-controls="network-create-panel">+ Добавить заведение</button></div><p class="form-message network-status" id="network-status" role="status" aria-live="polite"></p><section class="network-create-panel" id="network-create-panel" aria-labelledby="network-create-title" hidden><div class="panel-head"><h3 id="network-create-title">Новое заведение</h3></div><p class="muted network-required-note">* — обязательное поле</p><form class="stack-form" id="network-form"><div class="network-fields"><label><span class="network-field-label">Название <span aria-hidden="true">*</span></span><input id="network-name" required maxlength="120" placeholder="Территория — центр"></label><label><span class="network-field-label">Город <span aria-hidden="true">*</span></span><input id="network-city" required maxlength="80" placeholder="Тюмень"></label><label><span class="network-field-label">Адрес <span aria-hidden="true">*</span></span><input id="network-address" required maxlength="240" placeholder="Улица, дом"></label><label><span class="network-field-label">Формат <small>Необязательно</small></span><input id="network-format" maxlength="80" value="кальян-бар"></label><label><span class="network-field-label">Телефон <small>Необязательно</small></span><input id="network-phone" maxlength="32" placeholder="Например, +7 912 345-67-89"></label><label><span class="network-field-label">Часовой пояс <span aria-hidden="true">*</span></span><select id="network-timezone" required>${russianTimezoneOptions()}</select></label></div><div class="network-form-actions"><button class="button primary" type="submit">Добавить заведение</button><button class="button" id="network-create-cancel" type="button">Отмена</button></div><p class="form-message" id="network-message" role="status" aria-live="polite"></p></form></section><div class="network-list" id="network-list"><div class="empty">Загрузка заведений…</div></div></section>`;
+  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">СЕТЕВОЕ УПРАВЛЕНИЕ</p><h1>Заведения сети</h1><p class="muted">Здесь управляются точки сети. Данные текущего заведения меняются в разделе «Настройки».</p></div></div><section class="panel wide network-panel"><div class="panel-head"><div><h2>Точки сети</h2><span class="muted" id="network-count">Загрузка…</span></div><button class="button primary small" id="network-add-toggle" type="button" aria-expanded="false" aria-controls="network-create-panel">+ Добавить заведение</button></div><p class="form-message network-status" id="network-status" role="status" aria-live="polite"></p><section class="network-create-panel" id="network-create-panel" aria-labelledby="network-create-title" hidden><div class="panel-head"><h3 id="network-create-title">Новое заведение</h3></div><p class="muted network-required-note">* — обязательное поле</p><form class="stack-form" id="network-form"><div class="network-fields"><label><span class="network-field-label">Название <span aria-hidden="true">*</span></span><input id="network-name" required maxlength="120" placeholder="Территория — центр"></label><label><span class="network-field-label">Город <span aria-hidden="true">*</span></span><input id="network-city" required maxlength="80" placeholder="Тюмень"></label><label><span class="network-field-label">Адрес <span aria-hidden="true">*</span></span><input id="network-address" required maxlength="240" placeholder="Улица, дом"></label><label><span class="network-field-label">Формат <small>Необязательно</small></span><input id="network-format" maxlength="80" value="кальян-бар"></label><label><span class="network-field-label">Телефон <small>Необязательно</small></span><input id="network-phone" maxlength="32" placeholder="Например, +7 912 345-67-89"></label><label><span class="network-field-label">Часовой пояс <span aria-hidden="true">*</span></span><select id="network-timezone" required>${russianTimezoneOptions()}</select></label></div><div class="network-form-actions"><button class="button" id="network-create-cancel" type="button">Отмена</button><button class="button primary" type="submit">Добавить заведение</button></div><p class="form-message" id="network-message" role="status" aria-live="polite"></p></form></section><div class="network-list" id="network-list"><div class="empty">Загрузка заведений…</div></div></section>`;
   const timezoneSelect = document.querySelector('#network-timezone');
   const editOrdinary = createPortalEditorScope(target.querySelector('#network-list'));
   let timezoneTouched = false;
@@ -8003,7 +8052,7 @@ function renderNetwork() {
     else if (button.classList.contains('network-archive')) { if (!await portalConfirm('Архивировать точку?', 'Точка исчезнет из рабочего списка, но история операций сохранится.', 'Архивировать')) { restoreFocus = true; return; } await api(`/api/network/venues/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(async () => { portalNotice('Точка архивирована', 'success'); await load(); }).catch((error) => portalNotice(error.payload?.error === 'current_venue_cannot_be_archived' ? 'Текущую точку нельзя архивировать' : 'Не удалось архивировать точку', 'error')); }
     else if (button.classList.contains('network-edit')) {
       const item = (window.__networkItems || []).find((entry) => entry.id === id); if (!item) return;
-      const outcome = await editOrdinary({ key: `venue:${id}`, opener: button, title: 'Изменить точку', description: 'Название и адрес будут видны в переключателе заведений.', submitLabel: 'Сохранить', fields: [{ name: 'name', label: 'Название точки', value: item.name }, { name: 'address', label: 'Адрес', value: item.address }],
+      const outcome = await editOrdinary({ key: `venue:${id}`, dialogClass: 'network-venue-editor', opener: button, title: 'Изменить точку', description: 'Название и адрес будут видны в переключателе заведений.', submitLabel: 'Сохранить', fields: [{ name: 'name', label: 'Название точки', value: item.name }, { name: 'address', label: 'Адрес', value: item.address }],
         isCurrent: () => hasPortalPermission('settings') && (window.__networkItems || []).some(entry => entry.id === id),
         validate: values => !values.name.trim() ? { field: 'name', message: 'Введите название точки' } : !values.address.trim() ? { field: 'address', message: 'Введите адрес' } : null,
         onSubmit: values => api(`/api/network/venues/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: values.name.trim(), address: values.address.trim() }) }),

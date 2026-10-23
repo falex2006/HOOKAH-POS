@@ -1157,3 +1157,39 @@ Final source42248/dist37552 PASS с assertions равныхfooter/h44/gap12 и �
 После sharedselect/editor changes выполнен bounded current-source route regression:33 canonical URLs ×1440/390/768=99observations,0JSerrors/0document+mainoverflow/emptycontent. Evidence tmp/canonical-layout-regression-20261023.json и executable clone .cjs. Auth-enabled отдельный memory server/admin real API session; не main runtime, не все роли и не visual proof каждого окна. Из прямых маршрутов исключены payroll/loyalty/clients (параллельная разработка); остальные состояния нетронуты. В console прежний hardcoded viewsPerRoute2 был не обновлён, фактический JSON содержит по3width и99 total; label script исправлен без повторного запуска.
 
 CUA persistent31932 /login#reset=qa-visual-only (синтетическая строка, не действительный токен): recovery form показана без введённых паролей/submit. Confirmed link был2px под primary, visitedpurple. ScopedCSS .password-reset-card .password-reset-back теперь min44 flex/center, margin-top12, consistentvisitedcolor/focus. View390/1440 и320x568 (scroll до нижних действий) просмотрен, linkheight44/nooverflow320. «Вернуться ко входу» реально возвращает /login; затем /admin#permissions восстановлен с прежней сессией (страница login неsignout). Screenshots/checkpoint tmp/auth-reset-layout-review-20261023. ТолькоCSS source/dist, JS/token/API unchanged. Предыдущие CSS byteprefix preserved. Setup/first-org hiddenform остаётся без visualproof; recovery submit/authfailure не тестировались этим проходом. Остальные состояния из конечного списка7 не объявляются закрытыми. Payroll/loyalty/SaaS и релиз не изменялись, цель активна.
+
+## 2026-10-23 — venue-layout archive/restore follow-up
+
+Current canonical source on disposable memory31940: actual zone/table create→archive→reload archive→restore→reload active, desktop1440/mobile390 confirmation screenshots and geometry, edit-zone open/cancel inspected. Restoration changed from red danger to primary; generic primary margin removed in portalAction footer with body.portal-scoped equal desktop columns/single mobile column. Final heights44.8 both, desktop229.2/mobile320.8 widths, zero margin/gap12. POS footer untouched. Syntax/source-dist/dialog74+16/design/diff/health PASS. Evidence primary tmp/venue-layout-visual-review-20261023.
+
+Not closed: actualPG archive/delete/concurrency/customACL and reorder; legacy venue-layout-browser-qa has query interception and too-late open-shift fixture debt (failed waits; experimental edit reverted, no PASS). Further schedule/attendance/network/contact/setup states remain as documented above. Current VPS still bc25f387, follow-up separated from released package.
+
+## 2026-10-23 — archive SQL and remaining venue editor
+
+Actual guarded floor-table-archive-postgres-browser-qa PASS74 closes standard-role/tenant/concurrent/idempotent PostgreSQL archive/restore + history/reload evidence. Fresh random owned DB dropped and absence asserted by runner before PASS. Prior cleanup DELETE orders failed immutable payroll FK; QA-only redundant row cleanup removed, assertions/guards unchanged; syntax/diff/health GO. This supersedes prior actualPG archive/concurrency gap, not customACL/delete/reorder. Log: primary tmp/venue-layout-visual-review-20261023/postgres-archive-pass.log.
+
+CUA local31940: delete-zone390 confirmation/cancel/focus, table edit390/1440, scroll/footer/cancel inspected. New precise visual gap: table-edit desktop footer Cancel/Save widths differ; next step scope. Other remaining states unchanged, overall audit active. Production still bc25f387; no VPS change this continuation.
+
+## 2026-10-23 — venue edit footer closed / synchronization gap
+
+Zone/table edit dialogs now share scoped venue-layout-editor action layout:190x44 desktop/equal y/gap12; mobile324.8x44 one column. Current CUA1440/390 bothforms inspected, name required validation focus and real disposable-memory table rename→reload PASS, zoneCancel. Evidence primary tmp/venue-layout-visual-review-20261023/editor-aligned-{1440,390}.png and zone-editor-aligned-1440.png. Only optional CSS class + scoped style; shared dialog74+16/design/click/visual rules/syntax/diff/health GO. Prior footer-width issue closed.
+
+New confirmed separate issue: upper floor-editor retains old table name immediately after save in lower edit dialog, until reload; lower list and persisted reload have correct name. Needs draft-preserving synchronization investigation. Other customACL/SQL edit/delete/reorder/network/schedule/attendance/contact/setup states remain open. Production stillbc25f387; follow-up on PR57 only.
+
+## 2026-10-23 — scheme metadata sync closed / embedded-form layout gap
+
+Lower table/zone edit now updates upper canvas/summary/metadata immediately from canonical PATCH result, preserving geometry DOM/drafts, other table drafts and openstate. Node-local connected/settings/venue/entity guards; pending upper GETs complete and replay newer metadata without losing geometry/status. New browser QA RED→source/dist PASS covers real memorysave/reload, failed list GET/retry, foreignevent, concurrent upper status GET and delayed first read. CUA1440/390 confirms immediate updatedname. Shared dialog74+16/design/click/syntax/diff/health GO; evidence primary tmp/venue-layout-visual-review-20261023/sync-name-*.png and scripts/venue-layout-editor-sync-browser-qa.cjs. Prior stale-name item closed; arbitrary cross-client version conflicts not claimed solved.
+
+New confirmed mobile visual gap: embedded floor-editor form labels/inputs run inline without base grid/control CSS. Git comparison37f8cf91 andbc25f387 source/dist confirms missing base rules already existed, not introduced by current change. Next unit: scoped embedded-form layout at320/390/768/1440; remaining full audit states unchanged. VPSstillbc25f387, follow-up PR57 only.
+
+## 2026-10-23 — embedded floor field layout closed
+
+Missing base CSS now restored with scoped portal/floor-editor selectors: labels above44px controls, responsive grid, title/metadata/right-aligned chevron, equal desktop190px actions/mobile fullwidth stack, empty message collapsed. No nested backgrounds or product JS/API/DB changes. Memorybrowser QA RED label-inline320→source/distPASS3203907681440 (nonoverlap/nooverflow/44px/equalbuttons/closed disclosure/lighttheme); prior save/draft/concurrent-read cases stillPASS. CUA390/768/1440 fields/buttons/shape dropdown/Escape visually accepted. Evidence primary tmp/venue-layout-visual-review-20261023/embedded-*.png. Design/click/visualrules/dialog74/syntax/diff/parity/healthGO.
+
+Remaining actual venue reorder/delete/customACL and schedule/attendance/network/contacts/setup states not widened into completion. Overall goal staysactive; VPSbc25f387 unchanged, draftPR57 follow-up only.
+
+## 2026-10-23 — network action alignment and bounded two-point QA
+
+Network create now uses Cancel before primary in DOM; edit uses scoped network-venue-editor. Equal capped190px desktop actions and44px mobile full-width stack, gap12. CUA1440/390 edit viewed and cancel verified; primary tmp/network-switch-review-20261023/editor-390.png. New owned AUTH=true memory browser QA source/dist PASS: owner create, two-point switching, org create draft retention, entity-bound canceled edit draft retention without PATCH,503 failure/retry and staff403. Design/click/visual/network-selection contracts PASS; code-health final GO. No API/DB/role changes.
+
+Separate pre-existing contract risk identified, not changed by footer fix: selection refreshes venue/header but session gate identity remains old until its next refresh (which reloads on venue signature change). Do not assign verified global manually. Architect recommends a separately scoped gate refresh plus explicit draft/reload acceptance. Current tests prove entity-bound org drafts, not immediate verified-context refresh. Other remaining matrix states stay open. Follow-up PR57, VPS stillbc25f387.

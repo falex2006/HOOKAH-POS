@@ -26,7 +26,7 @@ const logins = { owner: `qa15-owner-${marker}`, manager: `qa15-manager-${marker}
 const password = randomBytes(24).toString('hex');
 const passHash = (value) => { const salt = randomBytes(16).toString('hex'); return `scrypt$${salt}$${scryptSync(value, salt, 64).toString('hex')}`; };
 const hash = passHash(password);
-let connected = false, fixturesCreated = false, server, serverClosed, browser, output = '', base = '', passed = false, checks = 0;
+let connected = false, server, serverClosed, browser, output = '', base = '', passed = false, checks = 0;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const readCount = async (sql, values = []) => Number((await db.query(sql, values)).rows[0].count);
 const stopServer = async () => {
@@ -58,7 +58,7 @@ try {
     await db.query("INSERT INTO reservations(id,venue_id,table_id,starts_at,ends_at,guests_count,status) VALUES($1,$2,$3,(now() AT TIME ZONE 'Asia/Yekaterinburg')::date + time '20:00',(now() AT TIME ZONE 'Asia/Yekaterinburg')::date + time '21:00',2,'cancelled')", [randomUUID(), ids.venue, ids.historicTable]);
     await db.query("INSERT INTO orders(id,venue_id,table_id,opened_by,status) VALUES($1,$2,$3,$4,'open')", [randomUUID(), ids.venue, ids.activeOrderTable, ids.owner]);
     await db.query("INSERT INTO reservations(id,venue_id,table_id,starts_at,ends_at,guests_count,status) VALUES($1,$2,$3,(now() AT TIME ZONE 'Asia/Yekaterinburg')::date + time '12:00',(now() AT TIME ZONE 'Asia/Yekaterinburg')::date + time '13:00',2,'confirmed')", [ids.reservation, ids.venue, ids.reservedTable]);
-    await db.query('COMMIT'); fixturesCreated = true;
+    await db.query('COMMIT');
   } catch (error) { await db.query('ROLLBACK'); throw error; }
 
   server = spawn(process.execPath, ['server.js'], { cwd: root, windowsHide: true,
@@ -252,23 +252,8 @@ try {
   finally {
     try { await stopServer(); }
     finally {
-      if (connected && fixturesCreated) {
-        await db.query('BEGIN');
-        try {
-          await db.query('DELETE FROM auth_sessions WHERE user_id=ANY($1::uuid[])', [[ids.owner, ids.manager, ids.bartender, ids.foreignOwner]]);
-          await db.query('DELETE FROM audit_events WHERE venue_id=ANY($1::uuid[]) OR actor_id=ANY($2::uuid[])', [[ids.venue, ids.foreignVenue], [ids.owner, ids.manager, ids.bartender, ids.foreignOwner]]);
-          await db.query('DELETE FROM orders WHERE venue_id=ANY($1::uuid[])', [[ids.venue, ids.foreignVenue]]);
-          await db.query('DELETE FROM reservations WHERE venue_id=ANY($1::uuid[])', [[ids.venue, ids.foreignVenue]]);
-          await db.query('DELETE FROM tables WHERE zone_id IN (SELECT id FROM zones WHERE venue_id=ANY($1::uuid[]))', [[ids.venue, ids.foreignVenue]]);
-          await db.query('DELETE FROM zones WHERE venue_id=ANY($1::uuid[])', [[ids.venue, ids.foreignVenue]]);
-          await db.query('DELETE FROM organization_memberships WHERE organization_id=ANY($1::uuid[])', [[ids.organization, ids.foreignOrganization]]);
-          await db.query('DELETE FROM users WHERE id=ANY($1::uuid[])', [[ids.owner, ids.manager, ids.bartender, ids.foreignOwner]]);
-          await db.query('DELETE FROM venues WHERE id=ANY($1::uuid[])', [[ids.venue, ids.foreignVenue]]);
-          await db.query('DELETE FROM organization_subscriptions WHERE organization_id=ANY($1::uuid[])', [[ids.organization, ids.foreignOrganization]]);
-          await db.query('DELETE FROM organizations WHERE id=ANY($1::uuid[])', [[ids.organization, ids.foreignOrganization]]);
-          await db.query('COMMIT');
-        } catch (error) { await db.query('ROLLBACK'); throw error; }
-      }
+      // The guarded local runner owns and drops this entire random QA database.
+      // Row cleanup conflicts with immutable payroll evidence and can mask test failures.
       if (connected) await db.end();
     }
   }
