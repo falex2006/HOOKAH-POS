@@ -1163,3 +1163,9 @@ CUA persistent31932 /login#reset=qa-visual-only (синтетическая ст
 Current canonical source on disposable memory31940: actual zone/table create→archive→reload archive→restore→reload active, desktop1440/mobile390 confirmation screenshots and geometry, edit-zone open/cancel inspected. Restoration changed from red danger to primary; generic primary margin removed in portalAction footer with body.portal-scoped equal desktop columns/single mobile column. Final heights44.8 both, desktop229.2/mobile320.8 widths, zero margin/gap12. POS footer untouched. Syntax/source-dist/dialog74+16/design/diff/health PASS. Evidence primary tmp/venue-layout-visual-review-20261023.
 
 Not closed: actualPG archive/delete/concurrency/customACL and reorder; legacy venue-layout-browser-qa has query interception and too-late open-shift fixture debt (failed waits; experimental edit reverted, no PASS). Further schedule/attendance/network/contact/setup states remain as documented above. Current VPS still bc25f387, follow-up separated from released package.
+
+## 2026-10-23 — archive SQL and remaining venue editor
+
+Actual guarded floor-table-archive-postgres-browser-qa PASS74 closes standard-role/tenant/concurrent/idempotent PostgreSQL archive/restore + history/reload evidence. Fresh random owned DB dropped and absence asserted by runner before PASS. Prior cleanup DELETE orders failed immutable payroll FK; QA-only redundant row cleanup removed, assertions/guards unchanged; syntax/diff/health GO. This supersedes prior actualPG archive/concurrency gap, not customACL/delete/reorder. Log: primary tmp/venue-layout-visual-review-20261023/postgres-archive-pass.log.
+
+CUA local31940: delete-zone390 confirmation/cancel/focus, table edit390/1440, scroll/footer/cancel inspected. New precise visual gap: table-edit desktop footer Cancel/Save widths differ; next step scope. Other remaining states unchanged, overall audit active. Production still bc25f387; no VPS change this continuation.
