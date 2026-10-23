@@ -8,8 +8,8 @@ for(const type of ['network-select','network-archive']) {
  let listener,requests=0,resolve,reject;const notices=[];
  const button={dataset:{venue:'qa'},disabled:false,isConnected:true,textContent:'Original',classList:{contains:name=>name===type}};
  const event={target:{closest:selector=>selector==='[data-venue]'?button:null}};
- new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','refreshPortalContext','bindManagementNotice',`${source.slice(start,end)}`)(
- {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},()=>{requests++;return new Promise((a,b)=>{resolve=a;reject=b;});},(...args)=>notices.push(args),async()=>true,async()=>({name:'QA',address:'QA'}),async()=>{}, {__networkItems:[{id:'qa',name:'QA',address:'QA'}]},async()=>({failed:[]}),()=> (...args)=>notices.push(args));
+ new Function('document','api','portalNotice','portalConfirm','portalAction','load','window','refreshPortalContext','bindManagementNotice','stageTransfer','clearTransfer',`${source.slice(start,end)}`)(
+ {querySelector:()=>({addEventListener:(_name,fn)=>listener=fn})},()=>{requests++;return new Promise((a,b)=>{resolve=a;reject=b;});},(...args)=>notices.push(args),async()=>true,async()=>({name:'QA',address:'QA'}),async()=>{}, {__portalSessionVerified:{demo:true},__networkItems:[{id:'qa',name:'QA',address:'QA'}]},async()=>({failed:[]}),()=> (...args)=>notices.push(args),()=>true,()=>{});
  const first=listener(event);await Promise.resolve();await Promise.resolve();
  assert.equal(button.disabled,true);await listener(event);assert.equal(requests,1);
  reject(Error('offline'));await first;assert.equal(button.disabled,false);assert.equal(button.textContent,'Original');

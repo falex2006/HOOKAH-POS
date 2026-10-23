@@ -56,6 +56,7 @@
     catch (_) {button.disabled=false;setMessage('Не удалось завершить сессию. Повторите выход.','error');return;}
     if (!currentSession()) { redirectToLogin(); return; }
     window.__broadcastSessionEnd();
+    try { sessionStorage.removeItem('crm_network_create_transfer'); } catch (_) {}
     try { localStorage.removeItem(lockStateKey); } catch (_) {}
     localStorage.removeItem('crm_session_token');
     localStorage.removeItem('crm_session_user');
