@@ -20,8 +20,10 @@ const ids = Object.fromEntries(['org', 'venue', 'owner', 'manager', 'foreignOrg'
 const marker = randomBytes(6).toString('hex'), password = randomBytes(24).toString('hex');
 const salt = randomBytes(16).toString('hex'), hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
 const logins = Object.fromEntries(['owner', 'manager', 'foreignOwner'].map(key => [key, `worktime-${key}-${marker}`]));
-const artifacts = path.join(root, 'tmp', 'staff-worktime-postgres'); fs.mkdirSync(artifacts, { recursive: true });
+const artifactRoot = path.join(root, 'tmp', 'staff-worktime-postgres');
+const artifacts = path.join(artifactRoot, `run-${Date.now()}-${randomBytes(3).toString('hex')}`); fs.mkdirSync(artifacts, { recursive: true });
 const testedHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim();
+fs.writeFileSync(path.join(artifactRoot, 'latest-run.json'), JSON.stringify({ testedHead, artifacts, note: 'Run pointer only; PASS requires this directory report plus terminal and runner cleanup' }, null, 2));
 const assetPaths = ['staff-schedule-ui.js', 'staff-schedule-ui.css', 'staff-attendance-ui.js', 'staff-attendance-ui.css', 'app.js', 'portal.js', 'style.css'];
 const assetHashes = () => Object.fromEntries(assetPaths.flatMap(file => [file, `dist/${file}`]).map(file => [file, createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
 const testedAssets = assetHashes();

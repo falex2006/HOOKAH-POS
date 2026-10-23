@@ -1,9 +1,13 @@
 // Run only inside the caller's guarded, disposable PostgreSQL browser suite.
 // Real logins and UI mutations; fault injection holds one request, not auth/identity.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 
 export async function attendanceApprovalJourney({ browser, db, base, ids, logins, password, artifacts, check, errors }) {
+  const responses = [];
+  const capture = async (response, stage) => { responses.push({ stage, status: response.status(), payload: await response.json() }); fs.writeFileSync(path.join(artifacts, 'attendance-journey-http.json'), JSON.stringify(responses, null, 2)); };
+  const bounded = async (promise, label) => { let timer; try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} did not start within 10 seconds`)), 10000); })]); } finally { clearTimeout(timer); } };
   const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const geometry = async page => {
     const boxes = await page.locator('.attendance-page, #staff-attendance-dialog .action-box').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, overflow: node.scrollWidth > node.clientWidth + 1 }; }));
@@ -23,7 +27,7 @@ export async function attendanceApprovalJourney({ browser, db, base, ids, logins
       return route.continue();
     };
     await page.route('**/api/staff/attendance/**', handler);
-    return { started: waitStarted, requests, release, dispose: () => page.unroute('**/api/staff/attendance/**', handler) };
+    return { started: () => bounded(waitStarted, endpoint), requests, release, dispose: () => page.unroute('**/api/staff/attendance/**', handler) };
   }
   for (const width of [390, 1440]) {
     const owner = await browser.newContext({ viewport: { width, height: 1000 }, locale: 'ru-RU', reducedMotion: 'reduce' });
@@ -44,7 +48,7 @@ export async function attendanceApprovalJourney({ browser, db, base, ids, logins
       const reason = `Локальная проверка согласования ${width}`; await requestForm.locator('[name=reason]').fill(reason);
       const before = (await db.query('SELECT count(*)::int count FROM staff_attendance_requests WHERE venue_id=$1 AND user_id=$2', [ids.venue, ids.manager])).rows[0].count;
       const failed = await hold(personal, '/api/staff/attendance/requests', true);
-      await requestForm.locator('button[type=submit]').click(); await failed.started;
+      await requestForm.locator('button[type=submit]').click(); await failed.started();
       check(await requestForm.locator('[name=reason]').isDisabled(), 'actual personal reason locked during request');
       await requestForm.evaluate(form => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); await frames(personal);
       check(failed.requests.length === 1, 'actual pending request has one POST');
@@ -55,7 +59,8 @@ export async function attendanceApprovalJourney({ browser, db, base, ids, logins
       await failed.dispose();
       const posted = personal.waitForResponse(response => new URL(response.url()).pathname === '/api/staff/attendance/requests' && response.request().method() === 'POST');
       await requestForm.locator('button[type=submit]').click(); const created = await posted;
-      check(created.status() === 201, 'retry request reaches real attendance API');
+      await capture(created, `request-retry-${width}`);
+      check(created.status() === 200, 'retry request reaches real attendance API (route contract returns 200)');
       check(created.request().postDataJSON().requestKey === failed.requests[0].requestKey, 'real retry uses the same request key');
       const rows = (await db.query('SELECT id,version,status,reason FROM staff_attendance_requests WHERE venue_id=$1 AND user_id=$2 AND reason=$3', [ids.venue, ids.manager, reason])).rows;
       check(rows.length === 1 && rows[0].status === 'pending', 'one real pending request persisted with exact reason'); const request = rows[0];
@@ -63,14 +68,15 @@ export async function attendanceApprovalJourney({ browser, db, base, ids, logins
       await admin.reload(); const decision = admin.locator(`[data-attendance-decision="${request.id}"]`); await decision.waitFor();
       await decision.locator('[name=note]').fill('Согласовано для локальной проверки');
       const approvalPath = `/api/staff/attendance/requests/${request.id}/decision`, held = await hold(admin, approvalPath);
-      await decision.locator('[data-decision=approved]').click(); await held.started;
+      await decision.locator('[data-decision=approved]').click(); await held.started();
       check(await decision.locator('[data-decision=rejected]').isDisabled() && await decision.locator('[name=note]').isDisabled(), 'actual approval locks opposing action and comment');
       await decision.evaluate(form => form.requestSubmit(form.querySelector('[data-decision=rejected]'))); await frames(admin);
       check(held.requests.length === 1 && held.requests[0].decision === 'approved', 'one real opposing-decision POST while pending');
       check((await db.query('SELECT status FROM staff_attendance_requests WHERE id=$1', [request.id])).rows[0].status === 'pending', 'held real decision has not changed SQL yet');
       await geometry(admin); await admin.screenshot({ path: path.join(artifacts, `approval-decision-pending-${width}.png`) });
       const decided = admin.waitForResponse(response => new URL(response.url()).pathname === approvalPath && response.request().method() === 'POST'); held.release();
-      check((await decided).status() === 200, 'real approval API succeeded'); await held.dispose(); await decision.waitFor({ state: 'detached' });
+      const decisionResponse = await decided; await capture(decisionResponse, `decision-${width}`);
+      check(decisionResponse.status() === 200, 'real approval API succeeded'); await held.dispose(); await decision.waitFor({ state: 'detached' });
       const saved = (await db.query('SELECT status,version,decided_by,decision_note FROM staff_attendance_requests WHERE id=$1', [request.id])).rows[0];
       check(saved.status === 'approved' && saved.version === request.version + 1 && saved.decided_by === ids.owner && saved.decision_note === 'Согласовано для локальной проверки', 'exact decision, actor, note and one version persisted');
       await admin.reload(); await admin.locator('[data-attendance-tab=overview]').waitFor(); check(await admin.locator(`[data-attendance-decision="${request.id}"]`).count() === 0, 'approved request absent from pending queue after reload');
