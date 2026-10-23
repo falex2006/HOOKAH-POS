@@ -182,4 +182,3 @@ try {
   if(server && server.exitCode === null){server.kill('SIGTERM');await Promise.race([new Promise(resolve=>server.once('exit',resolve)),delay(5000)]);if(server.exitCode===null)server.kill('SIGKILL');}
   await db.end().catch(()=>{});
 }
-

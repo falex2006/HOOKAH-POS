@@ -349,7 +349,7 @@
     },
     {
       "path": "migrations/204_payroll_refund_aware_run_provenance.sql",
-      "sha256": "7e1cc657e0fe43d64221944eaabbe543e3aa5bac6b5c628f491018913b1a9909"
+      "sha256": "039527f15e77ec358b242dcbf35e43927208d5814182b5663a65174ed06fdb56"
     },
     {
       "path": "migrations/205_payroll_calculation_entry_lifecycle.sql",
@@ -357,7 +357,7 @@
     },
     {
       "path": "migrations/206_payroll_zero_settlement_correction_authority.sql",
-      "sha256": "582bde7bd57677562d9b09ea3b2da089f2660a58797d620cb9618918f2ff26b0"
+      "sha256": "5fa6bbc64a16ca5216b347157995eb745ee3254f83264c9babb7b3a655eac2e7"
     },
     {
       "path": "migrations/207_payroll_unpaid_run_supersession.sql",
@@ -577,7 +577,7 @@
     },
     {
       "path": "payroll-saved-run-reader.js",
-      "sha256": "a94478d44305aa5f00504b77def4b99765e21b8872ee0c8fc25e54641954218f"
+      "sha256": "a7555aa62c718a74f137e1af6f7d66c69af2c887a5bb27acd3088e83bc30e6e3"
     },
     {
       "path": "payroll-scheme-routes.js",
@@ -805,7 +805,7 @@
     },
     {
       "path": "scripts/payroll-margin-source-postgres-qa.mjs",
-      "sha256": "2fe0f17eb089801db5036664ad029dede3dc07fa12afb46135395c8557b47b45"
+      "sha256": "0e2f82a9205809fb426e35f71d45e28f666c602197de8b6365a2a9877274447d"
     },
     {
       "path": "scripts/payroll-mode-availability-contract.mjs",

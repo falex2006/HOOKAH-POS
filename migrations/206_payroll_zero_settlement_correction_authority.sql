@@ -174,4 +174,3 @@ BEGIN
     RAISE EXCEPTION 'payroll_correction_target_capacity_mismatch' USING ERRCODE='23514'; END IF;
   RETURN NEW;
 END $$;
-

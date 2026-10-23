@@ -237,4 +237,3 @@ const loadSavedRunEvidenceInTransaction = (db, venueId, runId) => load(db, clien
 
 module.exports = { PayrollSavedRunReadError, listSavedRuns, getSavedRun, getSavedRunEmployee, getSavedRunLines, replaySavedRun,
   loadSavedRunEvidenceInTransaction };
-
