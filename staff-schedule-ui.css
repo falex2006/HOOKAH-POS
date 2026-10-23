@@ -109,7 +109,7 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .schedule-dialog{background:var(--ui-panel);color:var(--ui-text-primary);border:1px solid var(--ui-border-subtle);border-radius:16px;width:min(640px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:24px;box-sizing:border-box;overflow:auto;font-size:14px}
 .schedule-dialog::backdrop{background:var(--ui-overlay)}.schedule-dialog form{display:grid;gap:14px}
 .schedule-dialog h2{margin:0 0 4px;font-size:22px;line-height:1.25}.schedule-dialog p{margin:0;font-size:13px;line-height:1.5}
-.schedule-dialog :is([data-grant-list],[data-demand-list])>[role=alert]{margin-bottom:12px}
+.schedule-dialog :is([data-grant-list],[data-demand-list],[data-drafts])>[role=alert]{margin-bottom:12px}
 .schedule-dialog fieldset{display:grid;gap:12px;min-width:0;margin:0;padding:12px 0;border:0}.schedule-dialog legend{font-size:12px;color:var(--ui-text-muted);padding:0}
 .schedule-dialog [data-times]{grid-template-columns:1fr 1fr}.schedule-dialog [data-times]>fieldset,.schedule-dialog [data-times]>details{grid-column:1/-1}
 .schedule-dialog [data-break-row]{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.schedule-dialog [data-break-row]>.button{grid-column:1/-1;justify-self:start}
@@ -120,6 +120,8 @@ body.portal.light-theme.schedule-route :is(.schedule-page,.schedule-dialog) inpu
 .schedule-dialog [data-error]{color:var(--ui-danger)}.schedule-dialog [data-error]:empty{display:none}.schedule-save-hint{color:var(--ui-text-muted);font-size:12px}
 .planning-dialog{width:min(800px,calc(100vw - 32px))}.planning-home-intro{max-width:65ch;color:var(--ui-text-secondary)}
 .planning-home-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 0}.planning-tool-group{position:relative}.planning-tool-group>summary{font-size:14px}
+.planning-dialog .planning-home-actions .planning-tool-group>summary::after{content:'';display:block;flex:0 0 8px;width:8px;height:8px;margin-inline:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.planning-dialog .planning-home-actions .planning-tool-group[open]>summary::after{transform:rotate(225deg)}
 .planning-tool-actions{display:grid;gap:4px;padding:8px;border:1px solid var(--ui-border-subtle);border-radius:8px;background:var(--ui-raised)}.planning-tool-actions>.button{text-align:left}
 .planning-drafts-heading{font-size:16px;margin:16px 0 0}
 .planning-list-item{display:grid;gap:5px;width:100%;min-height:64px;text-align:left;padding:14px;margin:8px 0;border:1px solid var(--ui-border-subtle);border-radius:8px;background:transparent;color:var(--ui-text-primary);font:inherit;cursor:pointer;overflow-wrap:break-word}

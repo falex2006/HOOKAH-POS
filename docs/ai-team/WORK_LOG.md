@@ -9062,3 +9062,7 @@ Actual guardedPG rerun61138exit0 ontestedce4f10b7 PASS69: owner/manager UI/API/S
 ## 2026-10-24 — copy confirmation belongs to current request
 
 Reproduced stickyconfirmation acrosschangedselection/reason/dates/fingerprint. Resetexistingflagandlabel onchanges/newpreview; explicitconfirm labelafter409; no unseenwarningdetailsinvented. Actual mountedcomponent RED8→source16/dist16PASS390/1440, samebodykeytransportretry andconflictexclusions. MASTER independentfinaldiff/dist16/mobilevisualGO, rootvisual2widths; lifecycle9/discard/graphite/syntax/parity/diffPASS. Frozen separately; no CSS/backend/domain/PG/GitHub/VPSchanges. Actualattendance69 is olderexactce4, not newcopyPGproof. See SCHEDULE_COPY_CONFIRMATION_20261024.md, broaderauditnotcomplete.
+
+## 2026-10-24 — planning home GET lifecycle closed in bounded scope
+
+Fixed confirmed reloadHome GET guard/error/retry/stalelist/errorclear/close blockers with local state; shared mutationpending unchanged. Baseline12→source12/dist12PASS390/1440 with forcedsingleflight and Escape/lateclosed-response. Scoped12pxalertspacing +planning-homevectorchevron keeps24pxfootprint and details/focus. MASTER independentbaseline/finaldiff/dist12+incrementalCSSvisualGO; rootvisual2widths. Lifecycle9/discard/graphite/syntax/parity/diffPASS. QAonlyGETfixture, no server/draftpublication/PG/roles changes. See PLANNING_HOME_READ_STATES_20261024.md, overallgoal/U2open. Frozen8paths separately, no GitHub/VPS.

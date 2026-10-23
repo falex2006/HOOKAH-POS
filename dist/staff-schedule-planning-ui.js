@@ -21,15 +21,21 @@
       form.addEventListener('input',()=>{key=crypto.randomUUID();});form.addEventListener('change',()=>{key=crypto.randomUUID();});
       form.onsubmit=async e=>{e.preventDefault();const data=new FormData(form);d.pending(true);d.error('');try{await action(form,data,key);}catch(error){d.error(error.message);}finally{d.pending(false);}};
     }
-    let home,templatesParent;
+    let home,templatesParent,homeLoading=false;
     async function reloadHome(){
-      if(!home?.node.isConnected)return;
-      home.pending(true);
+      const panel=home;
+      if(!dialogIsOpen(panel)||homeLoading)return;
+      homeLoading=true;panel.error('');
+      const area=panel.node.querySelector('[data-drafts]');
+      const controls=[...panel.node.querySelectorAll('.planning-home-actions button,[data-drafts] button')].map(node=>({node,disabled:node.disabled}));
+      controls.forEach(({node})=>{node.disabled=true;});
+      area.innerHTML='<p role="status">Загрузка планов…</p>';
       try{
-        const result=await api('/drafts');if(!home.node.isConnected)return;
-        home.node.querySelector('[data-drafts]').innerHTML=result.items.map(d=>`<button type="button" class="planning-list-item" data-draft="${esc(d.id)}"><strong>${esc(d.name)}</strong><span>${esc(d.from)} — ${esc(d.to)} · ${esc(states[d.state])}</span><small>${d.operations.length} изменений · версия ${d.version}</small></button>`).join('')||'<p>Черновиков пока нет. Создайте план на выбранный период.</p>';
-        home.node.querySelectorAll('[data-draft]').forEach(b=>b.onclick=()=>openDraft(b.dataset.draft));
-      }catch(error){home.error(error.message);}finally{home.pending(false);}
+        const result=await api('/drafts');if(!dialogIsOpen(panel))return;
+        panel.node.querySelector('[data-drafts]').innerHTML=result.items.map(d=>`<button type="button" class="planning-list-item" data-draft="${esc(d.id)}"><strong>${esc(d.name)}</strong><span>${esc(d.from)} — ${esc(d.to)} · ${esc(states[d.state])}</span><small>${d.operations.length} изменений · версия ${d.version}</small></button>`).join('')||'<p>Черновиков пока нет. Создайте план на выбранный период.</p>';
+        panel.node.querySelectorAll('[data-draft]').forEach(b=>b.onclick=()=>openDraft(b.dataset.draft));
+      }catch(error){if(!dialogIsOpen(panel))return;area.innerHTML=`<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-drafts-retry>Повторить загрузку</button>`;area.querySelector('[data-drafts-retry]').onclick=reloadHome;}
+      finally{homeLoading=false;controls.forEach(({node,disabled})=>{if(node.isConnected)node.disabled=disabled;});}
     }
     function createDraft(){
       const monthStart = day => day.slice(0,7)+'-01';
