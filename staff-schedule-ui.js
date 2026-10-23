@@ -707,13 +707,26 @@ ${guide.html}
         finally { d.pending(false); if (preview) preview.items.filter(item => item.conflict).forEach(item => { const el = area.querySelector(`[data-source="${item.sourceId}"]`); if (el) el.disabled = true; }); }
       };
     }
+    let grantsDialog = null;
     async function grants() {
-      try {
+      if (!alive()) return;
+      if (grantsDialog?.isConnected && grantsDialog.open) { grantsDialog.focus(); return; }
+      const d = dialog('Доступ к графику', '<p>Права выдаёт только владелец. Управление настройками графика — отдельное право и доступно только при включённом управлении графиком.</p><div data-grant-list></div>');
+      grantsDialog = d.node;
+      d.node.querySelector('button[type=submit]').remove();
+      d.node.querySelector('form').onsubmit = e => e.preventDefault();
+      const list = d.node.querySelector('[data-grant-list]');
+      let readGeneration = 0, loading = false;
+      const current = generation => alive() && d.node.isConnected && d.node.open && generation === readGeneration;
+      d.node.addEventListener('close', () => { readGeneration++; if (grantsDialog === d.node) grantsDialog = null; }, { once: true });
+      async function loadGrants() {
+        if (loading || !d.node.open || !d.node.isConnected || !alive()) return;
+        const generation = ++readGeneration; loading = true;
+        list.setAttribute('aria-busy', 'true');
+        list.innerHTML = '<p role="status">Загрузка прав доступа…</p>';
+        try {
         const result = await api('/grants');
-        const d = dialog('Доступ к графику', '<p>Права выдаёт только владелец. Управление настройками графика — отдельное право и доступно только при включённом управлении графиком.</p><div data-grant-list></div>');
-        d.node.querySelector('button[type=submit]').remove();
-        d.node.querySelector('form').onsubmit = e => e.preventDefault();
-        const list = d.node.querySelector('[data-grant-list]');
+        if (!current(generation)) return;
         list.innerHTML = result.items.map(p => `<fieldset><legend>${esc(p.name)}</legend><label>Действующий график<select data-user="${esc(p.userId)}">${[['none','Нет доступа'],['view','Только просмотр'],['manage','Управление графиком']].map(([key,label]) => `<option value="${key}" ${p.access === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="schedule-check"><input type="checkbox" data-publish-user="${esc(p.userId)}" ${p.canPublish?'checked':''} ${p.access!=='manage'?'disabled':''}>Публикация графиков</label><label class="schedule-check"><input type="checkbox" data-settings-user="${esc(p.userId)}" ${p.canManageSettings?'checked':''} ${p.access!=='manage'?'disabled':''}>Настройка функций, шаблонов и правил</label></fieldset>`).join('') || '<p>Нет администраторов и управляющих для выдачи прав.</p>';
         list.querySelectorAll('select').forEach(select => select.onchange = async () => {
           const person = result.items.find(p => p.userId === select.dataset.user); d.pending(true);
@@ -724,7 +737,13 @@ ${guide.html}
         list.querySelectorAll('[data-publish-user]').forEach(input=>input.onchange=async()=>{const person=result.items.find(p=>p.userId===input.dataset.publishUser);d.pending(true);try{Object.assign(person,await api('/grants','PUT',{userId:person.userId,access:person.access,version:person.version,canPublish:input.checked}));d.error('Право публикации сохранено.');}catch(error){d.error(error.message);}finally{d.pending(false);syncPublish();}});
         const syncSettings=()=>list.querySelectorAll('[data-settings-user]').forEach(input=>{const person=result.items.find(p=>p.userId===input.dataset.settingsUser);input.disabled=person.access!=='manage';input.checked=!!person.canManageSettings;});
         list.querySelectorAll('[data-settings-user]').forEach(input=>input.onchange=async()=>{const person=result.items.find(p=>p.userId===input.dataset.settingsUser);d.pending(true);try{Object.assign(person,await api('/grants','PUT',{userId:person.userId,access:person.access,version:person.version,canManageSettings:input.checked}));d.error('Право настройки графика сохранено.');}catch(error){d.error(error.message);}finally{d.pending(false);syncSettings();}});
-      } catch (error) { status(error.message); }
+        } catch (error) {
+          if (!current(generation)) return;
+          list.innerHTML = `<p role="alert">${esc(error.message)}</p><button type="button" class="button" data-grants-load-retry>Повторить загрузку</button>`;
+          list.querySelector('[data-grants-load-retry]').onclick = loadGrants;
+        } finally { loading = false; if (current(generation)) list.removeAttribute('aria-busy'); }
+      }
+      await loadGrants();
     }
     async function demandSettings(){
       const d=dialog('Потребность в сотрудниках',`<p class="muted">Задайте минимум людей на функции и интервал времени. Правило действует по местному времени заведения; датированный период заменяет недельные правила для этой функции. Это ориентир покрытия, а не запрет публикации.</p><div data-demand-list></div><fieldset><legend data-demand-title>Новое правило</legend><input type="hidden" name="ruleId"><input type="hidden" name="version" value="0"><label>Рабочая функция<select name="functionId" required></select></label><label>Повторение<select name="scope"><option value="weekly">Каждую неделю</option><option value="date_range">На выбранные даты</option></select></label><label data-demand-weekday>День недели<select name="weekday">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((day,i)=>`<option value="${i+1}">${day}</option>`).join('')}</select></label><div data-demand-dates hidden><label>С даты<input type="date" name="effectiveFrom"></label><label>По дату включительно<input type="date" name="effectiveTo"></label></div><label>Начало<input type="time" name="startTime" value="10:00" required></label><label>Окончание<input type="time" name="endTime" value="18:00" required></label><label>Завершение<select name="endDayOffset"><option value="0">В тот же день</option><option value="1">На следующий день</option></select></label><label>Сколько сотрудников нужно<input type="number" name="requiredCount" min="1" max="100" value="1" required></label><label class="schedule-check"><input type="checkbox" name="active" checked>Правило активно</label><button type="button" class="button" data-demand-new>Новое правило</button></fieldset>`);
