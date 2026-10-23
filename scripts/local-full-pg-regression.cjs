@@ -9,6 +9,7 @@ const { Pool } = require('pg');
 const root = path.resolve(__dirname, '..');
 const folder = path.join(root, 'tmp', 'full-local-qa');
 const suites = new Set([
+  'network-switch-draft-browser-qa.cjs',
   'cross-tab-autolock-session-expiry-postgres-browser-qa.mjs',
   'cross-tab-lock-logout-postgres-browser-qa.mjs',
   'staff-pin-card-postgres-browser-qa.mjs',
@@ -208,6 +209,14 @@ async function runSuite(value) {
   }
   try {
     await verifyTarget(c);
+    if (name === 'network-switch-draft-browser-qa.cjs') {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
+      env.NETWORK_SWITCH_QA_PG_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+      assert.ok(process.env.PLAYWRIGHT_PACKAGE_PATH && fs.existsSync(process.env.PLAYWRIGHT_PACKAGE_PATH), 'Network browser QA requires installed Playwright');
+      assert.ok(process.env.PLAYWRIGHT_EXECUTABLE_PATH && fs.existsSync(process.env.PLAYWRIGHT_EXECUTABLE_PATH), 'Network browser QA requires browser executable');
+      env.PLAYWRIGHT_PACKAGE_PATH = process.env.PLAYWRIGHT_PACKAGE_PATH;
+      env.PLAYWRIGHT_EXECUTABLE_PATH = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
+    }
     if (name === 'staff-pin-card-postgres-browser-qa.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
       env.STAFF_PIN_CARD_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);

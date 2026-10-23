@@ -658,6 +658,7 @@ document.querySelector('#logout')?.addEventListener('click', async (event) => {
   if (localStorage.getItem('crm_session_token') !== logoutToken) { button.disabled=false; return; }
   window.HOOKAH_MANAGEMENT_THEME?.clear();
   window.__broadcastSessionEnd?.();
+  try { sessionStorage.removeItem('crm_network_create_transfer'); } catch (_) {}
   localStorage.removeItem('crm_session_token');
   localStorage.removeItem('crm_session_user');
   window.location.replace('/login');
@@ -8000,6 +8001,25 @@ function renderNetwork() {
   timezoneSelect.addEventListener('change', () => { timezoneTouched = true; });
   const formPanel = target.querySelector('#network-create-panel');
   const formToggle = target.querySelector('#network-add-toggle');
+  const draftKey = 'crm_network_create_transfer';
+  const draftFields = { name: 120, city: 80, address: 240, format: 80, phone: 32, timezone: 80 };
+  const draftIdentity = () => {
+    const user = window.__portalSessionVerified?.user;
+    return user?.id && user?.organizationId ? `${user.id}:${user.organizationId}` : null;
+  };
+  const clearTransfer = () => { try { sessionStorage.removeItem(draftKey); } catch (_) {} };
+  const stageTransfer = () => {
+    const values = Object.fromEntries(Object.keys(draftFields).map(key => [key, target.querySelector(`#network-${key}`).value]));
+    const filled = ['name', 'city', 'address', 'phone'].some(key => values[key].trim()) || values.format !== 'кальян-бар' || timezoneTouched;
+    if (!filled) { clearTransfer(); return true; }
+    const identity = draftIdentity();
+    if (!identity) return false;
+    try {
+      const serialized = JSON.stringify({ identity, at: Date.now(), values, open: formOpen, timezoneTouched });
+      sessionStorage.setItem(draftKey, serialized);
+      return sessionStorage.getItem(draftKey) === serialized;
+    } catch (_) { return false; }
+  };
   let formOpen = false;
   let networkHasLoaded = false;
   const setFormOpen = (open, focus = false) => {
@@ -8010,9 +8030,25 @@ function renderNetwork() {
     formToggle.classList.toggle('primary', !formOpen);
     if (focus) target.querySelector(formOpen ? '#network-name' : '#network-add-toggle').focus();
   };
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
+    if (draft && draft.identity === draftIdentity() && draftIdentity() && hasPortalPermission('settings') &&
+        Number.isFinite(draft.at) && Date.now() >= draft.at && Date.now() - draft.at < 300000 &&
+        typeof draft.open === 'boolean' && typeof draft.timezoneTouched === 'boolean' &&
+        Object.entries(draftFields).every(([key, max]) => typeof draft.values?.[key] === 'string' && draft.values[key].length <= max) &&
+        [...timezoneSelect.options].some(option => option.value === draft.values.timezone)) {
+      for (const key of Object.keys(draftFields)) target.querySelector(`#network-${key}`).value = draft.values[key];
+      timezoneTouched = draft.timezoneTouched;
+      timezoneSelect._customSelectRefresh?.();
+      setFormOpen(draft.open);
+      networkHasLoaded = true;
+    }
+    clearTransfer();
+  } catch (_) { clearTransfer(); }
   formToggle.addEventListener('click', () => { if (creating) return; const status = target.querySelector('#network-status'); status.textContent = ''; status.className = 'form-message network-status'; setFormOpen(!formOpen, true); });
   target.querySelector('#network-create-cancel').addEventListener('click', () => {
     if (creating) return;
+    clearTransfer();
     const form = target.querySelector('#network-form');
     form.reset(); target.querySelector('#network-format').value = 'кальян-бар';
     target.querySelector('#network-message').textContent = '';
@@ -8048,7 +8084,24 @@ function renderNetwork() {
     if (actionPending || button.disabled) return;
     let restoreFocus = false; actionPending = true; const originalLabel = button.textContent; button.disabled = true; button.textContent = 'Подождите…';
     try {
-    if (button.classList.contains('network-select')) { await api(`/api/network/venues/${encodeURIComponent(id)}/select`, { method: 'POST' }).then(async () => { const context = await refreshPortalContext(); portalNotice(context.failed.length ? 'Точка выбрана; часть данных заведения не удалось обновить' : 'Точка выбрана как текущая', context.failed.length ? 'error' : 'success'); await load(); }).catch(() => portalNotice('Не удалось выбрать точку', 'error')); }
+    if (button.classList.contains('network-select')) {
+      if (!stageTransfer()) { portalNotice('Не удалось сохранить черновик. Переключение не выполнено; введённые данные остались в форме.', 'error'); return; }
+      try { await api(`/api/network/venues/${encodeURIComponent(id)}/select`, { method: 'POST' }); }
+      catch (_) { clearTransfer(); portalNotice('Не удалось выбрать точку', 'error'); return; }
+      const gate = window.__portalSessionGate;
+      if (!window.__portalSessionVerified?.demo) {
+        gate.block('Проверяем выбранную точку…');
+        await gate.refresh();
+        // A verification already in flight before the selection may have been reused.
+        if (!gate.blocked && String(window.__portalSessionVerified?.user?.venueId) !== String(id)) { gate.block('Проверяем выбранную точку…'); await gate.refresh(); }
+        if (gate.blocked) return;
+        if (String(window.__portalSessionVerified?.user?.venueId) !== String(id)) { gate.block('Точка выбрана. Повторите проверку доступа, чтобы продолжить.'); return; }
+      }
+      clearTransfer();
+      const context = await refreshPortalContext();
+      portalNotice(context.failed.length ? 'Точка выбрана; часть данных заведения не удалось обновить' : 'Точка выбрана как текущая', context.failed.length ? 'error' : 'success');
+      await load();
+    }
     else if (button.classList.contains('network-archive')) { if (!await portalConfirm('Архивировать точку?', 'Точка исчезнет из рабочего списка, но история операций сохранится.', 'Архивировать')) { restoreFocus = true; return; } await api(`/api/network/venues/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(async () => { portalNotice('Точка архивирована', 'success'); await load(); }).catch((error) => portalNotice(error.payload?.error === 'current_venue_cannot_be_archived' ? 'Текущую точку нельзя архивировать' : 'Не удалось архивировать точку', 'error')); }
     else if (button.classList.contains('network-edit')) {
       const item = (window.__networkItems || []).find((entry) => entry.id === id); if (!item) return;
@@ -8075,6 +8128,7 @@ function renderNetwork() {
       await api('/api/network/venues', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: document.querySelector('#network-name').value.trim(), city: document.querySelector('#network-city').value.trim(), address: document.querySelector('#network-address').value.trim(), format: document.querySelector('#network-format').value.trim(), phone: document.querySelector('#network-phone').value.trim(), timezone: timezoneSelect.value }) });
       target.querySelector('#network-status').textContent = 'Точка добавлена'; target.querySelector('#network-status').className = 'form-message network-status success-message';
       message.textContent = '';
+      clearTransfer();
       form.reset(); document.querySelector('#network-format').value = 'кальян-бар';
       timezoneTouched = false; setDefaultTimezone(); setFormOpen(false); await load();
     } catch (error) {
