@@ -24,6 +24,18 @@ const date = (value) => {
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) fail('payroll_source_date_invalid');
   return value;
 };
+const timestampInstant = value => {
+  const match = typeof value === 'string' && value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/);
+  if (!match || Number(match[2]) > 23 || Number(match[3]) > 59 || Number(match[4]) > 59) fail('payroll_source_timestamp_invalid');
+  date(match[1]);
+  const instant = new Date(value);
+  if (!Number.isFinite(instant.getTime())) fail('payroll_source_timestamp_invalid');
+  return instant;
+};
+const localDateAt = (formatter, instant) => {
+  const parts = Object.fromEntries(formatter.formatToParts(instant).map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
 const text = (value, max) => {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max) fail('payroll_source_text_invalid');
   return value.trim();
@@ -83,19 +95,35 @@ const validatePayrollSnapshotSourceContext = ({ venueId, runId, venueTimezone, r
     const employeeId = uuid(source.employeeId), menuItemId = uuid(source.menuItemId);
     if (!employeeById.has(employeeId)) fail('payroll_source_employee_context_mismatch');
     const localDate = date(source.localDate);
-    const timestamp = typeof source.soldAt === 'string' && source.soldAt.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/);
-    if (!timestamp || Number(timestamp[2]) > 23 || Number(timestamp[3]) > 59 || Number(timestamp[4]) > 59) fail('payroll_source_timestamp_invalid');
-    date(timestamp[1]);
-    const instant = new Date(source.soldAt);
-    if (!Number.isFinite(instant.getTime())) fail('payroll_source_timestamp_invalid');
-    const parts = Object.fromEntries(formatter.formatToParts(instant).map((part) => [part.type, part.value]));
-    if (`${parts.year}-${parts.month}-${parts.day}` !== localDate) fail('payroll_source_local_date_mismatch');
+    const instant = timestampInstant(source.soldAt);
+    let sourceRecognition;
+    const recognitionFields = ['recognizedAt', 'recognizedLocalDate', 'timezoneSnapshot'];
+    if (recognitionFields.some(key => Object.hasOwn(source, key))) {
+      if (recognitionFields.some(key => !Object.hasOwn(source, key) || typeof source[key] !== 'string' || !source[key])) {
+        fail('payroll_source_recognition_context_required');
+      }
+      if (source.timezoneSnapshot !== source.timezoneSnapshot.trim()) fail('payroll_source_timezone_invalid');
+      let recognitionFormatter;
+      try { recognitionFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: source.timezoneSnapshot,
+        year: 'numeric', month: '2-digit', day: '2-digit' }); }
+      catch (_) { fail('payroll_source_timezone_invalid'); }
+      const recognized = timestampInstant(source.recognizedAt);
+      if (date(source.recognizedLocalDate) !== localDate || localDateAt(recognitionFormatter, recognized) !== localDate) {
+        fail('payroll_source_recognition_date_mismatch');
+      }
+      // Preserve the immutable event instant (including sub-millisecond precision).
+      // Source authority is verified by the server adapter, not this pure mapper.
+      sourceRecognition = { recognizedAt: source.recognizedAt, recognizedLocalDate: source.recognizedLocalDate,
+        timezoneSnapshot: source.timezoneSnapshot };
+    } else if (localDateAt(formatter, instant) !== localDate) fail('payroll_source_local_date_mismatch');
     const gross = money(source.grossCents), discount = money(source.discountCents), refund = money(source.refundCents), net = money(source.commissionBaseCents);
     if (BigInt(gross) !== BigInt(discount) + BigInt(refund) + BigInt(net)) fail('payroll_source_net_reconciliation_failed');
-    sourceById.set(id, { id, orderId, orderItemId, employeeId, menuItemId, localDate, soldAt: instant.toISOString(),
+    sourceById.set(id, { id, orderId, orderItemId, employeeId, menuItemId, localDate,
+      soldAt: sourceRecognition ? source.soldAt : instant.toISOString(),
       employeeName: employeeById.get(employeeId).name, menuItemName: text(source.menuItemName, 160), roleId: text(source.roleId, 80), department: departmentKey(source.department),
       quantity: quantity(source.quantity), grossCents: gross, discountCents: discount, refundCents: refund, commissionBaseCents: net,
       turnoverCents: money(source.turnoverCents), grossAmount: decimal(gross), discountAmount: decimal(discount), refundAmount: decimal(refund), commissionBaseNet: decimal(net),
+      ...(sourceRecognition ? { sourceRecognition } : {}),
       costSnapshot: source.costSnapshot === undefined ? undefined : structuredClone(source.costSnapshot) });
   }
   const seenDates = new Set(), calculatedLines = new Set();

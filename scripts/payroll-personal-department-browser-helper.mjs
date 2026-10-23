@@ -155,13 +155,55 @@ export async function runDepartmentBrowserQa({ base, password, users, venue, db,
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflow ${width}`);
       if (width === 375) { await card('cap.department').scrollIntoViewIfNeeded(); await capture('department-configuration-375'); }
     }
-    await page.setViewportSize({ width: 1440, height: 1000 }); await workspace('list');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    // Exercise the actual modal and editor, including typing during a delayed GET.
+    await workspace('configuration');
+    const definitionField = page.locator('[data-scheme-definition]');
+    await reveal(definitionField);
+    const savedDefinition = await definitionField.inputValue();
+    const unsavedDefinition = `${savedDefinition}\n `;
+    await definitionField.fill(unsavedDefinition);
+    await workspace('list'); await workspace('configuration');
+    assert.equal(await definitionField.inputValue(), unsavedDefinition, 'Workspace navigation retains the draft');
+    const discardDialog = page.getByRole('dialog').filter({ hasText: 'Есть несохранённые изменения' });
+    await page.locator('[data-scheme-new]').click();
+    await discardDialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+    assert.equal(await definitionField.inputValue(), unsavedDefinition, 'Declining replacement preserves the draft');
+    await page.locator('[data-scheme-new]').click();
+    await discardDialog.getByRole('button', { name: 'Открыть другой вариант', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[data-scheme-name]')?.disabled === false);
+    assert.equal(await page.locator('[data-scheme-name]').inputValue(), '', 'Accepting replacement opens the new scheme');
+    await page.locator('[data-scheme-editor-cancel]').click();
+    await reopen();
+    await workspace('list');
+    let releaseLoad, markLoadStarted;
+    const loadHeld = new Promise(resolve => { releaseLoad = resolve; });
+    const loadStarted = new Promise(resolve => { markLoadStarted = resolve; });
+    const delayVersion = async route => {
+      const response = await route.fetch();
+      markLoadStarted();
+      await loadHeld;
+      await route.fulfill({ response });
+    };
+    await page.route(`${base}${endpoint}`, delayVersion);
+    await page.locator(`[data-scheme-open-version="${versionId}"]`).click();
+    await loadStarted;
+    await workspace('configuration'); await reveal(definitionField);
+    const lateEdit = `${await definitionField.inputValue()}\n  `;
+    await definitionField.fill(lateEdit);
+    releaseLoad();
+    await discardDialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+    assert.equal(await definitionField.inputValue(), lateEdit, 'Declining a late response preserves edits made during loading');
+    await page.unroute(`${base}${endpoint}`, delayVersion);
+    await page.locator('[data-scheme-editor-cancel]').click();
+    await reopen();
+    await workspace('list');
     const activation = responseFor(`${endpoint}/activate`, 'POST'); await page.locator(`[data-scheme-activate="${versionId}"]`).click(); assert.equal((await activation).status(), 200);
     await reopen(); await page.waitForFunction(() => document.querySelector('[data-scheme-grid-fieldset]')?.disabled === true);
     assert.equal(await card('cap.department').locator('[data-grid-override-value]').isDisabled(), true);
     assert.equal(await page.locator('[data-scheme-definition]').evaluate(n => n.readOnly), true); await verify(null, 'hookah');
     assert.deepEqual(errors.filter(e => !e.includes('ViewTransition opt-in disabled')), []);
-    return { status: 'PASS', versionId, screenshots, errors, assertions: ['Named employee/department custom selects; three cap.department -> perShiftCents -> cap.department cycles without orphan/nested UI, saved and reloaded from HTTP/PG', 'Inherit action refreshes both visible custom-select labels; restoring personal department refreshes both labels and saves exact values before inherit/reload', 'UI save/HTTP/PG/reload; exact cap priority 30 -> fallback 90 -> role 30 -> restored explicit 90 rubles; independent inherit/date fields', 'Four narrow widths without page horizontal overflow; active configuration readonly; scenario-only; screenshots show viewport and numeric proof is API plus DOM'] };
+    return { status: 'PASS', versionId, screenshots, errors, assertions: ["Named employee/department custom selects; three cap.department -> perShiftCents -> cap.department cycles without orphan/nested UI, saved and reloaded from HTTP/PG","Inherit action refreshes both visible custom-select labels; restoring personal department refreshes both labels and saves exact values before inherit/reload","UI save/HTTP/PG/reload; exact cap priority 30 -> fallback 90 -> role 30 -> restored explicit 90 rubles; independent inherit/date fields","Four narrow widths without page horizontal overflow; active configuration readonly; scenario-only; screenshots show viewport and numeric proof is API plus DOM","Dirty draft survives workspace navigation and declined modal; accepted modal opens a new scheme; edits made during delayed GET survive declined replacement"] };
   } catch (error) {
     const messages = await page.locator('[data-scheme-message],[data-scheme-grid-message]').allTextContents().catch(() => []);
     const invalid = await page.locator('[data-scheme-editor] :invalid').evaluateAll(nodes => nodes.map(node => ({ field: node.getAttribute('data-grid-path') || node.name || node.tagName, message: node.validationMessage }))).catch(() => []);

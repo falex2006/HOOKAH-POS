@@ -202,6 +202,8 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     await runSql(path.join('migrations', '081_payroll_run_metadata.sql'));
     await runSql(path.join('migrations', '082_payroll_attendance_approvals.sql'));
     await runSql(path.join('migrations', '082_payroll_attendance_approvals.sql'));
+    for (const name of ['101_staff_schedule_grants.sql', '102_staff_schedule_versions.sql', '103_staff_schedule_planning.sql', '104_staff_schedule_foundation.sql',
+      '191_payroll_attendance_function_context.sql', '191_payroll_attendance_function_context.sql']) await runSql(path.join('migrations', name));
     assert.deepEqual((await client.query('SELECT venue_timezone,currency FROM payroll_calculation_runs WHERE venue_id=$1 AND id=$2', [venueA, legacyRun])).rows[0],
       { venue_timezone: null, currency: null }, 'legacy run metadata stays explicitly unknown without a guessed backfill');
     const venueTimezone = (await client.query('SELECT timezone FROM venues WHERE id=$1', [venueA])).rows[0].timezone;
@@ -605,7 +607,8 @@ if (process.env.PAYROLL_MIGRATION_STATIC_ONLY === '1') {
     assert.equal(blockedServiceRun.source_coverage, 'unknown');
     assert.equal(blockedServiceRun.commission_basis, 'unknown');
     assert.equal(blockedServiceRun.input_checksum, null);
-    assert.match(blockedServiceRun.blocked_reason, /official_payroll_sources_unavailable/);
+    assert.equal(blockedServiceRun.blocked_reason,
+      'official_payroll_sources_unavailable: A complete, authoritative payroll source bundle for this period is not yet verified; candidate previews are not official payroll inputs.');
     assert.equal(blockedServiceRun.created_by, ownerA, 'blocked run audit actor comes from the authenticated venue owner');
     assert.ok(blockedServiceRun.venue_timezone && blockedServiceRun.currency === 'RUB', 'new blocked run snapshots source timezone and version currency');
     const retriedBlockedServiceRun = await runService.createBlockedRun(principalA, blockedRequest);

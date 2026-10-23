@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 const { createHash, randomUUID } = require('node:crypto');
 const { ScheduleError, normalize, range, version, localDate, UUID } = require('./staff-schedule-domain');
 const { resolveAccess } = require('./staff-schedule-access');
@@ -335,7 +336,8 @@ async function handle(pool,p,resource,id,action,method,input={}) {
   const fingerprint=hash({planning:1,resource,id:id||null,action:action||null,method,input});
   const db=await pool.connect();
   try {
-    await db.query('BEGIN');
+    if (mutation) await beginPayrollSourceProducerTransaction(db, p.venueId);
+    else await db.query('BEGIN');
     // Same lock order as live schedule.save/copy: venue, then actor, then entity.
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`schedule:${p.venueId}`]);
     const access=await resolveAccess(db,p,true);

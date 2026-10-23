@@ -1,5 +1,24 @@
 # Миграция PostgreSQL
 
+## Payroll provenance194 — локально, 2026-10-20
+
+`194_payroll_run_provenance.sql` добавляет неизменяемую запись доказательств расчёта. Она обязательна только для новых ready-run с точным `engine_version=payroll-verified-no-refund-v1`; старые ready/blocked записи не переписываются. Проверяются SHA256 сохранённых JSON-байтов, соответствие площадке/версии/периоду/валюте, закрытие периода и итоговая сумма дневных снимков. Запрет UPDATE/DELETE/TRUNCATE сохраняет доказательства.
+
+Номер192 отклонён после обнаружения коллизии. На диске лояльности заняты192/193/195;194 объявлен payroll в MASTER и чате лояльности. Перед общей интеграцией требуется сверка объединённой цепочки. Guarded payroll-run-provenance-postgres-qa PASS на текущей реальной цепочке этой ветки, включая повтор миграции, ненулевой итог и отказы при нарушениях. Это не доказывает общий chain с ещё не интегрированной лояльностью и не включает официальный writer/API.
+
+## Текущая нумерация payroll — 2026-10-19
+
+Для устранения пересечения с веткой лояльности локальные, ещё не опубликованные payroll-миграции переименованы без изменения SQL:
+
+| Исторический номер в журналах | Текущее имя |
+| --- | --- |
+| 172 | `188_payroll_employment_eligibility_history.sql` |
+| 173 | `189_payroll_product_department_mapping_revisions.sql` |
+| 174 | `190_payroll_refund_related_order_index.sql` |
+| 175 | `191_payroll_attendance_function_context.sql` |
+
+Диапазон172–186 принадлежит лояльности,187 зарезервирован для общего источника себестоимости. SHA256 каждого SQL до и после переименования совпал. Рабочие базы пользователя не изменялись; исторические записи QA сохраняют прежние номера. Текущие скрипты используют188–191. Проверки этой ветки не подтверждают совместную цепочку до интеграции лояльности172–186 и источника187.
+
 ## График сотрудников — локальная проверка101/102
 
 Сверка schema-only не заменяет строки SQL. Только в двух вновь созданных проверенных disposable БД CHECK повторно разбираются PostgreSQL до стабильного определения, с сохранением комментариев и проверкой неизменности строк; inherited constraints отклоняются проверяющим скриптом. Нормализация этих тестовых схем фиксируется до сравнения дампов; рабочая БД исключена. Из сравнения исключены лишь случайные psql restrict tokens. Заполненные frozen attendance header/shift/interval и состояния sequences также сверяются. Независимый review и прогон21cca012b5d1 — PASS.
@@ -163,3 +182,52 @@ migrations/138_finance_funding_events.sql добавляет tenant-scoped до�
 ## 142 — неденежное распределение договорной оплаты
 
 `migrations/142_finance_payable_offsets.sql` добавляет append-only распределения существующего expense между обязательствами, функции доступной доли оплаты и итогового погашения, проверки цепочек/сторно и единый порядок блокировок. Денежный возврат ограничен долей на первоначальном обязательстве; оплата и отмена учитывают распределения. В fresh schema включён точный блок миграции. Guarded PostgreSQL replay и конкурентные сценарии прошли. API/UI зачётов и подключение всех отчётов пока не завершены; это не готовый пользовательский релиз.
+
+## 201 — журнал проверки зарплаты после возвратов
+
+`201_payroll_refund_review_proposals.sql` зарезервирована чатом ЛОЯЛЬНОСТЬ за payroll-source-integration 2026-10-23 после проверки локальных worktree. Она добавляет только payroll-owned таблицы `payroll_refund_review_cases`, `payroll_refund_review_assessments`, `payroll_refund_review_decisions`, `payroll_refund_review_requests`.
+
+Обращение относится к конкретному сохранённому расчёту (`saved_calculation_unposted`). Оценки и решения неизменяемы; повтор запроса возвращает исходный сохранённый ответ. Новые источники создают новую оценку с сохранением истории. Tenant/run/provenance, идентичность исходных продаж и возвратов, контрольная сумма и сумма числовых эффектов проверяются при записи. Подтверждение отсутствия влияния допустимо только при доказанном нуле. Нет backfill, начислений, удержаний, выплат и изменений POS/loyalty-реестров.
+
+Совместимость: сначала миграция, затем приложение. Старое приложение игнорирует новые таблицы. При откате приложения журнал следует сохранить; удаление таблиц не является процедурой отката. Повторное применение использует IF NOT EXISTS и заменяет только собственные функции/триггеры. Общая цепочка интеграции с миграциями лояльности 192, 193, 195–200 отдельно проверяется в MASTER.
+
+### 202 — saved calculation entry bridge (local, payout disabled)
+
+Adds nullable immutable run/provenance/employee snapshot materialization to payroll_entries and append-only request responses. Preserves legacy component overlaps; mixed legacy/run and run/run draft/approved/paid periods excluded by two GiST constraints. Linked approve/pay blocked in DB; only draft cancellation allowed. Replay checks exclusion/index definitions; invalid active historical periods abort without repair. See docs/requirements/PAYROLL_CALCULATION_ENTRY_BRIDGE.md and WORK_LOG for evidence/remaining gate. Number reserved with loyalty. No source/payments/loyalty ledger mutation.
+
+### 203 — reviewed correction ledger (local prerequisite)
+
+Adds immutable claims, owner batches, apply/waive/release events and exact request responses. Economic claim uniqueness is venue + canonical refund line + employee; original paid entry, expense, saved snapshot and complete assessment are bound at insert. Each partial application consumes source capacity; permanent waiver and exact once-only release are separate events. Target capacity protects sum(min(saved base pay, saved final amount)) and deferred checks reconcile actual entry amount with all active applications. Full cancellation releases every active application, including multiple partial applications and different originals, while preserving the cancelled entry's historical amount.
+
+203 does not enable public monetary operations or weaken202. Real linked original paid entries remain unavailable and draft net updates remain refused until the coherent lifecycle migration. No bypass flags or production fixtures are provided. Isolated PostgreSQL QA uses shadow synthetic source tables to exercise actual203 SQL; it is not authenticated source/payment acceptance. Existing POS/refund/loyalty tables are only referenced.205 is reserved for immutable approval/settlement and expense protection;204 remains reserved for the refund-aware input/provenance capability.
+
+
+## 205 — утверждение, выплата и отмена расчётного начисления
+
+`205_payroll_calculation_entry_lifecycle.sql` зарезервирована с MASTER/ЛОЯЛЬНОСТЬ для payroll. Добавляет неизменяемые переходы и журнал точных повторов, разрешает корректировки203 только в draft и проверяет их полный итог при COMMIT. Approve/pay требуют доказательство текущих источников из новой owner-транзакции. Положительная выплата создаёт один новый расход; `expenses.payroll_calculation_entry_id` назначается только при INSERT, сохраняет tenant-связь и исключает повторное присвоение. Нулевое завершение сохраняет transition без расхода и без счёта. Отмена освобождает все применения203 атомарно, сохраняя историческую сумму отменённого начисления.
+
+Старые немаркированные расходы и legacy-компоненты сохраняют свои правила. Имя выбранной статьи в linked начислении остаётся историческим; активность и тип проверяются при утверждении. Миграция не изменяет POS/payment/loyalty ledgers. Требуется применение перед новым приложением; downgrade приложения не должен удалять историю или возвращать старый generic PATCH для linked начислений. Полная готовность всех режимов и возвратов отдельно подтверждается в PAYROLL_COMPLETION_EVIDENCE.
+
+### 206_payroll_zero_settlement_correction_authority.sql
+
+Adds optional immutable205 settlement reference to203 claims, retaining positive expense authority through an exclusive alternative. A zero source must match paid entry/run/employee/provenance, payment metadata, actual daily gross/fixed and incoming correction total. Claim/batch guards preserve legacy positive v1 and accept explicit zero v2 plans; no monetary record is fabricated. Deploy only with complete payroll205/206 application package and local acceptance. Migration number reserved with LOYALTY;204 remains payroll refund projection.
+
+## 204 — payroll refund-aware v2 provenance (local storage accepted)
+
+Adds schema2/capability employee_attributed_remaining_net_refund_v2 with exact engine payroll-verified-remaining-net-v2, preserving v1 bytes and guards. The new envelope includes a replayable source bundle, full refund evidence, quantities and explicit owner economic policy. Deferred provenance/snapshot sum guards cover both known engines. This migration does not enable v2 entry approval or payment:205 remains v1-only pending lifecycle integration. No destructive rollback or production application is authorized by this note.
+
+Guarded local PG69383/38375 PASS: actual source-backed v2 storage, exact concurrent replay, full-return zero run, rollback after real writes,10 negative/deferred/immutable guards and204 replay twice over populated snapshots. Whole-module acceptance and release remain pending.
+
+## 207 — atomic unpaid v2 run replacement (local private acceptance)
+
+`207_payroll_unpaid_run_supersession.sql` is reserved with MASTER/LOYALTY. It permits proven v2 draft entries, while approval and payment remain refused. An immutable journal binds the old complete employee cohort, cancellation receipts, released incoming corrections and the new run/cohort. Deferred checks reject partial replacement, changed frozen scheme/period, mismatched net/gross/category and missing receipts; one child per original prevents branching. Chained replacement is permitted after subsequent source changes. Historical cancelled amounts remain unchanged.
+
+Guarded PG8064 PASS: two employees including zero, partial and chained full returns, eight actual-write rollback stages, stale intent and exact concurrent/historical retries; no expense. PG35451 additionally passed ten rollback-only storage guards. The draft-only limitation describes207 alone;208 extends the same exact capability through the guarded lifecycle. Public207 browser acceptance is tracked separately.
+
+## 208 — whole-period paid refund corrections (local implementation, full acceptance pending)
+
+Reserved payroll number, separate from Loyalty192. Immutable period assessments and stable per-run/employee claims share the existing correction event journal. First assessed amount is historical audit; each new apply/waive is limited by the current complete assessment and all prior dispositions. Cancellation releases its exact parent application. A locked original run cannot mix legacy line claims with whole-period claims. Exact v2 schema/capability/engine now enters the existing owner/source-proof/receipt-protected approval and settlement path. Unknown capabilities remain closed.
+
+The distinct schema3 policy reviewed_period_variable_pay_only_v1 protects the original net paid amount above fixed pay; zero-net v2 settlement creates no new reduction debt. Legacy206 keeps its original policy. V2 settlement proofs bind exact sorted ledger event IDs and their hash; later outgoing operations do not alter the historical captured set. Timestamp cutoffs are not used. This is an additive local upgrade; retain journals when rolling back the application and never downgrade to a generic linked-entry writer.
+
+PG94909 passed the actual source-backed208 monetary service journey and then found a legacy event-validator variable/alias collision; that SQL defect has been fixed. Final default PG11166 exit0 PASS covers12 rollback-only208 storage guards/replay twice, all7 modes/21 saved runs/14 paid entries, whole-period nonlinear assessments and public207/208 UI→HTTP→DB→reload, Finance once and the unchanged legacy203/205/206 path. No release or deployment is authorized by this note.

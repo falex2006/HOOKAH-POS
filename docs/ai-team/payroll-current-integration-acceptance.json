@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "status": "local_integrated_release_package_accepted",
+  "date": "2026-10-23",
+  "worktree": "C:\\Users\\ADMIN\\.codex\\worktrees\\payroll-local-integration\\HOOKAH CRM 2",
+  "canonicalHead": "8af548c07a084656d27ebc09e3c5f12cde3230d2",
+  "uiHead": "53fd690bccf496a1f5b2140be5e57fbbb05fdb08",
+  "payrollSourceHead": "7a75fe59c58289ef3346bdb7fb553797851d26eb",
+  "uncommitted": true,
+  "publication": false,
+  "deployment": false,
+  "fullOriginalPayrollGoalComplete": false,
+  "checks": {
+    "canonicalPayrollDefault": {
+      "session": 72335,
+      "exitCode": 0,
+      "scope": "before accepted UI integration"
+    },
+    "actualPosMarginSource": {
+      "session": 90948,
+      "exitCode": 0
+    },
+    "integratedPublicV2": {
+      "session": 91584,
+      "exitCode": 0,
+      "scope": "PAYROLL_QA_SCOPE=public_v2, UI HTTP DB reload; no claim full default after UI"
+    },
+    "financeCategoriesBrowser": "PASS",
+    "interfacePreferencesBrowser": "PASS",
+    "sharedHelpBrowser": "PASS",
+    "inventoryDirectoryBrowser": "PASS",
+    "inventoryDeletionRequestsBrowser": "PASS",
+    "staffDirectoryBrowser": "PASS",
+    "codeHealth": "GO; payroll bytes preserved through shared-help merge; source/dist six assets parity; Docker runtime closure complete",
+    "localDesign": "PASS",
+    "payrollSchemeUi": "PASS",
+    "finalIntegratedDefault": {
+      "session": 78201,
+      "exitCode": 0,
+      "scope": "default complete suite on canonical + payroll + five accepted UI commits + comparison v2; later test-only foreign-tenant scenario pending11225",
+      "evidence": "docs/ai-team/payroll-integration-final-default-78201.log"
+    },
+    "comparisonIsolation": {
+      "session": 11225,
+      "exitCode": 0,
+      "evidence": "docs/ai-team/payroll-comparison-isolation-11225.log",
+      "coverage": "actual foreign-owner HTTP404 each phase; staff/origin403; own/foreign source and financial row hashes unchanged; seven modes initial/partial/full; mixed legacy optional modes; 21 saved runs and 14 paid entries"
+    },
+    "javascriptSyntax": {
+      "files": 219,
+      "failed": 0
+    },
+    "staticBoundary": "PASS",
+    "clickability": "PASS",
+    "dockerRuntimeClosure": "PASS",
+    "migrationReplayStatic": "PASS",
+    "financeCategoriesUiContract": "PASS"
+  },
+  "knownPriorTestFailure": {
+    "financeCategoriesUiContract": "RESOLVED: extracted renderer now retains nextCursor default and current header structure; original assertions retained, three cases added; full contract PASS and independent code-health GO"
+  },
+  "preserved": {
+    "primaryCheckout": true,
+    "sourceCheckout": true,
+    "uiCheckout": true,
+    "vps": "MASTER and UI owner read-only verification: clean deployed8af; no container diff"
+  },
+  "remaining": [
+    "original requirement-by-requirement acceptance",
+    "substitute employee calendar",
+    "full analytics dashboard",
+    "half-month payout journeys"
+  ],
+  "releaseScope": "Frozen accepted payroll package and all five accepted UI commits; remaining original requirements excluded from this release, full goal incomplete"
+}

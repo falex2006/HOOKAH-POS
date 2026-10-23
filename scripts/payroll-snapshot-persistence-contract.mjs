@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { addProvenance } from './payroll-provenance-storage-fixture.mjs';
 
 const require = createRequire(import.meta.url);
 const { calculatePayrollScheme: calculate } = require('../payroll-schemes.js');
@@ -55,7 +56,7 @@ function fixture(mode = 'stable_percent', milestone = false) {
   return { run, input };
 }
 
-function fakeClient({ failTable, failConstraints = false, transaction = true, missingConstraint = false, namespace = 'public' } = {}) {
+function fakeClient({ failTable, failConstraints = false, transaction = true, missingConstraint = false, namespace = 'public', provenanceSchema = false } = {}) {
   const calls = [], inserted = [], durable = [];
   let savepoint = false;
   return { calls, inserted, durable,
@@ -73,8 +74,9 @@ function fakeClient({ failTable, failConstraints = false, transaction = true, mi
       if (/^\s*ROLLBACK TO\b/i.test(sql)) { assert.ok(savepoint); durable.length = 0; return { rows: [], rowCount: 0 }; }
       if (/^\s*RELEASE\b/i.test(sql)) { assert.ok(savepoint); savepoint = false; return { rows: [], rowCount: 0 }; }
       if (/pg_trigger/.test(sql)) {
-        const names = missingConstraint ? constraints.slice(1) : constraints;
-        return { rows: names.map(name => ({ table_name: name.replace(/_(typed|milestone)_totals$/, ''), constraint_name: name, schema_name: namespace })), rowCount: names.length };
+        const available = provenanceSchema ? [...constraints, ...['payroll_calculation_runs', 'payroll_run_provenance', 'payroll_daily_snapshots'].map(t => `${t}_provenance_commit`)] : constraints;
+        const names = missingConstraint ? available.slice(1) : available;
+        return { rows: names.map(name => ({ table_name: name.replace(/_(typed|milestone)_totals$|_provenance_commit$/, ''), constraint_name: name, schema_name: namespace })), rowCount: names.length };
       }
       if (/SET\s+CONSTRAINTS/i.test(sql)) {
         for (const name of constraints) assert.ok(sql.includes(`"${namespace.replaceAll('"', '""')}"."${name}"`), `resolved schema-qualified constraint ${name}`);
@@ -84,7 +86,7 @@ function fakeClient({ failTable, failConstraints = false, transaction = true, mi
       const match = sql.match(/^\s*INSERT\s+INTO\s+(?:"?[a-z_]+"?\.)?"?([a-z_]+)"?\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
       assert.ok(match, `unexpected SQL: ${sql}`);
       assert.ok(savepoint, 'all writes enclosed in savepoint');
-      const table = match[1]; assert.ok(tables.includes(table), table);
+      const table = match[1]; assert.ok(tables.includes(table) || table === 'payroll_run_provenance', table);
       const columns = match[2].split(',').map(s => s.trim().replaceAll('"', ''));
       assert.equal(new Set(columns).size, columns.length);
       assert.equal(columns.length, values.length);
@@ -138,6 +140,30 @@ for (const [mode, milestone] of [...modes.map(mode => [mode, false]), ['stable_p
   const data = fixture(mode, milestone), before = structuredClone(data), db = fakeClient();
   await persist(db, data); checkStored(db, data, mode, milestone);
   assert.deepEqual(data, before, 'writer must not mutate supplied evidence/header');
+}
+{
+  const bundle = addProvenance(fixture()), db = fakeClient({ provenanceSchema: true });
+  await persist(db, bundle);
+  assert.deepEqual(db.durable.slice(0, 2).map(row => row.table), ['payroll_calculation_runs', 'payroll_run_provenance']);
+  assert.equal(db.durable[1].row.evidence_payload, bundle.provenance.evidence_payload);
+  for (const failTable of ['payroll_run_provenance', 'payroll_daily_snapshots', 'payroll_daily_snapshot_lines']) {
+    const failed = fakeClient({ provenanceSchema: true, failTable });
+    await assert.rejects(() => persist(failed, bundle), error => error.code === 'XX001');
+    assert.equal(failed.durable.length, 0, 'header and evidence rollback together with snapshots');
+  }
+  for (const [mutate, code] of [
+    [b => delete b.provenance, 'provenance_required'],
+    [b => b.provenance.evidence_payload += ' ', 'provenance_checksum_mismatch'],
+    [b => b.input.employees[0].name = 'Changed label', 'provenance_snapshot_mismatch'],
+    [b => b.run.engine_version = 'synthetic-qa', 'provenance_engine_mismatch']
+  ]) {
+    const broken = structuredClone(bundle); mutate(broken);
+    await assert.rejects(() => persist(fakeClient({ provenanceSchema: true }), broken),
+      error => error.code === `payroll_snapshot_persistence_${code}`);
+  }
+  const absent = fakeClient();
+  await assert.rejects(() => persist(absent, bundle), error => error.code === 'payroll_snapshot_persistence_schema_required');
+  assert.equal(absent.inserted.length, 0);
 }
 for (const reason of [null, 'abc', 'x'.repeat(1000)]) {
   const data = fixture(), db = fakeClient(); data.run.supersedes_run_id = null; data.run.recalculation_reason = reason;

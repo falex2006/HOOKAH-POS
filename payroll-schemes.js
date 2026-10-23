@@ -5,6 +5,8 @@
 
 const { calculateTargetIncentive, allocateIncentiveFund } = require('./payroll-incentive-math');
 const MODES = new Set(['progressive_daily', 'stable_percent', 'percent_only', 'final_month_threshold', 'personal_target', 'team_fund', 'margin_target']);
+const CALCULATOR_INPUT_CAPABILITIES = Object.freeze({ signedRefundAdjustments: false, fullEmployeeNetRevenue: false,
+  historicalEmploymentIntervals: true, explicitNoRefundEmployeeNetRevenue: true });
 const MILESTONE_ELIGIBILITY = new Set(['all_active', 'worked_on_threshold_day']);
 const marginParameterErrors = (params) => [...targetParameterErrors(params),
   ...(params.lossPolicy === 'offset_daily_losses' ? [] : ['invalid_margin_loss_policy']),
@@ -39,6 +41,19 @@ const isDate = (value) => {
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
+const employeeActiveIntervals = (employee, periodFrom, periodTo) => {
+  if (Array.isArray(employee?.activeIntervals)) {
+    if (employee.activeIntervals.some(interval => !interval || !isDate(interval.from) || !isDate(interval.to) || interval.from > interval.to)) return [];
+    return employee.activeIntervals.map(interval => ({ from: interval.from > periodFrom ? interval.from : periodFrom,
+      to: interval.to < periodTo ? interval.to : periodTo })).filter(interval => interval.from <= interval.to);
+  }
+  const from = employee?.activeFrom && employee.activeFrom > periodFrom ? employee.activeFrom : periodFrom;
+  const to = employee?.activeTo && employee.activeTo < periodTo ? employee.activeTo : periodTo;
+  return from <= to ? [{ from, to }] : [];
+};
+const employeeActiveOn = (employee, date) => Array.isArray(employee?.activeIntervals)
+  ? employee.activeIntervals.some(interval => interval && isDate(interval.from) && isDate(interval.to) && interval.from <= date && interval.to >= date)
+  : (!(employee?.activeFrom && date < employee.activeFrom) && !(employee?.activeTo && date > employee.activeTo));
 const monthStartOf = (date) => `${date.slice(0, 7)}-01`;
 const daysInMonth = (date) => {
   const lastDay = new Date(0);
@@ -294,6 +309,35 @@ const itemRuleFor = (rules, line, employeeId, roleId) => {
 };
 const addToMap = (map, key, amount) => map.set(key, (map.get(key) || 0n) + amount);
 
+const payrollSchemeRequiresAttendance = (scheme, input) => {
+  const overlapsPeriod = row => Boolean(row && typeof row === 'object' && !Array.isArray(row)
+    && (!row.effectiveTo || row.effectiveTo >= input.periodFrom)
+    && (!row.effectiveFrom || row.effectiveFrom <= input.periodTo));
+  const assignments = Array.isArray(input?.roleAssignments) ? input.roleAssignments : [];
+  const activeRoleIds = new Set(assignments.filter(overlapsPeriod).map(row => row.roleId));
+  const roleParameters = assignments.length
+    ? Object.entries(scheme?.roleParameters || {}).filter(([roleId]) => activeRoleIds.has(roleId)).map(([, value]) => value)
+    : Object.values(scheme?.roleParameters || {});
+  const overrides = (Array.isArray(scheme?.employeeOverrides) ? scheme.employeeOverrides : []).filter(overlapsPeriod);
+  const modes = new Set([scheme?.mode, ...roleParameters.map(row => row?.mode).filter(Boolean),
+    ...overrides.filter(row => row?.mode === 'override' && row.path === 'mode').map(row => row.value)]);
+  if ([...modes].some(mode => mode !== 'percent_only')) return true;
+  const hasBonuses = roleParameters.some(row => row?.milestoneBonusesCents && typeof row.milestoneBonusesCents === 'object'
+    && Object.values(row.milestoneBonusesCents).some(value => Number.isSafeInteger(value) && value > 0))
+    || overrides.some(row => row?.mode === 'override' && /^milestoneBonusesCents\.\d+$/.test(row.path || '')
+      && Number.isSafeInteger(row.value) && row.value > 0);
+  const hasEnablement = scheme?.applyMilestones === true
+    || roleParameters.some(row => row?.applyMilestones === true
+      || (row?.applyMilestones === undefined && modes.has('progressive_daily')))
+    || overrides.some(row => row?.mode === 'override' && row.path === 'applyMilestones' && row.value === true)
+    || overrides.some(row => row?.mode === 'override' && row.path === 'mode' && row.value === 'progressive_daily');
+  const workedDayEligibility = scheme?.milestoneEligibility === 'worked_on_threshold_day'
+    || roleParameters.some(row => row?.milestoneEligibility === 'worked_on_threshold_day')
+    || overrides.some(row => row?.mode === 'override' && row.path === 'milestoneEligibility'
+      && row.value === 'worked_on_threshold_day');
+  return hasBonuses && hasEnablement && workedDayEligibility;
+};
+
 const calculatePayrollScheme = (input) => {
   const blockers = [];
   const criticalErrors = [];
@@ -304,15 +348,16 @@ const calculatePayrollScheme = (input) => {
   const monthStart = isDate(input?.periodFrom) ? monthStartOf(input.periodFrom) : '';
   const monthEnd = isDate(input?.periodFrom) ? monthEndOf(input.periodFrom) : '';
   const coverage = input?.coverage;
+  const attendanceRequired = payrollSchemeRequiresAttendance(scheme, input);
   if (!coverage || !['month_to_date_complete', 'month_closed_complete'].includes(coverage.kind) || coverage.from !== monthStart || !isDate(coverage.through) || coverage.complete !== true || typeof coverage.watermark !== 'string' || !coverage.watermark.trim()) blockers.push('sales_coverage_manifest_required');
   if (coverage && isDate(coverage.through) && coverage.through < input?.periodTo) blockers.push('sales_coverage_does_not_cover_period');
   if (coverage?.kind === 'month_to_date_complete' && coverage.through !== input?.periodTo) blockers.push('month_to_date_coverage_boundary_mismatch');
   if (coverage?.kind === 'month_closed_complete' && (input?.monthClosed !== true || coverage.through !== monthEnd)) blockers.push('closed_month_mismatch');
   const attendanceCoverage = input?.attendanceCoverage;
-  if (!attendanceCoverage || attendanceCoverage.kind !== 'approved_attendance_complete'
+  if (attendanceRequired && (!attendanceCoverage || attendanceCoverage.kind !== 'approved_attendance_complete'
       || attendanceCoverage.from !== monthStart || !isDate(attendanceCoverage.through)
       || attendanceCoverage.through < input?.periodTo || attendanceCoverage.complete !== true
-      || typeof attendanceCoverage.watermark !== 'string' || !attendanceCoverage.watermark.trim()) blockers.push('attendance_coverage_manifest_required');
+      || typeof attendanceCoverage.watermark !== 'string' || !attendanceCoverage.watermark.trim())) blockers.push('attendance_coverage_manifest_required');
   if (scheme?.mode === 'final_month_threshold' && (coverage?.kind !== 'month_closed_complete' || input?.monthClosed !== true)) blockers.push('closed_month_required');
   const venueTurnoverByDate = new Map();
   if (hasVenueDailyTurnover) {
@@ -341,12 +386,22 @@ const calculatePayrollScheme = (input) => {
     }
     if (invalidVenueTurnoverManifest) blockers.push('invalid_venue_daily_turnover_manifest');
   }
-  if (!Array.isArray(input?.employees) || !Array.isArray(input?.roleAssignments) || !Array.isArray(input?.sales) || !Array.isArray(input?.attendance)) blockers.push('input_collections_required');
+  if (!Array.isArray(input?.employees) || !Array.isArray(input?.roleAssignments) || !Array.isArray(input?.sales)
+      || (attendanceRequired && !Array.isArray(input?.attendance))) blockers.push('input_collections_required');
   const employees = Array.isArray(input?.employees) ? input.employees.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : [];
   if (Array.isArray(input?.employees) && employees.length !== input.employees.length) blockers.push('invalid_employee');
   const employeeIds = new Set(employees.map((item) => item?.id).filter(Boolean));
   if (employeeIds.size !== employees.length) blockers.push('duplicate_employee_id');
-  for (const employee of employees) if (!employee?.id || (employee.activeFrom && !isDate(employee.activeFrom)) || (employee.activeTo && !isDate(employee.activeTo)) || (employee.activeFrom && employee.activeTo && employee.activeTo < employee.activeFrom)) blockers.push('invalid_employee');
+  for (const employee of employees) {
+    const intervals = employee?.activeIntervals;
+    const intervalInvalid = intervals !== undefined && (!Array.isArray(intervals) || intervals.some((interval, index) => !interval
+      || !isDate(interval.from) || !isDate(interval.to) || interval.from > interval.to
+      || (index > 0 && intervals[index - 1].to >= interval.from)));
+    if (!employee?.id || (employee.activeFrom && !isDate(employee.activeFrom)) || (employee.activeTo && !isDate(employee.activeTo))
+        || (employee.activeFrom && employee.activeTo && employee.activeTo < employee.activeFrom) || intervalInvalid
+        || (intervals !== undefined && (employee.activeFrom !== undefined || employee.activeTo !== undefined))
+        || (input?.employmentEligibilityRevisionId && intervals === undefined)) blockers.push('invalid_employee');
+  }
   const attendanceByDay = new Map();
   const attendanceIds = new Set();
   for (const row of Array.isArray(input?.attendance) ? input.attendance : []) {
@@ -359,7 +414,7 @@ const calculatePayrollScheme = (input) => {
     attendanceIds.add(row.id);
     if (row.date < input?.periodFrom || row.date > input?.periodTo) continue;
     const employee = employees.find((item) => item.id === row.employeeId);
-    if ((employee?.activeFrom && row.date < employee.activeFrom) || (employee?.activeTo && row.date > employee.activeTo)) {
+    if (!employeeActiveOn(employee, row.date)) {
       blockers.push('attendance_outside_employee_active_period');
       continue;
     }
@@ -417,16 +472,17 @@ const calculatePayrollScheme = (input) => {
     const rows = assignments.filter((item) => item.employeeId === employeeId).slice().sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
     for (let index = 1; index < rows.length; index += 1) if (!rows[index - 1].effectiveTo || rows[index].effectiveFrom <= rows[index - 1].effectiveTo) blockers.push('overlapping_role_assignments');
     const employee = employees.find((item) => item.id === employeeId);
-    const activeFrom = employee?.activeFrom && employee.activeFrom > input?.periodFrom ? employee.activeFrom : input?.periodFrom;
-    const activeTo = employee?.activeTo && employee.activeTo < input?.periodTo ? employee.activeTo : input?.periodTo;
-    for (let dayOffset = 0, dayCount = inclusiveDateCount(activeFrom, activeTo); dayOffset < dayCount; dayOffset += 1) {
-      if (!resolveRoleAt(assignments, employeeId, addDays(activeFrom, dayOffset))) blockers.push('role_assignment_gap');
+    for (const interval of employeeActiveIntervals(employee, input?.periodFrom, input?.periodTo)) {
+      for (let dayOffset = 0, dayCount = inclusiveDateCount(interval.from, interval.to); dayOffset < dayCount; dayOffset += 1) {
+        if (!resolveRoleAt(assignments, employeeId, addDays(interval.from, dayOffset))) blockers.push('role_assignment_gap');
+      }
     }
   }
   const effectiveModes = new Set([scheme?.mode].filter(Boolean));
   if (isDate(input?.periodFrom) && isDate(input?.periodTo) && Array.isArray(input?.employees)) {
     for (let dayOffset = 0, dayCount = inclusiveDateCount(input.periodFrom, input.periodTo); dayOffset < dayCount; dayOffset += 1) for (const employee of employees) {
       const date = addDays(input.periodFrom, dayOffset);
+      if (!employeeActiveOn(employee, date)) continue;
       const roleId = resolveRoleAt(assignments, employee.id, date);
       if (!roleId) continue;
       const params = resolveRoleParameters(scheme || {}, employee.id, roleId, date);
@@ -439,7 +495,7 @@ const calculatePayrollScheme = (input) => {
       const date = addDays(input.periodFrom, offset);
       const pools = new Map();
       for (const employee of employees) {
-        if ((employee.activeFrom && date < employee.activeFrom) || (employee.activeTo && date > employee.activeTo)) continue;
+        if (!employeeActiveOn(employee, date)) continue;
         const params = resolveRoleParameters(scheme || {}, employee.id, resolveRoleAt(assignments, employee.id, date), date);
         if (params?.mode === 'team_fund' && (typeof employee.id !== 'string' || !employee.id.trim())) blockers.push('invalid_team_employee_id');
         if (params?.mode !== 'team_fund' || teamParameterErrors(params).length) continue;
@@ -476,7 +532,39 @@ const calculatePayrollScheme = (input) => {
       }
       if (['personal_target', 'team_fund', 'margin_target'].includes(resolvedMode)
           && (typeof line.id !== 'string' || !line.id.trim())) blockers.push('invalid_target_sales_line_id');
-      if ((employee?.activeFrom && line.date < employee.activeFrom) || (employee?.activeTo && line.date > employee.activeTo)) blockers.push('sales_outside_employee_active_period');
+      if (!employeeActiveOn(employee, line.date)) blockers.push('sales_outside_employee_active_period');
+    }
+  }
+  const hasPersonalRevenueSource = own(input || {}, 'personalRevenueSource');
+  const explicitRevenueByDay = new Map();
+  if (hasPersonalRevenueSource) {
+    const source = input.personalRevenueSource;
+    if (!source || (source.status !== undefined && source.status !== 'available') || source.schemaVersion !== 1 || source.policyCode !== 'employee_attributed_merchandise_net_v1'
+        || source.currency !== (scheme.currency || 'RUB') || source.period?.from !== input.periodFrom
+        || source.period?.to !== input.periodTo || !isDate(source.period?.from) || !isDate(source.period?.to)
+        || !/^[a-f0-9]{64}$/.test(source.sourceWatermark || '') || source.coverage?.complete !== true
+        || !Array.isArray(source.daily)) blockers.push('personal_revenue_source_invalid');
+    else {
+      for (const row of source.daily) {
+        const employee = employees.find(item => item.id === row?.employeeId);
+        const key = JSON.stringify([row?.employeeId, row?.date]);
+        if (!employee || !isDate(row?.date) || row.date < input.periodFrom || row.date > input.periodTo
+            || !employeeActiveOn(employee, row.date) || !isNonNegativeInteger(row.netRevenueCents)
+            || explicitRevenueByDay.has(key)) {
+          blockers.push('personal_revenue_source_row_invalid'); continue;
+        }
+        explicitRevenueByDay.set(key, BigInt(row.netRevenueCents));
+      }
+      const observed = new Map();
+      for (const line of sales) {
+        if (!line?.employeeId || !isDate(line.date) || line.date < input.periodFrom || line.date > input.periodTo
+            || !isNonNegativeInteger(line.turnoverCents)) continue;
+        const key = JSON.stringify([line.employeeId, line.date]);
+        observed.set(key, (observed.get(key) || 0n) + BigInt(line.turnoverCents));
+      }
+      for (const key of new Set([...observed.keys(), ...explicitRevenueByDay.keys()])) {
+        if ((observed.get(key) || 0n) !== (explicitRevenueByDay.get(key) || 0n)) blockers.push('personal_revenue_source_sales_mismatch');
+      }
     }
   }
   if (blockers.length) return { status: 'blocked', mode: scheme?.mode || null, periodFrom: input?.periodFrom || null, periodTo: input?.periodTo || null,
@@ -516,7 +604,7 @@ const calculatePayrollScheme = (input) => {
     const perEmployee = new Map();
     const ensureDayEmployee = (employeeId, roleId) => {
       const key = employeeId;
-      if (!perEmployee.has(key)) perEmployee.set(key, { employeeId, roleId, shifts: 0, shiftDetails: [], personalRevenueCents: 0n, basePayCents: 0n, commissionCents: 0n, teamFundCents: 0n, milestoneBonusCents: 0n, amountBeforeCapCents: 0n, capCents: null, capReductionCents: 0n, amountCents: 0n, departmentSalesCents: new Map(), departmentTurnoverCents: new Map() });
+      if (!perEmployee.has(key)) perEmployee.set(key, { employeeId, roleId, shifts: 0, shiftDetails: [], personalRevenueCents: hasPersonalRevenueSource ? (explicitRevenueByDay.get(JSON.stringify([employeeId, date])) || 0n) : 0n, basePayCents: 0n, commissionCents: 0n, teamFundCents: 0n, milestoneBonusCents: 0n, amountBeforeCapCents: 0n, capCents: null, capReductionCents: 0n, amountCents: 0n, departmentSalesCents: new Map(), departmentTurnoverCents: new Map() });
       return perEmployee.get(key);
     };
     for (const line of daySales) {
@@ -527,9 +615,9 @@ const calculatePayrollScheme = (input) => {
       const effectiveMode = params.mode || scheme.mode;
       const employeeDay = ensureDayEmployee(line.employeeId, roleId);
       employeeDay.mode = effectiveMode;
-      // Scenario-only proxy until upstream guarantees full discount/refund-adjusted
-      // employee revenue. Turnover and commission base have distinct semantics.
-      employeeDay.personalRevenueCents += BigInt(line.turnoverCents);
+      // Manual scenarios retain their line-sum proxy. An explicit source is
+      // independently validated above and supplies the absolute daily ceiling.
+      if (!hasPersonalRevenueSource) employeeDay.personalRevenueCents += BigInt(line.turnoverCents);
       addToMap(employeeDay.departmentSalesCents, line.department, BigInt(line.commissionBaseCents));
       addToMap(employeeDay.departmentTurnoverCents, line.department, BigInt(line.turnoverCents));
       const rateBps = effectiveMode === 'progressive_daily'
@@ -664,7 +752,7 @@ const calculatePayrollScheme = (input) => {
     }
     const dailyPools = new Map();
     for (const employee of employees) {
-      if ((employee.activeFrom && date < employee.activeFrom) || (employee.activeTo && date > employee.activeTo)) continue;
+      if (!employeeActiveOn(employee, date)) continue;
       const roleId = resolveRoleAt(assignments, employee.id, date);
       const params = resolveRoleParameters(scheme, employee.id, roleId, date);
       if (params?.mode !== 'team_fund') continue;
@@ -706,7 +794,7 @@ const calculatePayrollScheme = (input) => {
         const threshold = BigInt(thresholdText);
         if (!(previousTurnover < threshold && monthTurnoverOnDay >= threshold) || Number(bonusCents) === 0) continue;
         const employee = employees.find((item) => item.id === employeeId);
-        const active = !(employee?.activeFrom && date < employee.activeFrom) && !(employee?.activeTo && date > employee.activeTo);
+        const active = employeeActiveOn(employee, date);
         const attendanceRows = (attendanceByDay.get(`${date}|${employeeId}`) || []).filter((row) => row.approved === true && row.workedMinutes > 0);
         const policy = params.milestoneEligibility;
         const eligible = applyMilestones && active && (policy === 'all_active' || attendanceRows.length > 0);
@@ -811,4 +899,5 @@ const calculatePayrollScheme = (input) => {
   };
 };
 
-module.exports = { isDepartmentKey, MODES: [...MODES], calculatePayrollScheme, validateScheme, validatePersonalThresholdAssignments, validatePersonalScalarAssignments };
+module.exports = { isDepartmentKey, MODES: [...MODES], CALCULATOR_INPUT_CAPABILITIES, calculatePayrollScheme, validateScheme,
+  validatePersonalThresholdAssignments, validatePersonalScalarAssignments, resolveRoleParameters, resolveRoleAt, employeeActiveOn };

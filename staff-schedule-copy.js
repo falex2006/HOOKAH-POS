@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 const { createHash, randomUUID } = require('node:crypto');
 const { ScheduleError, UUID, range, normalize, localDate } = require('./staff-schedule-domain');
 const { resolveAccess } = require('./staff-schedule-access');
@@ -63,7 +64,7 @@ async function apply(pool, principal, input) {
   const fingerprint = hash({ copy: input });
   const db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     if (!(await resolveAccess(db, principal, true)).manage) fail('schedule_forbidden', 403);
     const replay = (await db.query('SELECT fingerprint,response FROM staff_schedule_requests WHERE venue_id=$1 AND actor_id=$2 AND request_key=$3', [principal.venueId,principal.userId,input.requestKey])).rows[0];

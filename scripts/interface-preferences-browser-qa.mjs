@@ -60,6 +60,36 @@ try {
   await page.goto(`${base}/admin#settings-dashboard-modules`, { waitUntil: 'networkidle' });
   const settings = page.locator('#settings-dashboard-modules');
   await settings.waitFor({ state: 'visible' });
+  const spacingFolder = fileURLToPath(new URL('../tmp/interface-switch-spacing/', import.meta.url));
+  await mkdir(spacingFolder, { recursive: true });
+  for (const width of [320, 390, 768, 1024, 1366, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const mobileMenu = page.locator('.sidebar-mobile-toggle');
+    if (width <= 800 && await mobileMenu.getAttribute('aria-expanded') === 'true') await mobileMenu.click();
+    const navigation = settings.locator('.navigation-preferences');
+    await navigation.scrollIntoViewIfNeeded();
+    const metrics = await navigation.evaluate(node => {
+      const grid = getComputedStyle(node);
+      return { columns: grid.gridTemplateColumns.split(' ').length, gap: parseFloat(grid.columnGap) || 0, rows: [...node.querySelectorAll(':scope > label')].filter(label => label.getClientRects().length).map(label => {
+        const row = label.getBoundingClientRect(); const text = label.querySelector('span').getBoundingClientRect(); const input = label.querySelector('input').getBoundingClientRect();
+        return { left:row.left,right:row.right,y:row.y,height:row.height,textRight:text.right,inputLeft:input.left,inputRight:input.right };
+      }) };
+    });
+    assert.equal(metrics.columns, width <= 900 ? 1 : 2, `menu columns at ${width}px`);
+    if (width > 900) assert.ok(metrics.gap >= 40, 'clear inter-column separation');
+    for (const row of metrics.rows) {
+      assert.ok(row.inputLeft - row.textRight >= 15, 'text and own switch separated');
+      assert.ok(row.inputRight <= row.right + 1 && row.height >= 44, 'switch inside accessible label');
+      for (const neighbour of metrics.rows.filter(other => Math.abs(other.y - row.y) < 2 && other.left > row.left)) assert.ok(neighbour.left - row.inputRight >= 40, 'left switch cannot merge into right label');
+    }
+    const finance = settings.locator('.settings-dashboard-insights');
+    const financeMetrics = await finance.evaluate(node => ({ columns:getComputedStyle(node).gridTemplateColumns.split(' ').length, gap:parseFloat(getComputedStyle(node).columnGap) || 0 }));
+    assert.equal(financeMetrics.columns, width <= 900 ? 1 : 3, 'finance toggle columns');
+    if (width > 900) assert.ok(financeMetrics.gap >= 40, 'finance column separation');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'no horizontal overflow');
+    await page.screenshot({ path: path.join(spacingFolder, `${width}.png`) });
+  }
+  await page.setViewportSize({ width: 375, height: 800 });
   const changeAndRead = async (locator, checked, key) => {
     const responsePromise = page.waitForResponse((response) => response.url().endsWith('/api/session/preferences') && response.request().method() === 'PATCH' && response.request().postData()?.includes(`"${key}"`));
     await locator.setChecked(checked);

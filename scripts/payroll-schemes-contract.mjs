@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { calculatePayrollScheme, validateScheme } = require('../payroll-schemes.js');
+const { calculatePayrollScheme, validateScheme, CALCULATOR_INPUT_CAPABILITIES } = require('../payroll-schemes.js');
 
 const baseInput = {
   periodFrom: '2026-09-01',
@@ -96,6 +96,80 @@ const incompleteAttendanceCoverage = calculatePayrollScheme({ ...baseInput, atte
 assert.ok(incompleteAttendanceCoverage.blockers.includes('attendance_coverage_manifest_required'));
 const inactiveAttendance = calculatePayrollScheme({ ...baseInput, employees: [{ id: 'a', activeTo: '2026-09-01' }, { id: 'b' }, { id: 'c' }] });
 assert.ok(inactiveAttendance.blockers.includes('attendance_outside_employee_active_period'));
+
+const rehireInput = {
+  ...baseInput,
+  periodFrom: '2026-09-01', periodTo: '2026-09-03',
+  coverage: { ...baseInput.coverage, through: '2026-09-03' },
+  attendanceCoverage: { ...baseInput.attendanceCoverage, through: '2026-09-03' },
+  employees: [{ id: 'a', activeIntervals: [{ from: '2026-09-01', to: '2026-09-01' }, { from: '2026-09-03', to: '2026-09-03' }] }],
+  roleAssignments: [
+    { employeeId: 'a', roleId: 'bartender', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-01' },
+    { employeeId: 'a', roleId: 'bartender', effectiveFrom: '2026-09-03', effectiveTo: '2026-09-03' }
+  ],
+  attendance: [
+    { id: 'rehire-start', employeeId: 'a', date: '2026-09-01', approved: true, workedMinutes: 480, plannedMinutes: 480 },
+    { id: 'rehire-end', employeeId: 'a', date: '2026-09-03', approved: true, workedMinutes: 480, plannedMinutes: 480 }
+  ],
+  sales: [
+    { id: 'rehire-sale-start', date: '2026-09-01', employeeId: 'a', menuItemId: 'x', department: 'bar', turnoverCents: 10000, commissionBaseCents: 10000 },
+    { id: 'rehire-sale-end', date: '2026-09-03', employeeId: 'a', menuItemId: 'x', department: 'bar', turnoverCents: 10000, commissionBaseCents: 10000 }
+  ],
+  scheme: { ...baseInput.scheme, roleParameters: { bartender: { perShiftCents: 1000, bracketRatesBps: { 0: 1000 } } },
+    employeeOverrides: [], itemRules: [], applyMilestones: false }
+};
+const rehireIntervals = calculatePayrollScheme(rehireInput);
+assert.equal(rehireIntervals.status, 'ready', rehireIntervals.blockers.join(','));
+assert.equal(rehireIntervals.daily[0].employees[0].amountCents, 2000, 'rehire interval start is included');
+assert.equal(rehireIntervals.daily[1].employees.length, 0, 'no employee-day is emitted during the employment gap');
+assert.equal(rehireIntervals.daily[2].employees[0].amountCents, 2000, 'rehire interval end is included');
+assert.equal(CALCULATOR_INPUT_CAPABILITIES.historicalEmploymentIntervals, true, 'calculator explicitly supports disjoint historical eligibility intervals');
+const saleDuringEmploymentGap = calculatePayrollScheme({ ...rehireInput, sales: [
+  { id: 'gap-sale', date: '2026-09-02', employeeId: 'a', menuItemId: 'x', department: 'bar', turnoverCents: 100, commissionBaseCents: 100 }
+] });
+assert.ok(saleDuringEmploymentGap.blockers.includes('sales_outside_employee_active_period'), 'a sale in an employment gap is an explicit blocker');
+const attendanceDuringEmploymentGap = calculatePayrollScheme({ ...rehireInput, attendance: [
+  { id: 'gap-shift', employeeId: 'a', date: '2026-09-02', approved: true, workedMinutes: 60, plannedMinutes: 60 }
+] });
+assert.ok(attendanceDuringEmploymentGap.blockers.includes('attendance_outside_employee_active_period'), 'attendance in an employment gap is an explicit blocker');
+const overlappingEmploymentIntervals = calculatePayrollScheme({ ...rehireInput, employees: [{ id: 'a', activeIntervals: [
+  { from: '2026-09-01', to: '2026-09-02' }, { from: '2026-09-02', to: '2026-09-03' }
+] }] });
+assert.ok(overlappingEmploymentIntervals.blockers.includes('invalid_employee'), 'inclusive overlapping intervals are rejected');
+const missingRevisionIntervals = calculatePayrollScheme({ ...rehireInput, employmentEligibilityRevisionId: 'eligibility-v1',
+  employees: [{ id: 'a' }] });
+assert.ok(missingRevisionIntervals.blockers.includes('invalid_employee'), 'a revision-bound employee without explicit intervals is never assumed active all month');
+const commonEligibleModeParams = {
+  perShiftCents: 0, stableRateBps: 0, bracketRatesBps: { 0: 0 }, targetCents: 0, baseRateBps: 0,
+  bonusRateBps: 0, excessRatePolicy: 'replace_base', lossPolicy: 'offset_daily_losses', itemRuleBasis: 'net_revenue', teamWeight: 0,
+  teamFund: { poolId: 'rehire-pool', targetCents: 0, baseRateBps: 0, bonusRateBps: 0,
+    excessRatePolicy: 'replace_base', departments: ['bar'], distributionPolicy: 'configured_weights' }
+};
+for (const mode of ['progressive_daily', 'stable_percent', 'percent_only', 'final_month_threshold', 'personal_target', 'team_fund', 'margin_target']) {
+  const modeParams = { ...commonEligibleModeParams };
+  const result = calculatePayrollScheme({
+    ...baseInput, periodFrom: '2026-10-01', periodTo: '2026-10-31', monthClosed: true,
+    coverage: { kind: 'month_closed_complete', from: '2026-10-01', through: '2026-10-31', complete: true, watermark: `rehire-${mode}` },
+    attendanceCoverage: { kind: 'approved_attendance_complete', from: '2026-10-01', through: '2026-10-31', complete: true, watermark: `attendance-${mode}` },
+    employees: [{ id: 'a', activeIntervals: [{ from: '2026-10-15', to: '2026-10-15' }] }],
+    roleAssignments: [{ employeeId: 'a', roleId: 'rehire', effectiveFrom: '2026-10-15', effectiveTo: '2026-10-15' }],
+    attendance: [], sales: [],
+    scheme: { id: `rehire-${mode}`, versionId: `rehire-${mode}-v1`, currency: 'RUB', mode,
+      roleParameters: { rehire: modeParams }, employeeOverrides: [], itemRules: [], applyMilestones: false }
+  });
+  assert.equal(result.status, 'ready', `${mode} respects the sole active interval without requiring role rows on inactive dates: ${result.blockers.join(',')}`);
+}
+const inactiveGapMilestone = calculatePayrollScheme({
+  ...rehireInput, employees: [{ id: 'a', activeIntervals: [{ from: '2026-09-01', to: '2026-09-01' }, { from: '2026-09-03', to: '2026-09-03' }] }],
+  roleAssignments: [{ employeeId: 'a', roleId: 'bartender', effectiveFrom: '2026-09-01', effectiveTo: '2026-09-03' }],
+  attendance: [], sales: [],
+  venueDailyTurnover: [{ date: '2026-09-01', turnoverCents: 0 }, { date: '2026-09-02', turnoverCents: 20000 }, { date: '2026-09-03', turnoverCents: 0 }],
+  scheme: { ...rehireInput.scheme, applyMilestones: true, milestoneCapPolicy: 'included_in_cap',
+    roleParameters: { bartender: { perShiftCents: 0, bracketRatesBps: { 0: 0 }, milestoneBonusesCents: { 20000: 5000 } } }
+  }
+});
+assert.equal(inactiveGapMilestone.status, 'ready', inactiveGapMilestone.blockers.join(','));
+assert.equal(inactiveGapMilestone.daily[1].employees.length, 0, 'inactive employee receives no threshold award when venue turnover crosses in a rehire gap');
 
 const endedEmployee = calculatePayrollScheme({
   ...baseInput,

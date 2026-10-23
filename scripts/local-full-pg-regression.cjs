@@ -10,6 +10,16 @@ const root = path.resolve(__dirname, '..');
 const folder = path.join(root, 'tmp', 'full-local-qa');
 const suites = new Set([
   'network-switch-draft-browser-qa.cjs',
+  'payroll-zero-settlement-correction-postgres-qa.mjs',
+  'payroll-reviewed-correction-ledger-postgres-qa.mjs',
+  'payroll-calculation-entry-lifecycle-postgres-qa.mjs',
+  'payroll-calculation-entry-bridge-postgres-qa.mjs',
+  'payroll-verified-run-postgres-qa.mjs',
+  'payroll-run-provenance-postgres-qa.mjs',
+  'payroll-margin-source-postgres-qa.mjs',
+  'payroll-entry-overlap-preflight-contract.mjs',
+  'payroll-entry-overlap-constraint-postgres-qa.mjs', 'payroll-entry-overlap-real-schema-qa.mjs', 'payroll-source-fence-postgres-qa.mjs',
+  'payroll-approved-attendance-source-contract.mjs', 'payroll-scheme-migration-contract.mjs',
   'cross-tab-autolock-session-expiry-postgres-browser-qa.mjs',
   'cross-tab-lock-logout-postgres-browser-qa.mjs',
   'staff-pin-card-postgres-browser-qa.mjs',
@@ -40,9 +50,12 @@ const suites = new Set([
   'orders-attention-postgres-browser-qa.mjs', 'alcohol-catalog-api-qa.mjs', 'alcohol-catalog-schema-pg-qa.mjs',
   'acceptance-47-pos-journey-postgres-qa.mjs',
   'recipe-sale-manual-movement-race-postgres-qa.mjs',
-  'payroll-sale-credit-source-postgres-contract.mjs',
-  'pos-payroll-recognition-postgres-qa.mjs', 'payroll-snapshot-persistence-postgres-qa.mjs',
+  'payroll-sale-credit-source-postgres-contract.mjs', 'payroll-source-readiness-postgres-contract.mjs', 'payroll-product-department-revisions-contract.mjs', 'payroll-product-department-api-postgres-qa.mjs', 'payroll-scheme-browser-postgres-qa.mjs',
+  'payroll-employment-eligibility-postgres-contract.mjs',
+  'payroll-product-department-migration-contract.mjs',
+  'pos-payroll-recognition-postgres-qa.mjs', 'payroll-snapshot-persistence-postgres-qa.mjs', 'payroll-recognition-manifest-postgres-qa.mjs',
   'payroll-personal-team-weight-postgres-qa.mjs', 'payroll-personal-department-postgres-qa.mjs',
+  'payroll-venue-turnover-source-contract.mjs',
   'acceptance-27-purchase-reversal-postgres-qa.mjs',
   'acceptance-27-purchase-reversal-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs',
   'acceptance-22-purchase-fields-postgres-qa.mjs',
@@ -168,9 +181,13 @@ async function execute(name, env, c, args = [], extraSecrets = []) {
   child.stdout.on('data', chunk => { data += chunk; });
   child.stderr.on('data', chunk => { data += chunk; });
   const timer = setTimeout(() => { timedOut = true; killOwnedChild(child); }, 15 * 60_000);
-  let code;
-  try { code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); }); }
+  let code, signal;
+  try { ({ code, signal } = await new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (code, signal) => resolve({ code, signal }));
+  })); }
   finally { clearTimeout(timer); }
+  if (timedOut || code !== 0) data += `\nRunner exit: ${JSON.stringify({ code, signal, timedOut })}\n`;
   fs.writeFileSync(logPath, safeText(data, c, extraSecrets));
   assert.ok(!timedOut && code === 0, `${name} failed (exit=${code}, timeout=${timedOut}); sanitized details: tmp/full-local-qa/pg-${name}.log`);
   console.log('PASS PostgreSQL ' + name);
@@ -262,6 +279,10 @@ async function runSuite(value) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
+    if (['payroll-margin-source-postgres-qa.mjs', 'payroll-entry-overlap-constraint-postgres-qa.mjs', 'payroll-entry-overlap-real-schema-qa.mjs', 'payroll-source-fence-postgres-qa.mjs'].includes(name)) {
+      env.LOCAL_FULL_PG_OWNED_DATABASE = 'inventory_qa_' + crypto.randomBytes(8).toString('hex');
+      env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
+    }
     if (name === 'recipe-depletion-pg-runtime-qa.mjs') {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'inventory_qa_' + crypto.randomBytes(8).toString('hex');
       env.RECIPE_DEPLETION_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
@@ -294,7 +315,7 @@ async function runSuite(value) {
     }
     if (['acceptance-48-inventory-department-boundaries-postgres-qa.mjs', 'acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs'].includes(name)) env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
     if (['paid-order-balance-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs', 'finance-shift-analytics-postgres-qa.mjs', 'finance-employee-postgres-qa.mjs', 'guest-loyalty-postgres-api-qa.mjs', 'session-preferences-postgres-qa.mjs', 'scoped-role-dependencies-postgres-qa.mjs', 'staff-identity-postgres-qa.mjs', 'staff-login-race-postgres-qa.mjs', 'pos-order-refunds-postgres-qa.mjs', 'pos-role-payment-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'acceptance-48-inventory-department-boundaries-postgres-qa.mjs', 'acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs'].includes(name)) env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE || 'orders_qa_' + crypto.randomBytes(8).toString('hex'));
-    if (['pos-payroll-recognition-postgres-qa.mjs', 'payroll-snapshot-persistence-postgres-qa.mjs'].includes(name)) {
+    if (['payroll-zero-settlement-correction-postgres-qa.mjs', 'payroll-calculation-entry-lifecycle-postgres-qa.mjs', 'payroll-reviewed-correction-ledger-postgres-qa.mjs', 'payroll-calculation-entry-bridge-postgres-qa.mjs', 'payroll-verified-run-postgres-qa.mjs', 'payroll-run-provenance-postgres-qa.mjs', 'pos-payroll-recognition-postgres-qa.mjs', 'payroll-snapshot-persistence-postgres-qa.mjs', 'payroll-recognition-manifest-postgres-qa.mjs', 'payroll-source-readiness-postgres-contract.mjs'].includes(name)) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
@@ -338,7 +359,7 @@ async function runSuite(value) {
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
     if (name === 'inventory-category-tobacco-migration-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('inventory_qa_' + crypto.randomBytes(8).toString('hex'));
-    if (['pos-role-payment-postgres-browser-qa.mjs', 'pos-transfer-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'inventory-receiving-mobile-postgres-browser-qa.mjs', 'inventory-movements-browser-qa.cjs', 'purchase-editor-browser-qa.cjs', 'auto-order-selection-browser-qa.cjs', 'staff-role-dialog-layout-browser-qa.cjs', 'acceptance-47-pos-journey-postgres-browser-qa.mjs', 'acceptance-44-inventory-crossflow-postgres-browser-qa.mjs', 'acceptance-33-purchase-date-order-postgres-browser-qa.mjs', 'acceptance-33-expense-document-postgres-browser-qa.mjs', 'recipe-cost-breakdown-postgres-browser-qa.mjs', 'payables-browser-postgres-qa.mjs', 'finance-navigation-browser-qa.mjs', 'finance-dialog-alignment-browser-qa.cjs', 'closed-shift-floor-browser-qa.mjs'].includes(name)) {
+    if (["pos-role-payment-postgres-browser-qa.mjs", "pos-transfer-postgres-browser-qa.mjs", "floor-management-postgres-browser-qa.mjs", "orders-attention-postgres-browser-qa.mjs", "inventory-receiving-mobile-postgres-browser-qa.mjs", "inventory-movements-browser-qa.cjs", "purchase-editor-browser-qa.cjs", "auto-order-selection-browser-qa.cjs", "staff-role-dialog-layout-browser-qa.cjs", "acceptance-47-pos-journey-postgres-browser-qa.mjs", "acceptance-44-inventory-crossflow-postgres-browser-qa.mjs", "acceptance-33-purchase-date-order-postgres-browser-qa.mjs", "acceptance-33-expense-document-postgres-browser-qa.mjs", "recipe-cost-breakdown-postgres-browser-qa.mjs", "payables-browser-postgres-qa.mjs", "finance-navigation-browser-qa.mjs", "finance-dialog-alignment-browser-qa.cjs", "closed-shift-floor-browser-qa.mjs", "payroll-scheme-browser-postgres-qa.mjs", "payroll-personal-department-postgres-qa.mjs", "payroll-product-department-api-postgres-qa.mjs", "payroll-verified-run-postgres-qa.mjs"].includes(name)) {
       const candidates = [process.env.PLAYWRIGHT_PACKAGE_PATH, ...(process.platform === 'win32' ? [path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Codex', 'resources', 'app', 'node_modules', 'playwright'), path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'node_modules', 'playwright')] : [])].filter(Boolean);
       const playwrightPath = candidates.find(candidate => fs.existsSync(candidate));
       assert.ok(playwrightPath, 'POS browser QA requires the configured Playwright package path');
@@ -350,6 +371,7 @@ async function runSuite(value) {
         assert.ok(chromePath, 'POS browser QA requires CHROME_PATH or an installed Google Chrome');
         env.CHROME_PATH = chromePath;
       }
+      if (name === 'payroll-scheme-browser-postgres-qa.mjs' || name === 'payroll-product-department-api-postgres-qa.mjs') env.PLAYWRIGHT_EXECUTABLE_PATH = env.CHROME_PATH;
     }
     if (name === 'floor-table-archive-postgres-browser-qa.mjs') {
       const candidates = [process.env.PLAYWRIGHT_PACKAGE_PATH, ...(process.platform === 'win32' ? [path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Codex', 'resources', 'app', 'node_modules', 'playwright')] : [])].filter(Boolean);

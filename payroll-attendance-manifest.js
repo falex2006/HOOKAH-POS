@@ -1,6 +1,7 @@
 'use strict';
 
 const { createHash, randomUUID } = require('node:crypto');
+const { acquirePayrollSourceSnapshotLock } = require('./payroll-source-fence');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_KEY = /^[\x21-\x7e]{8,120}$/;
@@ -64,6 +65,13 @@ const mergeIntervals = (intervals) => {
 };
 
 const buildSourceManifest = async (db, actor, period) => {
+  const schema = await db.query(`SELECT count(*)::int AS count FROM (VALUES
+      ('staff_schedules','function_id'),('staff_schedule_functions','id'),('staff_schedule_functions','name'),
+      ('payroll_attendance_approval_shifts','scheduled_function_id_snapshot'),
+      ('payroll_attendance_approval_shifts','scheduled_function_name_snapshot')) required(relation_name,column_name)
+    JOIN pg_attribute a ON a.attrelid=to_regclass(required.relation_name)
+      AND a.attname=required.column_name AND NOT a.attisdropped`);
+  if (schema.rows[0]?.count !== 5) fail('payroll_attendance_function_context_schema_required', 409);
   const bounds = await db.query(`SELECT ($1::date::timestamp AT TIME ZONE $3) AS period_start,
       (($2::date + 1)::timestamp AT TIME ZONE $3) AS period_end`,
   [period.periodFrom, period.periodTo, actor.timezone]);
@@ -72,8 +80,10 @@ const buildSourceManifest = async (db, actor, period) => {
   if (!Number.isFinite(periodStart) || !Number.isFinite(periodEnd) || periodEnd <= periodStart) fail('payroll_attendance_period_unavailable', 409);
 
   const schedulesResult = await db.query(`SELECT s.id AS schedule_id,s.user_id AS employee_id,s.work_date::text AS work_date,
-      s.planned_start,s.planned_end,s.break_minutes,NULLIF(btrim(u.full_name),'') AS employee_name
+      s.planned_start,s.planned_end,s.break_minutes,s.function_id AS scheduled_function_id,
+      NULLIF(btrim(f.name),'') AS scheduled_function_name,NULLIF(btrim(u.full_name),'') AS employee_name
     FROM staff_schedules s JOIN users u ON u.venue_id=s.venue_id AND u.id=s.user_id
+    LEFT JOIN staff_schedule_functions f ON f.venue_id=s.venue_id AND f.id=s.function_id
     WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date AND s.status='planned' AND s.kind='shift'
     ORDER BY s.work_date,s.user_id,s.id`, [actor.venueId, period.periodFrom, period.periodTo]);
   const logsResult = await db.query(`SELECT w.id AS log_id,w.user_id AS employee_id,w.started_at,w.ended_at,w.source,
@@ -89,10 +99,13 @@ const buildSourceManifest = async (db, actor, period) => {
     const durationMs = endMs - startMs;
     const plannedMinutes = durationMs / 60000 - Number(row.break_minutes || 0);
     if (!row.employee_name) reasons.add('payroll_attendance_employee_identity_missing');
+    if (row.scheduled_function_id != null && !row.scheduled_function_name) reasons.add('payroll_attendance_scheduled_function_missing');
     if (!Number.isSafeInteger(plannedMinutes) || plannedMinutes <= 0 || plannedMinutes > 1440) reasons.add('payroll_attendance_planned_shift_invalid');
     return {
       scheduleId: row.schedule_id,
       employeeId: row.employee_id,
+      scheduledFunctionId: row.scheduled_function_id,
+      scheduledFunctionName: row.scheduled_function_name,
       employeeName: row.employee_name || 'Unknown employee',
       workDate: dateOnly(row.work_date),
       plannedStart: row.planned_start ? iso(row.planned_start) : null,
@@ -145,6 +158,8 @@ const buildSourceManifest = async (db, actor, period) => {
     return {
       scheduleId: schedule.scheduleId,
       employeeId: schedule.employeeId,
+      scheduledFunctionId: schedule.scheduledFunctionId,
+      scheduledFunctionName: schedule.scheduledFunctionName,
       employeeName: schedule.employeeName,
       workDate: schedule.workDate,
       plannedStart: schedule.plannedStart,
@@ -161,8 +176,8 @@ const buildSourceManifest = async (db, actor, period) => {
     venueId: actor.venueId,
     timezone: actor.timezone,
     period,
-    schedules: schedules.map(({ scheduleId, employeeId, employeeName, workDate, plannedStart, plannedEnd, plannedMinutes }) =>
-      ({ scheduleId, employeeId, employeeName, workDate, plannedStart, plannedEnd,
+    schedules: schedules.map(({ scheduleId, employeeId, employeeName, scheduledFunctionId, scheduledFunctionName, workDate, plannedStart, plannedEnd, plannedMinutes }) =>
+      ({ scheduleId, employeeId, employeeName, scheduledFunctionId, scheduledFunctionName, workDate, plannedStart, plannedEnd,
         ...((Date.parse(plannedEnd) - Date.parse(plannedStart)) / 60000 !== plannedMinutes ? { plannedMinutes } : {}) })),
     logs: logs.map(({ id, employeeId, employeeName, startedAt, endedAt, source: sourceKind }) =>
       ({ id, employeeId, employeeName, startedAt, endedAt, source: sourceKind }))
@@ -191,7 +206,8 @@ const loadApproval = async (db, venueId, approvalId) => {
     FROM payroll_attendance_approvals WHERE venue_id=$1 AND id=$2`, [venueId, approvalId]);
   if (!header.rows[0]) return null;
   const shifts = await db.query(`SELECT id AS "shiftId",schedule_source_id AS "scheduleSourceId",employee_id AS "employeeId",
-      employee_name_snapshot AS "employeeName",work_date::text AS "workDate",planned_start AS "plannedStart",
+      employee_name_snapshot AS "employeeName",scheduled_function_id_snapshot AS "scheduledFunctionId",
+      scheduled_function_name_snapshot AS "scheduledFunctionName",work_date::text AS "workDate",planned_start AS "plannedStart",
       planned_end AS "plannedEnd",planned_minutes AS "plannedMinutes",worked_minutes AS "workedMinutes",
       source_interval_count AS "sourceIntervalCount"
     FROM payroll_attendance_approval_shifts WHERE venue_id=$1 AND approval_id=$2 ORDER BY work_date,employee_name_snapshot,schedule_source_id`,
@@ -281,6 +297,7 @@ const makePayrollAttendanceManifestService = (pool) => {
       if (!source || ids.has(shift.shiftId) || !UUID.test(shift.shiftId)) invalid();
       ids.add(shift.shiftId); sources.delete(shift.scheduleSourceId);
       if (shift.employeeId !== source.employeeId || shift.employeeName !== source.employeeName
+        || shift.scheduledFunctionId !== source.scheduledFunctionId || shift.scheduledFunctionName !== source.scheduledFunctionName
         || shift.workDate !== source.workDate || iso(shift.plannedStart) !== source.plannedStart
         || iso(shift.plannedEnd) !== source.plannedEnd || shift.plannedMinutes !== source.plannedMinutes
         || shift.workedMinutes !== source.workedMinutes || shift.sourceIntervalCount !== source.sourceIntervals.length
@@ -296,7 +313,10 @@ const makePayrollAttendanceManifestService = (pool) => {
       return { id: shift.shiftId, employeeId: shift.employeeId, date: shift.workDate, approved: true,
         workedMinutes: shift.workedMinutes, plannedMinutes: shift.plannedMinutes };
     });
-    return { attendance, attendanceCoverage: { kind: 'approved_attendance_complete', from: period.periodFrom,
+    return { attendance, attendanceContext: approval.shifts.map((shift) => ({ shiftId: shift.shiftId,
+      scheduleId: shift.scheduleSourceId, employeeId: shift.employeeId, employeeName: shift.employeeName, date: shift.workDate,
+      scheduledFunctionId: shift.scheduledFunctionId, scheduledFunctionName: shift.scheduledFunctionName })),
+      attendanceCoverage: { kind: 'approved_attendance_complete', from: period.periodFrom,
       through: period.periodTo, complete: true, watermark: approval.sourceWatermark },
       sourceAttendanceApproval: { approvalId: approval.approvalId, revision: approval.revision,
         sourceWatermark: approval.sourceWatermark, approvedByName: approval.approvedByName,
@@ -315,10 +335,16 @@ const makePayrollAttendanceManifestService = (pool) => {
     const client = await pool.connect();
     const advisoryKey = `payroll-attendance:${String(principal?.venueId || '')}:${period.periodFrom}:${period.periodTo}`;
     let advisoryLocked = false;
+    let releaseSourceLock = null;
     let transactionStarted = false;
+    let connectionCleanupError = null;
     try {
-      // Take the per-period session lock before opening the serializable
-      // transaction so a waiter receives a fresh snapshot after its predecessor.
+      // The global source fence must precede both the period lock and BEGIN.
+      // This makes the attendance watermark check wait for source producers
+      // before SERIALIZABLE establishes its transaction snapshot.
+      releaseSourceLock = await acquirePayrollSourceSnapshotLock(client, String(principal?.venueId || ''));
+      // Take the per-period lock before opening SERIALIZABLE so a waiter gets
+      // a fresh snapshot after its predecessor.
       await client.query('SELECT pg_advisory_lock(hashtext($1))', [advisoryKey]);
       advisoryLocked = true;
       await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
@@ -357,11 +383,12 @@ const makePayrollAttendanceManifestService = (pool) => {
       const shiftIdBySchedule = new Map();
       for (const shift of manifest.shifts) {
         const inserted = await client.query(`INSERT INTO payroll_attendance_approval_shifts
-          (venue_id,approval_id,schedule_source_id,employee_id,employee_name_snapshot,work_date,
-           planned_start,planned_end,planned_minutes,worked_minutes,source_interval_count)
-          VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11) RETURNING id`, [
-          actor.venueId, approvalId, shift.scheduleId, shift.employeeId, shift.employeeName, shift.workDate,
-          shift.plannedStart, shift.plannedEnd, shift.plannedMinutes, shift.workedMinutes, shift.sourceIntervals.length
+          (venue_id,approval_id,schedule_source_id,employee_id,employee_name_snapshot,scheduled_function_id_snapshot,
+           scheduled_function_name_snapshot,work_date,planned_start,planned_end,planned_minutes,worked_minutes,source_interval_count)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11,$12,$13) RETURNING id`, [
+          actor.venueId, approvalId, shift.scheduleId, shift.employeeId, shift.employeeName,
+          shift.scheduledFunctionId, shift.scheduledFunctionName, shift.workDate, shift.plannedStart,
+          shift.plannedEnd, shift.plannedMinutes, shift.workedMinutes, shift.sourceIntervals.length
         ]);
         const shiftId = inserted.rows[0].id;
         shiftIdBySchedule.set(shift.scheduleId, shiftId);
@@ -378,14 +405,31 @@ const makePayrollAttendanceManifestService = (pool) => {
       transactionStarted = false;
       return result;
     } catch (error) {
-      if (transactionStarted) await client.query('ROLLBACK').catch(() => {});
+      if (transactionStarted) {
+        try { await client.query('ROLLBACK'); } catch (rollbackError) { connectionCleanupError = rollbackError; }
+      }
       if (error instanceof PayrollAttendanceError) throw error;
       if (error?.code === '23505') fail('payroll_attendance_idempotency_conflict', 409);
       if (error?.code === '23503' || error?.code === '23514' || error?.code === '22P02') fail('payroll_attendance_source_invalid', 409);
       if (error?.code === '40001' || error?.code === '40P01') fail('payroll_attendance_source_changed', 409);
       throw Object.assign(new Error('payroll_attendance_approval_unavailable', { cause: error }), { code: 'payroll_attendance_approval_unavailable', status: 503 });
     } finally {
-      if (advisoryLocked) await client.query('SELECT pg_advisory_unlock(hashtext($1))', [advisoryKey]).catch(() => {});
+      let lockReleaseError = connectionCleanupError;
+      if (advisoryLocked) {
+        try {
+          const unlocked = await client.query('SELECT pg_advisory_unlock(hashtext($1)) AS unlocked', [advisoryKey]);
+          if (unlocked.rows?.[0]?.unlocked !== true) throw new Error('payroll_attendance_period_lock_release_failed');
+        } catch (error) { lockReleaseError = error; }
+      }
+      if (releaseSourceLock) {
+        try { await releaseSourceLock(); } catch (error) { lockReleaseError ||= error; }
+      }
+      if (lockReleaseError) {
+        client.release(lockReleaseError);
+        throw Object.assign(new Error('payroll_attendance_lock_release_failed', { cause: lockReleaseError }), {
+          code: 'payroll_attendance_lock_release_failed', status: 503
+        });
+      }
       client.release();
     }
   };

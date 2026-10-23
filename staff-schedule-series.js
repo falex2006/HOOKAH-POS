@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 
 const {createHash,randomUUID}=require('node:crypto');
 const {ScheduleError,UUID}=require('./staff-schedule-domain');
@@ -61,7 +62,7 @@ async function saveSeries(pool,p,id,input,method){
   if(!UUID.test(String(input.requestKey||'')))fail('schedule_request_key_required');
   const requestKey=input.requestKey.toLowerCase(),db=await pool.connect();
   try{
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, p.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`schedule:${p.venueId}`]);
     const access=await resolveAccess(db,p,true);if(!access.manage)fail('schedule_forbidden',403);
     const fingerprint=hash({...input,requestKey:undefined});

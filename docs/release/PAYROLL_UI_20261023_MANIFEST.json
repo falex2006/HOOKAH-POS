@@ -1,0 +1,1255 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-23",
+  "base": "8af548c07a084656d27ebc09e3c5f12cde3230d2",
+  "acceptedUi": "53fd690bccf496a1f5b2140be5e57fbbb05fdb08",
+  "localChecks": {
+    "fullPostgres": 78201,
+    "foreignIsolation": 11225,
+    "exitCodes": [
+      0,
+      0
+    ],
+    "syntaxFiles": 219,
+    "uiContractCases": 32
+  },
+  "fullOriginalPayrollGoalComplete": false,
+  "excluded": [
+    "tmp/**",
+    ".env and private runtime settings"
+  ],
+  "files": [
+    {
+      "path": "Dockerfile",
+      "sha256": "10fe82f58c8290828b4cd5a120fb379626220c1182a285e3366799afea8b228f"
+    },
+    {
+      "path": "MIGRATIONS.md",
+      "sha256": "45d247d9ed30569a192d3851bbfbf879bd25800225d1d9e129fa654a9ac244ef"
+    },
+    {
+      "path": "admin.html",
+      "sha256": "02b576df63b5d2ba18ca54c25efb9c97170ff2333779f12c3d1dcb4c4c7b1277"
+    },
+    {
+      "path": "clients.html",
+      "sha256": "c4e4b2e0450f331df5392eb6969858252dd0c6b27c6ad6da0180d83043a75590"
+    },
+    {
+      "path": "delivery.html",
+      "sha256": "5f6759b624f0837944493af89704745acd1b3a8d798f2c5dca8e3af3eaf2b2b9"
+    },
+    {
+      "path": "dist/admin.html",
+      "sha256": "02b576df63b5d2ba18ca54c25efb9c97170ff2333779f12c3d1dcb4c4c7b1277"
+    },
+    {
+      "path": "dist/admin/index.html",
+      "sha256": "02b576df63b5d2ba18ca54c25efb9c97170ff2333779f12c3d1dcb4c4c7b1277"
+    },
+    {
+      "path": "dist/clients.html",
+      "sha256": "c4e4b2e0450f331df5392eb6969858252dd0c6b27c6ad6da0180d83043a75590"
+    },
+    {
+      "path": "dist/clients/index.html",
+      "sha256": "c4e4b2e0450f331df5392eb6969858252dd0c6b27c6ad6da0180d83043a75590"
+    },
+    {
+      "path": "dist/delivery.html",
+      "sha256": "5f6759b624f0837944493af89704745acd1b3a8d798f2c5dca8e3af3eaf2b2b9"
+    },
+    {
+      "path": "dist/delivery/index.html",
+      "sha256": "5f6759b624f0837944493af89704745acd1b3a8d798f2c5dca8e3af3eaf2b2b9"
+    },
+    {
+      "path": "dist/finance-categories.html",
+      "sha256": "06a1140aa5d31c43c87c1c077fd001fe56487301006fd8a83ca4676e21772577"
+    },
+    {
+      "path": "dist/finance-report.html",
+      "sha256": "4fd08f24d9050edc42d5564a7603da6490b4e542b9b672ec21935bdfc5efdb80"
+    },
+    {
+      "path": "dist/finance.html",
+      "sha256": "7c11057a9d6264d48c68e9b55b54ecec09ecb4caa9da0f734f99a3adcbb89160"
+    },
+    {
+      "path": "dist/finance/categories/index.html",
+      "sha256": "06a1140aa5d31c43c87c1c077fd001fe56487301006fd8a83ca4676e21772577"
+    },
+    {
+      "path": "dist/finance/index.html",
+      "sha256": "7c11057a9d6264d48c68e9b55b54ecec09ecb4caa9da0f734f99a3adcbb89160"
+    },
+    {
+      "path": "dist/finance/report/index.html",
+      "sha256": "4fd08f24d9050edc42d5564a7603da6490b4e542b9b672ec21935bdfc5efdb80"
+    },
+    {
+      "path": "dist/help-content.js",
+      "sha256": "86e5e7a3a73c70a20dfa472bd01f2069240e83a5e8ae5880091dce84a02463f8"
+    },
+    {
+      "path": "dist/index.html",
+      "sha256": "a9298508ac9638a99a0a725d50791f071adddae218d8009c9f957a2405a07f54"
+    },
+    {
+      "path": "dist/integrations.html",
+      "sha256": "937137ec9538975f8417c6543fc8306d81a21aa80d9f44f218d13bf8fcf4889d"
+    },
+    {
+      "path": "dist/integrations/index.html",
+      "sha256": "937137ec9538975f8417c6543fc8306d81a21aa80d9f44f218d13bf8fcf4889d"
+    },
+    {
+      "path": "dist/inventory.html",
+      "sha256": "26936da5e87e48492aeba70d824891a8be1b9bd650803fb460cb18f5b890f919"
+    },
+    {
+      "path": "dist/inventory/index.html",
+      "sha256": "26936da5e87e48492aeba70d824891a8be1b9bd650803fb460cb18f5b890f919"
+    },
+    {
+      "path": "dist/login.html",
+      "sha256": "08f742525100a2ce17b0335d5e712b3728d863f7abf006ddfc44bb32ece3c698"
+    },
+    {
+      "path": "dist/login/index.html",
+      "sha256": "08f742525100a2ce17b0335d5e712b3728d863f7abf006ddfc44bb32ece3c698"
+    },
+    {
+      "path": "dist/network.html",
+      "sha256": "42425711640dd55a99b14527ac145e0a7b73ffdf61c521789dd6e6f5a91a8e30"
+    },
+    {
+      "path": "dist/network/index.html",
+      "sha256": "42425711640dd55a99b14527ac145e0a7b73ffdf61c521789dd6e6f5a91a8e30"
+    },
+    {
+      "path": "dist/orders.html",
+      "sha256": "f280f0c5e18425effe7a1d8d7bf10294ba225bd24f632f4d52161c98ade6e69a"
+    },
+    {
+      "path": "dist/orders/index.html",
+      "sha256": "f280f0c5e18425effe7a1d8d7bf10294ba225bd24f632f4d52161c98ade6e69a"
+    },
+    {
+      "path": "dist/payroll-scheme-ui.js",
+      "sha256": "043340a1efc791a00a7cde14ec7b27342e552226b4b28e3b6a47c9436ad5fdb1"
+    },
+    {
+      "path": "dist/platform.html",
+      "sha256": "e897a8925eeef0b1893c24e6a62c79aac07ad913271589a0162d65c77e46e110"
+    },
+    {
+      "path": "dist/platform/index.html",
+      "sha256": "e897a8925eeef0b1893c24e6a62c79aac07ad913271589a0162d65c77e46e110"
+    },
+    {
+      "path": "dist/portal-session.js",
+      "sha256": "daedb0a9c7790502e8e94493324b02b7e927b716f4c2d39b6c02c75c07f8bf44"
+    },
+    {
+      "path": "dist/portal.js",
+      "sha256": "0e145cd2deadabf3c117e7ffb88c5eeb1547c946125fef206fa7a660769b54a1"
+    },
+    {
+      "path": "dist/reservations.html",
+      "sha256": "462a130aabb4d382f8bdcc01c949ee1ae460e6dc6031f9921d255413822304b0"
+    },
+    {
+      "path": "dist/reservations/index.html",
+      "sha256": "462a130aabb4d382f8bdcc01c949ee1ae460e6dc6031f9921d255413822304b0"
+    },
+    {
+      "path": "dist/staff-attendance-ui.js",
+      "sha256": "cde3fd54f94f129a572e3ca07ea7ba987dc044ecce19313c3d1ecd43206341d4"
+    },
+    {
+      "path": "dist/staff-schedule-ui.js",
+      "sha256": "6fc41992c97fc1f592d86a44413742b1099f3feaf14f75af11e64ded0e107e81"
+    },
+    {
+      "path": "dist/style.css",
+      "sha256": "e37898f2c0c92904ade64d3c25d62d056f1677e3ef77ef78288495dff63a6f85"
+    },
+    {
+      "path": "docs/ai-team/DECISIONS.md",
+      "sha256": "ad3530998bb36db7f06e7bc742bd6e0977374948f6b97a123928445113bb4824"
+    },
+    {
+      "path": "docs/ai-team/WORK_LOG.md",
+      "sha256": "2a52e2aa51006217506d29ad168b66622f34931ec4bb29d328bf78e447cc729c"
+    },
+    {
+      "path": "docs/ai-team/payroll-comparison-isolation-11225.log",
+      "sha256": "e96bd2098ceb8f072dde1b087cae2c480d0f5887b2823feda246062cb72bafb5"
+    },
+    {
+      "path": "docs/ai-team/payroll-current-integration-acceptance.json",
+      "sha256": "7448727c546f8287c7dbbe79f3741eb261ac0a58c543bd36a44aa069b8f07005"
+    },
+    {
+      "path": "docs/ai-team/payroll-integration-final-default-78201.log",
+      "sha256": "8911be67e2f4139cc7a31b01370edf125abb23cd031733ee3e4d225753277895"
+    },
+    {
+      "path": "docs/ai-team/payroll-refund-aware-acceptance.json",
+      "sha256": "69458b717c732e66826a15a3f7c2bf4f7eded8d52db0f79691a3ce2dbe0a9201"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-pos-report-1440.png",
+      "sha256": "0fedcba01a4e8aee2cede642c63d75e9a3ee1639681caa6d432b315c5fb0c403"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-pos-report-320.png",
+      "sha256": "1fe1f4ec3ee6161079e0baa89e8180599d032147fa032ba42093357699951830"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/finance-pos-report-731.png",
+      "sha256": "fbb2ab59a28578f123ddf6875436b55dfcad97eed302a456a824250f88001c18"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-error-320.png",
+      "sha256": "35cc083a906db81b042d8460137223109c74e554990664b84893af85eb0e5c2a"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-page-320.png",
+      "sha256": "a029b719281c76c45c0dd3da397d09681d9c3a8006e796f6a43c81ee7cf7862c"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-read-warning-320.png",
+      "sha256": "d26098c2381a9e880d9706caad373e8669c05c1de6df360f018995bf74efc26d"
+    },
+    {
+      "path": "docs/ai-team/responsive-emulator/interface-settings-restored-320.png",
+      "sha256": "eca9873d055c8a9d35ffb01fbf1d3e61a7d79482206eaa7471d27c1dd8db1fcb"
+    },
+    {
+      "path": "docs/requirements/FINANCE_PAYROLL_RECOGNITION_CONTRACT.md",
+      "sha256": "1c3add1a7c7c1ff05b086dda9eb5c99b2b9017db540cc2709e6aad044cda7953"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_ARCHITECTURE_CONTRACT.md",
+      "sha256": "b03b40567d1d1186d10a48177df4c09ccb65952154de74d13545e089001e2a64"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_CALCULATION_ENTRY_BRIDGE.md",
+      "sha256": "e1a48f5589224e272f110fee3e0cbd05d5dd6b4406a9480db7f2f7f6ebd473e5"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_CALCULATION_INPUT_CONTRACT.md",
+      "sha256": "43a804f85797039d7e35cec2176e0903e5d38af396a559ff4538da90f6bc2195"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_COMPLETION_EVIDENCE.md",
+      "sha256": "4a32061ddfe0e1e731717cb6aaeb89e50a2ac899f4a13753d98b88da53b920a7"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_OFFICIAL_CALCULATION_GATE.md",
+      "sha256": "04a00cdf9a0f07a48c11fdc0acd9353fc440d50528b9fb668b15848091b63a26"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_PRODUCT_DEPARTMENT_MAPPING_CONTRACT.md",
+      "sha256": "1e2383356d9c408db11ff19ed38f81c92a16cbb03069d6d34d5a56577b28b235"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_REFUND_AWARE_COMPARISON_CONTRACT.md",
+      "sha256": "c2ff2a90904f9d71e8fc474589ce6c9ff92b52b118f45f5756e8781eef2ddd59"
+    },
+    {
+      "path": "docs/requirements/PAYROLL_SOURCED_PREVIEW_API.md",
+      "sha256": "b68d81d16912896b9e041f3b4595392f5f78617843e8749e3dea15d6f4d89d5b"
+    },
+    {
+      "path": "docs/requirements/POS_SALE_COST_EVIDENCE.md",
+      "sha256": "a2e14f2815b104137eb4701556f75a295e549bee7da48774ce73251be54160a7"
+    },
+    {
+      "path": "docs/requirements/sql/payroll-entry-overlap-constraint.sql",
+      "sha256": "5095333f65bc66809df3375b9543b6062bc9d70cbe2ddce3933fb86338e21cce"
+    },
+    {
+      "path": "finance-categories.html",
+      "sha256": "06a1140aa5d31c43c87c1c077fd001fe56487301006fd8a83ca4676e21772577"
+    },
+    {
+      "path": "finance-report.html",
+      "sha256": "4fd08f24d9050edc42d5564a7603da6490b4e542b9b672ec21935bdfc5efdb80"
+    },
+    {
+      "path": "finance.html",
+      "sha256": "7c11057a9d6264d48c68e9b55b54ecec09ecb4caa9da0f734f99a3adcbb89160"
+    },
+    {
+      "path": "help-content.js",
+      "sha256": "86e5e7a3a73c70a20dfa472bd01f2069240e83a5e8ae5880091dce84a02463f8"
+    },
+    {
+      "path": "index.html",
+      "sha256": "a9298508ac9638a99a0a725d50791f071adddae218d8009c9f957a2405a07f54"
+    },
+    {
+      "path": "integrations.html",
+      "sha256": "937137ec9538975f8417c6543fc8306d81a21aa80d9f44f218d13bf8fcf4889d"
+    },
+    {
+      "path": "inventory-order-cost-allocation.js",
+      "sha256": "9440a9afc18222c4a09b7ecfe46b899a074a6db91cfd2b21c69fe32407aa3f6c"
+    },
+    {
+      "path": "inventory-order-cost-capture.js",
+      "sha256": "bf08fa45f4846b267e6a2f7ef0a6afc09501886cb6188b4dd2f428823f7597b1"
+    },
+    {
+      "path": "inventory.html",
+      "sha256": "26936da5e87e48492aeba70d824891a8be1b9bd650803fb460cb18f5b890f919"
+    },
+    {
+      "path": "login.html",
+      "sha256": "08f742525100a2ce17b0335d5e712b3728d863f7abf006ddfc44bb32ece3c698"
+    },
+    {
+      "path": "migrations/187_pos_sale_cost_evidence.sql",
+      "sha256": "ce23e48836c20a51755867cda53a7bf3dda2447d64e9794f78667be4725711fc"
+    },
+    {
+      "path": "migrations/188_payroll_employment_eligibility_history.sql",
+      "sha256": "1cfe0978f8996afba6999859211fbaf36c0cc24eb7e3035fdf20f6fe9fb82bdb"
+    },
+    {
+      "path": "migrations/189_payroll_product_department_mapping_revisions.sql",
+      "sha256": "f6b710debccc61efc50a07ae493ec81241d495f34fe3b0fca5ec165a6680183a"
+    },
+    {
+      "path": "migrations/190_payroll_refund_related_order_index.sql",
+      "sha256": "52c77202c510074d52755fea3a550266a542311b4d812a3a5799d07d4b890ea4"
+    },
+    {
+      "path": "migrations/191_payroll_attendance_function_context.sql",
+      "sha256": "d023b0bfc8973925c548bced672bc02d7fba7ac9353b16afe740ef9fb5a2af3e"
+    },
+    {
+      "path": "migrations/194_payroll_run_provenance.sql",
+      "sha256": "a22e906442b357371497dcf491a3c4d5bb5bf9c4315004624f8c7f57b57ebbda"
+    },
+    {
+      "path": "migrations/201_payroll_refund_review_proposals.sql",
+      "sha256": "97dd294f4d185a1f7079cec8d26fb8fc74ee516ca7190f993d33fd4b79149b60"
+    },
+    {
+      "path": "migrations/202_payroll_calculation_entry_bridge.sql",
+      "sha256": "fa8af5aa7a24a1c7a820ddb43da01434c34fa4b44ff82b0876fa474490659e30"
+    },
+    {
+      "path": "migrations/203_payroll_reviewed_correction_applications.sql",
+      "sha256": "45ce39c6a6d6e6608798fe5bfa5df035acd74b08f9eaada375e11d5cd94f8b0c"
+    },
+    {
+      "path": "migrations/204_payroll_refund_aware_run_provenance.sql",
+      "sha256": "7e1cc657e0fe43d64221944eaabbe543e3aa5bac6b5c628f491018913b1a9909"
+    },
+    {
+      "path": "migrations/205_payroll_calculation_entry_lifecycle.sql",
+      "sha256": "1de1be2de448bb93ad1f2247429f517974e85436cad93f3b3f3ca2bf138e7e42"
+    },
+    {
+      "path": "migrations/206_payroll_zero_settlement_correction_authority.sql",
+      "sha256": "582bde7bd57677562d9b09ea3b2da089f2660a58797d620cb9618918f2ff26b0"
+    },
+    {
+      "path": "migrations/207_payroll_unpaid_run_supersession.sql",
+      "sha256": "855ab94758e3e3ae88da6c1ee6185d9d6b31df4062552b42b3ecd4142259941b"
+    },
+    {
+      "path": "migrations/208_payroll_refund_aware_paid_corrections.sql",
+      "sha256": "cbc2415ed140f1ed442dcd4421ea6462982f8bd401bf62ad9aab4ab5e7f3eadd"
+    },
+    {
+      "path": "network.html",
+      "sha256": "42425711640dd55a99b14527ac145e0a7b73ffdf61c521789dd6e6f5a91a8e30"
+    },
+    {
+      "path": "orders.html",
+      "sha256": "f280f0c5e18425effe7a1d8d7bf10294ba225bd24f632f4d52161c98ade6e69a"
+    },
+    {
+      "path": "payroll-attendance-manifest.js",
+      "sha256": "515e41481e4cc9a4a7fe17830b2dbe8c6cd5e07b6d96c70309908a9cb22c3e64"
+    },
+    {
+      "path": "payroll-calculation-entry-bridge.js",
+      "sha256": "6f3ffc67c356ac9d9b28b54dee4a8e50c51582654def73d8d0376edbef5e8062"
+    },
+    {
+      "path": "payroll-calculation-entry-corrections.js",
+      "sha256": "102d5f81113e0a9d1b9100083e88a9d557c433de1077e8ffaabc1424d39b70bc"
+    },
+    {
+      "path": "payroll-calculation-entry-evidence.js",
+      "sha256": "dfd002293c8ccc1a051450e90983d83d194afd19b53fe766a33a78bd98a5855f"
+    },
+    {
+      "path": "payroll-calculation-entry-lifecycle.js",
+      "sha256": "47ed01ac2d25d3eb3c3d13b48a857748280a97382050c6a093cb757b080f8cd3"
+    },
+    {
+      "path": "payroll-calculation-entry-transition-command.js",
+      "sha256": "94eb68a8128d5507e9685422fc0bab85f735d788f87c24b947b9ce8eb9a4aec1"
+    },
+    {
+      "path": "payroll-calculation-input-contract.js",
+      "sha256": "77bfc8a720b46474cd7dc559d5eb4137bfaac475a1685453d89233a996ede0c5"
+    },
+    {
+      "path": "payroll-calculation-run-service.js",
+      "sha256": "a1a5982ddbbf44e8bd133f0315d8805759a8aa1b32c4b1152426e387d9dc5672"
+    },
+    {
+      "path": "payroll-calculator-replay.js",
+      "sha256": "e7a2097ea47559322864495a279c6da3e53e9f9459028e2fc86e304e49bf2405"
+    },
+    {
+      "path": "payroll-candidate-calculation.js",
+      "sha256": "14c27697b994b203733d58ee6707489eee28e6ec07559c29db1efba1355cc261"
+    },
+    {
+      "path": "payroll-candidate-snapshot-bundle.js",
+      "sha256": "685c72822848874480507c1cfbafd906a9c436b5b5fb8ab3aa5832890c31c8d6"
+    },
+    {
+      "path": "payroll-correction-ledger-source.js",
+      "sha256": "7b722507a842a9172c02c305f1e5755ac6647e048ecfef7906e1bb6f2b527031"
+    },
+    {
+      "path": "payroll-employee-role-coverage.js",
+      "sha256": "f6b0e9df0e5b39481aaba8984ddce5b5e74b59c8e74a7826a7069db2981225b6"
+    },
+    {
+      "path": "payroll-employment-eligibility.js",
+      "sha256": "7de1655cf07ebca9815c570740d820a55d83b9bab4f285a8a62b3b29f04be9db"
+    },
+    {
+      "path": "payroll-entry-overlap-diagnostic.js",
+      "sha256": "9725dfb7cbc11d60e2cd120bf28c2e93de89f3f39239ad26f1e1d06df4f7bb2d"
+    },
+    {
+      "path": "payroll-entry-overlap-preflight.js",
+      "sha256": "a51d470771ce1bdbaaf499bd1d29780f978d8092cd9ea2c3ac45754a6006e1ac"
+    },
+    {
+      "path": "payroll-full-employee-net-revenue-source.js",
+      "sha256": "41ab4710cf8a6f838de38ec2dccf02c1cdcdd90da7c41b312ac07259f92e2a11"
+    },
+    {
+      "path": "payroll-margin-cost-source.js",
+      "sha256": "f30f1ff2a176270071ba249235104b532c1d798e0df2ab1ac2de130a00cf0547"
+    },
+    {
+      "path": "payroll-mode-availability.js",
+      "sha256": "19363c97f0fe51227d143ae8fd58257abe16fda41d0cc1e7f9835dfa559bc4d0"
+    },
+    {
+      "path": "payroll-no-refund-coverage.js",
+      "sha256": "dc4ff7b8198ccdb8c1e8217d03962ceb54ce31e1b61d589b4665373cd3f5b99e"
+    },
+    {
+      "path": "payroll-order-revenue-reconciliation.js",
+      "sha256": "b8a1384ad719f8f004c52bcb4f352523920230e27f21cf731828e47fd06f0840"
+    },
+    {
+      "path": "payroll-personal-revenue-source.js",
+      "sha256": "279ac94e7c3925234c7512ef1045b8084e8ff7cc202b59cd51d622f1f09814bc"
+    },
+    {
+      "path": "payroll-product-department-revisions.js",
+      "sha256": "20059114f7faed6380308a9662151eb6c5101f21c4b07789cb6168d11e94baab"
+    },
+    {
+      "path": "payroll-product-department-source.js",
+      "sha256": "2020f0c174b886d5f2805ab2eeb52ddd2f2be4bebfcd4b3f1f8b8bcdde7e8ca6"
+    },
+    {
+      "path": "payroll-recognition-manifest.js",
+      "sha256": "19e566874478ad8a17ae81d5ea094c257783bec031727ae5d111e89eb8d16d6f"
+    },
+    {
+      "path": "payroll-recognition-preview.js",
+      "sha256": "c4e17f087fb98583164db1ba118a48d6f5d7ef6961c7d89d5e96edef0f6e4b31"
+    },
+    {
+      "path": "payroll-refund-aware-calculation.js",
+      "sha256": "27810ee5e4d28835dda3a6dec5dcd2b53f46b3eb4a3c5354926fbe22b67848b4"
+    },
+    {
+      "path": "payroll-refund-aware-correction-policy.js",
+      "sha256": "47c605c6b7e7883e82b3dc0b6ac5ee0293b4d9da6b3bc39bd230f7f29336719a"
+    },
+    {
+      "path": "payroll-refund-aware-correction-store.js",
+      "sha256": "45445e94de16c5db2278cd204cc4cd7df0307973ade205614d9d9b6192cffa40"
+    },
+    {
+      "path": "payroll-refund-aware-paid-review-assessment.js",
+      "sha256": "987456db4604665a5b1f02032899c9baaa13af251a33d3a7c6b393a15f6a0c0a"
+    },
+    {
+      "path": "payroll-refund-aware-paid-review-source.js",
+      "sha256": "b53559d2d286b94ddaee9c00a04da155ad6b86f9bde724157a6cfe27aa20e7bb"
+    },
+    {
+      "path": "payroll-refund-aware-provenance.js",
+      "sha256": "0ceee17f32baff5f2a31890624579828e6dd588a902b380d22455963efa6caef"
+    },
+    {
+      "path": "payroll-refund-aware-snapshot.js",
+      "sha256": "49de35aa00260a7bd92bf38a8f32e281b321c8b6c1bbfc7066ef83b386586cd7"
+    },
+    {
+      "path": "payroll-refund-aware-source.js",
+      "sha256": "4ccafd81af013964cde77658ff30f3295acb9b12649a2d56391cf03b173b504b"
+    },
+    {
+      "path": "payroll-refund-aware-sourced-comparison.js",
+      "sha256": "b1393146874215b7a4360c555c77c854b1d56a72e8d435f3f4dcda112f2a3619"
+    },
+    {
+      "path": "payroll-refund-counterfactual.js",
+      "sha256": "e4253013cbaba1ca3cf9ebcc3d37ad819275f2bc8822efe30633a85e92356814"
+    },
+    {
+      "path": "payroll-refund-earnings-projection.js",
+      "sha256": "8c2b1c58ef3d89f305908b6bc7f3360dc3b06af8311f7ecc2658b8552079ff79"
+    },
+    {
+      "path": "payroll-refund-earnings-source.js",
+      "sha256": "639d5bb8dd82326da5aa1df569772321bbace5888f90fc2db1a83fae9b917de2"
+    },
+    {
+      "path": "payroll-refund-economic-source.js",
+      "sha256": "995c3f7ba9433bec234eb214be83d99c307f5b596f14a1a36076f02e7358559e"
+    },
+    {
+      "path": "payroll-refund-frozen-cost-source.js",
+      "sha256": "054d5178b28fd3210d30f5fff70948d03293ed67ce2f408cd89047970b6ac50e"
+    },
+    {
+      "path": "payroll-refund-recalculation-basis.js",
+      "sha256": "5e3d42ad110d430d59bfbaa326de337d6b9feb899e94fffeb586babbda9cb28b"
+    },
+    {
+      "path": "payroll-refund-review-assessment.js",
+      "sha256": "e9412ec5f0c60cfcf06b1f56c9aa7cebc48ef30133c82f50eb0b3b04a68c98ff"
+    },
+    {
+      "path": "payroll-refund-review-store.js",
+      "sha256": "918ad1011d24186863add64ca0ae931a9b772920d491e757f120458bb2dca6ae"
+    },
+    {
+      "path": "payroll-refund-review.js",
+      "sha256": "12e30ddfc36000ef40ef5eac4a72f8ac895f232e4e59bff15085eb27073f7662"
+    },
+    {
+      "path": "payroll-reviewed-correction-command.js",
+      "sha256": "61cfe92c2b9762f1be5481bb1c4d253026a257c41c78d106535dc79cf8d1b56e"
+    },
+    {
+      "path": "payroll-reviewed-correction-policy.js",
+      "sha256": "49a3b346544f83eae619084b65d695e8634178b24048291170fa5c7c22b7c7b2"
+    },
+    {
+      "path": "payroll-reviewed-correction-store.js",
+      "sha256": "d4d5ad92946c66423848b89eaa1608cb92dc7ddd311e553b1860721476390497"
+    },
+    {
+      "path": "payroll-run-provenance.js",
+      "sha256": "8b807c02ea04b6aa4892dfe90a4cebef10b5dd35c90c24516a2c8d69b7117cd5"
+    },
+    {
+      "path": "payroll-run-source-freshness.js",
+      "sha256": "71efa303297358d8cfa3cbfb7a3a2f62ca65085bb442b832fbe9261045836e50"
+    },
+    {
+      "path": "payroll-sale-credit-source.js",
+      "sha256": "bbb20566d819dd507e400978e41c3e133ca01dfa6fe6de2e71e38fa3f9f04aa0"
+    },
+    {
+      "path": "payroll-saved-run-reader.js",
+      "sha256": "a94478d44305aa5f00504b77def4b99765e21b8872ee0c8fc25e54641954218f"
+    },
+    {
+      "path": "payroll-scheme-routes.js",
+      "sha256": "0f808a0ee4f0029db809059fc3bee1559f4560326e1ed662d06c20023d15a8c6"
+    },
+    {
+      "path": "payroll-scheme-service.js",
+      "sha256": "14fac5a44d2a5f492968fc2e19cd2c4cfe44c1b4aea12c6006fa8e9874410029"
+    },
+    {
+      "path": "payroll-scheme-ui.js",
+      "sha256": "043340a1efc791a00a7cde14ec7b27342e552226b4b28e3b6a47c9436ad5fdb1"
+    },
+    {
+      "path": "payroll-schemes.js",
+      "sha256": "bfd294fef3b3a8687e64d6902c8e8c03d25d8f1defac6e2fb7d6b9e16a90d8b9"
+    },
+    {
+      "path": "payroll-snapshot-persistence.js",
+      "sha256": "51a2b6d8a92ef7b13e2e55026dec5dc59f328f061436c1f878ae5a21f4e340d9"
+    },
+    {
+      "path": "payroll-snapshot-source-context.js",
+      "sha256": "c883c3e2f00c1d0cf70fc6aad118e20ca89a729bfa6b396ccc15eeb04d9b6448"
+    },
+    {
+      "path": "payroll-source-fence.js",
+      "sha256": "062bafef64565b4f3af20def7db1407ede90bd5a7ff8fac3f0a91bf6cfa6d62b"
+    },
+    {
+      "path": "payroll-source-policies.js",
+      "sha256": "76f3b340e8d63e7f434be779f77e6f81013be5946fbbdfbf5383a5485adeb294"
+    },
+    {
+      "path": "payroll-source-readiness.js",
+      "sha256": "9b1266179b57b809e81f54c84e47e47402b8b0542bcddd05ea0ca41407f0c529"
+    },
+    {
+      "path": "payroll-sourced-comparison.js",
+      "sha256": "5d666c06d326814ed97a48f96d6913ff502adf0d63116af208e2ad7114c16ded"
+    },
+    {
+      "path": "payroll-sourced-preview.js",
+      "sha256": "4b1055424886e66e34f3ce3bcd15410a9e3402d933658379448154634d562952"
+    },
+    {
+      "path": "payroll-team-fund-source.js",
+      "sha256": "ac676db75ff3a1a859696673180f5fd06acf1f76c023f1462a5d72176d8621b3"
+    },
+    {
+      "path": "payroll-typed-snapshot-serializer.js",
+      "sha256": "780100ac66756f1942bc4081d47535e123467e1654525860ce2e40d0172df45d"
+    },
+    {
+      "path": "payroll-unpaid-run-supersession.js",
+      "sha256": "60e0fa36d5fc52cbb97b48ed61935a289b19de4df28ae8624bd8fa95045270ca"
+    },
+    {
+      "path": "payroll-venue-turnover-source.js",
+      "sha256": "6f84475f957d83c1cc132a92ea671f0f78c050d1e18f972d850bac5807222b55"
+    },
+    {
+      "path": "payroll-verified-calculation.js",
+      "sha256": "68f96c5846cd42717711b88347e0461dd88ac8b9758270758f49dcf74fe044d0"
+    },
+    {
+      "path": "payroll-verified-snapshot-input.js",
+      "sha256": "dbaa345b2049e216fe2a54f0059498bdb704927e6eef5d3fda6e501b98fbeb5e"
+    },
+    {
+      "path": "platform.html",
+      "sha256": "e897a8925eeef0b1893c24e6a62c79aac07ad913271589a0162d65c77e46e110"
+    },
+    {
+      "path": "portal-session.js",
+      "sha256": "daedb0a9c7790502e8e94493324b02b7e927b716f4c2d39b6c02c75c07f8bf44"
+    },
+    {
+      "path": "portal.js",
+      "sha256": "0e145cd2deadabf3c117e7ffb88c5eeb1547c946125fef206fa7a660769b54a1"
+    },
+    {
+      "path": "pos-sale-cost-evidence.js",
+      "sha256": "a645e102d14420d3ec8e5e228fbaf4ae3268548527b8ed0f4aca89cc7c99cee0"
+    },
+    {
+      "path": "reservations.html",
+      "sha256": "462a130aabb4d382f8bdcc01c949ee1ae460e6dc6031f9921d255413822304b0"
+    },
+    {
+      "path": "scripts/build-payroll-source-handoff.mjs",
+      "sha256": "b591613362bd208b97d59b20497f7311f60f7c1c0057b1a4a1e581b4abb6dc15"
+    },
+    {
+      "path": "scripts/finance-categories-browser-qa.mjs",
+      "sha256": "1ffdb9bb927fd6d0677fb4486961179a8208ada3a7a971af2ee6395affd58fe5"
+    },
+    {
+      "path": "scripts/finance-categories-ui-contract.mjs",
+      "sha256": "5ec9dc8b9a5e314615eca09533a69ab23ca632d2b9e99ef93084a655c24cd3f4"
+    },
+    {
+      "path": "scripts/interface-preferences-browser-qa.mjs",
+      "sha256": "4683af796ce7bb30896a0b5076238b16e441a34903d5cf3f6d102bb65d111c5b"
+    },
+    {
+      "path": "scripts/inventory-deletion-requests-browser-qa.cjs",
+      "sha256": "e0d29f792ece706d44e6fc37ea421e9271ce802ec51896a24a68e197fe8c54d7"
+    },
+    {
+      "path": "scripts/inventory-directory-browser-qa.cjs",
+      "sha256": "c332bbe5ca8ed01801d9b30add4fd8898ebffbecc08d44bd1df90596158ac6ce"
+    },
+    {
+      "path": "scripts/local-full-pg-regression.cjs",
+      "sha256": "3edcd9a9e2edcf5001f0a57b141af4d6aece55c4cd9428920b3edbdca7a7d421"
+    },
+    {
+      "path": "scripts/payroll-approved-attendance-source-contract.mjs",
+      "sha256": "cd1d09389bc43d8f2cedb08e6e41f096d3caf5e0eb8f999cbd003b0fc0f648e0"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-bridge-contract.mjs",
+      "sha256": "ce81705c3bab14ec5197e001591a6f71d028fdddafec5f9ec90343caa9578323"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-bridge-postgres-qa.mjs",
+      "sha256": "ebc69cf708ce2dde3ea7a2597f06161a64e3f8a81be055743b99d52ba3219dc1"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-corrections-contract.mjs",
+      "sha256": "c3e8daf381e95d707dacfe4964668419186ba86e54977073e3e8ff6eeb84ee4e"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-evidence-contract.mjs",
+      "sha256": "d79f11f140630f83ef6972000771493d5098592526f4c97a6548eb1ec5fc3c14"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-lifecycle-contract.mjs",
+      "sha256": "153d3b3278400525521031d5eb0fd378530bb855d2a52af332b0ec320e16758c"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-lifecycle-postgres-qa.mjs",
+      "sha256": "cbebb607a7402cbb45b6218941dab35e95eec7c133c79fa01fbf7ed3faf14a62"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-lifecycle-routes-contract.mjs",
+      "sha256": "95506afb689c6b7c142a89ec3f76ad44055689eb4286b1971d13feaf0bc71f63"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-source-browser-helper.mjs",
+      "sha256": "2abeac9f9a505fd18841f36bd2aab7f39a9d9643ba9391446fb7dad95a20feba"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-transition-command-contract.mjs",
+      "sha256": "dbf8620a1f48a8611732fe55e97501ad46720f5a5d99c5e92a9f03781aeb731e"
+    },
+    {
+      "path": "scripts/payroll-calculation-entry-ui-contract.mjs",
+      "sha256": "8fd91deca4c5d2a95dbd0831a7aac2dface2362551c1ff37330fdb97f196eb2b"
+    },
+    {
+      "path": "scripts/payroll-calculation-input-contract.mjs",
+      "sha256": "2ba87425d121c734f3b52bfefbb045212e97c241fc73025fd9bfe7222c58174c"
+    },
+    {
+      "path": "scripts/payroll-calculator-replay-contract.mjs",
+      "sha256": "54784a2a7e2bd18eaa1e8736e33f2cc187359644b3137db9273241430d084a7c"
+    },
+    {
+      "path": "scripts/payroll-candidate-calculation-contract.mjs",
+      "sha256": "911b51164f6f6274c4604c30eaf86be7f060c1e8cb437c2672672213eb40c549"
+    },
+    {
+      "path": "scripts/payroll-correction-application-browser-helper.mjs",
+      "sha256": "a50ae9255d5c08dd64fa592abfab3680443fc36c6f2859f90fe3c9c85850d3cb"
+    },
+    {
+      "path": "scripts/payroll-correction-ledger-source-contract.mjs",
+      "sha256": "4f062411fc22a4c958ba3f05c4db47f22a0a53b7689adaa7c99c383784b15e61"
+    },
+    {
+      "path": "scripts/payroll-correction-target-source-fixture.mjs",
+      "sha256": "f183e33e39b1f1c86a92f80e4ea5a97142690040a0d1f3aebb563eedd4a11138"
+    },
+    {
+      "path": "scripts/payroll-editor-transition-contract.mjs",
+      "sha256": "9de55fe3ce68b078fa4f887d7d4b7842360443934b33feaab19ee0be0fa03973"
+    },
+    {
+      "path": "scripts/payroll-employee-role-coverage-contract.mjs",
+      "sha256": "05611899e24ebeadb6570d8b0487b19fa9191b6fec65843404ed0d14f8725079"
+    },
+    {
+      "path": "scripts/payroll-employment-eligibility-contract.mjs",
+      "sha256": "f2e4f97e71d710c0c38fded85356858692a5d60d0c23f2994a2a07942510b56b"
+    },
+    {
+      "path": "scripts/payroll-employment-eligibility-postgres-contract.mjs",
+      "sha256": "4dd59ec0d5000aa00e1e0e7c7c1777bdf3b15d7d0b98ad9941ad846346d5ecdb"
+    },
+    {
+      "path": "scripts/payroll-entry-overlap-constraint-postgres-qa.mjs",
+      "sha256": "4eb0af8e40a14cfe22b9c4ed441707e10bbea4f522bd8089bd7730e2fa8c683a"
+    },
+    {
+      "path": "scripts/payroll-entry-overlap-preflight-contract.mjs",
+      "sha256": "a536fd73812dafeefbfe0553d941b86e4ab74243cef05d004c3bebf2e02f5e8f"
+    },
+    {
+      "path": "scripts/payroll-entry-overlap-real-schema-qa.mjs",
+      "sha256": "8cc407391ef83c7c7b4a91e80bb5ecebb0496320d1d4dc3d1383c5ad46752086"
+    },
+    {
+      "path": "scripts/payroll-full-employee-net-revenue-contract.mjs",
+      "sha256": "f94dc9c4b1f746eca1656e3639a55b6b54accb50630e99399c01ba9924ae802d"
+    },
+    {
+      "path": "scripts/payroll-lifecycle-postgres-api-qa.mjs",
+      "sha256": "c52d915b8b99348b5bf1478adfb5f1dd34fe78563e054d6453436bd92feb8be0"
+    },
+    {
+      "path": "scripts/payroll-margin-cost-source-contract.mjs",
+      "sha256": "df54541cb8cc4e06005a04780608cede852e5b103e10bba7423da3c333a9c6a5"
+    },
+    {
+      "path": "scripts/payroll-margin-source-postgres-qa.mjs",
+      "sha256": "2fe0f17eb089801db5036664ad029dede3dc07fa12afb46135395c8557b47b45"
+    },
+    {
+      "path": "scripts/payroll-mode-availability-contract.mjs",
+      "sha256": "b44e3acb0a7ad705b9a9b796c1abc65e804d37e17706c692fbaa2f35972c0509"
+    },
+    {
+      "path": "scripts/payroll-order-revenue-reconciliation-contract.mjs",
+      "sha256": "1290d2a760223e05341bafba92ab46470890cb0622045d688bdbe7acd6436006"
+    },
+    {
+      "path": "scripts/payroll-personal-department-browser-helper.mjs",
+      "sha256": "f2b9930057ce5270f33ed0aa7c352a10d6f95bca88fc6e1d830996af489c48a7"
+    },
+    {
+      "path": "scripts/payroll-personal-revenue-input-contract.mjs",
+      "sha256": "35360f7e19304571866968a52623573bb9bc2b1f9d85bb51e271c35da3fa6338"
+    },
+    {
+      "path": "scripts/payroll-product-department-api-postgres-qa.mjs",
+      "sha256": "c5fc8d71d4ff0456f577b037162c04a4ff20689e7156f5d990079fa929ae0977"
+    },
+    {
+      "path": "scripts/payroll-product-department-migration-contract.mjs",
+      "sha256": "e4a809c3e6c4a9a9f74c6e30101252c09fb60e60a308aac9bad29765e69026ce"
+    },
+    {
+      "path": "scripts/payroll-product-department-revisions-contract.mjs",
+      "sha256": "d661177028ca956c390e075e2f0a82ed4d9e605d6af8b0e00d1219b1ea3b7243"
+    },
+    {
+      "path": "scripts/payroll-product-department-source-contract.mjs",
+      "sha256": "e2690ab26e71116c357c340edcd59746fee4a3cc565da045fb017bf0d4d7d07c"
+    },
+    {
+      "path": "scripts/payroll-provenance-storage-fixture.mjs",
+      "sha256": "f3bd5d73ff7e7296082cfa0c8da1cf156633cdef5827864849398feba6eb7d45"
+    },
+    {
+      "path": "scripts/payroll-recognition-manifest-contract.mjs",
+      "sha256": "63a77bb0351f9175197db4f58ed00733cd7c157c497d45d7dd74acc7f8020ee3"
+    },
+    {
+      "path": "scripts/payroll-recognition-manifest-postgres-qa.mjs",
+      "sha256": "437152c3e6035da582df750ab5cf5a261f90f4b7dcb3f60c6534a444719f9d14"
+    },
+    {
+      "path": "scripts/payroll-recognition-preview-contract.mjs",
+      "sha256": "2813ef0274a98f9ce0b6568486967f991c8ead17c2eb2b56f26c1ed677d94bdc"
+    },
+    {
+      "path": "scripts/payroll-recognition-preview-producer-contract.mjs",
+      "sha256": "03b8e35ed17e858cbaf0e3ee3359efbdb2226ce5ea6f6e4743d2da78371b6aab"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-all-modes-paid-helper.mjs",
+      "sha256": "ca18fb6d0175219abe0a2746d5de75c2c901601459a3fbd9d9da942126ecebb6"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-all-modes-postgres-helper.mjs",
+      "sha256": "855888d3ebe6458975fe582ee62d0ee590846debed764d2a6556234e547613a8"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-browser-helper.mjs",
+      "sha256": "dcdd9e6803bfe8fc008bf305583d84209643426af24bda38a9a3167a430ccac1"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-calculation-contract.mjs",
+      "sha256": "449607137ad45ff1074fafedf5ad6bb3c9c6e67653917acc5969426792a83cb3"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-comparison-postgres-helper.mjs",
+      "sha256": "d50e6289636621cb29b313fd3b51d3b14d00aa9494657371c38a7c24df12ad48"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-comparison-ui-contract.mjs",
+      "sha256": "94d6bda947507a7b513e33d770d94c34cc6b760ba617b40b3492780d6c5afd8a"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-correction-policy-contract.mjs",
+      "sha256": "2ca1ecbe2465a5e8bd0a49c7185a8522aecbc1e9115b5c48b5437235f82ab706"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-correction-postgres-helper.mjs",
+      "sha256": "cb119d235414f3ea9f888999644f10dec2f23407fe0ca256525d09a79036b573"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-correction-storage-guards.mjs",
+      "sha256": "f22f10203e75c45b9f0e60f836da4e0e786dcd23ebd3566a3a6aeab7b64486ec"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-correction-store-contract.mjs",
+      "sha256": "f0bc279e7b8c3401e12b758702ba2ca9f2b0272dffcc23a68de8bc3ba5b41318"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-freshness-contract.mjs",
+      "sha256": "55136af7e8a81651b6a8481c46eb244588d06854a2a7a07fbdfcda140205f8e4"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-paid-review-assessment-contract.mjs",
+      "sha256": "37755a5a750c9fa6128f8d08ba62dbfb81a7dd843c1e2b1ce50bf6a48a6440de"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-paid-review-source-contract.mjs",
+      "sha256": "c66119ba41cd93c55773c671fdd5c76b91a1110591d4a3ab1ddee1bbb599bfab"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-provenance-contract.mjs",
+      "sha256": "fafbc867448397ca3e2c65d41fd87969cc22997bd5bcffd5076bd7e529d2af00"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-public-browser-helper.mjs",
+      "sha256": "667647e650b36c5abbab66430fea4c7edecb3fbef9041170955c7176d124ae50"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-public-ui-contract.mjs",
+      "sha256": "272609c5badde0b388ff38c166a4f66795bb5d0fbe36d86c1885fc81645b4012"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-read-only-ui-contract.mjs",
+      "sha256": "1db4dd1eb1ec1e6c9cb2105d36e3683d35b8e8bfa6cf0773777516282cb52add"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-routes-contract.mjs",
+      "sha256": "21331da1c4d981cda9b35cafd26494c7a0f1fa6dc1cb84910431d9ef34551747"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-snapshot-contract.mjs",
+      "sha256": "eb4e27f37e5d87c7f8d297777bac886494defc221947606def7cde0c6ae18b08"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-sourced-comparison-contract.mjs",
+      "sha256": "f9f8dd497705df7792f7e9d89369d33a5996231c637b325bc5cec9bffeaae2df"
+    },
+    {
+      "path": "scripts/payroll-refund-aware-storage-guards.mjs",
+      "sha256": "dc5eb2a23234ade0a0114dab0d5bc8e3c19c01d0479ac7db009bdfb98d85b258"
+    },
+    {
+      "path": "scripts/payroll-refund-counterfactual-contract.mjs",
+      "sha256": "64f4227eb047ad49ef36783cb9f64c134c4f8b46e6f1c7ad48dc2339d2f81e17"
+    },
+    {
+      "path": "scripts/payroll-refund-earnings-projection-contract.mjs",
+      "sha256": "fde50e3e7266bfea0e840920873737f92c7f63f31c4cb7499fa9050e63bca041"
+    },
+    {
+      "path": "scripts/payroll-refund-earnings-source-contract.mjs",
+      "sha256": "c2e5c663d7d4b0ec702a96ad193ecdde0b421b4ba87fc845230743ac8f261864"
+    },
+    {
+      "path": "scripts/payroll-refund-economic-source-contract.mjs",
+      "sha256": "bc95328810a1b8664a73c11b4a9de55d5e0f153680927413b729f99e178526f1"
+    },
+    {
+      "path": "scripts/payroll-refund-frozen-cost-source-contract.mjs",
+      "sha256": "0ef99f8f254d06e6919fdecd4a78d9b8fb54eda6ecc350e385c0b2fe4c16e4d1"
+    },
+    {
+      "path": "scripts/payroll-refund-recalculation-basis-contract.mjs",
+      "sha256": "239ad1bc53a7c28489d0d4dc4bc3b4fa69ff6812b59498dec23a221161c80bca"
+    },
+    {
+      "path": "scripts/payroll-refund-review-assessment-contract.mjs",
+      "sha256": "e0102477f706642802cffa68e75c216e6052271247743f0b1ec0d5f71d6201ee"
+    },
+    {
+      "path": "scripts/payroll-refund-review-contract.mjs",
+      "sha256": "c601ddcb9e3815e8ff5edf3e1add158873e4d3b88fee8858ce0dd0849f563c3b"
+    },
+    {
+      "path": "scripts/payroll-refund-review-routes-contract.mjs",
+      "sha256": "ffd6fb9b24e2a422492933f53bfe43219a31817fcdb7fd13f91594a371f559e0"
+    },
+    {
+      "path": "scripts/payroll-refund-review-service-contract.mjs",
+      "sha256": "bb67f1c6311b4122a6d567ce775269cf0921f9d4da7b7afab92fafcf598dc937"
+    },
+    {
+      "path": "scripts/payroll-refund-review-store-contract.mjs",
+      "sha256": "907183ad7abcb256cd3cbf6372b3b9a862f725f0f5c811566703f8151fe9a16e"
+    },
+    {
+      "path": "scripts/payroll-reviewed-correction-ledger-postgres-qa.mjs",
+      "sha256": "ba6eca51caea0612cf4b339eebaf4a4be8406f2c0665c4c94193b1531d5d6334"
+    },
+    {
+      "path": "scripts/payroll-reviewed-correction-policy-contract.mjs",
+      "sha256": "4989cb9723f3f76d841f8ebefd61bdd62700c6d94983dd6b6587d7aff075e3ff"
+    },
+    {
+      "path": "scripts/payroll-reviewed-correction-routes-contract.mjs",
+      "sha256": "c0db7a66a9407591ee39b58a931e4c9c63c1fb97478690bbdba4026539e1e214"
+    },
+    {
+      "path": "scripts/payroll-reviewed-correction-store-contract.mjs",
+      "sha256": "bdb53eb40b13a21a0e48d5d19a0be6029d3022eb340d76613108b3e533b1d7de"
+    },
+    {
+      "path": "scripts/payroll-reviewed-correction-ui-contract.mjs",
+      "sha256": "6c6ded335a7a5b8416a1018703c8e630ffb2cdd84360ff562c893f10de86b218"
+    },
+    {
+      "path": "scripts/payroll-run-freshness-service-contract.mjs",
+      "sha256": "b6e302c33405e3cab2bc6f10cb0fd99724ac531bfc03e1bce10493a682c55f9c"
+    },
+    {
+      "path": "scripts/payroll-run-provenance-postgres-qa.mjs",
+      "sha256": "07c3ce6a8b01a4609596d56f3c56492e7ee62b1c748c10551fb89745ae6e081e"
+    },
+    {
+      "path": "scripts/payroll-sale-credit-source-postgres-contract.mjs",
+      "sha256": "5c86fd593546b0c8e18699842e43db9c9807f19727aab14ca6003cfc08c58d16"
+    },
+    {
+      "path": "scripts/payroll-saved-line-explanation-contract.mjs",
+      "sha256": "36b7d2a3b919a818d20cdab1a13d61b33a3a85e393894f08bc4f8ff58e068f68"
+    },
+    {
+      "path": "scripts/payroll-saved-run-browser-helper.mjs",
+      "sha256": "84b69316fb353fd6dbc77672d314b623d86c55e2cb72461b25b4906c6d30ec8e"
+    },
+    {
+      "path": "scripts/payroll-saved-run-reader-contract.mjs",
+      "sha256": "3ffffbbdb0a22ba305ebcee0cefc2d298bf715e173f0d666e7a63fdcbd036110"
+    },
+    {
+      "path": "scripts/payroll-saved-run-routes-contract.mjs",
+      "sha256": "4b094d9ca30263dc99d4a88bc3931827770ea37bc47f6bcd5bb3adf3f2388ce4"
+    },
+    {
+      "path": "scripts/payroll-scheme-browser-postgres-qa.mjs",
+      "sha256": "93f5215092bd5ffe46267f50b405504b88521ac7eff75ff66787ffbe1160fbef"
+    },
+    {
+      "path": "scripts/payroll-scheme-migration-contract.mjs",
+      "sha256": "e90f59c4a382e4a82d2d87d2de7b9df60a6701c4bb6ff95b4337aa1390441d4d"
+    },
+    {
+      "path": "scripts/payroll-scheme-routes-contract.mjs",
+      "sha256": "e90ae08d266d0a831ca1d1f4d2f82994b7e9273da4fdc61673f41ca604abdaf1"
+    },
+    {
+      "path": "scripts/payroll-scheme-ui-contract.mjs",
+      "sha256": "e75cdd4a7b595461a7c04d578b9e4d69514a30940f9d54dc7f4d46809e45fcf1"
+    },
+    {
+      "path": "scripts/payroll-schemes-contract.mjs",
+      "sha256": "ce2aa6c2f66de77d2d0d03c357e9d396911c32d0495c5375381efc23fff0dc89"
+    },
+    {
+      "path": "scripts/payroll-snapshot-persistence-contract.mjs",
+      "sha256": "eb93808f573a29ba9a0e5539a7aabdce0697556d2a6d00f315f60b2b8b8753ea"
+    },
+    {
+      "path": "scripts/payroll-snapshot-persistence-postgres-qa.mjs",
+      "sha256": "f05a680a9cf81b6eb9b695574909f2d0462b330489d6602c2a59c131ea683e57"
+    },
+    {
+      "path": "scripts/payroll-snapshot-source-context-contract.mjs",
+      "sha256": "d530b425402a49b5a756128d0b0890c1fe6613dd588efe9c0d9866fcbd13dcf3"
+    },
+    {
+      "path": "scripts/payroll-source-fence-postgres-qa.mjs",
+      "sha256": "2046c98bfda6d1df6090aac4b1f5331e60f785506035ed66ded8a5c42edd3061"
+    },
+    {
+      "path": "scripts/payroll-source-policies-contract.mjs",
+      "sha256": "8b57236ec337f9d7033113fa5955542a7a66860e10e412bbe2352f099cb1a0c7"
+    },
+    {
+      "path": "scripts/payroll-source-policy-ui-contract.mjs",
+      "sha256": "5fd26999043593bcf6537840a9cef93a9abf4d2131ad0cc4272bb985ad942b28"
+    },
+    {
+      "path": "scripts/payroll-source-read-capability-contract.mjs",
+      "sha256": "c3a20ad91b6386c8121badef769955437b7033623a4a080fd69ca52e1e20e69b"
+    },
+    {
+      "path": "scripts/payroll-source-readiness-postgres-contract.mjs",
+      "sha256": "fb8a76f0e4833f7307e7b1ba5f173649fa686bd1239f183323b245d9134ff974"
+    },
+    {
+      "path": "scripts/payroll-source-readiness-ui-contract.mjs",
+      "sha256": "82607e72c6b722e39b39718a1c4874d37801298b71bd712a19dedb83a2494b28"
+    },
+    {
+      "path": "scripts/payroll-sourced-comparison-contract.mjs",
+      "sha256": "1f649bbb7c4f38bf75a713af331380d83643177c9df6a55a6029f473d2c4afb8"
+    },
+    {
+      "path": "scripts/payroll-sourced-preview-contract.mjs",
+      "sha256": "8fe0f651a47ccb68016205d3407e2c05295df7798193fe683e5d1b11f465eb9b"
+    },
+    {
+      "path": "scripts/payroll-team-fund-contract.mjs",
+      "sha256": "f403ef69d2fb92e459bf39e59348b0df777504cc2fc2c4ce12461f9118de9936"
+    },
+    {
+      "path": "scripts/payroll-team-fund-source-contract.mjs",
+      "sha256": "f568ce405dc103145df15c2ef576cc971540c6714617466cf4f3d8c93a8653f5"
+    },
+    {
+      "path": "scripts/payroll-typed-snapshot-serializer-contract.mjs",
+      "sha256": "31d56a0d2126a979cf9284f50b4625029c1e250285df4e5d71a4a7545df59eb2"
+    },
+    {
+      "path": "scripts/payroll-unpaid-run-supersession-contract.mjs",
+      "sha256": "e42bb614f9103407861ad0fb4722eb4218e686ff21029fd4954eecf0fbce98be"
+    },
+    {
+      "path": "scripts/payroll-unpaid-run-supersession-migration-contract.mjs",
+      "sha256": "9711b5601ad7568d95f973ae07a2c5ea41928ba3384d25c2a16305c45a15b832"
+    },
+    {
+      "path": "scripts/payroll-unpaid-supersession-browser-helper.mjs",
+      "sha256": "8f119e84a6861db72d7036a0e5fc01553288c90e808d82d630d172768f5bc236"
+    },
+    {
+      "path": "scripts/payroll-unpaid-supersession-fixture.mjs",
+      "sha256": "f7f21f816c63c18a07ef989641a9dfd081144406381163dd512f692c3d5752a6"
+    },
+    {
+      "path": "scripts/payroll-unpaid-supersession-postgres-helper.mjs",
+      "sha256": "7313dcdddaa11b9df9524a3fe2f2e9cafae3a3d77bae5fef38706a2935432b93"
+    },
+    {
+      "path": "scripts/payroll-unpaid-supersession-routes-contract.mjs",
+      "sha256": "25fee5cc6bfe372341ba11ebe13ecf2cbf2d14d5e3dd0990204f1a5021255fa6"
+    },
+    {
+      "path": "scripts/payroll-unpaid-supersession-storage-guards.mjs",
+      "sha256": "2893d9acff35698bd53e1779921c75b24ad7eec3c16c81c1706e900a3ee4ef96"
+    },
+    {
+      "path": "scripts/payroll-unpaid-supersession-ui-contract.mjs",
+      "sha256": "b0b7f19ef0f04908295ded47b6c83322c95508306ff2662567e595cba5b75243"
+    },
+    {
+      "path": "scripts/payroll-venue-turnover-source-contract.mjs",
+      "sha256": "2232c4f9b1bdad70779998a5d5abdaf544f143e5955bf76605e3ba59ffa274fe"
+    },
+    {
+      "path": "scripts/payroll-verified-calculation-contract.mjs",
+      "sha256": "ef94476f222890230558cb848918b705a1c26460be83d0f1add8b7be3a353dd4"
+    },
+    {
+      "path": "scripts/payroll-verified-run-postgres-qa.mjs",
+      "sha256": "e1cb965be4300e941747cdf7a60034b74336204eff53f2fb7aea5708ac3a1cf6"
+    },
+    {
+      "path": "scripts/payroll-verified-run-service-contract.mjs",
+      "sha256": "cac2934e66b3bf83f7b26661721efe808f6a42e96fae89b07667f945d69f803f"
+    },
+    {
+      "path": "scripts/payroll-verified-snapshot-input-contract.mjs",
+      "sha256": "7294b770795ae28bd6901fad71db12eaba65640b45ffc7e3bce90c43924b1c3c"
+    },
+    {
+      "path": "scripts/payroll-verified-source-transaction-contract.mjs",
+      "sha256": "81fd9181c87faa8ededf017eb7d3740cf0ec90e806e20a6d2a6a3e0883653a74"
+    },
+    {
+      "path": "scripts/payroll-zero-settlement-correction-postgres-qa.mjs",
+      "sha256": "6152bd2a0269e9128c5c9d40f0b640473f1871f6e1f648de4f9c95d070a85dd6"
+    },
+    {
+      "path": "scripts/shared-help-browser-qa.cjs",
+      "sha256": "489f2820c7ee637daa3a237b92e49f64a62c221f6a04f1a6dbe0727a3234bfc2"
+    },
+    {
+      "path": "scripts/staff-attendance-ui-priority-contract.cjs",
+      "sha256": "96360d56cf3ad0f5d8fe8164234efd96ca141995fd4d5d6b318b9eedea276371"
+    },
+    {
+      "path": "scripts/staff-directory-view-browser-qa.cjs",
+      "sha256": "41ea463489c1b084b624ff6fac9b9629dfccd059dc1c268f2edba661623dffbf"
+    },
+    {
+      "path": "scripts/staff-schedule-help-contract.cjs",
+      "sha256": "3b919f5b975f2a8b004624f884206b9f499e892e51e7bfb20ecd574f581a8871"
+    },
+    {
+      "path": "scripts/staff-schedule-preparation-ui-contract.mjs",
+      "sha256": "7baa0a7a7507544d927ecb4373189adbcf9ced1c489d81ce19f97fd9e51a7d05"
+    },
+    {
+      "path": "scripts/sync-published-assets.mjs",
+      "sha256": "a7d66e88742816dd95f502d9558b077ded647a83dfd41bfbd903d76d0980203a"
+    },
+    {
+      "path": "server.js",
+      "sha256": "c24db527d4141ecf0eb5af6c85551a320a658db4f4c4480286e4e163fbaf271d"
+    },
+    {
+      "path": "staff-attendance-mutations.js",
+      "sha256": "6eb5b086a1a648ec5c1fd99415a5fe52f99f2dcb3b24e41f481636ea402467dc"
+    },
+    {
+      "path": "staff-attendance-ui.js",
+      "sha256": "cde3fd54f94f129a572e3ca07ea7ba987dc044ecce19313c3d1ecd43206341d4"
+    },
+    {
+      "path": "staff-schedule-bindings.js",
+      "sha256": "0a0045d18c23b7772abbba861386bc4b0004523ba6bfe3449e4f3c349016564b"
+    },
+    {
+      "path": "staff-schedule-copy.js",
+      "sha256": "1e489da53579738e05788aa1de04cbf9b03b808888ba68a552cbb060eea7dc4d"
+    },
+    {
+      "path": "staff-schedule-defaults.js",
+      "sha256": "693078539301a05080319da0efc0ed7932bb5b92e16fdfb0a825382a90f4f895"
+    },
+    {
+      "path": "staff-schedule-demand.js",
+      "sha256": "3b1106717cc28e4425529e4f7cc1e52d8ad9cce7d2ec802de5e96b94d3494112"
+    },
+    {
+      "path": "staff-schedule-planning.js",
+      "sha256": "703a5fcb6a329ae7a6e1b0fd0f87feb2c81327037420ce6060ad77673147d0f9"
+    },
+    {
+      "path": "staff-schedule-series.js",
+      "sha256": "6346e5ec5642bf858293fde8356ff69fd3a7780689deeed07010f9c128ea80a0"
+    },
+    {
+      "path": "staff-schedule-service.js",
+      "sha256": "0740faa182b49d64eff3292599e5ac625d4482d816f503d175716d86cf705f25"
+    },
+    {
+      "path": "staff-schedule-settings.js",
+      "sha256": "e6d9bc36678191046aef6da6b274cc1514f0cc2bd68daf9e6f23124483876853"
+    },
+    {
+      "path": "staff-schedule-ui.js",
+      "sha256": "6fc41992c97fc1f592d86a44413742b1099f3feaf14f75af11e64ded0e107e81"
+    },
+    {
+      "path": "staff-schedule-venue-policy.js",
+      "sha256": "1c252095209c2a0e6cd421c5b09168d02ba98bd695b4fd55709d2b3a69259849"
+    },
+    {
+      "path": "style.css",
+      "sha256": "e37898f2c0c92904ade64d3c25d62d056f1677e3ef77ef78288495dff63a6f85"
+    }
+  ]
+}

@@ -78,17 +78,33 @@ const path = require('node:path');
     await page.locator('[data-staff-view="cards"]').click();
     await page.waitForFunction(() => document.querySelector('#staff-list')?.dataset.view === 'cards');
     assert.ok(await page.locator('.staff-card .staff-edit').count() > 0, 'cards must retain profile actions');
-    await page.locator('[data-staff-scale="4"]').click();
-    await page.waitForFunction(() => document.querySelector('#staff-list')?.dataset.cardScale === '4');
+    assert.equal(await page.locator('[data-staff-scale]').count(), 0, 'no size selector');
+    assert.equal(await page.locator('#staff-list').getAttribute('data-card-scale'), '1', 'legacy XL renders as compact S');
+    assert.equal(await page.locator('.staff-card :is(.staff-card-status,.staff-card-owner,.staff-card-note,.staff-card-actions,.staff-card-identity p)').count(), 0, 'tiles contain only portrait, name and phone');
+    const compact = page.locator('.staff-card').filter({ hasText: 'QA управляющий' });
+    assert.equal(await compact.locator('h3').innerText(), 'QA управляющий');
+    assert.ok(!(await compact.innerText()).includes('@qa_staff'), 'telegram excluded from tiles');
+    await compact.locator('.staff-edit').click();
+    await page.locator('.staff-admin-modal').waitFor();
+    await page.locator('.staff-admin-close').click();
     await page.reload({ waitUntil: 'networkidle' });
     assert.equal(await page.locator('#staff-list').getAttribute('data-view'), 'cards', 'last selected view must persist on reload');
-    assert.equal(await page.locator('#staff-list').getAttribute('data-card-scale'), '4', 'card scale must persist on reload');
+    assert.equal(await page.locator('#staff-list').getAttribute('data-card-scale'), '1', 'compact size remains after reload with legacy preference');
     fs.mkdirSync('tmp/staff-views', { recursive: true });
-    for (const width of [390, 620, 768, 1440, 1920]) {
+    for (const width of [390, 620, 768, 1024, 1280, 1366, 1440, 1920]) {
       await page.setViewportSize({ width, height: 900 });
       await page.locator('#staff-list').waitFor();
       const layout = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, page: document.documentElement.scrollWidth }));
       assert.ok(layout.page <= layout.viewport + 1, `page must not scroll horizontally at ${width}px: ${JSON.stringify(layout)}`);
+      if (width <= 800) {
+        const menu = page.locator('.sidebar-mobile-toggle');
+        if (await menu.getAttribute('aria-expanded') === 'true') await menu.click();
+        await page.waitForTimeout(350);
+        assert.equal(await page.locator('#staff-list').getAttribute('data-view'), 'list', 'one mobile list view');
+        assert.equal(await page.locator('.staff-directory-view-controls').isVisible(), false, 'mobile has no view switch');
+        await page.screenshot({ path: path.resolve(`tmp/staff-views/list-${width}.png`) });
+        continue;
+      }
       for (const view of ['cards', 'list', 'table']) {
         await page.locator(`[data-staff-view="${view}"]`).click();
         await page.waitForTimeout(300);
@@ -101,19 +117,17 @@ const path = require('node:path');
         const icons = await page.locator('.staff-table-contacts svg').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().width));
         if (view === 'table') assert.ok(icons.length > 0, 'contact icon fixture present');
         assert.ok(icons.every(width => width <= 24), 'contact icons bounded');
-        if ([390,1920].includes(width)) await page.screenshot({ path: path.resolve(`tmp/staff-views/${view}-${width}.png`) });
+        if (view === 'table') {
+          assert.equal(await page.locator('.staff-table-scroll').evaluate(n => n.scrollWidth > n.clientWidth + 1), false, 'table fits laptop width ' + width);
+          const allFit = await page.locator('.staff-directory-table .staff-card-actions button').evaluateAll(nodes => nodes.every(n => { const r = n.getBoundingClientRect(); const table = n.closest('.staff-table-scroll').getBoundingClientRect(); return r.left >= table.left && r.right <= table.right + 1 && r.width >= 44 && r.height >= 44; }));
+          assert.equal(allFit, true, 'all action buttons inside visible table at ' + width);
+        }
+        if ([1024,1366,1920].includes(width)) await page.screenshot({ path: path.resolve(`tmp/staff-views/${view}-${width}.png`) });
       }
-      if (width <= 620) {
-        await page.locator('[data-staff-view="table"]').click();
-        await page.locator('.staff-directory-table tbody .staff-table-row').first().waitFor({ timeout: 1000 }).catch(() => {});
-        const tableDisplay = await page.locator('.staff-directory-table').evaluate((node) => getComputedStyle(node).display);
-        assert.equal(tableDisplay, 'table', 'table retains columns with local scrolling on narrow screens');
-        assert.equal(await page.locator('.staff-table-scroll').evaluate(n => getComputedStyle(n).overflowX), 'auto');
-        assert.equal(await page.locator('.staff-table-person .staff-card-owner').first().evaluate(n => getComputedStyle(n).position), 'static', 'crown stays inside owner row');
-      }
+
     }
     assert.deepEqual(pageErrors, [], `unexpected browser errors: ${pageErrors.join('; ')}`);
-    console.log('PASS staff directory cards/list/table, presets and per-account preference isolation; responsive widths 390/620/768/1440');
+    console.log('PASS staff directory cards/list/table, compact cards and legacy preference isolation; responsive widths 390–1920 including laptop action fit');
   } finally {
     if (browser) await browser.close();
     server.kill();

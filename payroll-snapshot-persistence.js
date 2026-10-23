@@ -3,9 +3,10 @@
 // Private storage primitive. The caller owns source authorization, owner/tenant
 // checks, the complete transaction, idempotency and retries. Supplied calculation
 // evidence is not proof of source authority. No HTTP route calls this helper.
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const { mapPayrollTypedSnapshotRows } = require('./payroll-typed-snapshot-serializer');
 const { mapPayrollMilestoneStorageRows } = require('./payroll-milestone-storage-serializer');
+const { validateCalculatorReplay } = require('./payroll-calculator-replay');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const fail = suffix => { const code = `payroll_snapshot_persistence_${suffix}`; throw Object.assign(new TypeError(code), { code }); };
 const plain = value => {
@@ -20,6 +21,7 @@ const text = (value, max) => typeof value === 'string' && value.trim() === value
 const columns = text => Object.freeze(text.split(' '));
 const COLUMNS = Object.freeze({
   payroll_calculation_runs: columns('id venue_id scheme_version_id period_from period_to status source_coverage commission_basis eligible_line_count unattributed_line_count missing_net_line_count input_watermark input_checksum engine_version blocked_reason idempotency_key supersedes_run_id recalculation_reason created_by created_by_name venue_timezone currency milestone_evidence_version'),
+  payroll_run_provenance: columns('venue_id run_id schema_version capability_version evidence_payload evidence_sha256 total_amount_cents'),
   payroll_daily_snapshots: columns('id venue_id run_id employee_id employee_name_snapshot role_key_snapshot local_date snapshot_schema_version calculation_kind eligible_shift_count venue_turnover cumulative_venue_turnover base_pay commission_pay team_fund_pay milestone_bonus item_adjustments amount_before_cap cap_amount cap_reduction final_amount incentive_json explanation_json'),
   payroll_team_fund_snapshots: columns('id venue_id run_id local_date pool_key departments_json distribution_policy basis_amount target_amount below_target_amount excess_amount base_basis_amount base_rate_bps bonus_rate_bps excess_rate_policy base_commission excess_commission fund_amount rounding_policy evidence_json'),
   payroll_daily_snapshot_lines: columns('id venue_id run_id snapshot_id order_id order_item_id employee_id employee_name_snapshot menu_item_id menu_item_name_snapshot department_key sold_at local_date quantity gross_amount discount_amount refund_amount commission_base_net applied_rate_bps item_rule_id commission_amount snapshot_schema_version calculation_kind commission_kind incentive_json cost_snapshot_json net_cost_amount signed_margin_amount team_pool_snapshot_id pool_included pool_basis_amount pool_exclusion_reason'),
@@ -37,10 +39,17 @@ const CONSTRAINTS = Object.freeze([
   ['payroll_milestone_day_snapshots', 'payroll_milestone_day_snapshots_milestone_totals'],
   ['payroll_milestone_decision_snapshots', 'payroll_milestone_decision_snapshots_milestone_totals']
 ]);
+const PROVENANCE_ENGINE = 'payroll-verified-no-refund-v1';
+const REFUND_PROVENANCE_ENGINE = 'payroll-verified-remaining-net-v2';
+const PROVENANCE_CONSTRAINTS = Object.freeze(['payroll_calculation_runs', 'payroll_run_provenance', 'payroll_daily_snapshots']
+  .map(table => [table, `${table}_provenance_commit`]));
 const quoteIdentifier = value => `"${String(value).replaceAll('"', '""')}"`;
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+const canonical = value => Array.isArray(value) ? `[${value.map(canonical).join(',')}]`
+  : value && typeof value === 'object' ? `{${Object.keys(value).sort().filter(key => value[key] !== undefined)
+    .map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}` : JSON.stringify(value);
 
-const prepare = ({ run, input }) => {
+const prepare = ({ run, input, provenance }) => {
   plain(run); plain(input);
   for (const key of Object.keys(run)) if (!COLUMNS.payroll_calculation_runs.includes(key)) fail('run_field_unknown');
   for (const field of ['id', 'venue_id', 'scheme_version_id', 'created_by']) uuid(run[field]);
@@ -65,6 +74,54 @@ const prepare = ({ run, input }) => {
   const header = { ...run, blocked_reason: null, milestone_evidence_version: milestones.milestoneEvidenceVersion };
   const rows = Object.fromEntries(Object.keys(COLUMNS).map(table => [table, []]));
   rows.payroll_calculation_runs.push(header);
+  if ([PROVENANCE_ENGINE, REFUND_PROVENANCE_ENGINE].includes(run.engine_version)) {
+    const refundAware = run.engine_version === REFUND_PROVENANCE_ENGINE;
+    const schemaVersion = refundAware ? 2 : 1;
+    const capabilityVersion = refundAware ? 'employee_attributed_remaining_net_refund_v2' : 'employee_attributed_merchandise_net_no_refund_v1';
+    if (!provenance) fail('provenance_required');
+    plain(provenance);
+    if (Object.keys(provenance).length !== COLUMNS.payroll_run_provenance.length
+        || Object.keys(provenance).some(key => !COLUMNS.payroll_run_provenance.includes(key))) fail('provenance_fields_invalid');
+    if (provenance.venue_id !== run.venue_id || provenance.run_id !== run.id || provenance.schema_version !== schemaVersion
+        || provenance.capability_version !== capabilityVersion
+        || typeof provenance.evidence_payload !== 'string'
+        || !Number.isSafeInteger(provenance.total_amount_cents) || provenance.total_amount_cents < 0) fail('provenance_context_invalid');
+    const hash = createHash('sha256').update(provenance.evidence_payload).digest('hex');
+    if (hash !== provenance.evidence_sha256 || hash !== run.input_checksum) fail('provenance_checksum_mismatch');
+    let evidence;
+    try { evidence = JSON.parse(provenance.evidence_payload); } catch (_) { fail('provenance_payload_invalid'); }
+    if (!evidence || evidence.schemaVersion !== schemaVersion || evidence.capabilityVersion !== capabilityVersion
+        || evidence.venueId !== run.venue_id || evidence.runId !== run.id
+        || evidence.schemeVersionId !== run.scheme_version_id || evidence.inputWatermark !== run.input_watermark
+        || evidence.period?.from !== run.period_from || evidence.period?.to !== run.period_to
+        || evidence.currency !== run.currency || evidence.venueTimezone !== run.venue_timezone
+        || evidence.totalAmountCents !== provenance.total_amount_cents) fail('provenance_context_invalid');
+    const total = input.result.employees.reduce((sum, employee) => sum + BigInt(employee.amountCents), 0n);
+    if (total !== BigInt(provenance.total_amount_cents)) fail('provenance_total_mismatch');
+    // Existing immutable runs may predate replay. When present, it must describe
+    // the exact result being mapped, never a second caller-provided calculation.
+    if (Object.hasOwn(evidence, 'calculatorReplay')) {
+      if (!evidence.calculatorReplay) fail('provenance_replay_invalid');
+      validateCalculatorReplay(evidence.calculatorReplay, { schemeSnapshot: evidence.schemeSnapshot,
+        sourceEvidence: evidence.sourceEvidence, period: evidence.period, currency: evidence.currency, result: input.result });
+    }
+    if (refundAware) {
+      // Rebuild original sources, versioned economics, the engine and typed rows;
+      // accepting a self-consistent browser-shaped hash is insufficient.
+      const { rebuildPayrollRefundAwareRunProvenance } = require('./payroll-refund-aware-provenance');
+      const rebuilt = rebuildPayrollRefundAwareRunProvenance(evidence);
+      if (rebuilt.provenance.evidence_payload !== provenance.evidence_payload
+          || canonical(rebuilt.prepared.snapshotInput) !== canonical(input)) fail('provenance_refund_source_mismatch');
+    }
+    const snapshotHash = createHash('sha256').update(canonical({ schemaVersion, sourceWatermark: run.input_watermark,
+      calculationWatermark: evidence.calculationWatermark, snapshotInput: input, mappedRows: snapshots, milestoneRows: milestones,
+      ...(refundAware ? { refundQuantityEvidence: evidence.refundQuantityEvidence } : {}) })).digest('hex');
+    if (snapshotHash !== evidence.snapshotInputWatermark) fail('provenance_snapshot_mismatch');
+    rows.payroll_run_provenance.push({ ...provenance });
+  } else {
+    if (provenance !== undefined) fail('provenance_engine_mismatch');
+    delete rows.payroll_run_provenance;
+  }
   const dayMap = new Map(), fundMap = new Map(), milestoneMap = new Map();
   const checkContext = row => {
     if (row.venue_id !== run.venue_id || row.run_id !== run.id || !validDate(row.local_date)
@@ -128,23 +185,24 @@ const prepare = ({ run, input }) => {
 const persistPayrollSnapshotBundleInTransaction = async (db, bundle) => {
   if (!db || typeof db.query !== 'function') fail('connection_required');
   plain(bundle);
-  if (Object.keys(bundle).some(key => !['run', 'input'].includes(key))) fail('bundle_field_unknown');
+  if (Object.keys(bundle).some(key => !['run', 'input', 'provenance'].includes(key))) fail('bundle_field_unknown');
   const rows = prepare(bundle);
+  const constraints = rows.payroll_run_provenance ? [...CONSTRAINTS, ...PROVENANCE_CONSTRAINTS] : CONSTRAINTS;
   const savepoint = `payroll_bundle_${randomUUID().replaceAll('-', '')}`;
   // SAVEPOINT fails before writes if called outside an explicit transaction.
   // The caller must supply a dedicated connection, never pool.query.
   await db.query(`SAVEPOINT ${savepoint}`);
   try {
     const available = await db.query(`SELECT expected.table_name, expected.constraint_name, ns.nspname AS schema_name
-      FROM (VALUES ${CONSTRAINTS.map(([table, name]) => `('${table}','${name}')`).join(',')}) expected(table_name,constraint_name)
+      FROM (VALUES ${constraints.map(([table, name]) => `('${table}','${name}')`).join(',')}) expected(table_name,constraint_name)
       JOIN pg_class rel ON rel.oid=to_regclass(expected.table_name)
       JOIN pg_namespace ns ON ns.oid=rel.relnamespace
       JOIN pg_trigger t ON t.tgrelid=rel.oid AND t.tgname=expected.constraint_name
       JOIN pg_constraint c ON c.oid=t.tgconstraint AND c.conname=expected.constraint_name
       WHERE t.tgdeferrable AND t.tginitdeferred AND t.tgenabled IN ('O','A') AND c.condeferrable AND c.convalidated`);
     const qualifiedConstraints = new Map(available.rows.map(row => [`${row.table_name}\0${row.constraint_name}`, row]));
-    if (qualifiedConstraints.size !== CONSTRAINTS.length || CONSTRAINTS.some(([table, name]) => !qualifiedConstraints.has(`${table}\0${name}`))) fail('schema_required');
-    const constraintNames = CONSTRAINTS.map(([table, name]) => {
+    if (qualifiedConstraints.size !== constraints.length || constraints.some(([table, name]) => !qualifiedConstraints.has(`${table}\0${name}`))) fail('schema_required');
+    const constraintNames = constraints.map(([table, name]) => {
       const schema = qualifiedConstraints.get(`${table}\0${name}`).schema_name;
       if (typeof schema !== 'string' || schema.length === 0) fail('schema_required');
       return `${quoteIdentifier(schema)}.${quoteIdentifier(name)}`;
@@ -156,8 +214,9 @@ const persistPayrollSnapshotBundleInTransaction = async (db, bundle) => {
       for (const row of records) {
         const fields = COLUMNS[table].filter(key => Object.hasOwn(row, key));
         const values = fields.map(key => key.endsWith('_json') && row[key] !== null ? JSON.stringify(row[key]) : row[key]);
-        const inserted = await db.query(`INSERT INTO ${table} (${fields.join(',')}) VALUES (${fields.map((_, i) => `$${i + 1}`).join(',')}) RETURNING id`, values);
-        if (inserted.rowCount !== 1 || inserted.rows[0]?.id !== row.id) fail('insert_count_mismatch');
+        const identity = table === 'payroll_run_provenance' ? 'run_id' : 'id';
+        const inserted = await db.query(`INSERT INTO ${table} (${fields.join(',')}) VALUES (${fields.map((_, i) => `$${i + 1}`).join(',')}) RETURNING ${identity}`, values);
+        if (inserted.rowCount !== 1 || inserted.rows[0]?.[identity] !== row[identity]) fail('insert_count_mismatch');
         counts[table]++;
       }
     }

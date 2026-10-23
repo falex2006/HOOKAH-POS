@@ -25,6 +25,29 @@ assert.equal(context.sourceById.get(lineId).commissionBaseNet, '150.00');
 assert.equal(context.sourceById.get(lineId).soldAt, '2026-09-30T20:00:00.000Z');
 assert.equal(original.result.daily[0].lines[0].appliedRateBps, null, 'typed null rate accepted without POS payroll output fields');
 const rejects = (mutate, code) => { const data = fixture(); mutate(data); assert.throws(() => validate(data), (e) => e.code === code); };
+const overnight = fixture();
+Object.assign(overnight.sourceLines[0], { soldAt: '2026-09-30T18:59:00.654321Z',
+  recognizedAt: '2026-09-30T19:01:00.123456Z', recognizedLocalDate: '2026-10-01',
+  timezoneSnapshot: 'Asia/Yekaterinburg' });
+const overnightContext = validate(overnight);
+assert.equal(overnightContext.sourceById.get(lineId).soldAt, '2026-09-30T18:59:00.654321Z');
+assert.equal(overnightContext.sourceById.get(lineId).localDate, '2026-10-01');
+assert.equal(overnightContext.sourceById.get(lineId).sourceRecognition.recognizedAt, '2026-09-30T19:01:00.123456Z');
+for (const field of ['recognizedAt', 'recognizedLocalDate', 'timezoneSnapshot']) {
+  const partial = structuredClone(overnight); delete partial.sourceLines[0][field];
+  assert.throws(() => validate(partial), e => e.code === 'payroll_source_recognition_context_required');
+}
+for (const mutate of [
+  d => d.sourceLines[0].recognizedLocalDate = '2026-09-30',
+  d => d.sourceLines[0].recognizedAt = '2026-09-30T18:00:00Z',
+  d => d.sourceLines[0].timezoneSnapshot = 'UTC'
+]) {
+  const mismatch = structuredClone(overnight); mutate(mismatch);
+  assert.throws(() => validate(mismatch), e => e.code === 'payroll_source_recognition_date_mismatch');
+}
+rejects(d => d.sourceLines[0].soldAt = '2026-09-30T18:59:00Z', 'payroll_source_local_date_mismatch');
+rejects(d => Object.assign(d.sourceLines[0], { recognizedAt: 'invalid', recognizedLocalDate: '2026-10-01',
+  timezoneSnapshot: 'Asia/Yekaterinburg' }), 'payroll_source_timestamp_invalid');
 rejects((d) => d.venueTimezone = '', 'payroll_source_timezone_required');
 rejects((d) => d.venueTimezone = 'Imaginary/Zone', 'payroll_source_timezone_invalid');
 rejects((d) => d.venueTimezone = 'UTC', 'payroll_source_local_date_mismatch');

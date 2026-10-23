@@ -30,7 +30,7 @@ assert.match(ui, /item\.active === false \? 'В архиве'/,
   'archived categories have an explicit status');
 assert.match(ui, /item\.active === false \? 'Восстановить' : 'Архивировать'/,
   'archived categories can be restored');
-assert.match(ui, /связанные записи за всё время и включают все статусы/,
+assert.match(fs.readFileSync(path.join(root, 'help-content.js'), 'utf8'), /связанные записи за всё время и включают все статусы/,
   'the category page explains that source counts include historical and non-posted records');
 assert.match(ui, /Number\(item\.recurringRuleCount \|\| 0\).*регулярных правил/,
   'category usage exposes recurring rules as a separate source count');
@@ -76,18 +76,27 @@ assert.ok(portal.includes("sectionLabel+': неизвестна для '+totalCo
 const summaryStart=portal.indexOf('const sectionMeta=report.sections?.[key]');
 const summaryEnd=portal.indexOf('const details=row=>',summaryStart);
 assert.ok(summaryStart>=0&&summaryEnd>summaryStart);
-const summarize=new Function('report','key','rows','amountMinorFor','formatMinor','totalLabels',portal.slice(summaryStart,summaryEnd)+'return sectionTotal;');
+// Preserve the enclosing renderer's pagination parameter when executing its extracted body.
+assert.ok(portal.includes('renderRows=(key,rows,nextCursor=report.nextCursorBySection?.[key])'),
+  'the extracted summary uses the same default cursor binding as the production renderer');
+const summarize=new Function('report','key','rows','amountMinorFor','formatMinor','totalLabels','nextCursor=report.nextCursorBySection?.[key]',portal.slice(summaryStart,summaryEnd)+'return sectionTotal;');
 const unknownRows=Array.from({length:500},()=>({amount:null}));
 const readAmount=row=>row.amount==null?null:BigInt(row.amount);
 assert.equal(summarize({sections:{test:{count:501,knownTotalMinor:'0',unknownAmountCount:501}},nextCursorBySection:{test:'cursor'}},'test',unknownRows,readAmount,String,{}),'Сумма раздела: неизвестна для 501 строк · показаны 500 из 501');
 assert.equal(summarize({sections:{test:{count:501,knownTotalMinor:'12345',unknownAmountCount:1}},nextCursorBySection:{test:'cursor'}},'test',[{amount:'100'}],readAmount,String,{}),'Сумма раздела: известная часть 12345 · неизвестно для 1 строк · показаны 1 из 501');
+assert.equal(summarize({sections:{test:{count:1,knownTotalMinor:'100',unknownAmountCount:0}}},'test',[{amount:'100'}],readAmount,String,{}),'Сумма раздела: 100',
+  'a complete section without a cursor has no partial-list suffix');
+assert.equal(summarize({sections:{test:{count:1,knownTotalMinor:'100',unknownAmountCount:0}},nextCursorBySection:{test:'old-cursor'}},'test',[{amount:'100'}],readAmount,String,{},null),'Сумма раздела: 100',
+  'an explicitly exhausted page cursor overrides the initial report cursor');
+assert.equal(summarize({sections:{test:{count:501,knownTotalMinor:'0',unknownAmountCount:501}},coverage:{possiblyTruncatedSections:['test']}},'test',unknownRows,readAmount,String,{}),'Сумма раздела: неизвестна для 501 строк · показаны 500 из 501',
+  'coverage can disclose a truncated legacy section without a cursor');
 assert.match(portal, /известная часть /,
   'a subtotal with missing row amounts is explicitly presented as only the known portion');
 assert.match(portal, /дата закрытия[\s\S]*?срок оплаты[\s\S]*?период услуги[\s\S]*?дата проведения/,
   'source group names disclose the date basis used by the report filters');
 assert.match(portal, /Оплаты закупок, зарплат и обязательств[\s\S]*?не складывайте эти срезы между собой/,
   'the report warns that cash payments and related accrual, purchase, and obligation slices can overlap');
-assert.ok(portal.includes('${esc(unifiedNames[key]||key)} · ${report.sections?.[key]?.count??rows.length} · ${esc(sectionTotal)}'),
+assert.ok(portal.includes('${esc(unifiedNames[key]||key)}<small>Записей: ${report.sections?.[key]?.count??rows.length} · ') && portal.includes("${esc((unifiedNames[key]||key).startsWith(sectionLabel)?sectionTotal.replace(sectionLabel+': ',''):sectionTotal)}"),
   'each source group shows its full snapshot count and separate total');
 assert.equal((server.match(/finance_recurring_rules WHERE venue_id=\$1 AND category_id=\$2 AND status IN \('active','paused'\) LIMIT 1/g) || []).length, 2,
   'both category archive routes protect categories used by active or paused recurring rules');

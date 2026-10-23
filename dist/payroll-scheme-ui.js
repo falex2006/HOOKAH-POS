@@ -12,8 +12,21 @@
   const MAX_RENDERED_EMPLOYEE_DAYS = 2000;
   const MAX_RENDERED_LINES = 2000;
   const MAX_COMPARE_EMPLOYEE_DAYS = 500;
+  const MAX_REFUND_REVIEW_EMPLOYEE_DAYS = 500;
   const MAX_COMPARE_LINES = 500;
+  const MAX_FULL_NET_CANDIDATE_ROWS = 2000;
+  const MAX_FULL_NET_CANDIDATE_EVENTS = 2000;
   const PAYOUT_RISK_ACK_POLICY = 'payroll-own-revenue-ceiling-v1';
+  const payrollEditorStateChanged = (baseline, current) => baseline !== null && JSON.stringify(baseline) !== JSON.stringify(current);
+  const createPayrollEditorTransitionGate = (confirmDiscard) => {
+    let sequence = 0;
+    return {
+      begin: async (dirty) => { const token = ++sequence; const confirmed = !dirty || await confirmDiscard();
+        return confirmed && token === sequence ? token : null; },
+      invalidate: () => ++sequence,
+      isCurrent: token => token === sequence
+    };
+  };
   let venueTimezone = String(sessionUser.timezone || '');
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -362,23 +375,33 @@
   const SOURCE_POLICY_SALES = ['line_seller_snapshot', 'order_responsible_snapshot', 'explicit_line_allocation'];
   const SOURCE_POLICY_DISCOUNTS = ['immutable_line_snapshot', 'eligible_gross_proportional_fixed_order'];
   const SOURCE_POLICY_REFUNDS = ['recognized_event_date', 'original_sale_period_correction'];
+  const SOURCE_POLICY_V2_EARNINGS = Object.freeze({ refunds: 'remaining_merchandise_original_sale_date_v1',
+    venueTurnover: 'canonical_total_less_merchandise_returns_v1', marginCost: 'frozen_sale_depletion_cost_payroll_v1' });
   const applySourcePolicyControls = (definition, controls) => {
     const result = structuredClone(definition);
     if (!controls.enabled) { delete result.sourcePolicies; return result; }
+    if (!['1', '2'].includes(controls.schemaVersion)) throw new Error('Явно выберите порядок пересчёта премии после возвратов.');
+    const schemaVersion = Number(controls.schemaVersion);
     const reason = String(controls.selectionReason || '').trim();
     if (!SOURCE_POLICY_SALES.includes(controls.saleCredit) || !SOURCE_POLICY_DISCOUNTS.includes(controls.discountAllocation)
         || !SOURCE_POLICY_REFUNDS.includes(controls.refunds)) throw new Error('Явно выберите все правила источников.');
     if (reason.length < 3 || reason.length > 1000) throw new Error('Укажите причину выбора правил: от 3 до 1000 символов.');
-    result.sourcePolicies = { schemaVersion: 1, selectionReason: reason, saleCredit: { kind: controls.saleCredit },
+    if (schemaVersion === 2 && (controls.saleCredit !== 'line_seller_snapshot'
+        || controls.discountAllocation !== 'immutable_line_snapshot' || controls.refunds !== 'recognized_event_date')) {
+      throw new Error('Для пересчёта премии выберите продавца из снимка строки, точную скидку из снимка строки и дату признанного события возврата.');
+    }
+    result.sourcePolicies = { schemaVersion, selectionReason: reason, saleCredit: { kind: controls.saleCredit },
       discountAllocation: controls.discountAllocation === 'immutable_line_snapshot' ? { kind: controls.discountAllocation }
         : { kind: controls.discountAllocation, rounding: 'largest_remainder_code_unit_v1', eligibility: 'pricing_source_snapshot' },
       refunds: { recognition: controls.refunds, closedRunTreatment: 'next_open_run_adjustment', paidAdjustment: 'owner_review_variable_pay_only',
         uncoveredBalance: 'carry_forward_review', clawback: 'no_automatic_clawback' } };
+    if (schemaVersion === 2) result.sourcePolicies.earnings = { ...SOURCE_POLICY_V2_EARNINGS };
     return result;
   };
   const sourcePolicyControlValues = (definition) => {
     const policy = definition.sourcePolicies;
-    return { enabled: policy !== undefined, saleCredit: policy?.saleCredit?.kind || '', discountAllocation: policy?.discountAllocation?.kind || '',
+    return { enabled: policy !== undefined, schemaVersion: policy === undefined ? '1' : String(policy?.schemaVersion ?? ''),
+      saleCredit: policy?.saleCredit?.kind || '', discountAllocation: policy?.discountAllocation?.kind || '',
       refunds: policy?.refunds?.recognition || '', selectionReason: policy?.selectionReason || '' };
   };
   const venueLocalToday = () => {
@@ -390,8 +413,342 @@
     const raw = await response.text();
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = {}; }
-    if (!response.ok) throw new Error(data.error || `http_${response.status}`);
+    if (!response.ok) throw Object.assign(new Error(data.error || `http_${response.status}`), { status: response.status, data });
     return data;
+  };
+  const mountEmploymentEligibilityPanel = (payrollPanel, settings) => {
+    const section = document.createElement('section');
+    section.className = 'panel finance-payroll-eligibility';
+    section.innerHTML = `
+      <style>
+        .finance-payroll-eligibility{min-width:0;box-sizing:border-box}
+        .finance-payroll-eligibility [data-eligibility-rows]{display:grid;gap:10px}
+        .finance-payroll-eligibility [data-eligibility-row]{display:grid;grid-template-columns:minmax(180px,1.5fr) repeat(2,minmax(130px,1fr)) auto;gap:10px;align-items:end;padding:12px;border:1px solid var(--ui-border-control);border-radius:10px}
+        .finance-payroll-eligibility [data-eligibility-row] label{min-width:0}
+        .finance-payroll-eligibility [data-eligibility-row] input,.finance-payroll-eligibility [data-eligibility-row] select{width:100%;max-width:100%;box-sizing:border-box}
+        .finance-payroll-eligibility [data-eligibility-period]{display:grid;gap:6px;padding:10px 0;border-top:1px solid var(--ui-border-control)}
+        .finance-payroll-eligibility [data-eligibility-period] span{overflow-wrap:anywhere}
+        .finance-payroll-eligibility [data-eligibility-history] li{margin:8px 0;overflow-wrap:anywhere}
+        @media(max-width:700px){.finance-payroll-eligibility [data-eligibility-row]{grid-template-columns:minmax(0,1fr)}.finance-payroll-eligibility [data-eligibility-row] .button{width:100%}}
+      </style>
+      <div class="panel-head"><div><h3>Сотрудники, которых учитывать в зарплате</h3><span class="muted">История по датам для будущих расчётов. Сохранение не создаёт начисление или выплату.</span></div><div class="toolbar-row"><button type="button" class="button small" data-eligibility-reload>Обновить</button><button type="button" class="button small primary" data-eligibility-edit>Настроить список</button></div></div>
+      <p class="form-message" data-eligibility-status role="status" aria-live="polite">Загружаем список сотрудников и историю…</p>
+      <div data-eligibility-current><div class="empty">Загрузка…</div></div>
+      <form class="stack-form" data-eligibility-editor hidden>
+        <p class="muted">Укажите все действующие периоды. Сохранение создаст новую версию; предыдущие версии останутся в истории. Неактивных сотрудников можно выбрать для прошлых дат.</p>
+        <div data-eligibility-rows></div>
+        <button type="button" class="button small" data-eligibility-add>Добавить период</button>
+        <label>Причина изменения <span class="required-mark">*</span><textarea data-eligibility-reason rows="2" maxlength="1000" minlength="8" required placeholder="Например: сверили дату приёма и завершения работы"></textarea></label>
+        <label data-eligibility-empty-confirm-row hidden><input type="checkbox" data-eligibility-empty-confirm> Подтверждаю пустую версию: ни одного периода допуска к расчёту</label>
+        <div class="toolbar-row"><button type="submit" class="button primary" data-eligibility-save>Сохранить новую версию</button><button type="button" class="button" data-eligibility-cancel>Отмена</button></div>
+        <p class="form-message" data-eligibility-editor-message role="status" aria-live="polite"></p>
+      </form>
+      <details data-eligibility-history-details><summary>История изменений</summary><ol data-eligibility-history><li class="muted">Загружаем историю…</li></ol></details>`;
+    payrollPanel.insertBefore(section, settings);
+    const currentView = section.querySelector('[data-eligibility-current]');
+    const historyView = section.querySelector('[data-eligibility-history]');
+    const status = section.querySelector('[data-eligibility-status]');
+    const editor = section.querySelector('[data-eligibility-editor]');
+    const rowsView = section.querySelector('[data-eligibility-rows]');
+    const reasonField = section.querySelector('[data-eligibility-reason]');
+    const editorMessage = section.querySelector('[data-eligibility-editor-message]');
+    const emptyConfirmRow = section.querySelector('[data-eligibility-empty-confirm-row]');
+    let roster = null, snapshot = null, editRows = [], editingRevisionId = null, pendingRequestKey = '', pendingIdempotencyKey = '', saving = false;
+    const setMessage = (node, message, error = false) => { node.textContent = message; node.className = `form-message${error ? ' error-message' : ''}`; };
+    const periodLabel = period => `${escapeHtml(period.employeeName || 'Сотрудник недоступен в справочнике')} · ${escapeHtml(period.effectiveFrom)} — ${escapeHtml(period.effectiveTo || 'без даты окончания')}`;
+    const renderRoster = () => {
+      const current = snapshot?.current || null;
+      if (!current) currentView.innerHTML = '<p class="empty">История ещё не настроена. Пока нет подтверждённых периодов, будущий расчёт зарплаты должен оставаться заблокированным.</p>';
+      else if (!current.periods?.length) currentView.innerHTML = '<p class="warning-message">Сохранена пустая версия: ни один сотрудник не включён в расчёт.</p>';
+      else currentView.innerHTML = `<p class="muted">Текущая версия ${Number(current.revisionNo)} · ${current.periods.length} ${current.periods.length === 1 ? 'период' : 'периода'}</p><div>${current.periods.map(period => `<div class="finance-payroll-eligibility__period" data-eligibility-period><span>${periodLabel(period)}</span></div>`).join('')}</div>`;
+    };
+    const renderHistory = () => {
+      const history = snapshot?.history || [];
+      historyView.innerHTML = history.length ? history.map(revision => `<li><b>Версия ${Number(revision.revisionNo)}</b> · ${escapeHtml(String(revision.createdAt || '').replace('T', ' ').slice(0, 16))} · ${escapeHtml(revision.createdByName || 'Владелец')} · ${Number(revision.periodCount)} периодов<br><span class="muted">${escapeHtml(revision.reason || '')}</span></li>`).join('') : '<li class="muted">Сохранённых версий пока нет.</li>';
+    };
+    const showError = error => ({
+      payroll_employment_eligibility_schema_required: 'Редактор пока недоступен: база данных ещё не обновлена.',
+      payroll_scheme_owner_only: 'Историю может настраивать только владелец площадки.',
+      payroll_employment_periods_overlap: 'У одного сотрудника пересекаются периоды. Проверьте даты.',
+      payroll_employment_revision_conflict: 'История уже изменилась в другой вкладке. Обновите данные и проверьте изменения.',
+      payroll_employment_idempotency_conflict: 'Повтор сохранения отличается от исходного запроса. Обновите историю и проверьте изменения.',
+      invalid_payroll_employment_periods: 'Проверьте выбранных сотрудников и даты периодов.',
+      invalid_payroll_employment_reason: 'Укажите причину изменения (не менее 8 символов).'
+    })[error?.message] || 'Не удалось загрузить или сохранить историю. Проверьте соединение и попробуйте ещё раз.';
+    const refresh = async () => {
+      status.textContent = 'Загружаем список сотрудников и историю…';
+      try {
+        const [nextRoster, nextSnapshot] = await Promise.all([
+          request('/api/payroll/employment-eligibility/employees'), request('/api/payroll/employment-eligibility')
+        ]);
+        if (!Array.isArray(nextRoster.items) || !Array.isArray(nextSnapshot.history)) throw new Error('payroll_employment_eligibility_unavailable');
+        roster = nextRoster.items.filter(row => row && typeof row.id === 'string' && typeof row.name === 'string')
+          .map(row => ({ id: row.id, name: row.name, active: row.active === true }));
+        snapshot = nextSnapshot;
+        setMessage(status, nextSnapshot.current ? `Последнее изменение: версия ${Number(nextSnapshot.current.revisionNo)} · ${nextSnapshot.current.createdByName || 'владелец'}`
+          : 'История ещё не настроена.');
+        renderRoster(); renderHistory();
+      } catch (error) {
+        status.textContent = showError(error);
+        currentView.innerHTML = '<p class="empty">Не удалось подтвердить актуальную историю. Сохранение временно недоступно.</p>';
+        historyView.innerHTML = '<li class="muted">История не загружена.</li>';
+        throw error;
+      }
+    };
+    const optionHtml = (selected, include) => {
+      const currentRows = snapshot?.current?.periods || [];
+      const known = new Map(roster.map(row => [row.id, row]));
+      for (const period of currentRows) if (!known.has(period.employeeId)) known.set(period.employeeId, {
+        id: period.employeeId, name: `${period.employeeName || 'Сотрудник'} (сохранён в истории)`, active: false
+      });
+      return `<option value="">Выберите сотрудника</option>${[...known.values()].map(row => `<option value="${escapeHtml(row.id)}"${row.id === selected ? ' selected' : ''}>${escapeHtml(row.name)}${row.active ? '' : ' · неактивен'}</option>`).join('')}`;
+    };
+    const renderRows = () => {
+      rowsView.innerHTML = editRows.map((row, index) => `<div data-eligibility-row data-row-index="${index}"><label>Сотрудник <span class="required-mark">*</span><select data-period-employee required>${optionHtml(row.employeeId)}</select></label><label>Учитывать с <span class="required-mark">*</span><input type="date" data-period-from value="${escapeHtml(row.effectiveFrom)}" required></label><label>По дату<input type="date" data-period-to value="${escapeHtml(row.effectiveTo)}"><small class="muted">Пусто — период продолжается</small></label><button type="button" class="button small" data-period-remove aria-label="Удалить период ${index + 1}">Удалить</button></div>`).join('');
+      emptyConfirmRow.hidden = editRows.length > 0;
+    };
+    const openEditor = () => {
+      if (!Array.isArray(roster) || !snapshot) { setMessage(editorMessage, 'Сначала загрузите актуальный список сотрудников и историю.', true); editor.hidden = false; return; }
+      editingRevisionId = snapshot.current?.id || null;
+      editRows = (snapshot.current?.periods || []).map(row => ({ employeeId: row.employeeId, effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo || '' }));
+      if (!editRows.length && roster.length) editRows = [{ employeeId: '', effectiveFrom: '', effectiveTo: '' }];
+      reasonField.value = ''; section.querySelector('[data-eligibility-empty-confirm]').checked = false;
+      setMessage(editorMessage, ''); renderRows(); editor.hidden = false; editor.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    section.querySelector('[data-eligibility-edit]').addEventListener('click', openEditor);
+    section.querySelector('[data-eligibility-reload]').addEventListener('click', () => { refresh().catch(() => {}); });
+    section.querySelector('[data-eligibility-cancel]').addEventListener('click', () => { editor.hidden = true; editingRevisionId = null; });
+    section.querySelector('[data-eligibility-add]').addEventListener('click', () => { editRows.push({ employeeId: '', effectiveFrom: '', effectiveTo: '' }); renderRows(); });
+    rowsView.addEventListener('click', event => {
+      const remove = event.target.closest('[data-period-remove]');
+      if (!remove) return;
+      const index = Number(remove.closest('[data-eligibility-row]')?.dataset.rowIndex);
+      if (Number.isInteger(index)) { editRows.splice(index, 1); renderRows(); }
+    });
+    rowsView.addEventListener('change', event => {
+      const row = event.target.closest('[data-eligibility-row]');
+      if (!row) return;
+      const model = editRows[Number(row.dataset.rowIndex)];
+      if (!model) return;
+      if (event.target.matches('[data-period-employee]')) model.employeeId = event.target.value;
+      if (event.target.matches('[data-period-from]')) model.effectiveFrom = event.target.value;
+      if (event.target.matches('[data-period-to]')) model.effectiveTo = event.target.value;
+    });
+    editor.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (saving || !editor.reportValidity()) return;
+      const periods = [...rowsView.querySelectorAll('[data-eligibility-row]')].map(row => ({
+        employeeId: row.querySelector('[data-period-employee]').value,
+        effectiveFrom: row.querySelector('[data-period-from]').value,
+        effectiveTo: row.querySelector('[data-period-to]').value || null
+      }));
+      if (!periods.length && !section.querySelector('[data-eligibility-empty-confirm]').checked) {
+        setMessage(editorMessage, 'Подтвердите пустую версию, если действительно хотите исключить всех сотрудников.', true); return;
+      }
+      if (periods.some(row => !row.employeeId || !row.effectiveFrom || (row.effectiveTo && row.effectiveTo < row.effectiveFrom))) {
+        setMessage(editorMessage, 'Проверьте сотрудника и даты: конец периода не может быть раньше начала.', true); return;
+      }
+      const base = { expectedRevisionId: editingRevisionId, periods, reason: reasonField.value.trim() };
+      const retryKey = JSON.stringify(base);
+      if (retryKey !== pendingRequestKey) {
+        pendingRequestKey = retryKey;
+        const newKey = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        pendingIdempotencyKey = `payroll-eligibility:${newKey}`;
+      }
+      const payload = { ...base, idempotencyKey: pendingIdempotencyKey };
+      saving = true; const save = section.querySelector('[data-eligibility-save]'); save.disabled = true;
+      setMessage(editorMessage, 'Сохраняем новую версию…');
+      let committedRevision = null;
+      try {
+        const result = await request('/api/payroll/employment-eligibility', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        committedRevision = result;
+        setMessage(editorMessage, `Версия ${Number(result.revisionNo)} сохранена. Проверяем сохранённую историю…`);
+        await refresh();
+        if (snapshot?.current?.id === result.id) { editor.hidden = true; editingRevisionId = null; pendingRequestKey = ''; pendingIdempotencyKey = ''; setMessage(editorMessage, `Версия ${Number(result.revisionNo)} сохранена и повторно загружена.`); }
+      } catch (error) {
+        if (!committedRevision && error?.message === 'payroll_employment_revision_conflict') {
+          await refresh().catch(() => {});
+          editor.hidden = true;
+          editingRevisionId = null;
+          pendingRequestKey = ''; pendingIdempotencyKey = '';
+          setMessage(status, 'В другой вкладке сохранена новая версия. Ваш вариант не применён. Нажмите «Настроить список», чтобы начать от актуальной истории.', true);
+        } else setMessage(editorMessage, committedRevision
+          ? `Версия ${Number(committedRevision.revisionNo)} сохранена, но не удалось повторно загрузить историю. Нажмите «Обновить».`
+          : showError(error), true);
+      }
+      finally { saving = false; save.disabled = false; }
+    });
+    refresh().catch(() => {});
+    return section;
+  };
+  const mountProductDepartmentPanel = (payrollPanel, settings) => {
+    const section = document.createElement('section');
+    section.className = 'panel finance-payroll-departments';
+    section.innerHTML = `
+      <style>
+        .finance-payroll-departments{min-width:0;box-sizing:border-box}
+        .finance-payroll-departments [data-department-rows]{display:grid;gap:10px}
+        .finance-payroll-departments [data-department-row]{display:grid;grid-template-columns:minmax(160px,1.5fr) repeat(2,minmax(130px,1fr)) auto;gap:10px;align-items:end;padding:12px;border:1px solid var(--ui-border-control);border-radius:10px}
+        .finance-payroll-departments [data-department-row][data-retro=true]{grid-template-columns:minmax(160px,1.3fr) repeat(4,minmax(120px,1fr)) auto}
+        .finance-payroll-departments [data-department-row] label{min-width:0}
+        .finance-payroll-departments [data-department-row] input,.finance-payroll-departments [data-department-row] select{width:100%;max-width:100%;box-sizing:border-box}
+        .finance-payroll-departments [data-department-current] li,.finance-payroll-departments [data-department-history] li{margin:8px 0;overflow-wrap:anywhere}
+        @media(max-width:800px){.finance-payroll-departments [data-department-row],.finance-payroll-departments [data-department-row][data-retro=true]{grid-template-columns:minmax(0,1fr)}.finance-payroll-departments [data-department-row] .button{width:100%}}
+      </style>
+      <div class="panel-head"><div><h3>Подразделения товаров для зарплаты</h3><span class="muted">Отдельная классификация зарплаты. Она не меняет товар, категорию, заказ или финансовую выручку.</span></div><div class="toolbar-row"><button type="button" class="button small" data-department-reload>Обновить</button><button type="button" class="button small primary" data-department-edit>Настроить назначения</button><button type="button" class="button small" data-department-retro>Историческая корректировка</button></div></div>
+      <p class="form-message" data-department-status role="status" aria-live="polite">Загружаем зарплатную классификацию…</p>
+      <p class="warning-message">Обычная версия начнёт действовать с <b data-department-boundary>—</b> по времени площадки. Прошлые интервалы останутся в каждой сохранённой версии.</p>
+      <div data-department-current><p class="empty">Загрузка…</p></div>
+      <form class="stack-form" data-department-editor hidden>
+        <p class="muted" data-department-editor-caption></p><div data-department-rows></div>
+        <button type="button" class="button small" data-department-add>Добавить товар</button>
+        <label>Причина изменения <span class="required-mark">*</span><textarea data-department-reason rows="2" minlength="8" maxlength="1000" required></textarea></label>
+        <label data-department-retro-date-row hidden>Применить с даты <span class="required-mark">*</span><input type="date" data-department-retro-date></label>
+        <label data-department-retro-reason-row hidden>Почему исправляется прошлая классификация <span class="required-mark">*</span><textarea data-department-retro-reason rows="2" minlength="8" maxlength="500"></textarea></label>
+        <label data-department-empty-row hidden><input type="checkbox" data-department-empty> Подтверждаю пустую версию: у товаров не будет зарплатного подразделения</label>
+        <label data-department-attestation-row hidden><input type="checkbox" data-department-attestation> Подтверждаю отдельную ретроактивную корректировку с указанной даты</label>
+        <div class="toolbar-row"><button type="submit" class="button primary" data-department-save>Сохранить версию</button><button type="button" class="button" data-department-cancel>Отмена</button></div>
+        <p class="form-message" data-department-editor-message role="status" aria-live="polite"></p>
+      </form>
+      <details data-department-history-details><summary>Последние 30 версий</summary><ol data-department-history><li class="muted">Загружаем историю…</li></ol></details>
+      <details data-department-inspected-details hidden><summary data-department-inspected-title>Снимок версии</summary><div data-department-inspected></div></details>`;
+    payrollPanel.insertBefore(section, settings);
+    const status = section.querySelector('[data-department-status]'), current = section.querySelector('[data-department-current]');
+    const history = section.querySelector('[data-department-history]'), editor = section.querySelector('[data-department-editor]');
+    const rows = section.querySelector('[data-department-rows]'), editorMessage = section.querySelector('[data-department-editor-message]');
+    const boundary = section.querySelector('[data-department-boundary]'), emptyRow = section.querySelector('[data-department-empty-row]');
+    let snapshot = null, editRows = [], mode = 'normal', saving = false, lastRequest = '', idempotencyKey = '';
+    const report = (node, text, error = false) => { node.textContent = text; node.className = `form-message${error ? ' error-message' : ''}`; };
+    const safeError = error => ({
+      payroll_product_department_schema_required:'Хранилище версий пока не готово. Обновите локальную базу данных.',
+      payroll_product_department_timezone_invalid:'Не задан часовой пояс площадки. Обычное сохранение заблокировано.',
+      payroll_product_department_revision_conflict:'В другой вкладке уже сохранена новая версия. Обновите историю.',
+      payroll_product_department_idempotency_conflict:'Ключ повтора уже использован для других данных. Обновите историю.',
+      payroll_product_department_product_invalid:'Выбранный товар недоступен в этой площадке.',
+      payroll_product_department_mappings_overlap:'У товара пересекаются даты подразделений.',
+      invalid_payroll_product_department_revision:'Проверьте поля версии и обязательную причину.',
+      invalid_payroll_product_department_retroactive_revision:'Проверьте дату и подтверждение исторической корректировки.'
+    })[error?.message] || 'Не удалось загрузить или сохранить классификацию. Повторите попытку.';
+    const renderCurrent = () => {
+      const assignments = snapshot?.currentAssignments || [];
+      const names = new Map((snapshot?.currentRevision?.mappings || []).map(row => [row.productId, row.productName]));
+      current.innerHTML = assignments.length ? `<p>Версия ${Number(snapshot.currentRevision?.revisionNo || 0)} · ${assignments.length} назначений</p><ul>${assignments.map(row => `<li><b>${escapeHtml(names.get(row.productId) || 'Товар')}</b> — ${escapeHtml(row.departmentName)} <span class="muted">(${escapeHtml(row.departmentCode)})</span></li>`).join('')}</ul>` : '<p class="empty">На дату следующей версии назначений пока нет.</p>';
+      if (snapshot?.productOptionsTruncated) {
+        current.insertAdjacentHTML('afterbegin','<p class="warning-message">Каталог содержит больше 10 000 активных товаров. Список обрезан, поэтому редактирование отключено, чтобы не сохранить неполную классификацию.</p>');
+        section.querySelector('[data-department-edit]').disabled = true;
+        section.querySelector('[data-department-retro]').disabled = true;
+      } else {
+        section.querySelector('[data-department-edit]').disabled = false;
+        section.querySelector('[data-department-retro]').disabled = false;
+      }
+    };
+    const renderHistory = () => {
+      history.innerHTML = snapshot?.history?.length ? snapshot.history.map(row => `<li><b>Версия ${Number(row.revisionNo)}</b> · ${escapeHtml(row.effectiveFrom)} · ${escapeHtml(row.createdByName || 'Владелец')}<br><span class="muted">${escapeHtml(row.reason || '')}</span> <button type="button" class="button small" data-department-inspect="${escapeHtml(row.id)}">Открыть снимок</button></li>`).join('') : '<li class="muted">Сохранённых версий пока нет.</li>';
+    };
+    const refresh = async () => {
+      report(status, 'Загружаем зарплатную классификацию…');
+      try {
+        const next = await request('/api/payroll/product-department-mappings');
+        if (!Array.isArray(next.history) || !Array.isArray(next.productOptions) || !Array.isArray(next.currentAssignments)) throw new Error('payroll_product_department_response_invalid');
+        snapshot = next; boundary.textContent = next.nextEffectiveFrom || 'не определена';
+        report(status, next.currentRevision ? `Последнее изменение: версия ${Number(next.currentRevision.revisionNo)} · ${next.timezone}` : 'Версия ещё не создана.');
+        renderCurrent(); renderHistory();
+      } catch (error) {
+        report(status, safeError(error), true); current.innerHTML = '<p class="empty">Не удалось подтвердить актуальную версию. Сохранение недоступно.</p>';
+        history.innerHTML = '<li class="muted">История не загружена.</li>'; throw error;
+      }
+    };
+    const productOptions = selected => {
+      const options = new Map((snapshot?.productOptions || []).map(row => [row.id, row.name]));
+      for (const row of snapshot?.currentRevision?.mappings || []) if (!options.has(row.productId)) options.set(row.productId, `${row.productName} (сохранён в истории)`);
+      if (selected && !options.has(selected)) options.set(selected, `Товар ${selected} (сохранён в истории)`);
+      return `<option value="">Выберите товар</option>${[...options].map(([id,name]) => `<option value="${escapeHtml(id)}"${id === selected ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}`;
+    };
+    const renderRows = () => {
+      rows.innerHTML = editRows.map((row,index) => `<div data-department-row data-index="${index}" data-retro="${mode === 'retro'}"><label>Товар <span class="required-mark">*</span><select data-map-product required>${productOptions(row.productId)}</select></label><label>Код подразделения <span class="required-mark">*</span><input data-map-code maxlength="64" required value="${escapeHtml(row.departmentCode)}" placeholder="Например: bar"></label><label>Название подразделения <span class="required-mark">*</span><input data-map-name maxlength="160" required value="${escapeHtml(row.departmentName)}" placeholder="Например: Бар"></label>${mode === 'retro' ? `<label>С даты <input type="date" data-map-from required value="${escapeHtml(row.effectiveFrom || '')}"></label><label>По дату <input type="date" data-map-to value="${escapeHtml(row.effectiveTo || '')}"></label>` : ''}<button type="button" class="button small" data-map-remove aria-label="Удалить товар ${index + 1}">Удалить</button></div>`).join('');
+      emptyRow.hidden = editRows.length > 0;
+    };
+    const openEditor = retro => {
+      if (snapshot?.productOptionsTruncated) { report(status,'Редактирование отключено: список товаров неполный. Нужен поиск/постраничная загрузка каталога.',true); return; }
+      if (!snapshot?.currentRevision && retro) { report(editorMessage,'Сначала создайте обычную версию, затем корректируйте историю.',true); editor.hidden = false; return; }
+      mode = retro ? 'retro' : 'normal';
+      editRows = retro ? (snapshot.currentRevision.mappings || []).map(row => ({ productId:row.productId, departmentCode:row.departmentCode, departmentName:row.departmentName, effectiveFrom:row.effectiveFrom, effectiveTo:row.effectiveTo || '' }))
+        : (snapshot.currentAssignments || []).map(row => ({ ...row }));
+      if (!editRows.length && !retro) editRows = [{ productId:'', departmentCode:'', departmentName:'' }];
+      section.querySelector('[data-department-editor-caption]').textContent = retro
+        ? 'Создаётся новая историческая версия. Укажите интервалы полностью; прежние версии останутся неизменными.'
+        : `Полностью задайте назначения, действующие с ${snapshot.nextEffectiveFrom}. Не включайте удалённые назначения.`;
+      section.querySelector('[data-department-retro-date-row]').hidden = !retro;
+      section.querySelector('[data-department-retro-reason-row]').hidden = !retro;
+      section.querySelector('[data-department-attestation-row]').hidden = !retro;
+      section.querySelector('[data-department-retro-date]').value = '';
+      section.querySelector('[data-department-retro-reason]').value = '';
+      section.querySelector('[data-department-attestation]').checked = false;
+      section.querySelector('[data-department-reason]').value = '';
+      section.querySelector('[data-department-empty]').checked = false;
+      report(editorMessage,''); renderRows(); editor.hidden = false; editor.scrollIntoView({block:'nearest',behavior:'smooth'});
+    };
+    section.querySelector('[data-department-edit]').addEventListener('click',() => openEditor(false));
+    section.querySelector('[data-department-retro]').addEventListener('click',() => openEditor(true));
+    section.querySelector('[data-department-reload]').addEventListener('click',() => refresh().catch(() => {}));
+    section.querySelector('[data-department-cancel]').addEventListener('click',() => { editor.hidden = true; });
+    section.querySelector('[data-department-add]').addEventListener('click',() => { editRows.push({productId:'',departmentCode:'',departmentName:'',effectiveFrom:'',effectiveTo:''}); renderRows(); });
+    rows.addEventListener('click',event => {
+      if (!event.target.closest('[data-map-remove]')) return;
+      const index = Number(event.target.closest('[data-department-row]')?.dataset.index);
+      if (Number.isInteger(index)) { editRows.splice(index,1); renderRows(); }
+    });
+    editor.addEventListener('submit',async event => {
+      event.preventDefault(); if (saving || !editor.reportValidity() || !snapshot) return;
+      if (snapshot.productOptionsTruncated) { report(editorMessage,'Сохранение отключено: список товаров неполный.',true); return; }
+      const mappings = [...rows.querySelectorAll('[data-department-row]')].map(row => ({
+        productId:row.querySelector('[data-map-product]').value,
+        departmentCode:row.querySelector('[data-map-code]').value.trim().toLowerCase(),
+        departmentName:row.querySelector('[data-map-name]').value.trim(),
+        ...(mode === 'retro' ? {productName:snapshot.currentRevision?.mappings?.find(item => item.productId === row.querySelector('[data-map-product]').value)?.productName || '',
+          effectiveFrom:row.querySelector('[data-map-from]').value,effectiveTo:row.querySelector('[data-map-to]').value || null} : {})
+      }));
+      if (!mappings.length && !section.querySelector('[data-department-empty]').checked) { report(editorMessage,'Подтвердите пустую версию либо добавьте назначения.',true); return; }
+      if (mappings.some(row => !row.productId || !/^[a-z][a-z0-9_-]{0,63}$/.test(row.departmentCode) || !row.departmentName
+        || (mode === 'retro' && (!row.productName || !row.effectiveFrom || (row.effectiveTo && row.effectiveTo < row.effectiveFrom))))) {
+        report(editorMessage,'Проверьте товар, код и название подразделения, а также даты исторических интервалов.',true); return;
+      }
+      if (mode === 'retro' && !section.querySelector('[data-department-attestation]').checked) { report(editorMessage,'Для исторической версии требуется отдельное подтверждение.',true); return; }
+      const base = {expectedRevisionId:snapshot.currentRevision?.id || null,reason:section.querySelector('[data-department-reason]').value.trim(),mappings};
+      const retroFrom = section.querySelector('[data-department-retro-date]').value;
+      const retroReason = section.querySelector('[data-department-retro-reason]').value.trim();
+      if (mode === 'retro' && (!retroFrom || retroReason.length < 8)) { report(editorMessage,'Укажите историческую дату и отдельное объяснение не короче 8 символов.',true); return; }
+      if (mode === 'retro') Object.assign(base,{effectiveFrom:retroFrom,retroactiveReason:retroReason,ownerAttestation:{confirmed:true,action:'retroactive_payroll_product_department_mapping'}});
+      if (base.reason.length < 8) { report(editorMessage,'Укажите причину изменения не короче 8 символов.',true); return; }
+      const fingerprint = JSON.stringify({mode,...base});
+      if (fingerprint !== lastRequest) { lastRequest=fingerprint; idempotencyKey=`payroll-departments:${globalThis.crypto?.randomUUID?.() || Date.now()}`; }
+      const payload = {...base,idempotencyKey};
+      saving=true; const save=section.querySelector('[data-department-save]'); save.disabled=true; report(editorMessage,'Сохраняем неизменяемую версию…');
+      try {
+        const result=await request(mode === 'retro' ? '/api/payroll/product-department-mappings/retroactive-revisions' : '/api/payroll/product-department-mappings/revisions',
+          {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        report(editorMessage,`Версия ${Number(result.revisionNo)} сохранена. Проверяем чтение из базы…`);
+        await refresh();
+        const persisted = snapshot?.currentRevision?.id === result.id;
+        if (!persisted) throw new Error('payroll_product_department_readback_mismatch');
+        editor.hidden=true; lastRequest=''; idempotencyKey=''; report(status,`Версия ${Number(result.revisionNo)} сохранена и повторно загружена.`);
+      } catch(error) { report(editorMessage,safeError(error),true); }
+      finally { saving=false; save.disabled=false; }
+    });
+    history.addEventListener('click',async event => {
+      const button=event.target.closest('[data-department-inspect]'); if (!button) return;
+      try {
+        const revision=await request(`/api/payroll/product-department-mappings/revisions/${encodeURIComponent(button.dataset.departmentInspect)}`);
+        const details=section.querySelector('[data-department-inspected-details]');
+        section.querySelector('[data-department-inspected-title]').textContent=`Снимок версии ${Number(revision.revisionNo)} · действует с ${revision.effectiveFrom}`;
+        section.querySelector('[data-department-inspected]').innerHTML=revision.mappings?.length
+          ? `<ul>${revision.mappings.map(row=>`<li>${escapeHtml(row.productName)} — ${escapeHtml(row.departmentName)} (${escapeHtml(row.departmentCode)}), ${escapeHtml(row.effectiveFrom)} — ${escapeHtml(row.effectiveTo || 'без окончания')}</li>`).join('')}</ul>`
+          : '<p class="empty">В этой версии назначений нет.</p>';
+        details.hidden=false; details.open=true;
+      } catch(error) { report(status,safeError(error),true); }
+    });
+    refresh().catch(() => {});
+    return section;
   };
   const defaultDefinition = () => ({
     mode: 'progressive_daily', currency: 'RUB', effectiveFrom: venueLocalToday(), effectiveTo: null,
@@ -478,6 +835,7 @@
     payroll_attendance_idempotency_conflict: 'Ключ запроса уже использован для другого периода или содержимого.',
     payroll_attendance_snapshot_incomplete: 'Снимок сохранился не полностью. Обновите период и проверьте источник.',
     payroll_attendance_source_unavailable: 'Не удалось прочитать исходный табель.',
+    payroll_attendance_function_context_schema_required: 'Для табеля требуется обновление локальной базы данных.',
     payroll_attendance_approval_unavailable: 'Не удалось сохранить утверждение табеля.',
     payroll_attendance_owner_or_venue_unavailable: 'Площадка или владелец недоступны. Обновите страницу и повторите.',
     payroll_attendance_venue_timezone_invalid: 'У площадки не настроен корректный часовой пояс.'
@@ -493,6 +851,7 @@
     payroll_personal_cap_increase_acknowledgement_required: 'Отдельно подтвердите повышение личного лимита выше роли. После изменения параметров подтверждение требуется заново.'
   };
   const attendanceReasonLabels = {
+    payroll_attendance_scheduled_function_missing: 'Не удалось подтвердить рабочую функцию из календаря.',
     payroll_attendance_employee_identity_missing: 'У сотрудника не указано имя.',
     payroll_attendance_planned_shift_invalid: 'В расписании есть смена без корректных плановых начала/окончания.',
     payroll_attendance_open_or_invalid_work_interval: 'Есть незакрытый или некорректный рабочий интервал.',
@@ -617,7 +976,10 @@
     const source = payload.sourceAttendanceApproval || {};
     const watermark = typeof source.sourceWatermark === 'string' ? source.sourceWatermark.slice(0, 12) : '';
     const notice = `<div class="warning-message" role="note"><strong>Сценарий с утверждённой посещаемостью, не официальный расчёт</strong><p>Использована payroll-ревизия ${escapeHtml(source.revision ?? '—')} за ${escapeHtml(source.periodFrom || '')} — ${escapeHtml(source.periodTo || '')}; расчётная часть периода ${escapeHtml(previewInput.periodFrom || '')} — ${escapeHtml(previewInput.periodTo || '')}. Утверждённая ревизия подтверждена ${escapeHtml(source.approvedByName || 'владельцем')}. Watermark ${escapeHtml(watermark || '—')}. Данные продаж, авторство строк, скидки/возвраты и оборот остаются входными данными сценария. Результат не сохраняется, начисления и расходы не создаются.</p></div>`;
-    return `${notice}${renderPreview(payload, previewInput)}`;
+    const context = Array.isArray(payload.attendanceContext) ? payload.attendanceContext : [];
+    const functions = context.slice(0, 500).map((shift) => `<tr><td>${escapeHtml(shift.date)}</td><td>${escapeHtml(shift.employeeName || editorEmployeeLabel(shift.employeeId))}</td><td>${escapeHtml(shift.scheduledFunctionName || 'Не назначена')}</td></tr>`).join('');
+    const contextTable = `<section data-payroll-attendance-context><h4>Назначение по календарю</h4><p class="muted">Это сохранённая рабочая функция расписания. Она не определяет POS-цех/станцию и не подтверждает продажи.</p><div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Дата</th><th>Сотрудник</th><th>Функция по расписанию</th></tr></thead><tbody>${functions || '<tr><td colspan="3">Нет строк календарного контекста.</td></tr>'}</tbody></table></div>${context.length > 500 ? `<p class="muted">Показано 500 из ${context.length} смен.</p>` : ''}</section>`;
+    return `${notice}${contextTable}${renderPreview(payload, previewInput)}`;
   };
   const renderComparison = (payload, previewInput) => {
     const names = new Map((previewInput.employees || []).filter((employee) => employee && typeof employee === 'object').map((employee) => [employee.id, employee.name || employee.fullName || editorEmployeeLabel(employee.id)]));
@@ -635,9 +997,52 @@
   const readinessLabels = {
     sourcePolicies: 'Правила владельца', approvedAttendance: 'Утверждённый табель', orderObservations: 'Наблюдения заказов',
     refundObservations: 'Зарегистрированные возвраты', canonicalLinePricing: 'Неизменяемые цены строк', payrollSaleCredit: 'Приписывание продаж сотрудникам',
-    recognizedLineRefunds: 'Признанные возвраты по строкам', fullEmployeeNetRevenue: 'Полная чистая выручка сотрудника',
+    itemReturnEvidence: 'Проверка возвратов по строкам товаров',
+    recognitionManifest: 'Признанные продажи и возвраты (манифест)',
+    recognizedLineRefunds: 'Признанные возвраты по строкам', fullEmployeeNetRevenue: 'Чистая стоимость товаров по сотрудникам',
+    employeeEligibility: 'Допуск сотрудников к расчёту', employeeRoleCoverage: 'Покрытие сотрудников назначениями ролей',
+    immutableDepartmentAttribution: 'Подразделения строк продаж',
     marginCosts: 'Неизменяемая себестоимость', departmentShiftAllocation: 'Распределение по цеху и смене'
   };
+  const readinessGroups = [
+    { label: 'Настройки и сотрудники', keys: ['sourcePolicies', 'employeeEligibility', 'employeeRoleCoverage'] },
+    { label: 'Классификация продаж', keys: ['immutableDepartmentAttribution'] },
+    { label: 'Табель и распределение по сменам', keys: ['approvedAttendance', 'departmentShiftAllocation'] },
+    { label: 'Продажи, цены и возвраты', keys: ['orderObservations', 'canonicalLinePricing', 'payrollSaleCredit', 'itemReturnEvidence',
+      'refundObservations', 'recognitionManifest', 'recognizedLineRefunds', 'fullEmployeeNetRevenue'] },
+    { label: 'Себестоимость', keys: ['marginCosts'] }
+  ];
+  const readinessMetrics = {
+    approvedAttendance: { shiftCount: 'Смен в утверждённом снимке' },
+    orderObservations: { closedOrderCount: 'Закрытых заказов за период', lockedOrderCount: 'Заказов с зафиксированной ценой',
+      missingLockedHeaderCount: 'Заказов без полного снимка цены', observedLineCount: 'Строк в закрытых заказах',
+      missingSalesAttributionLineCount: 'Строк без продавца или даты продажи', missingClosedAtCountVenueWide: 'Заказов без даты закрытия во всём заведении' },
+    refundObservations: { eventCount: 'Возвратов, зарегистрированных за период', unattributedEventCount: 'Из них без связи с товарами',
+      linkedToInspectedOrdersCount: 'Возвратов к заказам этого периода', linkedUnattributedCount: 'Из них без связи с товарами' },
+    canonicalLinePricing: { closedOrderCount: 'Закрытых заказов', snapshotOrderCount: 'Заказов с ценовым снимком',
+      legacyOrderCount: 'Заказов без ценового снимка', invalidOrderCount: 'Некорректных ценовых снимков' },
+    payrollSaleCredit: { closedOrderCount: 'Закрытых заказов', snapshotOrderCount: 'Заказов с ценовым снимком',
+      legacyOrderCount: 'Заказов без ценового снимка', invalidOrderCount: 'Некорректных ценовых снимков',
+      unknownLineCount: 'Строк с неизвестным продавцом', unsupportedCrossVenueLineCount: 'Строк с неподдерживаемым продавцом другой площадки',
+      creditedLineCount: 'Строк с подтверждённым продавцом', grossCents: 'Продажи до скидок · справочно',
+      discountCents: 'Скидки по строкам · справочно', merchandiseNetCents: 'Стоимость товаров после скидок · справочно',
+      minimumAdjustmentCents: 'Корректировка до минимума заказа · не атрибутирована продавцам', finalTotalCents: 'Итого заказов · справочно' },
+    itemReturnEvidence: { scopedRefundCount: 'Возвратов, попавших в проверку', completeHeaderCount: 'Возвратов с полными товарными строками',
+      unattributedHeaderCount: 'Возвратов без атрибуции товара', notApplicableHeaderCount: 'Возвратов без возврата товара',
+      scopedItemReturnCount: 'Товарных строк возврата в периоде', inspectedSourceItemCount: 'Исходных товарных строк с историей возвратов',
+      fullHistoryRowCount: 'Строк истории возвратов, проверенных целиком', validatedItemCount: 'Подтверждённых строк возврата',
+      invalidItemCount: 'Некорректных строк возврата', ambiguousItemCount: 'Строк с неоднозначным порядком событий',
+      missingSourceCount: 'Строк без исходной цены', unknownHistoryHeaderCount: 'Возвратов с неизвестной историей',
+      unknownAttributionItemCount: 'Строк с неизвестным продавцом', unsupportedCrossVenueItemCount: 'Строк с неподдерживаемым продавцом другой площадки',
+      sequencedEventCount: 'Событий с сохранённым порядком', legacyUnsequencedEventCount: 'Событий без сохранённого порядка',
+      post092ValidatedItemCount: 'Строк, проверенных по последовательности событий', legacyBaselineItemCount: 'Старых строк с подтверждённым итогом истории' },
+    recognitionManifest: { recognizedSaleEventCount: 'Признанных событий продажи', recognizedSaleLineCount: 'Признанных строк продажи',
+      recognizedRefundEventCount: 'Признанных событий возврата', recognizedRefundLineCount: 'Признанных строк возврата' },
+    employeeEligibility: { revisionNo: 'Версия истории допуска', periodCount: 'Периодов допуска сотрудников' },
+    employeeRoleCoverage: { activeEmployeeCount: 'Активных сотрудников в периоде', activeEmployeeDayCount: 'Дней сотрудников с допуском',
+      coveredEmployeeDayCount: 'Дней с назначенной ролью' }
+  };
+  const readinessMoneyMetrics = new Set(['grossCents', 'discountCents', 'merchandiseNetCents', 'minimumAdjustmentCents', 'finalTotalCents']);
   const readinessReasons = {
     explicit_owner_source_policy_selection_required:'В сохранённой версии не выбраны правила источников.',
     closed_order_date_missing_venue_wide:'В заведении есть закрытые заказы без даты закрытия; их период неизвестен.',
@@ -645,29 +1050,1649 @@
     order_item_sales_attribution_schema_missing:'Хранение продавца и даты продажи строки ещё не подключено.',
     refund_event_schema_missing:'Хранение зарегистрированных возвратов ещё не подключено.',
     payroll_attendance_source_incomplete:'Исходный табель неполный.', payroll_attendance_approval_required:'Снимок табеля ещё не утверждён.',
+    payroll_attendance_function_context_schema_required:'Для табеля требуется обновление локальной базы данных.',
     payroll_attendance_approval_stale:'Утверждённый снимок устарел после изменения источников.', payroll_attendance_snapshot_invalid:'Утверждённый снимок не прошёл проверку.',
     canonical_immutable_line_pricing_not_implemented:'Источник неизменяемых цен и скидок строк ещё не подключён.',
     immutable_payroll_sale_credit_not_implemented:'Неизменяемое приписывание продаж сотрудникам ещё не подключено.',
     recognized_line_refund_lineage_not_implemented:'Связь признанного возврата со строкой продажи ещё не подключена.',
-    full_employee_net_revenue_source_not_implemented:'Источник полной чистой выручки сотрудника ещё не подключён.',
+    recognition_source_schema_missing:'Не найдена полная схема источника признания зарплатных продаж и возвратов.',
+    full_employee_net_revenue_period_coverage_unproven:'Полнота периода не подтверждена; сумма не рассчитывается.',
+    full_employee_net_revenue_source_policy_unsupported:'Сохранённое правило даты возврата не поддерживается этим источником.',
+    full_employee_net_revenue_source_context_invalid:'Источник чистой стоимости товаров не прошёл проверку контекста.',
     immutable_margin_cost_source_not_implemented:'Источник неизменяемой себестоимости ещё не подключён.',
-    department_shift_allocation_source_not_implemented:'Источник распределения по цеху и смене ещё не подключён.'
+    department_shift_allocation_source_not_implemented:'Источник распределения по цеху и смене ещё не подключён.',
+    item_return_evidence_schema_missing:'Схема товарных возвратов ещё не подключена.',
+    item_return_legacy_unsequenced:'В истории есть старые возвраты без сохранённого порядка событий.',
+    item_return_chronology_ambiguous:'Порядок части старых возвратов нельзя подтвердить.',
+    item_return_unattributed_history:'Есть возвраты без связи с исходными товарами.',
+    item_return_seller_unknown:'Не удалось подтвердить продавца исходной строки.',
+    item_return_canonical_source_missing:'Для части возвратов нет подтверждённого снимка исходной цены.',
+    item_return_header_classification_invalid:'Заголовок возврата не совпадает с сохранёнными товарными строками.',
+    payroll_employment_eligibility_schema_missing:'Хранилище истории допуска сотрудников ещё не подключено.',
+    payroll_employment_eligibility_revision_required:'Владелец ещё не сохранил периоды допуска сотрудников.',
+    payroll_employment_eligibility_revision_integrity_mismatch:'Сохранённая история допуска не прошла проверку целостности.',
+    payroll_employee_role_coverage_eligibility_unavailable:'Сначала требуется подтверждённая история допуска сотрудников.',
+    payroll_employee_role_coverage_context_invalid:'Версия схемы, период или площадка не совпадают.',
+    payroll_employee_role_coverage_assignments_invalid:'Назначения ролей содержат некорректные данные.',
+    payroll_employee_role_coverage_assignment_invalid:'Одно из назначений роли содержит некорректные даты или сотрудника.',
+    payroll_employee_role_coverage_assignment_gap:'Для части дней сотрудника не назначено правило оплаты.',
+    payroll_employee_role_coverage_assignment_overlap:'На часть дней сотруднику назначено более одного правила оплаты.',
+    payroll_employee_role_coverage_roster_invalid:'История допуска сотрудников содержит некорректные периоды.',
+    payroll_employee_role_coverage_role_unconfigured:'Для назначенной роли не настроено правило оплаты.',
+    payroll_employee_role_coverage_scheme_window_invalid:'Не удалось проверить срок действия версии схемы.',
+    payroll_employee_role_coverage_scheme_window_not_covering_active_day:'Версия схемы действует не на все дни допуска сотрудников.',
+    payroll_saved_run_source_changed:'После сохранения расчёта изменились исходные данные или их подтверждения.',
+    payroll_saved_run_timezone_changed:'Изменился часовой пояс заведения. Проверьте границы расчётного периода.',
+    payroll_saved_run_source_unverified:'Не удалось подтвердить полный набор исходных данных.',
+    payroll_official_no_refund_coverage_not_proven:'Есть связанные возвраты или не подтверждена полнота их истории. Нужна проверка корректировки расчёта.',
+    payroll_refund_aware_common_source_unavailable:'Не удалось подтвердить общие данные продаж, возвратов и сотрудников за выбранный период.',
+    payroll_refund_aware_candidate_unavailable:'Не удалось подтвердить расчёт этой схемы. Проверьте исходные данные и сохранённые правила.',
+    payroll_refund_aware_cost_source_unavailable:'Для маржинальной схемы нужна подтверждённая стоимость товаров на момент продажи.',
+    payroll_refund_aware_department_source_unavailable:'Для этой схемы нужно подтвердить распределение проданных товаров по цехам.',
+    payroll_refund_aware_explicit_policy_required:'В сохранённой версии не выбрано правило расчёта с учётом возвратов.',
+    payroll_legacy_candidate_unavailable:'Исходная схема не может быть рассчитана по данным выбранного периода.',
+    payroll_calculator_signed_refund_input_missing:'Этот способ расчёта пока не поддерживает корректировки по возвратам.'
+  };
+  const readinessReasonLabel = reason => typeof reason !== 'string' ? 'Источник требует проверки.'
+    : readinessReasons[reason]
+      || (reason.startsWith('payroll_item_return_') ? 'История товарного возврата содержит сумму, порядок или связь, которую нельзя подтвердить.'
+        : reason.startsWith('payroll_employee_role_coverage_') ? 'Покрытие сотрудников назначениями ролей требует проверки.'
+          : reason.startsWith('payroll_employment_eligibility_') ? 'История допуска сотрудников требует проверки.'
+            : reason.startsWith('payroll_recognition_') ? 'Манифест признанных продаж и возвратов требует проверки.'
+              : reason.startsWith('payroll_sale_credit_') ? 'Приписывание продажи сотруднику требует проверки.'
+                : reason.startsWith('canonical_pricing_') ? 'Снимок цены заказа или строки требует проверки.'
+                  : 'Источник требует проверки. Проверьте данные или обратитесь к администратору.');
+  const fullNetCandidateReasons = {
+    full_employee_net_revenue_period_coverage_unproven:'Полнота истории за этот период не подтверждена; итоговая сумма неизвестна.',
+    full_employee_net_revenue_source_policy_unsupported:'Сохранённое правило учёта возвратов не поддерживается.',
+    full_employee_net_revenue_source_context_invalid:'Данные источника не прошли проверку площадки, периода или версии.',
+    full_employee_net_revenue_projection_invalid:'Не удалось проверить строки продаж и товарных возвратов.',
+    full_employee_net_revenue_sale_invalid:'Найдена строка продажи с некорректными данными.',
+    full_employee_net_revenue_refund_invalid:'Найдена строка возврата с некорректными данными.',
+    full_employee_net_revenue_refund_lineage_invalid:'Не подтверждена связь возврата с исходной строкой продажи.',
+    full_employee_net_revenue_total_overflow:'Итог выходит за безопасный диапазон и требует проверки.',
+    full_employee_net_revenue_candidate_missing:'Кандидатные данные источника недоступны.',
+    payroll_recognition_refund_history_missing:'Для части возвратов не подтверждена история возврата товара.',
+    payroll_recognition_refund_original_sale_attribution_missing:'Не подтверждён сотрудник исходной продажи для части возвратов.',
+    payroll_recognition_related_sale_attribution_orphaned:'Не удалось связать часть возвратов с исходными продажами.',
+    payroll_recognition_related_sale_history_mismatch:'История возврата не совпадает с исходной продажей.',
+    payroll_recognition_manifest_incomplete:'Манифест признанных продаж и возвратов неполон.',
+    recognition_source_schema_missing:'Схема источника признанных продаж и возвратов не найдена.',
+    closed_order_date_missing_venue_wide:'У части закрытых заказов неизвестна дата закрытия.'
   };
   const renderSourceReadiness = payload => {
-    if (payload?.schemaVersion !== 1 || payload.officialReady !== false || !payload.components) throw new Error('Некорректный ответ проверки источников.');
-    const statuses={available:'Данные доступны',incomplete:'Нужна проверка',unsupported:'Источник не подключён'};
-    const counts={closedOrderCount:'Закрытых заказов в периоде',lockedOrderCount:'Заказов с зафиксированной ценой',missingLockedHeaderCount:'Без полного заголовка цены',
-      observedLineCount:'Текущих строк заказов',missingSalesAttributionLineCount:'Строк без продавца или даты продажи',missingClosedAtCountVenueWide:'Без даты закрытия во всём заведении',
-      eventCount:'Событий возврата по дате регистрации в периоде',unattributedEventCount:'Из них без связи со строками',linkedToInspectedOrdersCount:'Возвратов любых дат к заказам периода',
-      linkedUnattributedCount:'Из них без связи со строками',shiftCount:'Смен в проверенном снимке'};
-    return `<p data-source-readiness-official>Официальный расчёт пока недоступен. Проверка ничего не начисляет и не сохраняет выплаты.</p><p>Период: ${escapeHtml(payload.period?.from)} — ${escapeHtml(payload.period?.to)} · часовой пояс: ${escapeHtml(payload.period?.timezone)}</p>${Object.entries(readinessLabels).map(([key,label])=>{
-      const item=payload.components[key]; if(!item || !Object.hasOwn(statuses,item.status)) throw new Error('Некорректное состояние источника.');
-      return `<section data-source-readiness-component="${key}"><h4>${label} · ${statuses[item.status]}</h4>${Object.entries(counts).filter(([field])=>Object.hasOwn(item,field)).map(([field,title])=>`<p>${title}: <strong>${item[field]===null?'Неизвестно — источник не подключён':escapeHtml(item[field])}</strong></p>`).join('')}${key==='approvedAttendance'&&item.status==='available'?'<p>Неизменяемый снимок табеля проверен.</p>':''}${(item.reasons||[]).map(reason=>`<p class="muted">${escapeHtml(readinessReasons[reason]||`Источник требует проверки (${reason}).`)}</p>`).join('')}</section>`;
-    }).join('')}<p class="muted">Числа заказов и возвратов — наблюдения зарегистрированных данных. Они не подтверждают полноту зарплатных источников; нулевые значения не разрешают официальный расчёт.</p>`;
+    if (payload?.schemaVersion !== 1 || payload.officialReady !== false || !payload.components
+        || typeof payload.components !== 'object' || Array.isArray(payload.components)) throw new Error('Некорректный ответ проверки источников.');
+    const statuses={available:'Доступен',incomplete:'Нужна проверка',unsupported:'Не подключён',not_required:'Не требуется'};
+    const validStatus = value => Object.hasOwn(statuses, value);
+    const componentStatus = item => item && typeof item === 'object' && !Array.isArray(item) && validStatus(item.status) ? item.status : null;
+    const actualKeys = Object.keys(payload.components);
+    const missingKeys = Object.keys(readinessLabels).filter(key => !Object.hasOwn(payload.components, key));
+    const unknownKeys = actualKeys.filter(key => !Object.hasOwn(readinessLabels, key));
+    const availableCount = actualKeys.filter(key => Object.hasOwn(readinessLabels, key) && componentStatus(payload.components[key]) === 'available').length;
+    const incompleteCount = actualKeys.filter(key => Object.hasOwn(readinessLabels, key) && componentStatus(payload.components[key]) === 'incomplete').length;
+    const unsupportedCount = actualKeys.filter(key => Object.hasOwn(readinessLabels, key) && componentStatus(payload.components[key]) === 'unsupported').length;
+    const reviewCount = unknownKeys.length + missingKeys.length
+      + actualKeys.filter(key => Object.hasOwn(readinessLabels, key) && !componentStatus(payload.components[key])).length;
+    const renderComponent = (key, label, index, missing = false, unknown = false) => {
+      const item = missing ? null : payload.components[key];
+      const state = componentStatus(item);
+      const safeStatus = unknown ? 'Новый источник — требуется проверка'
+        : missing ? 'Источник не получен'
+          : state ? statuses[state] : 'Данные не распознаны — нужна проверка';
+      const cardId = unknown ? `additional-${index + 1}` : key;
+      const metrics = !unknown && state ? Object.entries(readinessMetrics[key] || {}).filter(([field]) => Object.hasOwn(item, field)).map(([field, title]) => {
+        const value = item[field];
+        const formatted = value === null ? 'Неизвестно'
+          : readinessMoneyMetrics.has(field) && Number.isSafeInteger(value) ? money(value, item.currency || 'RUB')
+            : Number.isSafeInteger(value) ? new Intl.NumberFormat('ru-RU').format(value)
+              : value === true ? 'Да' : value === false ? 'Нет' : null;
+        return formatted === null ? '' : `<p>${title}: <strong>${escapeHtml(formatted)}</strong></p>`;
+      }).join('') : '';
+      const reasons = Array.isArray(item?.reasons) ? item.reasons.map(reason => `<p class="muted">${escapeHtml(readinessReasonLabel(reason))}</p>`).join('') : '';
+      const message = unknown ? '<p class="muted">Данные получены, но их назначение ещё не отображается в этой версии интерфейса. Официальный расчёт остаётся заблокированным.</p>'
+        : missing ? '<p class="muted">Ответ проверки не содержит этот ожидаемый источник. Обновите экран или обратитесь к администратору.</p>'
+          : !state ? '<p class="muted">Формат состояния источника не распознан. Обновите экран или обратитесь к администратору.</p>' : '';
+      const labelText = unknown ? `Дополнительный источник ${index + 1}` : label;
+      return `<section data-source-readiness-component="${escapeHtml(cardId)}" data-source-readiness-kind="${unknown ? 'unknown' : missing ? 'missing' : 'known'}"${state && !unknown ? ` data-source-readiness-status="${state}"` : ''}><h4>${labelText} · ${safeStatus}</h4>${message}${metrics}${key==='approvedAttendance'&&state==='available'?'<p>Неизменяемый снимок табеля проверен.</p>':''}${reasons}</section>`;
+    };
+    const groupedKeys = new Set(readinessGroups.flatMap(group => group.keys));
+    const groupMarkup = readinessGroups.map(group => {
+      const cards = group.keys.map(key => Object.hasOwn(payload.components, key)
+        ? renderComponent(key, readinessLabels[key], 0) : renderComponent(key, readinessLabels[key], 0, true));
+      return `<section data-source-readiness-group><h4>${group.label}</h4><div data-source-readiness-grid>${cards.join('')}</div></section>`;
+    }).join('');
+    const unknownCards = unknownKeys.map((key, index) => renderComponent(key, '', index, false, true));
+    const ungroupedCards = Object.keys(readinessLabels).filter(key => !groupedKeys.has(key))
+      .map(key => Object.hasOwn(payload.components, key) ? renderComponent(key, readinessLabels[key], 0)
+        : renderComponent(key, readinessLabels[key], 0, true));
+    const additionalCards = [...ungroupedCards, ...unknownCards];
+    const additionalGroup = additionalCards.length
+      ? `<section data-source-readiness-group><h4>Дополнительные проверки</h4><div data-source-readiness-grid>${additionalCards.join('')}</div></section>` : '';
+    return `<style>[data-source-readiness-groups]{display:grid;gap:12px}[data-source-readiness-grid]{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:10px}[data-source-readiness-component]{min-width:0;box-sizing:border-box;padding:12px;border:1px solid var(--ui-border-control);border-radius:10px;overflow-wrap:anywhere}[data-source-readiness-component][data-source-readiness-kind="unknown"],[data-source-readiness-component][data-source-readiness-kind="missing"]{border-color:var(--ui-warning-border,#d9aa52)}</style><p data-source-readiness-official>Официальный расчёт пока недоступен. Эта проверка показывает состояние источников, но не начисляет зарплату и не сохраняет выплаты.</p><p>Период: ${escapeHtml(payload.period?.from)} — ${escapeHtml(payload.period?.to)} · часовой пояс: ${escapeHtml(payload.period?.timezone)}</p><p data-source-readiness-summary>Доступно: ${availableCount} · нужна проверка: ${incompleteCount} · не подключено: ${unsupportedCount} · интерфейс не распознал или не получил: ${reviewCount}</p><div data-source-readiness-groups>${groupMarkup}${additionalGroup}</div><p class="muted">Нулевые значения и полностью доступные отдельные источники сами по себе не разрешают официальный расчёт.</p>`;
+  };
+  const renderRefundAwareSourcedComparison = (payload, staff = []) => {
+    const invalid = () => { throw new Error('Некорректное сравнение зарплатных схем: обновите данные.'); };
+    const sha = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+    const amount = value => Number.isSafeInteger(value) && value >= 0;
+    const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0,10) === value;
+    if (payload?.schemaVersion !== 2 || payload.comparisonKind !== 'sourced_candidate_v2'
+        || payload.candidateOnly !== true || payload.nonPayable !== true || payload.nonAccrual !== true
+        || payload.officialReady !== false || payload.payoutEligible !== false || payload.persistence !== 'none'
+        || payload.currency !== 'RUB' || typeof payload.venueId !== 'string'
+        || !validDate(payload.period?.from) || !validDate(payload.period?.to) || payload.period.from > payload.period.to
+        || !(payload.period.timezone === null || (typeof payload.period.timezone === 'string' && payload.period.timezone))
+        || !Array.isArray(payload.results) || payload.results.length < 2 || payload.results.length > 8
+        || new Set(payload.results.map(row => row?.versionId)).size !== payload.results.length
+        || !payload.results.some(row => row?.versionId === payload.baselineVersionId)) invalid();
+    const staffNames = new Map((Array.isArray(staff) ? staff : []).filter(row => row && typeof row.id === 'string' && typeof row.name === 'string').map(row => [row.id, row.name]));
+    const baseline = payload.results.find(row => row.versionId === payload.baselineVersionId);
+    const shared = sha(payload.sharedSourceWatermark);
+    if (shared && !payload.period.timezone) invalid();
+    const renderMoney = value => value === null ? '—' : money(value, payload.currency);
+    const rows = payload.results.map(row => {
+      if (!row || typeof row.versionId !== 'string' || !['legacy_v1','refund_aware_v2'].includes(row.policyFamily)
+          || !['ready','blocked'].includes(row.status) || !Array.isArray(row.reasons)
+          || row.reasons.some(reason => typeof reason !== 'string') || !Array.isArray(row.employees)
+          || row.employees.length > 500 || new Set(row.employees.map(employee => employee?.employeeId)).size !== row.employees.length) invalid();
+      const ready = row.status === 'ready', evidence = row.candidateEvidence;
+      if (ready) {
+        if (!shared || !amount(row.amountCents) || !sha(row.inputWatermark) || !evidence
+            || evidence.schemaVersion !== (row.policyFamily === 'refund_aware_v2' ? 2 : 1)
+            || evidence.venueId !== payload.venueId || evidence.schemeVersionId !== row.versionId
+            || evidence.currency !== payload.currency || evidence.period?.from !== payload.period.from
+            || evidence.period?.to !== payload.period.to || evidence.sharedSourceWatermark !== payload.sharedSourceWatermark
+            || evidence.amountCents !== row.amountCents || evidence.inputWatermark !== row.inputWatermark
+            || !sha(evidence.calculationWatermark) || evidence.officialReady !== false
+            || evidence.payoutEligible !== false || evidence.persistence !== 'none') invalid();
+        let total = 0n;
+        for (const employee of row.employees) {
+          if (!employee || typeof employee.employeeId !== 'string' || !amount(employee.amountCents)) invalid();
+          total += BigInt(employee.amountCents);
+        }
+        if (total !== BigInt(row.amountCents)) invalid();
+      } else if (row.amountCents !== null || row.deltaCents !== null || row.employeeDeltas !== null
+          || evidence !== null || row.employees.length) invalid();
+      if ((row.deltaCents === null) !== (row.employeeDeltas === null)) invalid();
+      if (row.deltaCents !== null) {
+        if (!ready || baseline.status !== 'ready' || row.policyFamily !== baseline.policyFamily
+            || !Number.isSafeInteger(row.deltaCents) || row.deltaCents !== row.amountCents - baseline.amountCents
+            || !Array.isArray(row.employeeDeltas) || row.employeeDeltas.length > 1000) invalid();
+        const own = new Map(row.employees.map(employee => [employee.employeeId, employee.amountCents]));
+        const base = new Map(baseline.employees.map(employee => [employee.employeeId, employee.amountCents]));
+        const ids = new Set([...own.keys(),...base.keys()]);
+        if (row.employeeDeltas.length !== ids.size || new Set(row.employeeDeltas.map(item => item?.employeeId)).size !== ids.size) invalid();
+        for (const delta of row.employeeDeltas) {
+          if (!delta || !ids.has(delta.employeeId) || delta.amountCents !== (own.has(delta.employeeId) ? own.get(delta.employeeId) : null)
+              || delta.baselineAmountCents !== (base.has(delta.employeeId) ? base.get(delta.employeeId) : null)) invalid();
+          const comparable = own.has(delta.employeeId) && base.has(delta.employeeId);
+          if (delta.status !== (comparable ? 'comparable' : 'identity_uncovered')
+              || delta.deltaCents !== (comparable ? own.get(delta.employeeId) - base.get(delta.employeeId) : null)) invalid();
+        }
+      }
+      const deltas = new Map((row.employeeDeltas || []).map(item => [item.employeeId,item]));
+      const ownEmployees = new Map(row.employees.map(employee => [employee.employeeId, employee]));
+      const detailIds = row.employeeDeltas ? row.employeeDeltas.map(item => item.employeeId) : row.employees.map(item => item.employeeId);
+      const employees = detailIds.map(employeeId => {
+        const employee = ownEmployees.get(employeeId), delta = deltas.get(employeeId);
+        return `<tr><th scope="row">${escapeHtml(staffNames.get(employeeId) || employee?.name || employeeId)}${delta?.status === 'identity_uncovered' ? ' · Нет данных в одной из схем' : ''}</th><td>${renderMoney(employee?.amountCents ?? null)}</td><td>${renderMoney(delta?.baselineAmountCents ?? null)}</td><td>${renderMoney(delta?.deltaCents ?? null)}</td></tr>`;
+      }).join('');
+      const detail = ready ? `<tr><td colspan="5"><details><summary>По сотрудникам: ${detailIds.length}</summary><div role="region" tabindex="0" aria-label="Расчёт по сотрудникам" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>Прогноз начисления</th><th>Базовая схема</th><th>Разница</th></tr></thead><tbody>${employees}</tbody></table></div></details>${row.deltaCents === null ? '<p>Разница недоступна: базовая схема не рассчитана или использует другую политику расчёта.</p>' : ''}</td></tr>` : '';
+      const reasons = row.reasons.map(reason => `<li>${escapeHtml(readinessReasonLabel(reason))}</li>`).join('');
+      return `<tr data-sourced-comparison-status="${ready ? 'scenario_ready' : 'blocked'}"><th scope="row">${escapeHtml(row.name || 'Схема')} · версия ${escapeHtml(row.versionNo ?? '—')}${row.versionId === payload.baselineVersionId ? ' · база' : ''}<small>${row.policyFamily === 'refund_aware_v2' ? 'С учётом возвратов' : 'Исходная политика'}</small></th><td>${ready ? 'Рассчитано' : 'Нужны данные'}</td><td>${ready ? renderMoney(row.amountCents) : 'Не рассчитано'}</td><td>${renderMoney(row.deltaCents)}</td><td>${reasons ? `<ul>${reasons}</ul>` : '—'}</td></tr>${detail}`;
+    }).join('');
+    return `<h4 tabindex="-1" data-sourced-comparison-heading>Сравнение схем по фактическим данным</h4><p>Период: ${escapeHtml(payload.period.from)} — ${escapeHtml(payload.period.to)}</p><p class="warning-message" data-sourced-comparison-candidate-only>Прогноз начисления до входящих корректировок. Сравнение не создаёт ведомость, расход или выплату и не применяет удержания.</p>${payload.results.some(row => row.mode === 'margin_target') ? '<p>Маржинальная схема использует зафиксированную стоимость при продаже для расчёта премии; это не бухгалтерская себестоимость после возвратов.</p>' : ''}${shared ? `<details><summary>Исходные данные сравнения</summary><code>${escapeHtml(payload.sharedSourceWatermark)}</code></details>` : '<p>Общие исходные данные не подтверждены; суммы недоступны.</p>'}<div role="region" aria-label="Сравнение сохранённых зарплатных схем" tabindex="0" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Схема</th><th>Состояние</th><th>Прогноз начисления</th><th>Разница с базой</th><th>Причина</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  };
+  const renderSourcedComparison = (payload, staff = []) => {
+    if (payload?.schemaVersion === 2) return renderRefundAwareSourcedComparison(payload, staff);
+    if (payload?.schemaVersion !== 1 || payload.comparisonKind !== 'sourced_candidate' || payload.candidateOnly !== true
+        || payload.nonPayable !== true || payload.nonAccrual !== true || payload.payoutEligible !== false
+        || payload.officialReady !== false || payload.persistence !== 'none' || !Array.isArray(payload.comparisons)
+        || payload.comparisons.length < 2 || !payload.period) throw new Error('Некорректный ответ сравнения зарплатных схем.');
+    const comparisonStatus = payload.status === 'scenario_ready' ? 'Сопоставимо по общим исходным данным' : 'Сравнение заблокировано';
+    if (!Array.isArray(payload.results) || payload.results.length !== payload.comparisons.length
+        || payload.results.some((result, index) => result?.versionId !== payload.comparisons[index]?.versionId)) {
+      throw new Error('Сравнение не содержит согласованные снимки версий.');
+    }
+    const results = new Map(payload.results.map(result => [result.versionId, result]));
+    const rows = payload.comparisons.map(item => {
+      if (!item || typeof item.versionId !== 'string' || !['scenario_ready', 'blocked'].includes(item.status)
+          || (item.status === 'scenario_ready' && (!Number.isSafeInteger(item.amountCents)
+            || (item.deltaToBaselineCents !== null && !Number.isSafeInteger(item.deltaToBaselineCents))
+            || (item.employeeDeltas !== null && !Array.isArray(item.employeeDeltas))))
+          || (item.status === 'scenario_ready' && ((item.deltaToBaselineCents === null) !== (item.employeeDeltas === null)))
+          || (item.status === 'blocked' && (item.amountCents !== null || item.deltaToBaselineCents !== null || item.employeeDeltas !== null))) {
+        throw new Error('Строка сравнения содержит неизвестный статус или некорректную сумму.');
+      }
+      const employeeRows = item.status === 'scenario_ready' && Array.isArray(item.employeeDeltas) ? item.employeeDeltas.map(delta => {
+        if (!delta || typeof delta.employeeId !== 'string' || !['comparable', 'identity_uncovered'].includes(delta.status)
+            || (delta.status === 'comparable' && (!Number.isSafeInteger(delta.amountCents) || !Number.isSafeInteger(delta.baselineAmountCents) || !Number.isSafeInteger(delta.deltaCents)))
+            || (delta.status === 'identity_uncovered' && delta.deltaCents !== null)) throw new Error('Некорректная сотрудническая детализация сравнения.');
+        return `<tr><th scope="row"><code>${escapeHtml(delta.employeeId)}</code></th><td>${delta.status === 'comparable' ? money(delta.amountCents, payload.currency) : 'Не сопоставлено'}</td><td>${delta.status === 'comparable' ? money(delta.baselineAmountCents, payload.currency) : 'Не сопоставлено'}</td><td>${delta.deltaCents === null ? '—' : money(delta.deltaCents, payload.currency)}</td></tr>`;
+      }).join('') : '';
+      const reasons = Array.isArray(item.reasons) ? item.reasons.map(reason => `<li>${escapeHtml(readinessReasonLabel(reason))}</li>`).join('') : '';
+      const label = `${item.name || 'Схема'} · версия ${item.versionNo ?? '—'} · ${item.mode || 'режим не указан'}`;
+      const amount = item.amountCents === null ? 'Не рассчитано' : money(item.amountCents, payload.currency);
+      const delta = item.deltaToBaselineCents === null ? (item.status === 'scenario_ready' ? 'База недоступна' : '—') : money(item.deltaToBaselineCents, payload.currency);
+      const snapshot = results.get(item.versionId)?.candidateSnapshot;
+      if (item.status === 'scenario_ready' && (!snapshot || snapshot.schemeVersionId !== item.versionId
+          || snapshot.candidateOnly !== true || snapshot.persistence !== 'none' || snapshot.officialReady !== false
+          || snapshot.payoutEligible !== false || snapshot.period?.from !== payload.period.from
+          || snapshot.period?.to !== payload.period.to || snapshot.amountCents !== item.amountCents
+          || !/^[a-f0-9]{64}$/.test(snapshot.snapshotWatermark || '')
+          || !/^[a-f0-9]{64}$/.test(snapshot.candidateResultWatermark || ''))) {
+        throw new Error('Снимок сравнения не совпадает с версией и периодом.');
+      }
+      if (item.status === 'blocked' && snapshot !== null) throw new Error('Для заблокированной версии получен кандидатный снимок.');
+      const snapshotRow = snapshot ? `<tr><td colspan="5"><details><summary>Доказательства версии: ${snapshot.lines.length} строк, отпечаток ${escapeHtml(snapshot.snapshotWatermark.slice(0, 12))}…</summary><p>Кандидатный снимок · не начислено и не к выплате · ${escapeHtml(snapshot.lines.length)} строк.</p></details></td></tr>` : '';
+      return `<tr data-sourced-comparison-status="${item.status}"><th scope="row">${escapeHtml(label)}${item.versionId === payload.baselineVersionId ? ' · база' : ''}</th><td>${item.status === 'scenario_ready' ? 'Рассчитано' : 'Заблокировано'}</td><td>${escapeHtml(amount)}</td><td>${escapeHtml(delta)}</td><td>${reasons ? `<ul>${reasons}</ul>` : '—'}</td></tr>${snapshotRow}${item.status === 'scenario_ready' && item.employeeDeltas === null ? '<tr><td colspan="5">Разница не рассчитана: базовая версия недоступна.</td></tr>' : employeeRows ? `<tr><td colspan="5"><details><summary>Разница по сотрудникам: ${item.employeeDeltas.length}</summary><div role="region" aria-label="Разница по сотрудникам" tabindex="0" style="max-width:100%;overflow-x:auto"><table><thead><tr><th scope="col">ID сотрудника</th><th scope="col">Эта версия</th><th scope="col">База</th><th scope="col">Разница</th></tr></thead><tbody>${employeeRows}</tbody></table></div></details></td></tr>` : ''}`;
+    }).join('');
+    const hasValidSharedSourceWatermark = typeof payload.sharedSourceWatermark === 'string' && /^[a-f0-9]{64}$/.test(payload.sharedSourceWatermark);
+    const watermark = hasValidSharedSourceWatermark
+      ? `<p>Общий отпечаток исходных данных: <code>${escapeHtml(payload.sharedSourceWatermark)}</code></p>`
+      : '<p class="warning-message">Общий отпечаток источников не подтверждён; суммы и дельты скрыты.</p>';
+    if (!hasValidSharedSourceWatermark && payload.comparisons.some(item => item.amountCents !== null || item.deltaToBaselineCents !== null))
+      throw new Error('Ответ сравнения содержит сумму без подтверждённого общего источника.');
+    if (!hasValidSharedSourceWatermark && payload.results.some(result => result.candidateSnapshot !== null))
+      throw new Error('Ответ сравнения содержит снимок без подтверждённого общего источника.');
+    return `<h4 tabindex="-1" data-sourced-comparison-heading>${comparisonStatus}</h4><p>Период: ${escapeHtml(payload.period.from)} — ${escapeHtml(payload.period.to)} · ${escapeHtml(payload.currency)}</p>${watermark}<p class="warning-message" data-sourced-comparison-candidate-only>Это предварительное сравнение по данным системы. Оно не создаёт начисление, расход или выплату.</p><div role="region" aria-label="Сравнение сохранённых зарплатных схем" tabindex="0" style="max-width:100%;overflow-x:auto"><table><caption>Сохранённые версии и разница с базовой версией</caption><thead><tr><th scope="col">Сохранённая версия</th><th scope="col">Статус</th><th scope="col">Сумма</th><th scope="col">Разница с базовой версией</th><th scope="col">Причины блокировки</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  };
+  const renderFullEmployeeNetCandidate = payload => {
+    if (payload?.candidateOnly !== true || payload.officialReady !== false || payload.calculationStatus !== 'unavailable'
+        || payload.amount !== null || !payload.period || !payload.sources?.fullEmployeeNetRevenue) throw new Error('Некорректный ответ кандидатного источника.');
+    const series = payload.sources.fullEmployeeNetRevenue;
+    const labels = { available: 'Полные данные источника', incomplete: 'Период покрыт не полностью', unsupported: 'Правило источника не поддерживается' };
+    if (!Object.hasOwn(labels, series.status) || !Array.isArray(series.reasons) || !Array.isArray(series.daily)) throw new Error('Некорректное состояние кандидатного источника.');
+    const description = '<p data-full-net-candidate-warning>Это чистая стоимость товаров после скидок и товарных возвратов по датам признания. Она не является комиссионной базой или суммой зарплаты и не создаёт начислений.</p>';
+    const reasons = series.reasons.map(reason => `<p class="muted">${escapeHtml(fullNetCandidateReasons[reason] || readinessReasons[reason]
+      || (String(reason).startsWith('payroll_recognition_') ? 'Данные признания продаж или возвратов неполны либо не прошли проверку.' : 'Покрытие или правило источника не подтверждено.'))}</p>`).join('');
+    if (series.status !== 'available') return `<section data-full-net-candidate-status="${series.status}"><h4>${labels[series.status]}</h4>${description}<p>Итоговая сумма и дневная детализация скрыты, пока источник не подтверждён.</p>${reasons}</section>`;
+    if (!Number.isSafeInteger(series.amount) || typeof series.currency !== 'string' || !/^[A-Z]{3}$/.test(series.currency)) throw new Error('Некорректная сумма кандидатного источника.');
+    const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && Number.isFinite(Date.parse(`${value}T00:00:00.000Z`)) && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+    if (!validDate(payload.period.from) || !validDate(payload.period.to) || payload.period.from > payload.period.to) throw new Error('Некорректный период кандидатного источника.');
+    let total = 0n, sourceEventCount = 0;
+    const dailyKeys = new Set(), eventKeys = new Set();
+    const validatedRows = series.daily.map(row => {
+      if (!row || typeof row.employeeId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.employeeId)
+          || !validDate(row.date) || row.date < payload.period.from || row.date > payload.period.to || !Number.isSafeInteger(row.netMinor)
+          || !Array.isArray(row.sourceEvents) || !row.sourceEvents.length) throw new Error('Некорректная строка кандидатного источника.');
+      const dailyKey = `${row.employeeId}/${row.date}`;
+      if (dailyKeys.has(dailyKey)) throw new Error('Повторяется сотрудник или дата в кандидатном источнике.');
+      dailyKeys.add(dailyKey);
+      let eventTotal = 0n;
+      for (const event of row.sourceEvents) {
+        if (!event || !['sale', 'refund'].includes(event.kind) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(event.id || ''))
+            || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(event.eventId || ''))
+            || !Number.isSafeInteger(event.amountMinor) || (event.kind === 'sale' ? event.amountMinor < 0 : event.amountMinor > 0)) throw new Error('Некорректное событие кандидатного источника.');
+        const eventKey = `${event.kind}/${event.id}`;
+        if (eventKeys.has(eventKey)) throw new Error('Повторяется событие кандидатного источника.');
+        eventKeys.add(eventKey); eventTotal += BigInt(event.amountMinor); sourceEventCount++;
+      }
+      if (eventTotal !== BigInt(row.netMinor)) throw new Error('Сумма событий не совпадает с итогом за день.');
+      total += BigInt(row.netMinor);
+      return row;
+    });
+    if (total !== BigInt(series.amount)) throw new Error('Сумма дневных строк не совпадает с итогом периода.');
+    let eventBudget = MAX_FULL_NET_CANDIDATE_EVENTS, renderedEvents = 0;
+    const visibleRows = validatedRows.slice(0, MAX_FULL_NET_CANDIDATE_ROWS).map(row => {
+      const employee = ownerStaff.find(item => item.id === row.employeeId)?.name;
+      const shownEvents = row.sourceEvents.slice(0, eventBudget);
+      eventBudget -= shownEvents.length; renderedEvents += shownEvents.length;
+      const events = shownEvents.map(event => {
+        return `<li>${event.kind === 'sale' ? 'Продажа' : 'Возврат'} · ${money(event.amountMinor, series.currency)}</li>`;
+      }).join('');
+      const omitted = row.sourceEvents.length - shownEvents.length;
+      return `<tr><td>${escapeHtml(employee || `ID сотрудника ${row.employeeId}`)}</td><td>${escapeHtml(row.date)}</td><td>${money(row.netMinor, series.currency)}</td><td><details><summary>${row.sourceEvents.length} событий</summary><ul>${events}${omitted ? `<li>${omitted} событий скрыто из-за ограничения детализации</li>` : ''}</ul></details></td></tr>`;
+    }).join('');
+    const hiddenRows = Math.max(0, series.daily.length - MAX_FULL_NET_CANDIDATE_ROWS);
+    const hiddenEvents = sourceEventCount - renderedEvents;
+    return `<section data-full-net-candidate-status="available"><h4>${labels.available}</h4>${description}<p>Итог за период: <strong data-full-net-candidate-amount>${money(series.amount, series.currency)}</strong>. Валюта: ${escapeHtml(series.currency)}.</p>${series.daily.length ? `<p class="muted">На узком экране таблицу можно прокручивать по горизонтали.</p><div tabindex="0" role="region" aria-label="Чистая стоимость товаров по сотрудникам и датам" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Сотрудник</th><th>Дата признания</th><th>Чистая стоимость товаров</th><th>Состав суммы</th></tr></thead><tbody>${visibleRows}</tbody></table></div>${hiddenRows || hiddenEvents ? `<p class="muted">Показаны первые ${Math.min(validatedRows.length, MAX_FULL_NET_CANDIDATE_ROWS)} строк и ${Math.min(sourceEventCount, MAX_FULL_NET_CANDIDATE_EVENTS)} событий; скрыто строк: ${hiddenRows}, событий: ${hiddenEvents}. Итоговая сумма учитывает весь период.</p>` : ''}` : '<p data-full-net-candidate-empty>За полностью покрытый период событий нет; подтверждённая сумма равна нулю.</p>'}${reasons}</section>`;
+  };
+  const renderOrderRevenueReconciliation = payload => {
+    const source = payload?.sources?.orderRevenueReconciliation;
+    if (!source || source.schemaVersion !== 1 || source.candidateOnly !== true || source.officialReady !== false
+        || source.persistence !== 'none' || !['available', 'incomplete', 'unsupported'].includes(source.status)
+        || !Array.isArray(source.orders) || !Array.isArray(source.reasons) || !source.coverage
+        || !/^[A-Z]{3}$/.test(String(source.currency || ''))
+        || source.period?.from !== payload.period?.from || source.period?.to !== payload.period?.to) {
+      throw new Error('Некорректная сверка сумм закрытых заказов.');
+    }
+    const fingerprint = /^[a-f0-9]{64}$/.test(source.sourceWatermark || '')
+      ? `<p>Отпечаток сверки: <code>${escapeHtml(source.sourceWatermark)}</code></p>` : '';
+    const labels = { available: 'Сверка подтверждена', incomplete: 'Сверка неполная', unsupported: 'Источник сверки недоступен' };
+    const explanation = '<p>Сверка закрытых чеков до возвратов. Минимальная корректировка остаётся суммой заведения; остаток не распределяется сотрудникам и не входит в расчёт зарплаты.</p>';
+    if (source.status !== 'available') return `<section data-payroll-order-reconciliation-status="${source.status}"><h4>${labels[source.status]}</h4>${explanation}<p>Итоги скрыты, пока покрытие заказов и строк продажи не будет подтверждено.</p>${source.reasons.map(reason => `<p class="muted">${escapeHtml(readinessReasonLabel(reason))}</p>`).join('')}${fingerprint}</section>`;
+    const fields = ['closedOrderTotalMinor', 'recognizedLineNetMinor', 'minimumPriceAdjustmentMinor', 'unattributedResidualMinor'];
+    if (!source.coverage.complete || !Number.isSafeInteger(source.closedOrderCount) || !Number.isSafeInteger(source.recognizedOrderCount)
+        || source.closedOrderCount !== source.orders.length || source.recognizedOrderCount !== source.closedOrderCount
+        || fields.some(field => !Number.isSafeInteger(source.totals?.[field]) || source.totals[field] < 0)
+        || !/^[A-Z]{3}$/.test(String(source.currency || '')) || !/^[a-f0-9]{64}$/.test(source.sourceWatermark || '')) {
+      throw new Error('Подтверждённые итоги сверки не прошли проверку.');
+    }
+    let total = 0n, lines = 0n, adjustment = 0n, residual = 0n;
+    const rows = source.orders.map(row => {
+      if (!row || row.status !== 'available' || !/^[0-9a-f-]{36}$/i.test(row.orderId || '')
+          || fields.some(field => !Number.isSafeInteger(row[field]) || row[field] < 0)) throw new Error('Строка сверки некорректна.');
+      total += BigInt(row.closedOrderTotalMinor); lines += BigInt(row.recognizedLineNetMinor);
+      adjustment += BigInt(row.minimumPriceAdjustmentMinor); residual += BigInt(row.unattributedResidualMinor);
+      return `<tr><td>${escapeHtml(row.closedAt || '—')}</td><td><code>${escapeHtml(row.orderId)}</code></td><td>${money(row.closedOrderTotalMinor, source.currency)}</td><td>${money(row.recognizedLineNetMinor, source.currency)}</td><td>${money(row.minimumPriceAdjustmentMinor, source.currency)}</td><td>${money(row.unattributedResidualMinor, source.currency)}</td></tr>`;
+    }).join('');
+    if (total !== BigInt(source.totals.closedOrderTotalMinor) || lines !== BigInt(source.totals.recognizedLineNetMinor)
+        || adjustment !== BigInt(source.totals.minimumPriceAdjustmentMinor) || residual !== BigInt(source.totals.unattributedResidualMinor)
+        || total !== lines + adjustment + residual) throw new Error('Итоги сверки не совпадают со строками заказов.');
+    return `<section data-payroll-order-reconciliation-status="available"><h4>${labels.available}</h4>${explanation}<p>Закрытых заказов: ${source.closedOrderCount} · общая сумма ${money(source.totals.closedOrderTotalMinor, source.currency)} · строки товаров ${money(source.totals.recognizedLineNetMinor, source.currency)} · минимальная корректировка ${money(source.totals.minimumPriceAdjustmentMinor, source.currency)} · нераспределённая разница ${money(source.totals.unattributedResidualMinor, source.currency)}.</p>${source.orders.length ? `<div tabindex="0" role="region" aria-label="Сверка сумм закрытых заказов" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Закрыт</th><th>Заказ</th><th>Сумма чека</th><th>Товарные строки</th><th>Минимальная корректировка</th><th>Разница</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>Закрытых чеков за этот период нет.</p>'}${fingerprint}</section>`;
+  };
+  const renderRefundReview = payload => {
+    const review = payload?.sources?.refundReview;
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && Number.isFinite(Date.parse(`${value}T00:00:00.000Z`))
+      && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+    if (!review || review.schemaVersion !== 1 || review.candidateOnly !== true || review.officialReady !== false
+        || review.nonPayable !== true || review.nonAccrual !== true || review.payoutEligible !== false
+        || !['available', 'incomplete', 'unsupported'].includes(review.status) || review.impactStatus !== 'not_applied' || !Array.isArray(review.rows)
+        || !Array.isArray(review.employeeDays) || !Array.isArray(review.reasons)) throw new Error('Некорректный обзор возвратов.');
+    const explanation = '<p class="muted">Справка показывает товарную стоимость возвратов по дате признания и исходному продавцу. Суммы не применены к зарплате и не создают долг, удержание или выплату.</p>';
+    if (review.status !== 'available') return `<section data-payroll-refund-review-status="${review.status}"><h4>Возвраты требуют проверки источника</h4>${explanation}<p>Сумма и строки скрыты до подтверждения полного покрытия.</p>${review.reasons.map(reason => `<p class="muted">${escapeHtml(readinessReasonLabel(reason))}</p>`).join('')}</section>`;
+    if (!/^[A-Z]{3}$/.test(String(review.currency || '')) || !Number.isSafeInteger(review.totalMerchandiseNetRevenueDeltaCents)
+        || review.totalMerchandiseNetRevenueDeltaCents > 0 || !/^[a-f0-9]{64}$/.test(review.sourceWatermark || '')
+        || !date(review.period?.from) || !date(review.period?.to) || review.period.from > review.period.to
+        || review.period.from !== payload.period?.from || review.period.to !== payload.period?.to) throw new Error('Некорректная сумма обзора возвратов.');
+    let total = 0n;
+    const seen = new Set();
+    const rows = review.rows.map(row => {
+      if (!row || !uuid.test(String(row.refundItemId || '')) || !uuid.test(String(row.refundEventId || ''))
+          || !uuid.test(String(row.originalSaleLineId || '')) || !uuid.test(String(row.orderId || ''))
+          || !uuid.test(String(row.orderItemId || '')) || (row.menuItemId !== null && !uuid.test(String(row.menuItemId || '')))
+          || !(row.menuItemName === null || (typeof row.menuItemName === 'string' && row.menuItemName.length <= 160))
+          || !uuid.test(String(row.employeeId || ''))
+          || seen.has(row.refundItemId) || !date(row.refundDate) || row.refundDate < review.period.from
+          || row.refundDate > review.period.to || !date(row.originalSaleDate)
+          || !Number.isSafeInteger(row.merchandiseNetRevenueDeltaCents) || row.merchandiseNetRevenueDeltaCents > 0 || row.currency !== review.currency) {
+        throw new Error('Некорректная строка обзора возвратов.');
+      }
+      seen.add(row.refundItemId); total += BigInt(row.merchandiseNetRevenueDeltaCents);
+      return row;
+    });
+    if (total !== BigInt(review.totalMerchandiseNetRevenueDeltaCents)) throw new Error('Сумма строк обзора возвратов не сходится.');
+    const expectedEmployeeDays = new Map();
+    for (const row of rows) {
+      const key = `${row.employeeId}|${row.refundDate}`;
+      if (!expectedEmployeeDays.has(key)) expectedEmployeeDays.set(key, { employeeId: row.employeeId, recognizedDate: row.refundDate,
+        total: 0n, refundItemIds: [], refundEventIds: [], originalSaleLineIds: [] });
+      const summary = expectedEmployeeDays.get(key);
+      summary.total += BigInt(row.merchandiseNetRevenueDeltaCents);
+      summary.refundItemIds.push(row.refundItemId); summary.refundEventIds.push(row.refundEventId);
+      summary.originalSaleLineIds.push(row.originalSaleLineId);
+    }
+    const employeeDayKeys = new Set();
+    let employeeDayTotal = 0n;
+    for (const row of review.employeeDays) {
+      const key = `${row?.employeeId}|${row?.recognizedDate}`;
+      const expected = expectedEmployeeDays.get(key);
+      const sortedUnique = values => Array.isArray(values) && values.every(value => uuid.test(String(value || '')))
+        && new Set(values).size === values.length && values.slice().sort().join('|') === values.join('|');
+      if (!uuid.test(String(row?.employeeId || '')) || !date(row?.recognizedDate)
+          || row.recognizedDate < review.period.from || row.recognizedDate > review.period.to
+          || !Number.isSafeInteger(row?.merchandiseNetRevenueDeltaCents) || row.merchandiseNetRevenueDeltaCents > 0
+          || !expected || employeeDayKeys.has(key) || !sortedUnique(row.refundItemIds)
+          || !sortedUnique(row.refundEventIds) || !sortedUnique(row.originalSaleLineIds)
+          || BigInt(row.merchandiseNetRevenueDeltaCents) !== expected.total
+          || row.refundItemIds.join('|') !== [...new Set(expected.refundItemIds)].sort().join('|')
+          || row.refundEventIds.join('|') !== [...new Set(expected.refundEventIds)].sort().join('|')
+          || row.originalSaleLineIds.join('|') !== [...new Set(expected.originalSaleLineIds)].sort().join('|')) {
+        throw new Error('Сводка возвратов по сотруднику и дате не сходится.');
+      }
+      employeeDayKeys.add(key); employeeDayTotal += BigInt(row.merchandiseNetRevenueDeltaCents);
+    }
+    if (employeeDayKeys.size !== expectedEmployeeDays.size || employeeDayTotal !== total) {
+      throw new Error('Итоги возвратов по сотрудникам и датам не сходятся с исходными строками.');
+    }
+    const shown = rows.slice(0, 500);
+    const body = shown.map(row => `<tr><td>${escapeHtml(ownerStaff.find(item => item.id === row.employeeId)?.name || `ID сотрудника ${row.employeeId}`)}</td><td>${escapeHtml(row.menuItemName || (row.menuItemId ? `Товар ${row.menuItemId.slice(0, 8)}` : `Строка ${row.orderItemId.slice(0, 8)}`))}</td><td>${escapeHtml(row.refundDate)}</td><td>${money(row.merchandiseNetRevenueDeltaCents, review.currency)}</td><td>${escapeHtml(row.originalSaleDate)} · ${escapeHtml(row.originalSaleLineId.slice(0, 8))}</td></tr>`).join('');
+    const visibleEmployeeDays = review.employeeDays.slice(0, MAX_REFUND_REVIEW_EMPLOYEE_DAYS);
+    const employeeDayRows = visibleEmployeeDays.map(row => `<tr><td>${escapeHtml(ownerStaff.find(item => item.id === row.employeeId)?.name || `ID сотрудника ${row.employeeId}`)}</td><td>${escapeHtml(row.recognizedDate)}</td><td>${money(row.merchandiseNetRevenueDeltaCents, review.currency)}</td><td>${row.refundItemIds.length}</td></tr>`).join('');
+    const hiddenEmployeeDays = review.employeeDays.length - visibleEmployeeDays.length;
+    return `<section data-payroll-refund-review-status="available"><h4>Товарные возвраты — справка владельцу</h4>${explanation}<p>Сумма изменений стоимости в выбранном периоде: <strong data-payroll-refund-review-total>${money(review.totalMerchandiseNetRevenueDeltaCents, review.currency)}</strong>. Это не сумма зарплаты. Строк возвратов: ${rows.length}.</p>${review.employeeDays.length ? `<h5>По сотруднику и дате признания</h5><div tabindex="0" role="region" aria-label="Изменение стоимости возвратов по сотрудникам и датам" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Исходный сотрудник</th><th>Дата признания возврата</th><th>Изменение стоимости товаров</th><th>Строк возврата</th></tr></thead><tbody>${employeeDayRows}</tbody></table></div>${hiddenEmployeeDays ? `<p class="muted">Показано ${visibleEmployeeDays.length} из ${review.employeeDays.length} строк сводки; итог учитывает весь период.</p>` : ''}` : ''}${rows.length ? `<h5>Строки возврата</h5><div tabindex="0" role="region" aria-label="Строки товарных возвратов с атрибуцией" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Исходный сотрудник</th><th>Товар</th><th>Дата возврата</th><th>Изменение стоимости</th><th>Исходная продажа</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p data-payroll-refund-review-empty>Подтверждённых товарных возвратов в периоде нет.</p>'}${rows.length > shown.length ? `<p class="muted">Показано 500 из ${rows.length} строк; итог учитывает все строки.</p>` : ''}</section>`;
+  };
+  const renderCandidateCalculation = payload => {
+    const candidate = payload?.candidateCalculation;
+    if (!candidate || candidate.schemaVersion !== 1 || candidate.candidateOnly !== true
+        || candidate.nonPayable !== true || candidate.nonAccrual !== true || candidate.officialReady !== false
+        || candidate.payoutEligible !== false || !candidate.period || !Array.isArray(candidate.reasons)) {
+      throw new Error('Некорректный ответ сценарного расчёта зарплаты.');
+    }
+    const reasons = candidate.reasons.map(reason => `<p class="muted">${escapeHtml(readinessReasonLabel(reason))}</p>`).join('');
+    if (candidate.status !== 'scenario_ready') {
+      if (candidate.amountCents !== null || !['blocked'].includes(candidate.status)) throw new Error('Некорректное заблокированное состояние сценария.');
+      return `<section data-payroll-candidate-status="blocked"><h3>Сценарный расчёт заблокирован</h3><p>Сумма скрыта: не все источники и условия расчёта подтверждены. Начисление и выплата не создавались.</p>${reasons}</section>`;
+    }
+    if (!Number.isSafeInteger(candidate.amountCents) || candidate.amountCents < 0
+        || !Number.isSafeInteger(candidate.monthTurnoverCents) || candidate.monthTurnoverCents < 0
+        || typeof candidate.currency !== 'string' || !/^[A-Z]{3}$/.test(candidate.currency)
+        || !EDITOR_MODES.includes(candidate.mode) || !/^[a-f0-9]{64}$/.test(candidate.inputWatermark || '')
+        || !Array.isArray(candidate.employees) || !Array.isArray(candidate.daily)
+        || !/^\d{4}-\d{2}-\d{2}$/.test(candidate.period.from) || !/^\d{4}-\d{2}-\d{2}$/.test(candidate.period.to)
+        || candidate.period.from > candidate.period.to) throw new Error('Некорректные суммы или детализация сценарного расчёта.');
+    let employeeTotal = 0n;
+    const names = new Map();
+    for (const row of candidate.employees) {
+      if (!row || typeof row.employeeId !== 'string' || !Number.isSafeInteger(row.amountCents) || row.amountCents < 0) {
+        throw new Error('Некорректная строка сотрудника в сценарном расчёте.');
+      }
+      employeeTotal += BigInt(row.amountCents);
+      names.set(row.employeeId, ownerStaff.find(item => item.id === row.employeeId)?.name || `ID сотрудника ${row.employeeId}`);
+    }
+    if (employeeTotal !== BigInt(candidate.amountCents)) throw new Error('Сумма по сотрудникам не сходится с итогом сценария.');
+    const shownEmployees = candidate.employees.slice(0, MAX_COMPARE_EMPLOYEE_DAYS);
+    const normalized = { status: 'ready', mode: candidate.mode, currency: candidate.currency,
+      periodFrom: candidate.period.from, periodTo: candidate.period.to, monthTurnoverCents: candidate.monthTurnoverCents,
+      employees: shownEmployees, daily: candidate.daily.slice(0, MAX_RENDERED_EMPLOYEE_DAYS), blockers: [], criticalErrors: [] };
+    const hidden = Math.max(0, candidate.employees.length - shownEmployees.length)
+      + Math.max(0, candidate.daily.length - MAX_RENDERED_EMPLOYEE_DAYS);
+    return `<section data-payroll-candidate-status="scenario_ready"><div class="warning-message" role="note"><strong>Сценарий рассчитан: ${money(candidate.amountCents, candidate.currency)} · не начислено и не к выплате</strong><p>Предварительный результат по сохранённой версии схемы за ${escapeHtml(candidate.period.from)} — ${escapeHtml(candidate.period.to)}. Он не создаёт payroll-run, начисление или расход и не является подтверждением права на выплату.</p></div>${renderDetails(normalized, names)}${hidden ? `<p class="muted">Детализация ограничена для отображения; скрыто строк сотрудников и дней: ${hidden}. Итог учитывает полный набор данных.</p>` : ''}${reasons}</section>`;
+  };
+  const renderCandidateSnapshot = payload => {
+    const candidate = payload?.candidateCalculation, snapshot = payload?.candidateSnapshot;
+    if (candidate?.status !== 'scenario_ready') {
+      if (snapshot !== null) throw new Error('Для заблокированного расчёта получен кандидатный снимок.');
+      return '';
+    }
+    if (snapshot === null && payload.candidateSnapshotStatus === 'size_limited') {
+      return '<p class="muted" data-candidate-snapshot-limited>Детальный снимок слишком велик для показа целиком. Предварительный расчёт остаётся доступен выше, без снимка для аудита.</p>';
+    }
+    if (!snapshot || snapshot.schemaVersion !== 1 || snapshot.snapshotKind !== 'candidate_preview'
+        || snapshot.candidateOnly !== true || snapshot.officialReady !== false || snapshot.payoutEligible !== false
+        || snapshot.nonPayable !== true || snapshot.nonAccrual !== true || snapshot.persistence !== 'none'
+        || !/^[0-9a-f-]{36}$/i.test(snapshot.venueId || '') || snapshot.schemeId !== payload.schemeId
+        || snapshot.schemeVersionId !== payload.versionId
+        || snapshot.period?.from !== payload.period?.from || snapshot.period?.to !== payload.period?.to
+        || snapshot.amountCents !== candidate.amountCents || snapshot.source?.inputWatermark !== candidate.inputWatermark
+        || !/^[a-f0-9]{64}$/.test(snapshot.candidateResultWatermark || '')
+        || !/^[a-f0-9]{64}$/.test(snapshot.snapshotWatermark || '')
+        || !Array.isArray(snapshot.lines) || !Array.isArray(snapshot.days) || !Array.isArray(snapshot.employeeDays)) {
+      throw new Error('Кандидатный снимок не совпадает с выбранной версией, периодом или расчётом.');
+    }
+    const shown = snapshot.lines.slice(0, 500);
+    const rows = shown.map(line => {
+      if (!line || !/^\d{4}-\d{2}-\d{2}$/.test(line.localDate || '') || typeof line.employeeId !== 'string'
+          || !Number.isSafeInteger(line.commissionBaseCents) || !Number.isSafeInteger(line.commissionCents)) {
+        throw new Error('Кандидатный снимок содержит некорректную строку.');
+      }
+      return `<tr><td>${escapeHtml(line.localDate)}</td><td>${escapeHtml(line.employeeName || line.employeeId)}</td><td>${escapeHtml(line.productFacts?.name || line.productId || 'Товар не указан')}</td><td>${escapeHtml(line.department || 'Цех не указан')}</td><td>${money(line.commissionBaseCents, snapshot.currency)}</td><td>${money(line.commissionCents, snapshot.currency)}</td></tr>`;
+    }).join('');
+    return `<details data-payroll-candidate-snapshot><summary>Основание расчёта: ${snapshot.lines.length} строк · SHA-256 ${escapeHtml(snapshot.snapshotWatermark.slice(0, 12))}…</summary><p>Снимок только для просмотра. Он не начислен, не сохранён и не к выплате. Отпечаток результата: <code>${escapeHtml(snapshot.candidateResultWatermark)}</code></p>${snapshot.lines.length ? `<div role="region" aria-label="Строки кандидатного зарплатного расчёта" tabindex="0" style="max-width:100%;overflow-x:auto"><table><caption>Товарные строки и кандидатное начисление</caption><thead><tr><th scope="col">Дата</th><th scope="col">Сотрудник</th><th scope="col">Товар</th><th scope="col">Цех</th><th scope="col">База</th><th scope="col">Комиссия</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>Товарных строк нет; сумма может включать другие компоненты выбранной схемы.</p>'}${snapshot.lines.length > shown.length ? `<p class="muted">Показано ${shown.length} из ${snapshot.lines.length} строк; отпечаток относится ко всему снимку.</p>` : ''}</details>`;
   };
   const sourceReadinessPeriodValid = (from,to) => {
     const valid=value=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
     return valid(from)&&valid(to)&&from<=to&&from===from.slice(0,7)+'-01'&&from.slice(0,7)===to.slice(0,7);
+  };
+  // Economic correction controller: exact persisted intent survives lost responses.
+  const savedRunCreationEndpoint = version => {
+    if (!version || typeof version !== 'object' || Array.isArray(version)) throw new Error('payroll_run_source_policy_unsupported');
+    const policy=version?.sourcePolicies;
+    if (policy === undefined || policy?.schemaVersion === 1) return '/api/payroll/calculation-runs';
+    if (policy?.schemaVersion === 2 && policy.earnings?.refunds === 'remaining_merchandise_original_sale_date_v1'
+        && policy.earnings?.venueTurnover === 'canonical_total_less_merchandise_returns_v1'
+        && policy.earnings?.marginCost === 'frozen_sale_depletion_cost_payroll_v1') return '/api/payroll/refund-aware-calculation-runs';
+    throw new Error('payroll_run_source_policy_unsupported');
+  };
+  const createReviewedCorrectionController = ({ request, storage, identity, makeKey }) => {
+    const scope = identity(), prefix = `payroll-reviewed-correction:v1:${scope}:`;
+    const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
+    const sha = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+    const cents = value => Number.isSafeInteger(value) && value >= 0;
+    const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10) === value;
+    const fail = code => { throw Object.assign(new Error(code), { code }); };
+    const ensure = () => { if (!scope || identity() !== scope) fail('payroll_correction_ui_owner_required'); };
+    const previewValid = input => input && Object.keys(input).sort().join(',') === 'operation,originalEntryId,targetEntryId'
+      && ['apply','waive'].includes(input.operation) && uuid(input.originalEntryId)
+      && (input.operation === 'waive' ? input.targetEntryId === null : uuid(input.targetEntryId) && input.targetEntryId !== input.originalEntryId);
+    const periodPolicy = 'reviewed_period_variable_pay_only_v1';
+    const modelValid = model => ['line_v1','period_v2'].includes(model);
+    const endpoint = model => model === 'period_v2' ? '/api/payroll/refund-aware-corrections' : '/api/payroll/reviewed-corrections';
+    const periodPlanValid = (plan,input) => {
+      const bounded = value => cents(value) && value <= 999999999999;
+      if (!previewValid(input) || plan?.schemaVersion !== 3 || plan.policyCode !== periodPolicy || plan.basisKind !== 'period_variable'
+          || plan.operation !== input.operation || plan.originalEntryId !== input.originalEntryId || plan.targetEntryId !== input.targetEntryId
+          || !uuid(plan.employeeId) || !uuid(plan.originalRunId) || plan.venueId !== scope.split(':')[1] || plan.currency !== 'RUB'
+          || ![plan.planHash,plan.assessmentHash,plan.sourceHash,plan.ledgerHash,plan.originalProvenanceSha256,plan.claimHistoryWatermark].every(sha)
+          || !date(plan.originalPeriod?.from) || !date(plan.originalPeriod?.to) || plan.originalPeriod.from > plan.originalPeriod.to
+          || !(plan.claimId === null || uuid(plan.claimId)) || ![plan.originalPaidCents,plan.firstAssessedCents,plan.currentPotentialCents,
+            plan.highWaterAssessedCents,plan.alreadyDisposedCents,plan.availableReviewCents,plan.positiveEntitlementInformationCents].every(bounded)
+          || plan.currentPotentialCents > plan.originalPaidCents || plan.highWaterAssessedCents > plan.originalPaidCents
+          || plan.highWaterAssessedCents < Math.max(plan.currentPotentialCents,plan.firstAssessedCents)
+          || plan.alreadyDisposedCents > plan.currentPotentialCents || plan.availableReviewCents !== plan.currentPotentialCents-plan.alreadyDisposedCents
+          || plan.claimId === null && plan.alreadyDisposedCents !== 0
+          || plan.positiveEntitlementAction !== 'none' || plan.ownerDecisionRequired !== true || plan.officialReady !== false
+          || plan.payoutEligible !== false || plan.sourceAttested !== false || plan.deltaApplicationEligible !== false
+          || plan.financialAction !== 'none' || plan.persistence !== 'none' || !Array.isArray(plan.allocations) || plan.allocations.length !== 1) return false;
+      if (plan.originalExpenseId === null
+        ? plan.originalPaidCents !== 0 || !uuid(plan.originalSettlementTransitionId)
+        : !uuid(plan.originalExpenseId) || plan.originalPaidCents <= 0 || plan.originalSettlementTransitionId !== undefined) return false;
+      const line=plan.allocations[0],apply=input.operation==='apply';
+      if (!line || line.basisKind !== 'period_variable' || line.claimId !== plan.claimId
+          || Object.hasOwn(line,'refundLineEventId') || Object.hasOwn(line,'sourceSnapshotLineId')
+          || line.assessedCents !== plan.currentPotentialCents || line.firstAssessedCents !== plan.firstAssessedCents
+          || line.highWaterAssessedCents !== plan.highWaterAssessedCents || line.alreadyDisposedCents !== plan.alreadyDisposedCents) return false;
+      if (!apply) return bounded(plan.waiveCents) && plan.waiveCents === plan.availableReviewCents && line.waiveCents === plan.waiveCents;
+      return uuid(plan.targetRunId) && plan.targetRunId !== plan.originalRunId && sha(plan.targetProvenanceSha256)
+        && date(plan.targetPeriod?.from) && date(plan.targetPeriod?.to) && plan.targetPeriod.from > plan.originalPeriod.to
+        && plan.targetPeriod.from <= plan.targetPeriod.to && [plan.targetBeforeCents,plan.targetAfterCents,plan.protectedFixedCents,
+          plan.availableVariableCents,plan.applyCents,plan.residualReviewCents].every(bounded)
+        && plan.targetAfterCents >= plan.protectedFixedCents && plan.targetBeforeCents-plan.applyCents === plan.targetAfterCents
+        && plan.targetBeforeCents-plan.protectedFixedCents === plan.availableVariableCents
+        && plan.applyCents === Math.min(plan.availableReviewCents,plan.availableVariableCents)
+        && plan.residualReviewCents === plan.availableReviewCents-plan.applyCents
+        && line.applyCents === plan.applyCents && line.residualReviewCents === plan.residualReviewCents;
+    };
+    const planValid = (plan, input) => {
+      if (plan?.schemaVersion === 3) return periodPlanValid(plan,input);
+      if (!previewValid(input) || plan?.schemaVersion !== 1
+          || !['owner-reviewed-variable-correction-v1','owner-reviewed-variable-correction-v2'].includes(plan.policyVersion)
+          || plan.originalEntryId !== input.originalEntryId || plan.targetEntryId !== input.targetEntryId
+          || !uuid(plan.employeeId) || !uuid(plan.originalRunId) || plan.venueId !== scope.split(':')[1] || plan.currency !== 'RUB'
+          || !sha(plan.planHash) || !sha(plan.assessmentHash) || !sha(plan.sourceHash) || !sha(plan.ledgerHash)
+          || !sha(plan.originalProvenanceSha256) || !cents(plan.originalPaidCents)
+          || !date(plan.originalPeriod?.from) || !date(plan.originalPeriod?.to) || plan.originalPeriod.from > plan.originalPeriod.to
+          || plan.ownerDecisionRequired !== true || plan.officialReady !== false || plan.payoutEligible !== false
+          || plan.persistence !== 'none' || !Array.isArray(plan.allocations) || plan.allocations.length > 20000) return false;
+      if (plan.policyVersion === 'owner-reviewed-variable-correction-v2'
+        ? plan.originalExpenseId !== null || plan.originalPaidCents !== 0 || !uuid(plan.originalSettlementTransitionId)
+        : !uuid(plan.originalExpenseId) || plan.originalSettlementTransitionId !== undefined) return false;
+      const apply = input.operation === 'apply';
+      if (apply ? !uuid(plan.targetRunId) || plan.targetRunId === plan.originalRunId || !sha(plan.targetProvenanceSha256)
+          || !date(plan.targetPeriod?.from) || !date(plan.targetPeriod?.to) || plan.targetPeriod.from <= plan.originalPeriod.to
+          || plan.targetPeriod.from > plan.targetPeriod.to || ![plan.targetBeforeCents,plan.targetAfterCents,plan.protectedFixedCents,
+            plan.availableVariableCents,plan.applyCents,plan.residualReviewCents].every(cents)
+          || plan.targetAfterCents < plan.protectedFixedCents || plan.targetBeforeCents - plan.applyCents !== plan.targetAfterCents
+          || plan.targetBeforeCents - plan.protectedFixedCents !== plan.availableVariableCents
+        : plan.operation !== 'waive' || !cents(plan.waiveCents)) return false;
+      let total = 0n, residual = 0n;
+      const seen = new Set();
+      for (const line of plan.allocations) {
+        if (!line || typeof line !== 'object') return false;
+        const amount = apply ? line.applyCents : line.waiveCents;
+        if (!uuid(line.refundLineEventId) || !uuid(line.sourceSnapshotLineId) || seen.has(line.refundLineEventId)
+            || ![line.assessedCents,line.alreadyDisposedCents,amount].every(cents)
+            || line.alreadyDisposedCents > line.assessedCents || amount > line.assessedCents - line.alreadyDisposedCents
+            || (apply && (!cents(line.residualReviewCents) || line.residualReviewCents !== line.assessedCents - line.alreadyDisposedCents - amount))
+            || (!apply && amount !== line.assessedCents - line.alreadyDisposedCents)) return false;
+        seen.add(line.refundLineEventId); total += BigInt(amount); if (apply) residual += BigInt(line.residualReviewCents);
+      }
+      return total === BigInt(apply ? plan.applyCents : plan.waiveCents) && (!apply || residual === BigInt(plan.residualReviewCents));
+    };
+    const commandValid = input => input && Object.keys(input).sort().join(',') === 'expectedPlanHash,idempotencyKey,operation,originalEntryId,reason,targetEntryId'
+      && previewValid({operation:input.operation,originalEntryId:input.originalEntryId,targetEntryId:input.targetEntryId})
+      && sha(input.expectedPlanHash) && typeof input.reason === 'string' && input.reason.trim().length >= 3 && input.reason.length <= 2000
+      && typeof input.idempotencyKey === 'string' && /^[A-Za-z0-9_.:-]{8,120}$/.test(input.idempotencyKey);
+    const pending = id => {
+      ensure(); if (!uuid(id)) fail('payroll_correction_ui_response_invalid');
+      let raw; try { raw = storage().getItem(prefix + id); } catch (_) { fail('payroll_correction_ui_storage_unavailable'); }
+      if (raw === null) return null;
+      let attempt; try { attempt = JSON.parse(raw); } catch (_) { fail('payroll_correction_ui_storage_invalid'); }
+      const input = attempt?.command;
+      if (!commandValid(input) || input.originalEntryId !== id || !planValid(attempt.plan,
+        {operation:input.operation,originalEntryId:id,targetEntryId:input.targetEntryId})
+          || attempt.plan.planHash !== input.expectedPlanHash) fail('payroll_correction_ui_storage_invalid');
+      return attempt;
+    };
+    const listPending = () => {
+      ensure(); const ids = [];
+      try { const saved = storage(); for (let n = 0; n < saved.length; n++) {
+        const key = saved.key(n); if (key?.startsWith(prefix) && uuid(key.slice(prefix.length))) ids.push(key.slice(prefix.length));
+      } } catch (_) { fail('payroll_correction_ui_storage_unavailable'); }
+      return ids.sort().map(pending).filter(Boolean);
+    };
+    const clear = attempt => {
+      try { const current = pending(attempt.command.originalEntryId);
+        if (!current || JSON.stringify(current.command) !== JSON.stringify(attempt.command)) return !current;
+        storage().removeItem(prefix + attempt.command.originalEntryId);
+        return storage().getItem(prefix + attempt.command.originalEntryId) === null;
+      } catch (_) { return false; }
+    };
+    const context = async (id,model='line_v1') => {
+      ensure(); if (!uuid(id) || !modelValid(model)) fail('payroll_correction_ui_response_invalid');
+      const period=model==='period_v2';
+      const data = await request(`/api/payroll/calculation-entries/${id}/${period?'refund-aware-corrections':'corrections'}`); ensure();
+      const original = data?.original;
+      if (data?.schemaVersion !== (period?3:1) || period && (data.policyCode !== periodPolicy || data.officialReady !== false || data.payoutEligible !== false
+            || ![data.currentPotentialCents,data.highWaterAssessedCents,data.positiveEntitlementInformationCents].every(value=>cents(value)&&value<=999999999999)
+            || data.remainingCents > data.currentPotentialCents || data.currentPotentialCents > data.highWaterAssessedCents
+            || data.highWaterAssessedCents > original?.netCents || data.positiveEntitlementAction !== 'none')
+          || data.requiresExplicitTarget !== true || original?.id !== id || original.status !== 'paid'
+          || !uuid(original.employeeId) || !uuid(original.runId) || original.venueId !== scope.split(':')[1] || original.currency !== 'RUB'
+          || !cents(original.grossCents) || !cents(original.netCents) || original.netCents > original.grossCents
+          || !date(original.periodFrom) || !date(original.periodTo) || original.periodFrom > original.periodTo
+          || !cents(data.remainingCents) || ![data.assessmentHash,data.sourceHash,data.ledgerHash].every(sha)
+          || !Array.isArray(data.targets) || data.targets.length > 200 || !Array.isArray(data.history) || data.history.length > 100000
+          || data.targets.some(row=>!row || typeof row!=='object') || data.history.some(row=>!row || typeof row!=='object')
+          || new Set(data.targets.map(row=>row.id)).size !== data.targets.length
+          || data.targets.some(row=>!uuid(row.id) || !uuid(row.runId) || row.runId === original.runId || row.status !== 'draft'
+            || row.requiresFreshPreview !== true || !date(row.periodFrom) || !date(row.periodTo) || row.periodFrom <= original.periodTo
+            || row.periodFrom > row.periodTo || !cents(row.grossCents) || !cents(row.amountCents) || row.amountCents > row.grossCents)
+          || data.history.some(row=>!uuid(row.id) || row.originalEntryId !== id || row.employeeId !== original.employeeId
+            || !['apply','waive','release'].includes(row.kind) || !cents(row.amountCents)
+            || period && (row.sourceKind !== 'period_v2' || row.refundLineEventId !== null || !uuid(row.cohortClaimId) || !uuid(row.cohortAssessmentId)))) fail('payroll_correction_ui_response_invalid');
+      return data;
+    };
+    const preview = async (input,model='line_v1') => {
+      ensure(); if (!previewValid(input) || !modelValid(model)) fail('payroll_correction_ui_target_required');
+      if (pending(input.originalEntryId)) fail('payroll_correction_ui_retry_required');
+      const plan = await request(`${endpoint(model)}/preview`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+      ensure(); if (!planValid(plan,input) || plan.schemaVersion !== (model==='period_v2'?3:1)) fail('payroll_correction_ui_response_invalid'); return plan;
+    };
+    const begin = (plan, operation, reason) => {
+      ensure(); const input={operation,originalEntryId:plan?.originalEntryId,targetEntryId:plan?.targetEntryId};
+      if (!planValid(plan,input)) fail('payroll_correction_ui_response_invalid');
+      if (pending(input.originalEntryId)) fail('payroll_correction_ui_retry_required');
+      const command={...input,expectedPlanHash:plan.planHash,reason:typeof reason==='string'?reason.trim():reason,idempotencyKey:makeKey()};
+      if (!commandValid(command)) fail('payroll_correction_ui_reason_required');
+      if ((operation==='apply'?plan.applyCents:plan.waiveCents) <= 0) fail('payroll_correction_nothing_to_dispose');
+      const attempt={command,plan}, raw=JSON.stringify(attempt);
+      try {storage().setItem(prefix+input.originalEntryId,raw);if(storage().getItem(prefix+input.originalEntryId)!==raw)throw new Error('readback');}
+      catch(_){fail('payroll_correction_ui_storage_unavailable');} return attempt;
+    };
+    const retry = async id => {
+      ensure();const attempt=pending(id);if(!attempt)fail('payroll_correction_ui_retry_missing');
+      const {command,plan}=attempt;
+      try {
+        const period=plan.schemaVersion===3;
+        const result=await request(endpoint(period?'period_v2':'line_v1'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command)});ensure();
+        if(result?.schemaVersion!==(period?3:1) || period && (result.policyCode!==periodPolicy || result.officialReady!==false || result.payoutEligible!==false)
+            || !uuid(result.batchId) || result.operation!==command.operation
+            || result.planHash!==command.expectedPlanHash || result.targetEntryId!==command.targetEntryId
+            || result.totalCents!==(command.operation==='apply'?plan.applyCents:plan.waiveCents)
+            || result.targetAfterCents!==(command.operation==='apply'?plan.targetAfterCents:null)
+            || result.residualReviewCents!==(command.operation==='apply'?plan.residualReviewCents:0)
+            || typeof result.replayed!=='boolean')fail('payroll_correction_ui_response_invalid');
+        return {...result,retryPending:!clear(attempt),originalRunId:plan.originalRunId,originalEntryId:id};
+      }catch(error){
+        const code=String(error.data?.error||error.payload?.error||error.code||error.message||'');
+        const definitive=([400,409].includes(Number(error.status)) && /^payroll_(?:correction|refund_correction|entry_evidence|refund_review)_/.test(code)
+          && !/idempotency|integrity|ui_/.test(code)) || (Number(error.status)===404 && code==='payroll_correction_entry_not_found');
+        error.correctionAttemptRetained=!definitive||!clear(attempt);throw error;
+      }
+    };
+    return {context,preview,begin,retry,pending,listPending,planValid};
+  };
+  // End economic correction controller.
+  // Unpaid cohort replacement: persist the exact confirmed intent before POST.
+  const createUnpaidSupersessionController = ({ request, storage, identity, makeKey }) => {
+    const scope = identity(), prefix = `payroll-unpaid-supersession:v1:${scope}:`;
+    const capability = 'employee_attributed_remaining_net_refund_v2';
+    const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
+    const sha = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+    const cents = value => Number.isSafeInteger(value) && value >= 0 && value <= 999999999999;
+    const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10) === value;
+    const fail = code => { throw Object.assign(new Error(`payroll_unpaid_supersession_ui_${code}`), { code:`payroll_unpaid_supersession_ui_${code}` }); };
+    const ensure = () => { if (!scope || identity() !== scope) fail('owner_required'); };
+    const planValid = (data, runId) => {
+      const plan = data?.plan;
+      if (!uuid(runId) || data?.schemaVersion !== 1 || data.originalRunId !== runId || !sha(data.planHash)
+          || data.monetaryWrites !== false || data.payoutEligible !== false || plan?.schemaVersion !== 1 || plan.originalRunId !== runId
+          || plan.originalCapabilityVersion !== capability || plan.replacementCapabilityVersion !== capability || plan.currency !== 'RUB'
+          || ![plan.originalProvenanceSha256,plan.originalInputWatermark,plan.historicalSchemeSha256,plan.replacementInputWatermark].every(sha)
+          || !date(plan.periodFrom) || !date(plan.periodTo) || !plan.periodFrom.endsWith('-01')
+          || plan.periodFrom > plan.periodTo || plan.periodFrom.slice(0,7) !== plan.periodTo.slice(0,7)
+          || !Array.isArray(plan.oldEntries) || !plan.oldEntries.length || plan.oldEntries.length > 10000
+          || !Array.isArray(plan.employeeAmounts) || !Array.isArray(data.oldEntries) || !Array.isArray(data.replacementAmounts)
+          || [plan.employeeAmounts,data.oldEntries,data.replacementAmounts].some(rows => rows.length !== plan.oldEntries.length)) return false;
+      const seenEmployees = new Set(), seenEntries = new Set();
+      for (let n = 0; n < plan.oldEntries.length; n++) {
+        const old = plan.oldEntries[n], outer = data.oldEntries[n], next = plan.employeeAmounts[n], replacement = data.replacementAmounts[n];
+        if (!old || !outer || !next || !replacement || !uuid(old.employeeId) || !uuid(old.entryId)
+            || seenEmployees.has(old.employeeId) || seenEntries.has(old.entryId) || !['draft','cancelled'].includes(old.status)
+            || !cents(old.grossCents) || !cents(old.amountCents) || old.amountCents > old.grossCents
+            || !sha(old.stateHash) || !sha(old.ledgerHash) || !(old.financeCategoryId === null || uuid(old.financeCategoryId))
+            || ['employeeId','entryId','status','grossCents','amountCents','stateHash','ledgerHash','financeCategoryId'].some(key => old[key] !== outer[key])
+            || next.employeeId !== old.employeeId || !cents(next.amountCents)
+            || replacement.employeeId !== next.employeeId || replacement.amountCents !== next.amountCents) return false;
+        seenEmployees.add(old.employeeId); seenEntries.add(old.entryId);
+      }
+      return true;
+    };
+    const commandValid = command => command && Object.keys(command).sort().join(',') === 'expectedPlanHash,idempotencyKey,reason'
+      && sha(command.expectedPlanHash) && typeof command.reason === 'string' && command.reason === command.reason.trim()
+      && command.reason.length >= 3 && command.reason.length <= 500
+      && typeof command.idempotencyKey === 'string' && /^[A-Za-z0-9_.:-]{8,120}$/.test(command.idempotencyKey);
+    const pending = runId => {
+      ensure(); if (!uuid(runId)) fail('response_invalid');
+      let raw; try { raw = storage().getItem(prefix + runId); } catch (_) { fail('storage_unavailable'); }
+      if (raw === null) return null;
+      let attempt; try { attempt = JSON.parse(raw); } catch (_) { fail('storage_invalid'); }
+      if (!commandValid(attempt?.command) || !planValid(attempt.preview,runId)
+          || attempt.command.expectedPlanHash !== attempt.preview.planHash) fail('storage_invalid');
+      return attempt;
+    };
+    const listPending = () => {
+      ensure(); const ids = [];
+      try { const saved = storage(); for (let n=0;n<saved.length;n++) {
+        const key = saved.key(n); if (key?.startsWith(prefix) && uuid(key.slice(prefix.length))) ids.push(key.slice(prefix.length));
+      } } catch (_) { fail('storage_unavailable'); }
+      return ids.sort().map(pending).filter(Boolean);
+    };
+    const clear = attempt => {
+      const runId = attempt.preview.originalRunId;
+      try { const current = pending(runId);
+        if (!current || JSON.stringify(current.command) !== JSON.stringify(attempt.command)) return !current;
+        storage().removeItem(prefix + runId); return storage().getItem(prefix + runId) === null;
+      } catch (_) { return false; }
+    };
+    const preview = async runId => {
+      ensure(); if (!uuid(runId)) fail('response_invalid'); if (pending(runId)) fail('retry_required');
+      const data = await request(`/api/payroll/calculation-runs/${runId}/supersession/preview`,
+        { method:'POST',headers:{'Content-Type':'application/json'},body:'{}' });
+      ensure(); if (!planValid(data,runId)) fail('response_invalid');
+      // Saved-run pagination must not hide employees from the confirmation.
+      const names = new Map(), cursors = new Set(); let cursor = null;
+      do {
+        const page = await request(`/api/payroll/calculation-runs/${runId}${cursor ? `?${new URLSearchParams({cursor})}` : ''}`); ensure();
+        if (page?.runId !== runId || page.capabilityVersion !== capability || page.period?.from !== data.plan.periodFrom
+            || page.period?.to !== data.plan.periodTo || !Array.isArray(page.employees) || !page.employees.length) fail('response_invalid');
+        for (const row of page.employees) {
+          if (!uuid(row?.employeeId) || names.has(row.employeeId) || typeof row.employeeName !== 'string'
+              || !row.employeeName.trim() || names.size >= data.oldEntries.length) fail('response_invalid');
+          names.set(row.employeeId,row.employeeName);
+        }
+        cursor = page.nextCursor;
+        if (cursor !== null && (typeof cursor !== 'string' || !cursor || cursor.length > 4096 || cursors.has(cursor))) fail('response_invalid');
+        if (cursor !== null) cursors.add(cursor);
+      } while (cursor !== null);
+      if (names.size !== data.oldEntries.length || data.oldEntries.some(row => !names.has(row.employeeId))) fail('response_invalid');
+      return { preview:data, names:Object.fromEntries(names) };
+    };
+    const begin = (data, reason, confirmed) => {
+      ensure(); if (!planValid(data,data?.originalRunId)) fail('response_invalid');
+      if (pending(data.originalRunId)) fail('retry_required');
+      if (confirmed !== true) fail('confirmation_required');
+      const command = { expectedPlanHash:data.planHash, reason:typeof reason === 'string' ? reason.trim() : reason, idempotencyKey:makeKey() };
+      if (!commandValid(command)) fail('reason_required');
+      const attempt = { command,preview:data }, raw = JSON.stringify(attempt);
+      try { storage().setItem(prefix + data.originalRunId,raw); if (storage().getItem(prefix + data.originalRunId) !== raw) throw new Error('readback'); }
+      catch (_) { fail('storage_unavailable'); } return attempt;
+    };
+    const retry = async runId => {
+      ensure(); const attempt = pending(runId); if (!attempt) fail('retry_missing');
+      try {
+        const result = await request(`/api/payroll/calculation-runs/${runId}/supersession`,
+          { method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(attempt.command) }); ensure();
+        if (result?.schemaVersion !== 1 || !uuid(result.journalId) || result.originalRunId !== runId
+            || !uuid(result.replacementRunId) || result.replacementRunId === runId || result.planHash !== attempt.command.expectedPlanHash
+            || typeof result.replayed !== 'boolean' || !Array.isArray(result.entries)
+            || result.entries.length !== attempt.preview.oldEntries.length) fail('response_invalid');
+        const seen = new Set(), oldIds = new Set(attempt.preview.oldEntries.map(row => row.entryId));
+        for (let n=0;n<result.entries.length;n++) {
+          const row = result.entries[n], expected = attempt.preview.replacementAmounts[n], old = attempt.preview.oldEntries[n];
+          if (!row || !uuid(row.entryId) || seen.has(row.entryId) || oldIds.has(row.entryId) || row.employeeId !== expected.employeeId
+              || row.amountCents !== expected.amountCents || row.financeCategoryId !== old.financeCategoryId) fail('response_invalid');
+          seen.add(row.entryId);
+        }
+        return { ...result,retryPending:!clear(attempt) };
+      } catch (error) {
+        const code = String(error.data?.error || error.payload?.error || error.code || error.message || '');
+        // Only a known rejection before commit permits a new preview. Timeouts,
+        // auth loss, integrity errors and idempotency conflicts retain the key.
+        const definitive = [400,409].includes(Number(error.status)) && [
+          'request_invalid','plan_stale','original_entry_cohort_mismatch','original_entries_not_unpaid_drafts',
+          'replacement_employee_cohort_mismatch','original_run_not_v2'
+        ].some(suffix => code === `payroll_unpaid_supersession_${suffix}`);
+        error.supersessionAttemptRetained = !definitive || !clear(attempt); throw error;
+      }
+    };
+    return { preview,begin,retry,pending,listPending,planValid };
+  };
+  // End unpaid supersession controller.
+  const mountSavedRuns = (section) => {
+    const identity = `${sessionUser.id}:${sessionUser.venueId}`;
+    const sessionToken = localStorage.getItem('crm_session_token');
+    const storagePrefix = `payroll-saved-intent:v1:${identity}:`;
+    let loaded = false, loading = false, saving = false, listToken = 0, detailToken = 0;
+    let listCursor = null, selectedRunId = null, reviewToken = 0, reviewSaving = false;
+    let entriesToken = 0;
+    const pendingEntries = new Set();
+    const alive = () => {
+      let current = {};
+      try { current = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); } catch (_) {}
+      const valid = section.isConnected && current.role === 'owner'
+        && localStorage.getItem('crm_session_token') === sessionToken
+        && `${current.id}:${current.venueId}` === identity;
+      if (!valid) { listToken++; detailToken++; section.replaceChildren(); }
+      return valid && !window.__portalSessionGate?.blocked;
+    };
+    const savedRequest = async (path, options = {}) => {
+      if (!alive()) throw new Error('session_access_unverified');
+      const result = await request(path, { ...options, headers: {
+        ...options.headers, ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {})
+      } });
+      if (!alive()) throw new Error('session_access_unverified');
+      return result;
+    };
+    section.innerHTML = `<h3>Сохранённые расчёты</h3>
+      <p class="scheme-guidance">Выберите действующую или завершённую версию и прошедший период.
+      Расчёт сохранит суммы и их расшифровку. Начисления и выплаты создаются отдельно.</p>
+      <form data-saved-run-form><div class="form-row">
+        <label>Версия схемы<select data-saved-run-version required><option value="">Загружаем версии…</option></select></label>
+        <label>С даты<input type="date" data-saved-run-from required></label>
+        <label>По дату<input type="date" data-saved-run-to required></label>
+      </div><p class="muted">Сейчас период должен начинаться с первого числа и заканчиваться в том же месяце, раньше сегодняшнего дня.</p>
+      <div class="toolbar-row"><button class="button primary" type="submit" data-saved-run-create disabled>Рассчитать и сохранить</button>
+        <button class="button" type="button" data-saved-run-reload>Обновить список</button></div></form>
+      <div data-saved-run-status role="status" aria-live="polite"></div>
+      <section data-correction-pending aria-live="polite"></section>
+      <section data-supersession-pending aria-live="polite"></section>
+      <div data-saved-run-list></div><button type="button" class="button" data-saved-run-more hidden>Следующие расчёты</button>
+      <div data-saved-run-detail aria-live="polite"></div>`;
+    const form = section.querySelector('[data-saved-run-form]');
+    const version = section.querySelector('[data-saved-run-version]');
+    const from = section.querySelector('[data-saved-run-from]'), to = section.querySelector('[data-saved-run-to]');
+    const status = section.querySelector('[data-saved-run-status]');
+    const list = section.querySelector('[data-saved-run-list]'), detail = section.querySelector('[data-saved-run-detail]');
+    const more = section.querySelector('[data-saved-run-more]'), create = section.querySelector('[data-saved-run-create]');
+    const supersessionController = createUnpaidSupersessionController({ request:savedRequest,storage:()=>sessionStorage,
+      identity:()=>alive()?identity:'',makeKey:()=>crypto.randomUUID() });
+    const supersessionBusy = new Set();
+    let supersessionPlan = null, supersessionReadToken = 0;
+    const supersessionAllowed = runId => selectedRunId === runId
+      && detail.dataset.savedRunCapability === 'employee_attributed_remaining_net_refund_v2';
+    const supersessionError = error => {
+      const code = String(error.data?.error || error.payload?.error || error.code || error.message || '');
+      return ({
+        payroll_unpaid_supersession_original_entry_cohort_mismatch:'Пересчёт доступен только для полной ведомости: у каждого сотрудника должно быть сохранённое начисление. Сейчас состав неполный.',
+        payroll_unpaid_supersession_original_entries_not_unpaid_drafts:'В ведомости есть утверждённое или выплаченное начисление. Пересчёт всей неоплаченной ведомости недоступен.',
+        payroll_unpaid_supersession_replacement_employee_cohort_mismatch:'Состав сотрудников изменился. Пересчёт требует совпадения полного состава ведомости.',
+        payroll_unpaid_supersession_run_already_superseded:'Для этой ведомости уже сохранён пересчёт. Исходная ведомость остаётся в истории.',
+        payroll_unpaid_supersession_plan_stale:'Данные изменились после проверки. Получите новое сравнение и подтвердите его.',
+        payroll_unpaid_supersession_ui_reason_required:'Укажите причину: от 3 до 500 символов.',
+        payroll_unpaid_supersession_ui_confirmation_required:'Подтвердите замену всей ведомости после просмотра сумм.',
+        payroll_unpaid_supersession_ui_retry_required:'Сначала восстановите результат предыдущего пересчёта в блоке незавершённых операций.',
+        payroll_unpaid_supersession_ui_storage_unavailable:'Не удалось сохранить безопасный повтор запроса. Пересчёт не отправлен.',
+        payroll_unpaid_supersession_ui_storage_invalid:'Сохранённый запрос повреждён. Новый пересчёт заблокирован до восстановления истории.',
+        payroll_unpaid_supersession_ui_response_invalid:'Ответ не прошёл проверку. Пересчёт не подтверждён.',
+        payroll_unpaid_supersession_original_run_not_v2:'Для этого расчёта замена неоплаченной ведомости недоступна.'
+      })[code] || 'Пересчёт пока недоступен: не удалось подтвердить данные или права владельца. Сохранённые суммы доступны для просмотра.';
+    };
+    const renderSupersessionPending = () => {
+      if (!alive()) return;
+      const box = section.querySelector('[data-supersession-pending]');
+      try { const pending = supersessionController.listPending();
+        box.innerHTML = pending.length ? `<h4>Незавершённые пересчёты</h4><p>Результат ещё не подтверждён. Восстановление повторит исходное решение с тем же ключом.</p>${pending.map(item =>
+          `<p>${escapeHtml(item.preview.plan.periodFrom)} — ${escapeHtml(item.preview.plan.periodTo)} · сотрудников: ${item.preview.oldEntries.length}<br><button type="button" class="button" data-supersession-retry="${escapeHtml(item.preview.originalRunId)}" ${supersessionBusy.has(item.preview.originalRunId)?'disabled':''}>Восстановить результат пересчёта</button></p>`).join('')}` : '';
+      } catch (error) { box.textContent = supersessionError(error); }
+    };
+    const previewSupersession = async button => {
+      const runId = selectedRunId, box = detail.querySelector('[data-supersession-content]');
+      if (!alive() || !supersessionAllowed(runId) || button.disabled || !box || supersessionBusy.has(runId)) return;
+      const token = ++supersessionReadToken; supersessionPlan = null; button.disabled = true;
+      box.textContent = 'Проверяем всю ведомость и пересчитываем суммы…';
+      const current = () => alive() && supersessionAllowed(runId) && token === supersessionReadToken && box.isConnected;
+      try {
+        const result = await supersessionController.preview(runId); if (!current()) return;
+        supersessionPlan = result.preview;
+        box.innerHTML = `<p><strong>Все сотрудники: ${result.preview.oldEntries.length}.</strong> Проверьте суммы каждого сотрудника.</p>`
+          + table('Сравнение всей ведомости',['Сотрудник','Текущий статус','Было к выплате','После пересчёта','Новый статус'],
+            result.preview.oldEntries.map((old,n) => `<tr><td>${escapeHtml(result.names[old.employeeId])}</td><td>${old.status==='draft'?'Черновик':'Отменено'}</td><td>${money(old.amountCents,'RUB')}</td><td>${money(result.preview.replacementAmounts[n].amountCents,'RUB')}</td><td>Черновик</td></tr>`).join(''))
+          + `<p>После подтверждения прежние черновики будут отменены, а новая ведомость сохранена целиком с новыми черновиками. Уже отменённые строки останутся в истории. Выплаты не выполняются.</p>
+            <label>Причина пересчёта<textarea data-supersession-reason minlength="3" maxlength="500" rows="3" required></textarea></label>
+            <label><input type="checkbox" data-supersession-confirm> Я проверил суммы всех сотрудников и подтверждаю замену всей ведомости</label>
+            <button type="button" class="button" data-supersession-commit>Подтвердить пересчёт всей ведомости</button><p data-supersession-message role="status"></p>`;
+      } catch (error) { if (current()) { supersessionPlan = null; box.textContent = supersessionError(error); } }
+      finally { if (current()) { button.disabled = false; try { button.disabled = Boolean(supersessionController.pending(runId)); } catch (_) { button.disabled = true; } } renderSupersessionPending(); }
+    };
+    const sendSupersession = async (runId, start = false) => {
+      if (!alive() || supersessionBusy.has(runId) || (start && !supersessionAllowed(runId))) return;
+      const token = detailToken, submittedPlan = supersessionPlan;
+      const button = selectedRunId === runId ? detail.querySelector('[data-supersession-commit]') : null;
+      const message = selectedRunId === runId ? detail.querySelector('[data-supersession-message]') : null;
+      const current = () => alive() && selectedRunId === runId && token === detailToken;
+      let confirmed = false;
+      try {
+        if (start) {
+          if (!supersessionPlan || supersessionPlan.originalRunId !== runId) return;
+          supersessionController.begin(supersessionPlan,detail.querySelector('[data-supersession-reason]')?.value,
+            detail.querySelector('[data-supersession-confirm]')?.checked);
+        }
+        if (!supersessionController.pending(runId)) return;
+        supersessionBusy.add(runId); if (button) button.disabled = true; renderSupersessionPending();
+        const result = await supersessionController.retry(runId); confirmed = true;
+        if (!alive()) return;
+        if (supersessionPlan?.originalRunId === runId) supersessionPlan = null;
+        status.innerHTML = `Новая ведомость сохранена. Прежняя доступна в истории. <button type="button" class="button" data-saved-run-open="${escapeHtml(result.replacementRunId)}">Открыть новую ведомость</button>`
+          + (result.retryPending ? '<p>Не удалось очистить сохранённый запрос. Восстановление повторно проверит уже записанный результат.</p>' : '');
+        if (token === detailToken) await openRun(result.replacementRunId);
+      } catch (error) {
+        if (!alive()) return;
+        const text = confirmed ? 'Пересчёт сохранён, но новую ведомость не удалось загрузить. Откройте её из списка.'
+          : error.supersessionAttemptRetained ? 'Результат пересчёта не подтверждён. Нажмите «Восстановить результат пересчёта»: повтор использует то же решение и тот же ключ.' : supersessionError(error);
+        status.textContent = text; if (current() && message?.isConnected) message.textContent = text;
+        if (error.supersessionAttemptRetained === false && supersessionPlan === submittedPlan) {
+          supersessionPlan = null; if (current()) { const box = detail.querySelector('[data-supersession-content]'); if (box) box.textContent = text; }
+        }
+      } finally {
+        supersessionBusy.delete(runId);
+        if (current() && button?.isConnected && supersessionPlan === submittedPlan) {
+          try { button.disabled = Boolean(supersessionController.pending(runId)); } catch (_) { button.disabled = true; }
+        }
+        renderSupersessionPending();
+      }
+    };
+    // End mounted unpaid supersession actions.
+    const correctionController = createReviewedCorrectionController({ request:savedRequest,storage:()=>localStorage,
+      identity:()=>alive()?identity:'',makeKey:()=>crypto.randomUUID() });
+    const correctionBusy = new Set();
+    let correctionContext = null, correctionPlan = null, correctionReadToken = 0;
+    const correctionError = error => {
+      const code=String(error.data?.error||error.payload?.error||error.code||error.message||'');
+      return ({ payroll_correction_ui_target_required:'Выберите черновик следующего периода.',
+        payroll_correction_ui_reason_required:'Укажите причину: от 3 до 2000 символов.',
+        payroll_correction_ui_retry_required:'Сначала восстановите результат предыдущего запроса в блоке незавершённых операций.',
+        payroll_correction_ui_storage_unavailable:'Не удалось сохранить безопасный повтор. Операция не отправлена.',
+        payroll_correction_ui_storage_invalid:'Сохранённый запрос повреждён. Новая операция заблокирована до восстановления истории.',
+        payroll_correction_ui_response_invalid:'Ответ не прошёл проверку. Суммы и действие не подтверждены.',
+        payroll_correction_plan_stale:'Источники или начисление изменились. Получите новый предварительный расчёт.',
+        payroll_correction_nothing_to_dispose:'Подтверждённого остатка для этого действия нет.',
+        payroll_correction_target_draft_invalid:'Нужен черновик этого сотрудника за период после исходной выплаты.',
+        payroll_correction_assessment_required:'Возвраты или правила расчёта требуют дополнительной проверки. Корректировка недоступна.',
+        payroll_correction_assessment_line_invalid:'Влияние возврата на зарплату не подтверждено. Корректировка недоступна.',
+        payroll_refund_correction_current_potential_below_dispositions:'Текущая оценка меньше уже принятых решений. Новое удержание заблокировано; прежние решения автоматически не отменяются.',
+        payroll_refund_correction_target_draft_invalid:'Выберите черновик этого сотрудника за период после исходной выплаты.',
+        payroll_refund_correction_nothing_to_dispose:'Доступного остатка для удержания или отказа от него нет. Новый долг не создаётся.',
+        payroll_refund_correction_plan_stale:'Источники или начисление изменились. Получите новый предварительный расчёт.',
+        payroll_entry_evidence_source_not_current:'Исходные данные выбранного черновика изменились. Обновите расчёт.',
+        payroll_correction_original_paid_basis_required:'Исходная выплата не прошла проверку. Корректировка недоступна.' })[code]
+        || 'Не удалось подтвердить операцию. Проверьте данные и повторите запрос.';
+    };
+    const renderCorrectionPending = () => {
+      if(!alive())return;
+      const target=section.querySelector('[data-correction-pending]');
+      try { const items=correctionController.listPending();
+        target.innerHTML=items.length?`<h4>Незавершённые корректировки</h4><p>Результат этих запросов ещё не подтверждён. Повтор отправит то же решение с тем же ключом, даже если сейчас открыт другой расчёт.</p>${items.map(item=>`<p>${item.command.operation==='apply'?'Применение корректировки':'Отказ от удержания'} · исходный период ${escapeHtml(item.plan.originalPeriod.from)} — ${escapeHtml(item.plan.originalPeriod.to)} · ${money(item.command.operation==='apply'?item.plan.applyCents:item.plan.waiveCents,'RUB')}<br><button type="button" class="button" data-correction-retry="${escapeHtml(item.command.originalEntryId)}" ${correctionBusy.has(item.command.originalEntryId)?'disabled':''}>Восстановить результат</button></p>`).join('')}`:'';
+      }catch(error){target.textContent=correctionError(error);}
+    };
+    const invalidateCorrectionPlan = () => {
+      correctionReadToken++;correctionPlan=null;
+      const target=detail.querySelector('[data-correction-plan]');if(target)target.textContent='Получите предварительный расчёт для выбранного действия.';
+    };
+    const renderCorrectionEntries = entries => {
+      const target=detail.querySelector('[data-correction-content]');if(!target)return;
+      correctionContext=null;correctionPlan=null;correctionReadToken++;
+      const paid=entries.filter(entry=>entry.status==='paid');
+      target.innerHTML=paid.length?`<label>Исходная выплата<select data-correction-original><option value="">Выберите сотрудника и выплату</option>${paid.map(entry=>`<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.employeeName||'Сотрудник')} · ${money(entry.amountCents,'RUB')} · ${escapeHtml(entry.periodFrom)} — ${escapeHtml(entry.periodTo)}</option>`).join('')}</select></label><div data-correction-context role="status"></div>`
+        : '<p>Здесь появятся выплаченные начисления этого расчёта. Корректировка может уменьшить только явно выбранный черновик позднейшего периода.</p>';
+    };
+    const loadCorrectionContext = async originalId => {
+      if (!savedRunLifecycleAllowed(selectedRunId)) return;
+      const target=detail.querySelector('[data-correction-context]'),runId=selectedRunId,token=++correctionReadToken;
+      correctionContext=null;correctionPlan=null;if(!target)return;
+      if(!originalId){target.textContent='Выберите исходную выплату.';return;}
+      target.textContent='Проверяем исходную выплату, возвраты и историю корректировок…';
+      const current=()=>alive()&&target.isConnected&&selectedRunId===runId&&token===correctionReadToken
+        &&detail.querySelector('[data-correction-original]')?.value===originalId;
+      try {
+        const model=detail.dataset?.savedRunCapability==='employee_attributed_remaining_net_refund_v2'?'period_v2':'line_v1';
+        const data=await correctionController.context(originalId,model);if(!current())return;
+        if(data.original.runId!==runId)throw new Error('payroll_correction_ui_response_invalid');
+        correctionContext=data;
+        const history=data.history.slice(-100).reverse();
+        target.innerHTML=`<p>Исходное начисление: ${money(data.original.grossCents,'RUB')}. Выплачено после корректировок: ${money(data.original.netCents,'RUB')}.</p>
+          <p>Подтверждённый остаток для решения: <strong>${money(data.remainingCents,'RUB')}</strong>.</p>
+          <p>Исходная выплата сохраняется. Удержание уменьшает только переменную часть выбранного черновика; фиксированная часть защищена. Остаток автоматически не переносится.</p>
+          ${data.schemaVersion===3?`<p>Оценка охватывает весь исходный период и учитывает ранее удержанные суммы один раз. Защищённая фиксированная часть и нулевой остаток не превращаются в дополнительный долг.</p>${data.positiveEntitlementInformationCents>0?`<p>Информация о возможном увеличении: ${money(data.positiveEntitlementInformationCents,'RUB')}. Доплата автоматически не создаётся.</p>`:''}`:''}
+          <label>Действие<select data-correction-operation><option value="apply">Применить к следующему начислению</option><option value="waive">Отказаться от удержания остатка</option></select></label>
+          <label data-correction-target-label>Черновик следующего периода<select data-correction-target><option value="">Выберите черновик явно</option>${data.targets.map(row=>`<option value="${escapeHtml(row.id)}">${escapeHtml(row.employeeName||'Сотрудник')} · ${escapeHtml(row.periodFrom)} — ${escapeHtml(row.periodTo)} · ${money(row.amountCents,'RUB')} · ${escapeHtml(row.schemeName||'Схема')}</option>`).join('')}</select></label>
+          ${data.targets.length?'':'<p>Подходящих черновиков нет. Можно создать начисление за позднейший период или отдельно отказаться от удержания остатка.</p>'}
+          <button type="button" class="button" data-correction-preview>Проверить и показать сумму</button>
+          <div data-correction-plan role="status">Получите предварительный расчёт для выбранного действия.</div>
+          <details><summary>История финансовых корректировок (${data.history.length})</summary>${history.map(row=>`<p>${escapeHtml({apply:'Применено',waive:'Отказ от удержания',release:'Освобождено при отмене начисления'}[row.kind])}: ${money(row.amountCents,'RUB')}<br>${escapeHtml(row.reason||'')}<br>${escapeHtml(row.createdByName||'')} ${escapeHtml(row.createdAt||'')}${row.targetEntryId?`<br>Начисление: ${escapeHtml(row.targetEntryId)}`:''}</p>`).join('')||'<p>Финансовых решений пока нет.</p>'}${data.history.length>100?'<p>Показаны последние 100 событий; итог рассчитан по всей истории.</p>':''}</details>
+          <details><summary>Подтверждение источника</summary><p>Оценка: ${escapeHtml(data.assessmentHash)}</p><p>Источник: ${escapeHtml(data.sourceHash)}</p><p>Журнал: ${escapeHtml(data.ledgerHash)}</p></details>`;
+        if(correctionController.pending(originalId))target.querySelector('[data-correction-preview]').disabled=true;
+        renderCorrectionPending();
+      }catch(error){if(current())target.textContent=correctionError(error);}
+    };
+    const previewCorrection = async () => {
+      if (!savedRunLifecycleAllowed(selectedRunId)) return;
+      const data=correctionContext,target=detail.querySelector('[data-correction-plan]');
+      if(!data||!target||!alive())return;
+      const operation=detail.querySelector('[data-correction-operation]').value;
+      const targetId=operation==='waive'?null:detail.querySelector('[data-correction-target]').value;
+      const token=++correctionReadToken,runId=selectedRunId;correctionPlan=null;target.textContent='Проверяем сумму и текущие источники…';
+      const current=()=>alive()&&target.isConnected&&token===correctionReadToken&&selectedRunId===runId&&correctionContext===data;
+      try {
+        const plan=await correctionController.preview({operation,originalEntryId:data.original.id,targetEntryId:targetId},data.schemaVersion===3?'period_v2':'line_v1');if(!current())return;
+        if(plan.employeeId!==data.original.employeeId||plan.originalRunId!==data.original.runId)throw new Error('payroll_correction_ui_response_invalid');
+        correctionPlan={plan,operation};
+        const selected=data.targets.find(row=>row.id===targetId);
+        if(operation==='apply'&&!selected)throw new Error('payroll_correction_ui_response_invalid');
+        target.innerHTML=`<h5>${operation==='apply'?'Предварительное удержание':'Предварительный отказ от удержания'}</h5>
+          ${operation==='apply'?`<p>Начислено по выбранному расчёту: ${money(selected.grossCents,'RUB')}. Текущий остаток до действия: ${money(plan.targetBeforeCents,'RUB')}.</p><p>Защищённая фиксированная часть: ${money(plan.protectedFixedCents,'RUB')}. Доступная переменная часть: ${money(plan.availableVariableCents,'RUB')}.</p><p>Применить: <strong>${money(plan.applyCents,'RUB')}</strong>. К выплате после действия: <strong>${money(plan.targetAfterCents,'RUB')}</strong>.</p><p>Остаток для отдельного решения: ${money(plan.residualReviewCents,'RUB')}.</p>`
+            :`<p>Не удерживать подтверждённый остаток: <strong>${money(plan.waiveCents,'RUB')}</strong>. Это самостоятельное финансовое решение; отмена другого начисления его не отменяет.</p>`}
+          <p>Это предварительная сумма. При подтверждении сервер повторно проверит источники и журнал.</p>
+          ${plan.schemaVersion===3?`<p>Оценка по всему периоду: ${money(plan.currentPotentialCents,'RUB')}. Уже учтено решениями: ${money(plan.alreadyDisposedCents,'RUB')}. Доступно для решения: ${money(plan.availableReviewCents,'RUB')}.</p><p>При нулевом доступном остатке новый долг не создаётся. Сумма к выплате не опускается ниже защищённой фиксированной части.</p>`:''}
+          <label>Причина решения<textarea data-correction-reason minlength="3" maxlength="2000" rows="3" required></textarea></label>
+          <button type="button" class="button" data-correction-commit ${(operation==='apply'?plan.applyCents:plan.waiveCents)===0?'disabled':''}>${operation==='apply'?'Применить корректировку':'Подтвердить отказ от удержания'}</button><p data-correction-message role="status"></p>`;
+      }catch(error){if(current()){correctionPlan=null;target.textContent=correctionError(error);}}
+    };
+    const sendCorrection = async (originalId, start = false) => {
+      if (start && !savedRunLifecycleAllowed(selectedRunId)) return;
+      if(!alive()||correctionBusy.has(originalId))return;
+      const selectedHere=()=>detail.querySelector('[data-correction-original]')?.value===originalId;
+      const submittedPlan=correctionPlan?.plan.originalEntryId===originalId?correctionPlan:null;
+      const message=selectedHere()?detail.querySelector('[data-correction-message]'):null;
+      const commit=selectedHere()&&submittedPlan?detail.querySelector('[data-correction-commit]'):null;
+      const sameCommit=()=>selectedHere()&&commit?.isConnected&&detail.querySelector('[data-correction-commit]')===commit;
+      let confirmed=false;
+      try {
+        if(start){if(!correctionPlan||correctionPlan.plan.originalEntryId!==originalId)return;
+          correctionController.begin(correctionPlan.plan,correctionPlan.operation,detail.querySelector('[data-correction-reason]')?.value);}
+        const attempt=correctionController.pending(originalId);if(!attempt)return;
+        correctionBusy.add(originalId);renderCorrectionPending();
+        if(commit)commit.disabled=true;
+        if(message)message.textContent='Записываем решение…';
+        const result=await correctionController.retry(originalId);
+        if(!alive())return;
+        confirmed=true;
+        status.textContent=result.retryPending?'Решение подтверждено, но браузер не смог удалить ключ повтора. Восстановите результат ещё раз.':'Решение записано. Обновляем актуальные суммы и историю…';
+        if(correctionPlan?.plan.originalEntryId===originalId)correctionPlan=null;
+        if(result.targetEntryId){
+          const current=await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(attempt.plan.targetRunId)}/entries`);
+          const entry=current.items?.find(row=>row.id===result.targetEntryId);
+          if(!savedEntryValid(entry,attempt.plan.targetRunId)||entry.userId!==attempt.plan.employeeId)throw new Error('payroll_correction_ui_response_invalid');
+          status.textContent=`Решение записано. Текущий статус начисления: ${{draft:'черновик',approved:'утверждено',paid:'выплачено',cancelled:'отменено'}[entry.status]}. Текущая сумма: ${money(entry.amountCents,'RUB')}.`;
+        }else if(!result.retryPending)status.textContent='Отказ от удержания записан. История сохранена.';
+        if(selectedRunId===result.originalRunId&&detail.querySelector('[data-correction-original]')?.value===originalId)await loadCorrectionContext(originalId);
+        document.dispatchEvent(new CustomEvent('payroll-run-entry-created'));
+      }catch(error){
+        if(alive()){
+          const text=confirmed?'Решение записано, но актуальную сумму или историю загрузить не удалось. Обновите статусы начислений и историю.'
+            :error.correctionAttemptRetained?'Результат запроса не подтверждён. Используйте «Восстановить результат»; новый запрос не создаётся.':correctionError(error);
+          status.textContent=text;if(selectedHere()&&message?.isConnected&&detail.querySelector('[data-correction-message]')===message)message.textContent=text;
+          if(error.correctionAttemptRetained===false&&correctionPlan?.plan.originalEntryId===originalId)invalidateCorrectionPlan();
+        }
+      }finally{
+        correctionBusy.delete(originalId);
+        if(alive()&&!confirmed&&sameCommit()&&correctionPlan===submittedPlan){
+          try{commit.disabled=Boolean(correctionController.pending(originalId));}catch(_){commit.disabled=true;}
+        }
+        renderCorrectionPending();
+      }
+    };
+    const today = venueLocalToday(), priorEnd = new Date(`${today.slice(0, 7)}-01T12:00:00Z`);
+    priorEnd.setUTCDate(0);
+    to.value = priorEnd.toISOString().slice(0, 10); from.value = `${to.value.slice(0, 7)}-01`;
+    const errorText = error => ({
+      payroll_saved_run_evidence_invalid: 'Целостность сохранённого расчёта не подтверждена. Суммы скрыты.',
+      payroll_saved_run_not_found: 'Расчёт или выбранная расшифровка не найдены.',
+      payroll_run_outside_scheme_version: 'Период выходит за даты действия выбранной версии.',
+      payroll_run_version_not_available: 'Для сохранения нужна действующая или завершённая версия.',
+      payroll_run_retry_required: 'Данные изменялись одновременно. Повторите запрос.',
+      payroll_run_idempotency_conflict: 'Этот запрос уже связан с другим расчётом. Обновите список.',
+      payroll_run_payout_not_enabled: 'Для начислений из сохранённого расчёта утверждение и выплата пока недоступны.',
+      payroll_period_overlap: 'За пересекающийся период уже есть начисление. Проверьте реестр, прежде чем создавать новое.',
+      payroll_entry_idempotency_conflict: 'Этот запрос уже связан с другим начислением. Обновите статусы.',
+      payroll_entry_existing_category_conflict: 'Начисление уже создано с другой статьёй. Обновите статусы и откройте его в реестре.',
+      payroll_entry_calculation_sources_changed: 'Исходные данные изменились или требуют проверки. Проверьте актуальность данных и сохраните новый расчёт перед созданием начисления.',
+      payroll_entry_replay_required: 'Не удалось подтвердить повторный расчёт сохранённых сумм. Проверьте воспроизводимость расчёта.',
+      payroll_entry_employee_not_in_calculation: 'Сотрудник отсутствует в сохранённом расчёте. Откройте расчёт заново.',
+      payroll_run_source_not_ready: 'Исходные данные пока не готовы. Проверьте актуальность данных.',
+      payroll_entry_retry_storage_unavailable: 'Не удалось сохранить ключ безопасного повтора в браузере. Черновик не отправлен.',
+      payroll_scheme_owner_only: 'Просмотр расчётов доступен владельцу.',
+      payroll_run_source_policy_unsupported: 'Правило источников этой версии не поддерживается. Расчёт не отправлен.'
+    }[error.message] || 'Не удалось получить данные. Повторите запрос.');
+    const table = (caption, headers, rows) => `<div role="region" aria-label="${escapeHtml(caption)}" tabindex="0" style="max-width:100%;overflow-x:auto"><table data-saved-run-table style="min-width:${Math.max(560, headers.length * 110)}px;table-layout:auto"><caption>${escapeHtml(caption)}</caption><thead><tr>${headers.map(h => `<th scope="col">${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    const pageButton = (attribute, cursor, label) => cursor
+      ? `<button type="button" class="button" ${attribute}="${escapeHtml(cursor)}">${label}</button>` : '';
+    const savedEntryValid = (entry, runId) => entry && entry.origin === 'calculation_run'
+      && entry.calculationRunId === runId && typeof entry.id === 'string' && entry.id.length > 0
+      && typeof entry.userId === 'string' && entry.userId.length > 0
+      && ['draft', 'approved', 'paid', 'cancelled'].includes(entry.status)
+      && Number.isSafeInteger(entry.amountCents) && entry.amountCents >= 0 && entry.amountCents <= 999999999999
+      && entry.currency === 'RUB'
+      && (entry.grossCents === undefined || (Number.isSafeInteger(entry.grossCents)
+        && entry.grossCents >= entry.amountCents && entry.grossCents <= 999999999999))
+      && (entry.transitionStateRequired === true
+        ? Number.isSafeInteger(entry.grossCents) && typeof entry.provenanceSha256 === 'string'
+          && /^[a-f0-9]{64}$/.test(entry.provenanceSha256)
+          && Array.isArray(entry.allowedActions) && entry.allowedActions.length === 0
+          && entry.officialReady !== true && entry.payoutEligible !== true
+        : entry.transitionStateRequired === undefined && entry.officialReady === false && entry.payoutEligible === false);
+    const savedRunLifecycleAllowed = runId => selectedRunId === runId
+      && ['employee_attributed_merchandise_net_no_refund_v1','employee_attributed_remaining_net_refund_v2'].includes(detail.dataset.savedRunCapability);
+    const savedRunLegacyReviewAllowed = runId => selectedRunId === runId
+      && detail.dataset.savedRunCapability === 'employee_attributed_merchandise_net_no_refund_v1';
+    const renderSavedEntry = (cell, entry, runId) => {
+      if (!savedRunLifecycleAllowed(runId)) { cell.textContent = 'Начисления для этого расчёта пока недоступны.'; return; }
+      const employeeId = cell.dataset.savedEntryEmployee;
+      if (!entry) {
+        cell.innerHTML = `<button type="button" class="button small" data-saved-entry-create="${escapeHtml(employeeId)}" ${pendingEntries.has(`${runId}:${employeeId}`) ? 'disabled' : ''}>Создать черновик начисления</button>`;
+        return;
+      }
+      const label = { draft: 'Черновик создан', approved: 'Утверждено', paid: 'Выплачено', cancelled: 'Черновик отменён' }[entry.status];
+      const amounts = Number.isSafeInteger(entry.grossCents)
+        ? `Начислено: ${money(entry.grossCents, entry.currency)}<br>Корректировки: ${money(entry.grossCents - entry.amountCents, entry.currency)}<br>К выплате: ${money(entry.amountCents, entry.currency)}`
+        : money(entry.amountCents, entry.currency);
+      cell.innerHTML = `<strong>${label}</strong><br>${amounts}
+        <br><button type="button" class="button small" data-saved-entry-register="${escapeHtml(entry.id)}" data-entry-from="${escapeHtml(entry.periodFrom)}" data-entry-to="${escapeHtml(entry.periodTo)}">Открыть в реестре</button>
+        ${entry.status === 'cancelled' ? '<p class="muted">Повторное начисление из этой связи не создаётся.</p>' : ''}`;
+    };
+    const loadRunEntries = async runId => {
+      if (!savedRunLifecycleAllowed(runId)) return;
+      const target = detail.querySelector('[data-saved-entry-status]'), token = ++entriesToken;
+      if (!alive() || !target || selectedRunId !== runId) return;
+      detail.dataset.entriesLoaded = 'false';
+      target.textContent = 'Обновляем статусы начислений…';
+      detail.querySelectorAll('[data-saved-entry-create]').forEach(button => { button.disabled = true; });
+      try {
+        const data = await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(runId)}/entries`);
+        if (!alive() || token !== entriesToken || selectedRunId !== runId || !target.isConnected) return;
+        if (!Array.isArray(data.items) || data.items.some(entry => !savedEntryValid(entry, runId))
+          || new Set(data.items.map(entry => entry.userId)).size !== data.items.length) throw new Error('invalid_payroll_entries_response');
+        detail.dataset.entriesLoaded = 'true';
+        detail.querySelectorAll('[data-saved-entry-employee]').forEach(cell => {
+          renderSavedEntry(cell, data.items.find(entry => entry.userId === cell.dataset.savedEntryEmployee), runId);
+        });
+        if (detail.querySelector('[data-correction-content]')) renderCorrectionEntries(data.items);
+        target.textContent = data.items.length ? 'Статусы начислений обновлены.' : 'Черновики из этого расчёта ещё не созданы.';
+      } catch (error) {
+        if (alive() && token === entriesToken && target.isConnected) target.textContent = `Статусы не загружены. ${errorText(error)} Нажмите «Обновить статусы начислений».`;
+      }
+    };
+    const loadEntryCategories = async runId => {
+      if (!savedRunLifecycleAllowed(runId)) return;
+      const select = detail.querySelector('[data-saved-entry-category]');
+      const hint = detail.querySelector('[data-saved-entry-category-hint]');
+      try {
+        const data = await savedRequest('/api/finance/categories');
+        if (!alive() || selectedRunId !== runId || !select?.isConnected) return;
+        if (!Array.isArray(data.items)) throw new Error('invalid_finance_categories');
+        select.innerHTML = '<option value="">Без статьи</option>' + data.items.filter(item => item.active !== false && item.kind === 'expense')
+          .map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+        select.disabled = false;
+        select._customSelectRefresh?.();
+        hint.textContent = 'Статья закрепляется при создании черновика. Изменение выбора относится только к новым черновикам.';
+      } catch (_) {
+        if (alive() && select?.isConnected) {
+          select.innerHTML = '<option value="">Без статьи</option>';
+          hint.textContent = 'Статьи не загрузились. Сейчас можно создать черновик без статьи или повторить загрузку.';
+        }
+      }
+    };
+    const createRunEntry = async button => {
+      const runId = selectedRunId, employeeId = button.dataset.savedEntryCreate;
+      if (!savedRunLifecycleAllowed(runId)) return;
+      const target = detail.querySelector('[data-saved-entry-status]');
+      const pendingKey = `${runId}:${employeeId}`;
+      if (!alive() || button.disabled || !target || !runId || pendingEntries.has(pendingKey)) return;
+      const financeCategoryId = detail.querySelector('[data-saved-entry-category]')?.value || null;
+      const storageKey = `payroll-run-entry:v1:${identity}:${runId}:${employeeId}:${financeCategoryId || ''}`;
+      pendingEntries.add(pendingKey); button.disabled = true;
+      target.textContent = 'Создаём черновик по сохранённой сумме…';
+      try {
+        let idempotencyKey;
+        try {
+          idempotencyKey = sessionStorage.getItem(storageKey) || crypto.randomUUID();
+          sessionStorage.setItem(storageKey, idempotencyKey);
+          if (sessionStorage.getItem(storageKey) !== idempotencyKey) throw new Error('storage_write_failed');
+        } catch (_) { throw new Error('payroll_entry_retry_storage_unavailable'); }
+        const data = await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(runId)}/entries`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employeeId, financeCategoryId, idempotencyKey })
+        });
+        const entry = Object.prototype.hasOwnProperty.call(data, 'currentEntry') ? data.currentEntry : data.entry;
+        if (data.schemaVersion !== 1 || !savedEntryValid(entry, runId) || entry.userId !== employeeId) throw new Error('invalid_payroll_entry_response');
+        try { sessionStorage.removeItem(storageKey); } catch (_) {}
+        if (!alive() || selectedRunId !== runId || !target.isConnected) return;
+        // An earlier GET must not replace the just-committed entry with its
+        // pre-write empty result when its response arrives later.
+        entriesToken += 1;
+        const cell = button.closest('[data-saved-entry-employee]');
+        if (cell?.isConnected) renderSavedEntry(cell, entry, runId);
+        target.textContent = entry.status === 'cancelled' ? 'Найдено ранее отменённое начисление. Новый черновик не создан.'
+          : data.replayed || data.existing ? 'Найден ранее созданный черновик. Дубликат не создан.'
+            : 'Черновик начисления создан. Откройте реестр, проверьте сумму и доступные действия.';
+        document.dispatchEvent(new CustomEvent('payroll-run-entry-created'));
+      } catch (error) {
+        if (alive() && selectedRunId === runId && target.isConnected) {
+          const reasons = error.data?.reasons;
+          target.textContent = `${errorText(error)}${Array.isArray(reasons) && reasons.length ? ` ${reasons.map(readinessReasonLabel).join(' ')}` : ''} При повторе с той же статьёй используется тот же ключ запроса.`;
+        }
+      } finally {
+        pendingEntries.delete(pendingKey);
+        if (alive() && selectedRunId === runId && detail.dataset.entriesLoaded === 'true') detail.querySelectorAll('[data-saved-entry-create]').forEach(control => {
+          if (control.dataset.savedEntryCreate === employeeId) control.disabled = false;
+        });
+      }
+    };
+    const incentiveDetails = (value, currency) => {
+      const labels = { basisCents: 'База', targetCents: 'План', belowTargetCents: 'Часть до плана', excessCents: 'Часть сверх плана',
+        baseBasisCents: 'База основной ставки', baseCommissionCents: 'Основная комиссия', excessCommissionCents: 'Комиссия сверх плана',
+        additiveCommissionCents: 'Доплата по товару', commissionCents: 'Комиссия', payableBasisCents: 'База распределения',
+        signedMarginCents: 'Маржа', payableMarginCents: 'Маржа для расчёта', positiveMarginCents: 'Положительная маржа',
+        lossCents: 'Убыток', lossOffsetCents: 'Зачтённый убыток', baseRateBps: 'Основная ставка', bonusRateBps: 'Ставка сверх плана',
+        itemRateBps: 'Ставка товара' };
+      return Object.entries(labels).filter(([key]) => Number.isSafeInteger(value?.[key])).map(([key, label]) =>
+        `<span>${label}: ${key.endsWith('Bps') ? `${value[key] / 100}%` : money(value[key], currency)}</span>`).join(' · ');
+    };
+    const savedLineRule = (row, currency) => {
+      const label = { personal_target: 'Комиссия по личному плану', margin_target: 'Комиссия по плану маржи',
+        team_source: 'Участие строки в командном фонде' }[row.commissionKind]
+        || (row.commissionKind === 'scalar' && Number.isSafeInteger(row.appliedRateBps) ? `${row.appliedRateBps / 100}%` : 'Сохранённое правило');
+      const amount = value => Number.isSafeInteger(value) ? money(value, currency) : 'нет сохранённых данных';
+      if (row.commissionKind === 'margin_target') return `${label}<p>Себестоимость: ${amount(row.netCostCents)}. Маржа: ${amount(row.signedMarginCents)}.</p>`;
+      if (row.commissionKind === 'team_source') {
+        const reason = { item_replacement: 'для товара назначена отдельная комиссия',
+          department_outside_pool: 'цех не входит в фонд' }[row.poolExclusionReason];
+        const inclusion = row.poolIncluded === true ? 'Включена в фонд' : row.poolIncluded === false
+          ? `Не включена в фонд${reason ? `: ${reason}` : ' (причина не распознана)'}` : 'Участие не подтверждено';
+        return `${label}<p>${inclusion}. Вклад строки в базу фонда: ${amount(row.poolBasisCents)}.</p><p>Командная выплата показана в итогах сотрудника за день. В колонке «Комиссия» указана только комиссия по товару.</p>`;
+      }
+      return label;
+    };
+    const dayDetails = (day, currency) => `<details><summary>Как рассчитано</summary>
+      <p>Роль: ${escapeHtml(editorRoleLabel(day.roleId))} · ${escapeHtml(EDITOR_CHOICE_LABELS[day.mode] || day.mode)} · смен: ${escapeHtml(day.shifts)}</p>
+      <p>Базовая часть ${money(day.basePayCents, currency)} + комиссия ${money(day.commissionCents, currency)}
+        + командная часть ${money(day.teamFundCents, currency)} + премии ${money(day.milestoneBonusCents, currency)}
+        + корректировки ${money(day.itemAdjustmentsCents, currency)} = ${money(day.amountBeforeCapCents, currency)} до лимита.</p>
+      <p>Лимит: ${day.capCents === null ? 'не задан' : money(day.capCents, currency)}.
+        Уменьшение: ${money(day.capReductionCents, currency)}. Итого: ${money(day.amountCents, currency)}.</p>
+      <p>${incentiveDetails(day.incentive, currency)}</p>
+      ${(day.explanation?.shiftDetails || []).map(shift => `<p>Смена: ${escapeHtml(shift.workedMinutes)} из ${escapeHtml(shift.plannedMinutes)} мин. · ${money(shift.amountCents, currency)}</p>`).join('')}
+      ${(day.explanation?.milestoneDecisions || []).map(decision => `<p>Порог ${money(decision.thresholdCents, currency)}:
+        ${decision.eligible ? 'условия выполнены' : 'условия не выполнены'} · премия до лимита ${money(decision.awardedAmountCents, currency)}</p>`).join('')}</details>`;
+    const loadList = async (cursor = null) => {
+      if (!alive()) return;
+      const token = ++listToken; more.hidden = true; list.textContent = 'Загружаем расчёты…';
+      try {
+        const query = new URLSearchParams({ limit: '25', ...(cursor ? { cursor } : {}) });
+        const data = await savedRequest(`/api/payroll/calculation-runs?${query}`);
+        if (!alive() || token !== listToken) return;
+        listCursor = data.nextCursor;
+        list.innerHTML = data.items.length ? table('Сохранённые расчёты', ['Период', 'Схема', 'Сумма', 'Сохранил', 'Действие'],
+          data.items.map(row => `<tr><td>${escapeHtml(row.period.from)} — ${escapeHtml(row.period.to)}</td>
+          <td>${escapeHtml(row.scheme.name)} · версия ${escapeHtml(row.scheme.versionNo)}</td>
+          <td>${money(row.amountCents, row.currency)}</td><td>${escapeHtml(row.createdByName)}<br>${escapeHtml(row.createdAt)}</td>
+          <td><button type="button" class="button small" data-saved-run-open="${escapeHtml(row.runId)}">Открыть</button></td></tr>`).join(''))
+          : '<p class="empty">Сохранённых расчётов пока нет.</p>';
+        more.hidden = !listCursor;
+      } catch (error) { if (alive() && token === listToken) list.textContent = errorText(error); }
+    };
+    const openRun = async (runId, cursor = null) => {
+      if (!alive()) return;
+      selectedRunId = runId;
+      delete detail.dataset.savedRunCapability;
+      correctionContext = null; correctionPlan = null; correctionReadToken++;
+      supersessionPlan = null; supersessionReadToken++;
+      const token = ++detailToken;
+      detail.textContent = 'Загружаем сохранённую расшифровку…';
+      try {
+        const query = cursor ? `?${new URLSearchParams({ cursor })}` : '';
+        const data = await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(runId)}${query}`);
+        if (!alive() || token !== detailToken) return;
+        if (data.runId !== runId) throw new Error('invalid_saved_run_response');
+        detail.dataset.savedRunCapability = data.capabilityVersion || '';
+        const lifecycleAllowed = savedRunLifecycleAllowed(runId);
+        const legacyReviewAllowed = savedRunLegacyReviewAllowed(runId);
+        detail.innerHTML = `<h4>${escapeHtml(data.scheme.name)} · версия ${escapeHtml(data.scheme.versionNo)}</h4>
+          <p>${escapeHtml(data.period.from)} — ${escapeHtml(data.period.to)} · ${escapeHtml(data.venueTimezone)}</p>
+          <p><strong>Итого: ${money(data.amountCents, data.currency)}</strong></p>
+          ${lifecycleAllowed ? '<p>Расчёт сохранён. Для каждого сотрудника можно создать черновик начисления по сохранённой сумме.</p><p class="scheme-guidance">Откройте начисление в реестре: владелец может проверить источники, утвердить сумму и зарегистрировать выплату. Перед каждым действием источники проверяются заново.</p>'
+            : '<p class="scheme-guidance" data-saved-run-read-only>Этот расчёт доступен для просмотра и проверки. Создание начислений, выплаты и финансовые корректировки для него пока недоступны.</p>'}
+          <p>${data.replayAvailable === true
+            ? '<button type="button" class="button" data-saved-run-replay>Проверить воспроизводимость</button>'
+            : data.replay?.state === 'engine_unavailable' ? 'Для проверки нужна версия расчётного движка, использованная при сохранении.'
+              : 'Этот расчёт сохранён без полного набора данных для повторного вычисления.'}</p>
+          <p data-saved-replay-status role="status"></p>
+          <p><button type="button" class="button" data-saved-run-freshness>Проверить актуальность данных</button></p>
+          <div data-saved-freshness-status role="status">Актуальность исходных данных ещё не проверена.</div>
+          <p class="muted">Проверка учитывает изменения после сохранения расчёта. Совпадение данных на момент проверки само по себе не разрешает выплату.</p>
+          ${supersessionAllowed(runId) ? `<section aria-label="Пересчёт неоплаченной ведомости"><h4>Пересчёт неоплаченной ведомости</h4>
+            <p>Проверим полный состав и покажем новые суммы. Нужны начисления для всех сотрудников: только черновики или уже отменённые строки. Утверждённые и выплаченные ведомости здесь не заменяются.</p>
+            <button type="button" class="button" data-supersession-preview>Пересчитать неоплаченную ведомость</button><div data-supersession-content role="status"></div></section>` : ''}
+          ${legacyReviewAllowed ? `<section data-refund-review-panel><h4>Возвраты после расчёта</h4>
+            <p>Проверьте влияние возвратов на сохранённый расчёт и запишите решение.</p>
+            <button type="button" class="button" data-refund-review-check>Проверить возвраты</button>
+            <div data-refund-review-content role="status">Загружаем историю проверок…</div>
+          </section>` : ''}
+          ${lifecycleAllowed ? `<section aria-label="Финансовые корректировки"><h4>Корректировка следующего начисления</h4><p>${legacyReviewAllowed?'Применение удержания и отказ от него записываются отдельно от решений по проверке возвратов выше.':'После выплаты можно оценить изменение премии за весь период, выбрать будущий черновик или отказаться от удержания. Автоматического долга или доплаты нет.'}</p><div data-correction-content>Загружаем выплаченные начисления…</div></section>
+          <section aria-label="Черновики начислений"><h4>Создать начисления</h4>
+          <label>Статья расхода для новых черновиков<select data-saved-entry-category disabled><option value="">Без статьи</option></select></label>
+          <p class="muted" data-saved-entry-category-hint>Загружаем статьи. По умолчанию черновик создаётся без статьи.</p>
+          <div class="toolbar-row"><button type="button" class="button" data-saved-entry-reload>Обновить статусы начислений</button>
+          <button type="button" class="button" data-saved-entry-categories-reload>Обновить статьи</button></div>
+          <p data-saved-entry-status role="status">Загружаем статусы начислений…</p>` : '<section aria-label="Сотрудники расчёта"><h4>Сотрудники</h4>'}
+          ${table('Сотрудники', ['Сотрудник', 'Сумма', 'Дней', 'Расшифровка', ...(lifecycleAllowed ? ['Начисление'] : [])], data.employees.map(row => `<tr>
+            <td>${escapeHtml(row.employeeName)}</td><td>${money(row.amountCents, data.currency)}</td><td>${escapeHtml(row.dayCount)}</td>
+            <td><button type="button" class="button small" data-saved-employee="${escapeHtml(row.employeeId)}">По дням</button></td>
+            ${lifecycleAllowed ? `<td data-saved-entry-employee="${escapeHtml(row.employeeId)}">Проверяем начисления…</td>` : ''}</tr>`).join(''))}
+          </section>
+          ${pageButton('data-saved-employees-next', data.nextCursor, 'Следующие сотрудники')}
+          <div data-saved-employee-detail></div>`;
+        if (lifecycleAllowed) {
+          if (legacyReviewAllowed) void loadRefundReview(runId);
+          void loadRunEntries(runId);
+          void loadEntryCategories(runId);
+        }
+      } catch (error) { if (alive() && token === detailToken) detail.textContent = errorText(error); }
+    };
+    const replayRun = async button => {
+      const runId = selectedRunId, target = detail.querySelector('[data-saved-replay-status]');
+      if (!alive() || button.disabled || !target || !runId) return;
+      button.disabled = true;
+      target.textContent = 'Повторяем вычисление по сохранённым данным…';
+      try {
+        const data = await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(runId)}/replay`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+        });
+        if (!alive() || selectedRunId !== runId || !target.isConnected) return;
+        const check = data.verification;
+        target.textContent = check?.status === 'matched' && check.matched === true && check.replayVerified === true
+          ? 'Повторный расчёт совпал с сохранённым. Суммы не изменены.'
+          : check?.status === 'engine_unavailable' ? 'Нужная версия расчётного движка недоступна. Сохранённые суммы не изменены.'
+            : check?.status === 'not_recorded' ? 'Данные для повторного вычисления не были сохранены.'
+              : 'Проверка не подтвердила совпадение. Сохранённые суммы не изменены.';
+      } catch (error) { if (alive() && selectedRunId === runId && target.isConnected) target.textContent = errorText(error); }
+      finally { if (button.isConnected) button.disabled = false; }
+    };
+    const reviewDecisionLabels = { hold_for_review: 'Оставить на проверке',
+      close_without_payroll_change: 'Закрыть без изменения зарплаты', acknowledge_no_effect: 'Подтвердить отсутствие влияния' };
+    const reviewViews = new WeakMap();
+    const reviewReasonLabel = code => ({
+      payroll_refund_review_nonlinear_mode_unsupported: 'Для схемы с планом, ступенями или командным фондом требуется отдельный расчёт влияния.',
+      payroll_refund_review_nonlinear_components_unsupported: 'Лимиты или премии могут изменить результат. Простого пересчёта процента недостаточно.',
+      payroll_refund_review_remaining_personal_ceiling_conflict: 'После возврата остаток личной выручки меньше рассчитанной выплаты. Требуется проверка условий оплаты.',
+      payroll_refund_review_source_coverage_incomplete: 'Недостаточно подтверждённых данных о возвратах.',
+      payroll_refund_review_all_time_coverage_mismatch: 'Набор возвратов не совпадает с подтверждённой историей.',
+      payroll_refund_review_original_line_mismatch: 'Не подтверждена связь продажи с исходной строкой зарплатного расчёта.',
+      payroll_refund_review_original_line_coverage_incomplete: 'Не все строки исходного расчёта удалось сверить.',
+      payroll_refund_review_replay_unavailable: 'Нужная версия расчётного движка или сохранённые данные недоступны.',
+      payroll_refund_review_replay_invalid: 'Повторное вычисление исходного расчёта не подтверждено.',
+      payroll_refund_review_refund_item_unavailable: 'Возврат не распределён по товарным строкам.',
+      payroll_refund_review_refund_lineage_mismatch: 'Не подтверждена связь возврата с исходной продажей.',
+      payroll_refund_review_return_history_mismatch: 'Накопленные возвраты требуют сверки.',
+      payroll_refund_review_scalar_lineage_or_amount_unsupported: 'Последовательность возвратов или комиссия по строке требуют проверки.',
+      payroll_refund_review_return_amount_invalid: 'Суммы возврата не удалось подтвердить.',
+      payroll_refund_review_amount_out_of_range: 'Результат выходит за допустимый диапазон расчёта.'
+    }[code] || 'Влияние требует дополнительной проверки данных и правил расчёта.');
+    const renderRefundReview = (target, data, visible = 100) => {
+      const assessment = data.latestAssessment, payload = assessment?.payload;
+      if (data.runId !== selectedRunId || data.basis !== 'saved_calculation_unposted'
+          || data.officialReady !== false || data.payoutEligible !== false || !payload
+          || payload.officialReady !== false || payload.payoutEligible !== false || !Array.isArray(payload.lines)
+          || !Array.isArray(data.decisions) || !Array.isArray(data.assessments)) throw new Error('invalid_refund_review_response');
+      const amount = value => Number.isSafeInteger(value) ? money(value, payload.currency) : 'Требуется проверка';
+      const decisions = data.decisions.filter(row => row.assessmentHash === assessment.assessmentHash);
+      const closed = decisions.some(row => ['close_without_payroll_change', 'acknowledge_no_effect'].includes(row.decision));
+      reviewViews.set(target, { data, visible });
+      target.innerHTML = `<p><strong>Оценка изменения зарплаты: ${amount(payload.impactCents)}</strong></p>
+        <p>Строк возврата: ${escapeHtml(payload.lines.length)}. ${closed ? 'Решение по этой проверке записано.' : data.status === 'hold_for_review' ? 'Оставлено на проверке владельца.' : 'Ожидает решения владельца.'}</p>
+        <p class="muted">Это проверка сохранённого расчёта. Решения здесь не создают начисление, удержание или выплату.</p>
+        ${(payload.reasons || []).length ? `<details><summary>Что требует проверки</summary><ul>${[...new Set(payload.reasons.map(reviewReasonLabel))].map(reason => `<li>${escapeHtml(reason)}</li>`).join('')}</ul></details>` : ''}
+        ${payload.lines.length ? table('Возвраты и влияние на зарплату', ['Дата возврата', 'Сотрудник / товар', 'Возврат товаров', 'Изменение зарплаты'], payload.lines.slice(0, visible).map(row => `<tr>
+          <td>${escapeHtml(row.refundRecognizedDate || 'Дата не подтверждена')}</td>
+          <td>${escapeHtml(row.employeeName || 'Сотрудник требует сверки')}<br>${escapeHtml(row.menuItemName || 'Строка продажи')}
+            <details><summary>Источник</summary><p>Возврат: ${escapeHtml(row.refundId || 'не подтверждён')}</p><p>Заказ: ${escapeHtml(row.orderId || 'не подтверждён')}</p></details></td>
+          <td>${amount(row.merchandiseDeltaCents)}</td><td>${amount(row.salaryImpactCents)}</td></tr>`).join(''))
+          : payload.coverage === 'complete' ? '<p>Возвраты по продажам этого расчёта не найдены.</p>' : '<p>Строк для отображения нет. Полнота данных не подтверждена.</p>'}
+        ${payload.lines.length > visible ? `<p>Показано ${visible} из ${payload.lines.length} строк.</p><button class="button" type="button" data-refund-review-more>Показать ещё 100 строк</button>` : ''}
+        ${closed ? '' : `<div data-refund-review-decision-fields>
+          <label>Решение<select data-refund-review-decision>${Object.entries(reviewDecisionLabels)
+            .filter(([key]) => key !== 'acknowledge_no_effect' || (payload.coverage === 'complete' && payload.impactCents === 0))
+            .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`).join('')}</select></label>
+          <label>Причина решения<textarea data-refund-review-reason minlength="3" maxlength="2000" rows="3" required></textarea></label>
+          <button class="button" type="button" data-refund-review-decide data-case-id="${escapeHtml(data.caseId)}"
+            data-assessment-hash="${escapeHtml(assessment.assessmentHash)}">Записать решение</button>
+        </div>`}
+        <div data-refund-review-message role="status"></div>
+        <details><summary>История решений (${data.decisions.length})</summary>${data.decisions.length ? data.decisions.map(row => `<p>
+          <strong>${escapeHtml(reviewDecisionLabels[row.decision] || 'Решение')}</strong> · ${escapeHtml(row.createdByName || '')} · ${escapeHtml(row.createdAt || '')}<br>
+          ${escapeHtml(row.reason)}${row.assessmentHash !== assessment.assessmentHash ? '<br>Относится к предыдущей проверке.' : ''}</p>`).join('') : '<p>Решений пока нет.</p>'}</details>
+        <p class="muted">${data.historyTruncated?.assessments ? 'Показаны последние' : 'Сохранено проверок:'} ${data.assessments.length}. Новые возвраты требуют новой проверки.</p>
+        ${data.historyTruncated?.decisions ? '<p class="muted">Показаны последние 100 решений. Более ранние решения сохранены в журнале.</p>' : ''}`;
+    };
+    const moreRefundReview = () => {
+      const target = detail.querySelector('[data-refund-review-content]'), view = target && reviewViews.get(target);
+      if (!alive() || reviewSaving || !view) return;
+      const reason = target.querySelector('[data-refund-review-reason]')?.value;
+      const decision = target.querySelector('[data-refund-review-decision]')?.value;
+      renderRefundReview(target, view.data, view.visible + 100);
+      if (reason !== undefined) target.querySelector('[data-refund-review-reason]').value = reason;
+      if (decision !== undefined) target.querySelector('[data-refund-review-decision]').value = decision;
+    };
+    const loadRefundReview = async (runId, caseId = null) => {
+      if (!savedRunLegacyReviewAllowed(runId)) return;
+      const target = detail.querySelector('[data-refund-review-content]');
+      if (!alive() || !target || selectedRunId !== runId) return;
+      const token = ++reviewToken;
+      try {
+        if (!caseId) {
+          const list = await savedRequest(`/api/payroll/refund-reviews?${new URLSearchParams({ runId, limit: '1' })}`);
+          if (!alive() || selectedRunId !== runId || !target.isConnected || token !== reviewToken) return;
+          caseId = list.items?.[0]?.caseId;
+          if (!caseId) { target.textContent = 'Сохранённых проверок пока нет.'; return; }
+        }
+        const data = await savedRequest(`/api/payroll/refund-reviews/${encodeURIComponent(caseId)}`);
+        if (!alive() || selectedRunId !== runId || !target.isConnected || token !== reviewToken) return;
+        renderRefundReview(target, data);
+      } catch (error) { if (alive() && selectedRunId === runId && target.isConnected && token === reviewToken) target.textContent = errorText(error); }
+    };
+    const mutateRefundReview = async (button, isDecision) => {
+      const runId = selectedRunId, target = detail.querySelector('[data-refund-review-content]');
+      if (!savedRunLegacyReviewAllowed(runId)) return;
+      if (!alive() || button.disabled || reviewSaving || !target || !runId) return;
+      const message = isDecision ? target.querySelector('[data-refund-review-message]') : target;
+      const input = isDecision ? { decision: target.querySelector('[data-refund-review-decision]').value,
+        reason: target.querySelector('[data-refund-review-reason]').value.trim(), expectedAssessmentHash: button.dataset.assessmentHash } : {};
+      if (isDecision && input.reason.length < 3) { message.textContent = 'Укажите причину решения: не менее трёх символов.'; return; }
+      const storageKey = `payroll-refund-review:${identity}:${runId}:${JSON.stringify(input)}`;
+      let requestKey;
+      try {
+        requestKey = sessionStorage.getItem(storageKey) || crypto.randomUUID();
+        sessionStorage.setItem(storageKey, requestKey);
+      } catch (_) { message.textContent = 'Не удалось сохранить ключ запроса. Разрешите хранение данных для этого сайта и повторите.'; return; }
+      button.disabled = true;
+      reviewSaving = true; reviewToken++;
+      const fields = [...target.querySelectorAll('select,textarea')];
+      fields.forEach(field => { field.disabled = true; });
+      message.textContent = isDecision ? 'Записываем решение…' : 'Проверяем возвраты…';
+      try {
+        const path = isDecision ? `/api/payroll/refund-reviews/${encodeURIComponent(button.dataset.caseId)}/decisions`
+          : `/api/payroll/calculation-runs/${encodeURIComponent(runId)}/refund-reviews`;
+        const data = await savedRequest(path, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...input, idempotencyKey: requestKey }) });
+        sessionStorage.removeItem(storageKey);
+        if (!alive() || selectedRunId !== runId || !target.isConnected) return;
+        await loadRefundReview(runId, data.caseId);
+      } catch (error) {
+        if (alive() && selectedRunId === runId && target.isConnected) {
+          message.textContent = error?.status === 409
+            ? 'Данные изменились или решение уже записано. Нажмите «Проверить возвраты», затем сверьте историю и повторите решение.' : errorText(error);
+        }
+      } finally {
+        reviewSaving = false;
+        if (button.isConnected) button.disabled = false;
+        fields.forEach(field => { if (field.isConnected) field.disabled = false; });
+      }
+    };
+    const checkFreshness = async button => {
+      const runId = selectedRunId, target = detail.querySelector('[data-saved-freshness-status]');
+      if (!alive() || button.disabled || !target || !runId) return;
+      button.disabled = true;
+      target.textContent = 'Сверяем продажи, возвраты и подтверждения с сохранённым расчётом…';
+      try {
+        const data = await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(runId)}/freshness`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+        });
+        if (!alive() || selectedRunId !== runId || !target.isConnected) return;
+        if (data.runId !== runId || data.officialReady !== false || data.payoutEligible !== false
+            || data.persistence !== 'none' || data.validity !== 'transaction_snapshot_only'
+            || !['current', 'stale', 'blocked'].includes(data.status) || !Array.isArray(data.reasons)
+            || (data.status === 'current' && (data.sourceChanged !== false || data.reasons.length))) {
+          throw new Error('invalid_freshness_response');
+        }
+        const labels = { current: 'Исходные данные совпадают на момент проверки.',
+          stale: 'Исходные данные изменились. Для актуальных сумм нужен новый расчёт.',
+          blocked: 'Актуальность расчёта не подтверждена: исходные данные требуют проверки.' };
+        const reasons = [...new Set(data.reasons.map(readinessReasonLabel))];
+        const at = new Date(data.checkedAt);
+        target.innerHTML = `<p>${escapeHtml(labels[data.status])} Сохранённые суммы не изменены.</p>`
+          + (reasons.length ? `<details><summary>Причины проверки (${reasons.length})</summary><ul>${reasons
+            .map(reason => `<li>${escapeHtml(reason)}</li>`).join('')}</ul></details>` : '')
+          + (Number.isFinite(at.getTime()) ? `<p class="muted">Проверено: ${escapeHtml(at.toLocaleString('ru-RU'))}.</p>` : '');
+      } catch (error) { if (alive() && selectedRunId === runId && target.isConnected) target.textContent = errorText(error); }
+      finally { if (button.isConnected) button.disabled = false; }
+    };
+    const openEmployee = async employeeId => {
+      const runId = selectedRunId, token = ++detailToken;
+      const target = detail.querySelector('[data-saved-employee-detail]');
+      if (!target || !alive()) return;
+      target.textContent = 'Загружаем дни…';
+      try {
+        const data = await savedRequest(`/api/payroll/calculation-runs/${runId}/employees/${encodeURIComponent(employeeId)}`);
+        if (!alive() || token !== detailToken) return;
+        target.innerHTML = `<h4>${escapeHtml(data.employeeName)} · ${money(data.amountCents, data.currency)}</h4>
+          ${table('Расчёт по дням', ['Дата', 'Базовая часть', 'Комиссия', 'Премия', 'Уменьшение по лимиту', 'Итого', 'Расшифровка'],
+            data.days.map(day => `<tr><td>${escapeHtml(day.localDate)}</td><td>${money(day.basePayCents, data.currency)}</td>
+              <td>${money(day.commissionCents, data.currency)}</td><td>${money(day.milestoneBonusCents, data.currency)}</td>
+              <td>${money(day.capReductionCents, data.currency)}</td><td>${money(day.amountCents, data.currency)}</td>
+              <td>${dayDetails(day, data.currency)}<button type="button" class="button small" data-saved-day="${escapeHtml(day.snapshotId)}">Строки продажи</button></td></tr>`).join(''))}
+          <div data-saved-lines></div>`;
+      } catch (error) { if (alive() && token === detailToken) target.textContent = errorText(error); }
+    };
+    const openLines = async (snapshotId, cursor = null) => {
+      const runId = selectedRunId, token = ++detailToken;
+      const target = detail.querySelector('[data-saved-lines]');
+      if (!target || !alive()) return;
+      target.textContent = 'Загружаем строки…';
+      try {
+        const query = cursor ? `?${new URLSearchParams({ cursor })}` : '';
+        const data = await savedRequest(`/api/payroll/calculation-runs/${runId}/days/${encodeURIComponent(snapshotId)}/lines${query}`);
+        if (!alive() || token !== detailToken) return;
+        target.dataset.snapshotId = snapshotId;
+        target.innerHTML = table(`Продажи за ${data.localDate}`, ['Товар', 'Кол-во', 'До скидок', 'Скидка', 'Возврат', 'База', 'Правило расчёта', 'Комиссия'],
+          data.items.map(row => `<tr><td>${escapeHtml(row.menuItemName)}</td><td>${escapeHtml(row.quantity)}</td>
+          <td>${money(row.grossCents, data.currency)}</td><td>${money(row.discountCents, data.currency)}</td>
+          <td>${money(row.refundCents, data.currency)}</td><td>${money(row.commissionBaseCents, data.currency)}</td>
+          <td>${savedLineRule(row, data.currency)}
+            <details><summary>Правило</summary>${incentiveDetails(row.incentive, data.currency)}
+            ${row.incentive?.itemRuleMode ? `<p>${escapeHtml({ inherit: 'Ставка роли', replace: 'Ставка товара вместо основной', additive: 'Доплата к основной ставке' }[row.incentive.itemRuleMode] || 'Правило товара')}</p>` : ''}</details></td>
+          <td>${money(row.commissionCents, data.currency)}</td></tr>`).join(''))
+          + pageButton('data-saved-lines-next', data.nextCursor, 'Следующие строки');
+      } catch (error) { if (alive() && token === detailToken) target.textContent = errorText(error); }
+    };
+    const activate = async () => {
+      if (!alive() || loading) return;
+      renderCorrectionPending();
+      renderSupersessionPending();
+      if (loaded) { await loadList(); return; }
+      loading = true;
+      try {
+        const session = await savedRequest('/api/session');
+        if (!alive()) return;
+        if (session.user?.role !== 'owner' || `${session.user?.id}:${session.user?.venueId}` !== identity) {
+          section.textContent = 'Площадка или пользователь изменились. Обновите страницу.'; return;
+        }
+        const data = await savedRequest('/api/payroll/schemes');
+        if (!alive()) return;
+        version.innerHTML = '<option value="">Выберите сохранённую версию</option>' + data.items.flatMap(scheme =>
+          (scheme.versions || []).filter(v => ['active', 'retired'].includes(v.status)).map(v =>
+            `<option value="${escapeHtml(v.id)}">${escapeHtml(scheme.name)} · версия ${escapeHtml(v.versionNo)} (${escapeHtml(v.effectiveFrom)} — ${escapeHtml(v.effectiveTo || 'без окончания')})</option>`)).join('');
+        version._customSelectRefresh?.();
+        loaded = true; create.disabled = false;
+        await loadList();
+      } catch (error) { if (alive()) status.textContent = errorText(error); }
+      finally { loading = false; }
+    };
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!alive() || saving || !loaded) return;
+      const input = { schemeVersionId: version.value, periodFrom: from.value, periodTo: to.value };
+      if (!input.schemeVersionId || !sourceReadinessPeriodValid(input.periodFrom, input.periodTo)
+          || input.periodTo >= venueLocalToday()) {
+        status.textContent = 'Выберите версию и прошедший период с первого числа в пределах одного месяца.'; return;
+      }
+      saving = true;
+      const detailAtSubmit = detailToken;
+      for (const control of form.elements) control.disabled = true;
+      status.textContent = 'Собираем источники и сохраняем расчёт…';
+      try {
+        const savedVersion=await savedRequest(`/api/payroll/versions/${encodeURIComponent(input.schemeVersionId)}`);
+        if (!alive()) return;
+        if (savedVersion.versionId!==input.schemeVersionId || !['active','retired'].includes(savedVersion.status)) throw new Error('payroll_run_source_policy_unsupported');
+        const endpoint=savedRunCreationEndpoint(savedVersion);
+        // Immutable version policy selects both endpoint and retry namespace.
+        // Existing v1 keys and request bytes remain unchanged across reloads.
+        const storageKey=(endpoint==='/api/payroll/calculation-runs'?storagePrefix:`payroll-saved-intent:refund-aware-v2:${identity}:`)+JSON.stringify(input);
+        try {
+          input.idempotencyKey=sessionStorage.getItem(storageKey)||crypto.randomUUID();
+          sessionStorage.setItem(storageKey,input.idempotencyKey);
+          if(sessionStorage.getItem(storageKey)!==input.idempotencyKey)throw new Error('readback');
+        } catch (_) {status.textContent='Не удалось сохранить ключ повторного запроса в браузере. Разрешите хранилище и повторите.';return;}
+        const result = await savedRequest(endpoint, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input)
+        });
+        if (!alive()) return;
+        if (result.status !== 'ready' || !result.runId || result.persistence !== 'snapshots') throw new Error('invalid_response');
+        if (endpoint === '/api/payroll/refund-aware-calculation-runs'
+            && (!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(result.runId)
+              || result.capabilityVersion !== 'employee_attributed_remaining_net_refund_v2'
+              || !Number.isSafeInteger(result.amountCents) || result.amountCents < 0 || result.amountCents > 999999999999
+              || typeof result.replayed !== 'boolean' || result.officialReady !== false || result.payoutEligible !== false)) throw new Error('invalid_response');
+        sessionStorage.removeItem(storageKey);
+        status.textContent = result.replayed ? 'Ранее сохранённый расчёт найден. Повторного расчёта не создано.' : 'Расчёт сохранён. Начисления и выплаты ещё не созданы.';
+        await loadList();
+        if (detailToken === detailAtSubmit) await openRun(result.runId);
+      } catch (error) {
+        if (!alive()) return;
+        if (error.status === 422 && error.data?.status === 'blocked') {
+          status.innerHTML = '<p>Расчёт не сохранён. Требуется проверить данные:</p><ul>'
+            + (error.data.reasons || []).map(reason => `<li>${escapeHtml(readinessReasonLabel(reason))}</li>`).join('') + '</ul>';
+        } else status.textContent = `${errorText(error)} При повторе для этой версии и периода будет использован тот же ключ запроса.`;
+      } finally {
+        saving = false;
+        if (alive()) for (const control of form.elements) control.disabled = false;
+      }
+    });
+    section.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button || !alive()) return;
+      if (button.hasAttribute('data-saved-run-reload')) { loaded = false; void activate(); }
+      else if (button.hasAttribute('data-saved-run-more')) void loadList(listCursor);
+      else if (button.dataset.savedRunOpen) void openRun(button.dataset.savedRunOpen);
+      else if (button.hasAttribute('data-saved-run-replay')) void replayRun(button);
+      else if (button.hasAttribute('data-saved-run-freshness')) void checkFreshness(button);
+      else if (button.hasAttribute('data-supersession-preview')) void previewSupersession(button);
+      else if (button.hasAttribute('data-supersession-commit')) void sendSupersession(selectedRunId,true);
+      else if (button.dataset.supersessionRetry) void sendSupersession(button.dataset.supersessionRetry);
+      else if (button.hasAttribute('data-saved-entry-reload')) void loadRunEntries(selectedRunId);
+      else if (button.hasAttribute('data-saved-entry-categories-reload')) void loadEntryCategories(selectedRunId);
+      else if (button.dataset.savedEntryCreate) void createRunEntry(button);
+      else if (button.dataset.savedEntryRegister) document.dispatchEvent(new CustomEvent('payroll-run-entry-open', {
+        detail: { entryId: button.dataset.savedEntryRegister, from: button.dataset.entryFrom, to: button.dataset.entryTo }
+      }));
+      else if (button.hasAttribute('data-refund-review-check')) void mutateRefundReview(button, false);
+      else if (button.hasAttribute('data-refund-review-decide')) void mutateRefundReview(button, true);
+      else if (button.hasAttribute('data-refund-review-more')) moreRefundReview();
+      else if (button.hasAttribute('data-correction-preview')) void previewCorrection();
+      else if (button.hasAttribute('data-correction-commit')) void sendCorrection(correctionContext?.original.id,true);
+      else if (button.dataset.correctionRetry) void sendCorrection(button.dataset.correctionRetry);
+      else if (button.dataset.savedEmployee) void openEmployee(button.dataset.savedEmployee);
+      else if (button.dataset.savedDay) void openLines(button.dataset.savedDay);
+      else if (button.dataset.savedEmployeesNext) void openRun(selectedRunId, button.dataset.savedEmployeesNext);
+      else if (button.dataset.savedLinesNext) void openLines(detail.querySelector('[data-saved-lines]').dataset.snapshotId, button.dataset.savedLinesNext);
+    });
+    section.addEventListener('change',event=>{
+      if(!alive())return;
+      if(event.target.matches('[data-correction-original]'))void loadCorrectionContext(event.target.value);
+      else if(event.target.matches('[data-correction-target], [data-correction-operation]')){
+        invalidateCorrectionPlan();const label=detail.querySelector('[data-correction-target-label]');
+        if(label)label.hidden=detail.querySelector('[data-correction-operation]').value==='waive';
+      }
+    });
+    window.addEventListener('storage', event => { if (event.key === null || ['crm_session_user', 'crm_session_token'].includes(event.key)) alive(); });
+    return { activate };
   };
   const mount = () => {
     const payrollPanel = document.querySelector('.finance-payroll-panel');
@@ -686,6 +2711,9 @@
         .finance-payroll-schemes p,.finance-payroll-schemes summary,.finance-payroll-schemes span,.finance-payroll-schemes code,.finance-payroll-schemes legend,.finance-payroll-schemes label{overflow-wrap:anywhere}
         .finance-payroll-schemes .toolbar-row{flex-wrap:wrap}
         .finance-payroll-schemes .button{min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+        .finance-payroll-schemes [data-saved-run-table] th,.finance-payroll-schemes [data-saved-run-table] td{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+        .finance-payroll-schemes [data-saved-run-table] details[open]{width:300px;white-space:normal}
+        .finance-payroll-schemes [data-saved-run-table] .button{white-space:nowrap;min-width:90px}
         .finance-payroll-schemes [data-grid-rate-table] input,.finance-payroll-schemes [data-grid-milestone-table] input{min-width:100px}
         .finance-payroll-schemes [data-grid-rate-table],.finance-payroll-schemes [data-grid-milestone-table]{width:max-content;min-width:100%;table-layout:auto}
         .finance-payroll-schemes [data-grid-rate-table] th,.finance-payroll-schemes [data-grid-rate-table] td,.finance-payroll-schemes [data-grid-milestone-table] th,.finance-payroll-schemes [data-grid-milestone-table] td{white-space:nowrap;overflow-wrap:normal;word-break:normal}
@@ -725,6 +2753,8 @@
         <fieldset data-source-policy-fieldset><legend>Правила будущих источников зарплаты</legend>
           <p class="warning-message">Настройка будущего расчёта; данные источников ещё не подтверждены. Выбор правил не меняет математику сценария и не разрешает официальный расчёт.</p>
           <label><input type="checkbox" data-source-policy-enabled> Явно выбрать и сохранить правила для этой версии</label>
+          <label>Пересчёт премии после возвратов<select data-source-policy-version><option value="1">Сохранённые правила источников без нового пересчёта премии</option><option value="2">Пересчитывать премию после возвратов по исходным датам продаж</option></select></label>
+          <div data-source-policy-v2-explanation hidden role="note"><p>Для расчёта премии используем стоимость первоначального списания. При возврате выручка уменьшается, эта стоимость не восстанавливается; последующие возвраты запасов её не меняют.</p><p>Выбор применяется ко всей версии схемы, включая разные правила оплаты по ролям. Дата признания события возврата сохраняется; премия пересчитывается по исходным датам продаж. Для этого нужны продавец и точная скидка из снимка строки, а также дата признанного события возврата.</p><p>После активации версии расчёт запускается в сохранённых расчётах. Сервер проверяет источники; утверждение и выплата выполняются отдельно по состоянию начисления.</p></div>
           <div class="form-row"><label>Кому приписывается продажа<select data-source-policy-sale><option value="">Выберите правило</option><option value="line_seller_snapshot">Продавцу из неизменяемого снимка строки</option><option value="order_responsible_snapshot">Ответственному из отдельного неизменяемого снимка заказа (не открывшему заказ)</option><option value="explicit_line_allocation">По явному распределению исполнителей строки</option></select></label>
           <label>Скидка по строкам<select data-source-policy-discount><option value="">Выберите правило</option><option value="immutable_line_snapshot">Точное распределение из неизменяемого снимка строки</option><option value="eligible_gross_proportional_fixed_order">Пропорционально подходящей исходной базе закрытого заказа</option></select></label>
           <label>Когда учитывается возврат<select data-source-policy-refund><option value="">Выберите правило</option><option value="recognized_event_date">На дату признанного события возврата</option><option value="original_sale_period_correction">Корректировкой периода исходной продажи</option></select></label></div>
@@ -741,7 +2771,7 @@
         <section data-personal-cap-confirmation hidden><div data-personal-cap-exceptions></div><label><input type="checkbox" data-personal-cap-acknowledged> Я отдельно подтверждаю повышение личного процента лимита выше процента роли для указанных сотрудников и периодов. Это не разрешает выплату сверх полной личной выручки.</label></section>
       </form>
       <div class="finance-scheme-preview" data-scheme-preview hidden>
-        <div class="panel-head"><div><h3>Пробный расчёт</h3><span class="muted" data-scheme-selected-label></span></div><div class="toolbar-row"><button type="button" class="button small primary" data-scheme-run-preview>Рассчитать сценарий</button><button type="button" class="button small" data-scheme-run-approved-attendance>Сценарий с утверждённым табелем</button><button type="button" class="button small" data-scheme-run-venue-preview>Сценарий с оборотом чеков</button><button type="button" class="button small" data-scheme-compare>Сравнить выбранные</button></div></div>
+        <div class="panel-head"><div><h3>Пробный расчёт</h3><span class="muted" data-scheme-selected-label></span></div><div class="toolbar-row"><button type="button" class="button small primary" data-scheme-run-preview>Рассчитать сценарий</button><button type="button" class="button small" data-scheme-run-approved-attendance>Сценарий с утверждённым табелем</button><button type="button" class="button small" data-scheme-run-venue-preview>Сценарий с оборотом чеков</button><button type="button" class="button small" data-scheme-compare>Сравнить сценарии (JSON)</button></div></div>
         <label>Нормализованные входные данные сценария<textarea data-scheme-preview-input rows="12" spellcheck="false"></textarea></label>
         <div data-scheme-preview-result class="finance-scheme-result" hidden></div>
       </div>
@@ -749,8 +2779,19 @@
         <h3>Проверка источников зарплаты</h3><p>Отчёт по сохранённой версии схемы. Начало периода — первый день месяца; конец — в том же месяце.</p>
         <p data-source-readiness-version>Сначала откройте сохранённую версию.</p><p class="warning-message" data-source-readiness-dirty hidden></p>
         <div class="form-row"><label>С даты<input type="date" data-source-readiness-from></label><label>По дату<input type="date" data-source-readiness-to></label></div>
-        <button type="button" class="button small" data-source-readiness-run disabled>Проверить источники</button>
+        <p>Для сравнения отметьте от 2 до 8 сохранённых версий в списке схем. JSON-сценарии сравниваются отдельно в пробном расчёте.</p>
+        <label>Базовая версия для сравнения<select data-source-comparison-baseline disabled><option value="">Сначала выберите версии</option></select></label>
+        <div class="toolbar-row"><button type="button" class="button small" data-source-readiness-run disabled>Проверить источники</button><button type="button" class="button small" data-source-candidate-run disabled>Посмотреть предварительные данные по продажам</button><button type="button" class="button small" data-source-comparison-run disabled>Сравнить по данным системы</button></div>
         <div data-source-readiness-result class="finance-scheme-result" aria-live="polite"><p class="empty">Выберите версию и период проверки.</p></div>
+        <div data-source-candidate-result class="finance-scheme-result" aria-live="polite"><p class="empty">Кандидатные значения ещё не запрошены.</p></div>
+        <div data-source-comparison-result class="finance-scheme-result" aria-live="polite"><p class="empty">Выберите версии в списке схем для сравнения.</p></div>
+      </section>
+      <section class="finance-scheme-preview" data-payroll-entry-diagnostic>
+        <h3>Проверка существующих начислений и выплат</h3>
+        <p>Только чтение: показывает записи зарплатного реестра и payroll-расходы за период. Проверка не создаёт и не меняет начисления или выплаты.</p>
+        <div class="form-row"><label>С даты<input type="date" data-entry-diagnostic-from></label><label>По дату<input type="date" data-entry-diagnostic-to></label></div>
+        <div class="toolbar-row"><button type="button" class="button small" data-entry-diagnostic-run>Проверить реестр</button></div>
+        <div data-entry-diagnostic-result class="finance-scheme-result" aria-live="polite"><p class="empty">Выберите период и запустите проверку.</p></div>
       </section>
       <section class="finance-scheme-preview" data-attendance-approval>
         <div class="panel-head"><div><h3>Подтверждение табеля</h3><span class="muted">Зафиксирует отдельную неизменяемую payroll-ревизию закрытых интервалов и расписания. Это не создаёт зарплатный расчёт или выплату.</span></div></div>
@@ -765,6 +2806,8 @@
     settingsTitle.textContent = 'Настройки схем и проверка расчётов';
     settings.append(settingsTitle, panel);
     payrollPanel.append(settings);
+    mountEmploymentEligibilityPanel(payrollPanel, settings);
+    mountProductDepartmentPanel(payrollPanel, settings);
 
     const list = panel.querySelector('[data-scheme-list]');
     const message = panel.querySelector('[data-scheme-message]');
@@ -803,18 +2846,20 @@
     let schemes = [];
     let editorAction = null;
     let selectedVersion = null;
+    let editorBaseline = null;
     let selectedVersionIds = [];
     let pending = false;
     const workspaceNav=document.createElement('nav');workspaceNav.className='scheme-workspace-nav';workspaceNav.setAttribute('aria-label','Этапы настройки зарплаты');
-    const workspaceLabels={list:'Схемы',configuration:'Настройка',checks:'Проверка данных',trial:'Пробный расчёт'};
+    const workspaceLabels={list:'Схемы',configuration:'Настройка',checks:'Проверка данных',trial:'Пробный расчёт',saved:'Сохранённые расчёты'};
     workspaceNav.innerHTML=Object.entries(workspaceLabels).map(([key,label])=>`<button type="button" class="button small" data-scheme-workspace="${key}">${label}</button>`).join('');
     message.before(workspaceNav);
     const workspacePanes={};
     for(const key of Object.keys(workspaceLabels)){const section=document.createElement('section');section.dataset.schemePane=key;section.hidden=key!=='list';workspacePanes[key]=section;panel.append(section);}
     workspacePanes.list.append(list);workspacePanes.configuration.append(editor);workspacePanes.trial.append(previewBox);
+    const savedRuns = mountSavedRuns(workspacePanes.saved);
     const disclosure=(node,title)=>{const details=document.createElement('details');details.className='scheme-group';const summary=document.createElement('summary');summary.textContent=title;node.before(details);details.append(summary,node);return details;};
-    const attendancePanel=panel.querySelector('[data-attendance-approval]'),readinessPanel=panel.querySelector('[data-source-readiness]');
-    workspacePanes.checks.append(attendancePanel,readinessPanel);
+    const attendancePanel=panel.querySelector('[data-attendance-approval]'),readinessPanel=panel.querySelector('[data-source-readiness]'),entryDiagnosticPanel=panel.querySelector('[data-payroll-entry-diagnostic]');
+    workspacePanes.checks.append(attendancePanel,readinessPanel,entryDiagnosticPanel);
     const attendanceDetails=disclosure(attendancePanel,'Табель: проверить время и утвердить снимок');attendanceDetails.open=true;
     disclosure(readinessPanel,'Источники: проверить сохранённую версию схемы');
     const checksHint=document.createElement('p');checksHint.className='scheme-guidance';checksHint.textContent='Табель и источники проверяются независимо. Утверждение табеля не означает готовность официального расчёта.';workspacePanes.checks.prepend(checksHint);
@@ -839,6 +2884,7 @@
       const hasComparison=panel.querySelectorAll('[data-scheme-compare-version]:checked').length>=2;
       trialEmpty.hidden=savedVersion||hasComparison;
       if(key==='trial')previewBox.hidden=!savedVersion&&!hasComparison;
+      if(key==='saved')void savedRuns.activate();
       if(focus){const target=workspacePanes[key];target.tabIndex=-1;target.focus({preventScroll:true});target.scrollIntoView({block:'start',behavior:'smooth'});}
     };
     const revealControl=(node)=>{if(!node)return;if(editor.contains(node))selectWorkspace('configuration');else if(previewBox.contains(node))selectWorkspace('trial');let parent=node.parentElement;while(parent&&parent!==panel){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}node.scrollIntoView({block:'center',behavior:'smooth'});node.focus?.({preventScroll:true});};
@@ -850,6 +2896,8 @@
     const gridMessage = panel.querySelector('[data-scheme-grid-message]');
     const sourcePolicyFieldset = panel.querySelector('[data-source-policy-fieldset]');
     const sourcePolicyEnabled = panel.querySelector('[data-source-policy-enabled]');
+    const sourcePolicyVersion = panel.querySelector('[data-source-policy-version]');
+    const sourcePolicyV2Explanation = panel.querySelector('[data-source-policy-v2-explanation]');
     const sourcePolicySale = panel.querySelector('[data-source-policy-sale]');
     const sourcePolicyDiscount = panel.querySelector('[data-source-policy-discount]');
     const sourcePolicyRefund = panel.querySelector('[data-source-policy-refund]');
@@ -857,19 +2905,33 @@
     const sourcePolicyMessage = panel.querySelector('[data-source-policy-message]');
     let sourcePolicyDirty = false;
     const readinessFrom=panel.querySelector('[data-source-readiness-from]'), readinessTo=panel.querySelector('[data-source-readiness-to]');
-    const readinessRun=panel.querySelector('[data-source-readiness-run]'), readinessResult=panel.querySelector('[data-source-readiness-result]');
+    const readinessRun=panel.querySelector('[data-source-readiness-run]'), candidateRun=panel.querySelector('[data-source-candidate-run]'), comparisonRun=panel.querySelector('[data-source-comparison-run]'), comparisonBaseline=panel.querySelector('[data-source-comparison-baseline]'), readinessResult=panel.querySelector('[data-source-readiness-result]'), candidateResult=panel.querySelector('[data-source-candidate-result]'), comparisonResult=panel.querySelector('[data-source-comparison-result]');
     const readinessDirty=panel.querySelector('[data-source-readiness-dirty]'), readinessVersion=panel.querySelector('[data-source-readiness-version]');
     let readinessToken=0, readinessLoading=false;
     const readinessSavedSelection=()=>selectedVersion && ['edit','inspect'].includes(editorAction?.kind);
+    const selectedComparisonVersions=()=>[...panel.querySelectorAll('[data-scheme-compare-version]:checked')].map(input=>input.dataset.schemeCompareVersion).filter(id=>typeof id==='string'&&id);
+    const refreshComparisonBaseline=()=>{
+      const selected=selectedComparisonVersions();
+      const versions=schemes.flatMap(scheme=>(scheme.versions||[]).map(version=>({...version,schemeName:scheme.name}))).filter(version=>selected.includes(version.id));
+      const previous=comparisonBaseline.value;
+      comparisonBaseline.innerHTML=versions.length?versions.map(version=>`<option value="${escapeHtml(version.id)}">${escapeHtml(version.schemeName)} · версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode]||version.mode)}</option>`).join(''):'<option value="">Сначала выберите версии</option>';
+      comparisonBaseline.disabled=versions.length<2||versions.length>8;
+      const preferred=versions.some(version=>version.id===previous)?previous:(versions.find(version=>version.status==='active')||versions[0])?.id;
+      comparisonBaseline.value=preferred||'';
+      comparisonRun.disabled=readinessLoading||versions.length<2||versions.length>8;
+      comparisonRun.title=versions.length>8?'Выберите не более 8 версий':versions.length<2?'Выберите минимум 2 сохранённые версии':'';
+    };
     const refreshReadiness=()=>{
       const saved=readinessSavedSelection();
-      readinessRun.disabled=!saved||readinessLoading;
+      readinessRun.disabled=!saved||readinessLoading;candidateRun.disabled=!saved||readinessLoading;
       readinessVersion.textContent=saved?`${selectedVersion.name} · сохранённая версия ${selectedVersion.versionNo}`:'Сначала откройте сохранённую версию. Для новой версии проверка доступна после сохранения.';
       const dirty=saved&&(gridDirty||sourcePolicyDirty||definitionField.value!==JSON.stringify(definitionFromVersion(selectedVersion),null,2));
       readinessDirty.hidden=!dirty;
       readinessDirty.textContent=dirty?'Есть несохранённые изменения. Проверка относится к сохранённой версии, изменения редактора в неё не входят.':'';
+      refreshComparisonBaseline();
     };
-    const invalidateReadiness=()=>{readinessToken++;readinessLoading=false;readinessResult.innerHTML='<p class="empty">Выберите версию и период; затем проверьте источники заново.</p>';refreshReadiness();};
+    const invalidateReadiness=()=>{readinessToken++;readinessLoading=false;readinessResult.innerHTML='<p class="empty">Выберите версию и период; затем проверьте источники заново.</p>';candidateResult.innerHTML='<p class="empty">Период или сохранённая версия изменились. Запросите кандидатные данные заново.</p>';comparisonResult.innerHTML='<p class="empty">Период изменился. Запросите сравнение заново.</p>';refreshReadiness();};
+    const invalidateSourcedComparison=()=>{comparisonResult.innerHTML='<p class="empty">Выбор версий или базовой версии изменился. Запросите сравнение заново.</p>';};
     const runReadiness=async()=>{
       if(!readinessSavedSelection()||readinessLoading)return;
       const from=readinessFrom.value,to=readinessTo.value,versionId=selectedVersion.versionId;
@@ -886,22 +2948,85 @@
       finally{if(token===readinessToken){readinessLoading=false;refreshReadiness();}}
     };
     readinessRun.addEventListener('click',runReadiness);
+    const diagnosticFrom=panel.querySelector('[data-entry-diagnostic-from]'),diagnosticTo=panel.querySelector('[data-entry-diagnostic-to]'),diagnosticRun=panel.querySelector('[data-entry-diagnostic-run]'),diagnosticResult=panel.querySelector('[data-entry-diagnostic-result]');
+    const diagnosticToday=venueLocalToday();diagnosticFrom.value=`${diagnosticToday.slice(0,7)}-01`;diagnosticTo.value=diagnosticToday;
+    let diagnosticToken=0;
+    const invalidateEntryDiagnostic=()=>{diagnosticToken++;diagnosticRun.disabled=false;diagnosticResult.innerHTML='<p class="empty">Период изменён. Запустите проверку заново.</p>';};
+    diagnosticFrom.addEventListener('input',invalidateEntryDiagnostic);diagnosticTo.addEventListener('input',invalidateEntryDiagnostic);
+    const renderEntryDiagnostic=payload=>{
+      const flagLabels={legacy_without_rule:'старая запись без правила',exact_period_duplicate:'точный дубль периода',overlapping_period_contained:'пересечение периодов',overlapping_period_partial:'частичное пересечение',expense_reference_missing_in_venue:'ссылка на расход не найдена на площадке',paid_without_explicit_expense_link:'выплата без явной ссылки',no_explicit_expense_link:'нет явной ссылки',linked_expense_source_mismatch:'тип расхода отличается от payroll',expense_link_on_nonpaid_entry:'расход связан с не выплаченным начислением',paid_entry_expense_not_payroll_source:'расход выплаченного начисления имеет другой тип',expense_link_reused:'расход связан с несколькими начислениями',amount_mismatch:'суммы отличаются',payment_date_mismatch:'даты отличаются'};
+      const statusLabels={draft:'черновик',approved:'утверждено',paid:'выплачено'};
+      const rows=payload.entries.map(row=>`<tr><td>${escapeHtml(row.employeeName||row.employeeId)}<br><small>${escapeHtml(row.employeeId)}</small></td><td>${escapeHtml(row.periodFrom)} — ${escapeHtml(row.periodTo)}</td><td>${escapeHtml(row.amount)} ₽</td><td>${escapeHtml(statusLabels[row.status]||row.status)}${row.ruleLinked?'':' · legacy без правила'}</td><td>${escapeHtml(row.expenseLink)}${row.expenseSource?` · ${escapeHtml(row.expenseSource)}`:''}${row.expenseAmount?` · ${escapeHtml(row.expenseAmount)} ₽`:''}</td><td>${escapeHtml(row.flags.map(flag=>flagLabels[flag]||flag).join('; ')||'Замечаний нет')}${row.overlapCount?`<br><small>Пересекающихся записей: ${escapeHtml(row.overlapCount)}</small>`:''}</td></tr>`).join('');
+      const expenses=payload.payrollExpenses.map(row=>`<tr><td>${escapeHtml(row.id)}</td><td>${escapeHtml(row.expenseDate)}</td><td>${escapeHtml(row.amount)} ₽</td><td>${escapeHtml(row.linkage)} · ссылок: ${escapeHtml(row.entryReferenceCount)}${row.provenance==='unknown'?' · связь с начислением не установлена':''}</td></tr>`).join('');
+      return `<div class="warning-message" role="note"><strong>Диагностика только для чтения</strong><p>Происхождение записей расчёта неизвестно. Начисления относятся к P&amp;L, payroll-расходы — к денежным выплатам; не складывайте эти суммы. Связь расхода подтверждается только явным expense_id в пределах площадки.</p></div>${payload.truncated?'<p class="warning-message">Показаны первые 500 строк каждого списка. Уточните период.</p>':''}<h4>Зарплатные начисления: ${payload.entries.length}</h4>${rows?`<div class="table-scroll"><table><thead><tr><th>Сотрудник</th><th>Период начисления</th><th>Сумма</th><th>Статус</th><th>Связь с расходом</th><th>Замечания</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="empty">Начислений за период не найдено.</p>'}<h4>Payroll-расходы по дате расхода: ${payload.payrollExpenses.length}</h4>${expenses?`<div class="table-scroll"><table><thead><tr><th>ID расхода</th><th>Дата расхода</th><th>Сумма</th><th>Связь с начислением</th></tr></thead><tbody>${expenses}</tbody></table></div>`:'<p class="empty">Payroll-расходов за период не найдено.</p>'}`;
+    };
+    diagnosticRun.addEventListener('click',async()=>{
+      const from=diagnosticFrom.value,to=diagnosticTo.value;
+      const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+      if(!validDate(from)||!validDate(to)||from>to){diagnosticResult.textContent='Укажите реальные даты и проверьте, что дата окончания не раньше начала.';return;}
+      const token=++diagnosticToken;const current=()=>token===diagnosticToken&&diagnosticFrom.value===from&&diagnosticTo.value===to;
+      diagnosticRun.disabled=true;diagnosticResult.textContent='Читаем зарплатный реестр и явные связи с расходами…';
+      try{const payload=await request(`/api/payroll/entry-overlap-diagnostic?${new URLSearchParams({from,to})}`);
+        if(!current())return;
+        if(payload.diagnosticOnly!==true||payload.period?.from!==from||payload.period?.to!==to)throw new Error('Ответ относится к другому периоду.');
+        diagnosticResult.innerHTML=renderEntryDiagnostic(payload);
+      }catch(error){if(current())diagnosticResult.textContent=`Не удалось проверить реестр: ${error.message}`;}
+      finally{if(current())diagnosticRun.disabled=false;}
+    });
+    const runFullNetCandidate=async()=>{
+      if(!readinessSavedSelection()||readinessLoading)return;
+      const from=readinessFrom.value,to=readinessTo.value,versionId=selectedVersion.versionId;
+      invalidateReadiness();
+      if(!sourceReadinessPeriodValid(from,to)){candidateResult.textContent='Укажите реальные даты: начало — первый день месяца, конец — в том же месяце и не раньше начала.';return;}
+      const token=++readinessToken;readinessLoading=true;refreshReadiness();candidateResult.textContent='Загружаем кандидатные данные сохранённой версии…';
+      const current=()=>token===readinessToken&&readinessSavedSelection()&&selectedVersion.versionId===versionId&&readinessFrom.value===from&&readinessTo.value===to;
+      try{
+        const payload=await request(`/api/payroll/versions/${encodeURIComponent(versionId)}/preview/sourced`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({periodFrom:from,periodTo:to})});
+        if(!current())return;
+        if(payload.versionId!==versionId||payload.period?.from!==from||payload.period?.to!==to)throw new Error('Ответ относится к другой версии или периоду.');
+          candidateResult.innerHTML=`${renderFullEmployeeNetCandidate(payload)}${renderOrderRevenueReconciliation(payload)}${renderRefundReview(payload)}${renderCandidateCalculation(payload)}${renderCandidateSnapshot(payload)}`;
+      }catch(error){if(current())candidateResult.textContent=`Не удалось загрузить кандидатные данные: ${error.message}`;}
+      finally{if(token===readinessToken){readinessLoading=false;refreshReadiness();}}
+    };
+    candidateRun.addEventListener('click',runFullNetCandidate);
+    const runSourcedComparison=async()=>{
+      if(readinessLoading)return;
+      const versionIds=selectedComparisonVersions(),baselineVersionId=comparisonBaseline.value,from=readinessFrom.value,to=readinessTo.value;
+      if(versionIds.length<2||versionIds.length>8){comparisonResult.textContent='Выберите от 2 до 8 сохранённых версий в списке схем.';return;}
+      if(!versionIds.includes(baselineVersionId)){comparisonResult.textContent='Выберите базовую версию из отмеченных.';return;}
+      if(!sourceReadinessPeriodValid(from,to)){comparisonResult.textContent='Укажите реальные даты: начало — первый день месяца, конец — в том же месяце и не раньше начала.';return;}
+      const token=++readinessToken;readinessLoading=true;refreshReadiness();comparisonResult.setAttribute('aria-busy','true');comparisonResult.textContent='Сравниваем сохранённые версии на общих исходных данных…';
+      const current=()=>token===readinessToken&&JSON.stringify(selectedComparisonVersions())===JSON.stringify(versionIds)&&comparisonBaseline.value===baselineVersionId&&readinessFrom.value===from&&readinessTo.value===to;
+      try{
+        const payload=await request('/api/payroll/compare/sourced',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({versionIds,baselineVersionId,periodFrom:from,periodTo:to})});
+        if(!current())return;
+        const responseVersions = payload.schemaVersion === 2 ? payload.results : payload.comparisons;
+        if(payload.baselineVersionId!==baselineVersionId||payload.period?.from!==from||payload.period?.to!==to||!Array.isArray(responseVersions)||responseVersions.length!==versionIds.length||responseVersions.some((item,index)=>item.versionId!==versionIds[index])) throw new Error('Ответ относится к другим версиям или периоду.');
+        comparisonResult.innerHTML=renderSourcedComparison(payload, ownerStaff);
+        comparisonResult.querySelector('[data-sourced-comparison-heading]')?.focus({preventScroll:true});
+      }catch(error){if(current())comparisonResult.textContent=`Не удалось сравнить версии: ${error.message}`;}
+      finally{if(token===readinessToken){comparisonResult.removeAttribute('aria-busy');readinessLoading=false;refreshReadiness();}}
+    };
+    comparisonRun.addEventListener('click',runSourcedComparison);
+    comparisonBaseline.addEventListener('change',invalidateSourcedComparison);
+    list.addEventListener('change',event=>{if(event.target.matches('[data-scheme-compare-version]')){invalidateSourcedComparison();refreshReadiness();}});
     for(const field of [readinessFrom,readinessTo]){field.addEventListener('input',invalidateReadiness);field.addEventListener('change',invalidateReadiness);}
     editor.addEventListener('input',refreshReadiness);editor.addEventListener('change',refreshReadiness);
-    const sourcePolicyControls = () => ({ enabled: sourcePolicyEnabled.checked, saleCredit: sourcePolicySale.value,
+    const sourcePolicyControls = () => ({ enabled: sourcePolicyEnabled.checked, schemaVersion: sourcePolicyVersion.value, saleCredit: sourcePolicySale.value,
       discountAllocation: sourcePolicyDiscount.value, refunds: sourcePolicyRefund.value, selectionReason: sourcePolicyReason.value });
     const refreshSourcePolicyDisabled = () => {
       const disabled = pending || editorAction?.kind === 'inspect' || gridStale;
       sourcePolicyFieldset.disabled = disabled;
-      for (const field of [sourcePolicySale, sourcePolicyDiscount, sourcePolicyRefund, sourcePolicyReason]) {
+      for (const field of [sourcePolicyVersion, sourcePolicySale, sourcePolicyDiscount, sourcePolicyRefund, sourcePolicyReason]) {
         field.disabled = disabled || !sourcePolicyEnabled.checked;
         field._customSelectRefresh?.();
       }
+      sourcePolicyV2Explanation.hidden = !sourcePolicyEnabled.checked || sourcePolicyVersion.value !== '2';
     };
     const rebuildSourcePolicy = (definition) => {
       const values = sourcePolicyControlValues(definition);
       sourcePolicyEnabled.checked = values.enabled;
-      for (const [field, value] of [[sourcePolicySale, values.saleCredit], [sourcePolicyDiscount, values.discountAllocation], [sourcePolicyRefund, values.refunds]]) {
+      for (const [field, value] of [[sourcePolicyVersion, values.schemaVersion], [sourcePolicySale, values.saleCredit], [sourcePolicyDiscount, values.discountAllocation], [sourcePolicyRefund, values.refunds]]) {
         field.querySelectorAll('[data-policy-unknown]').forEach((option) => option.remove());
         if (value && ![...field.options].some((option) => option.value === value)) { const option = document.createElement('option'); option.value = String(value); option.textContent = `Неизвестное правило: ${String(value)}`; option.dataset.policyUnknown = 'true'; field.append(option); }
         field.value = String(value);
@@ -1097,13 +3222,13 @@
       const shifts = shiftSource.slice(pageStart, pageStart + ATTENDANCE_SHIFTS_PER_PAGE).map((shift) => {
         const intervalSource = shift.sourceIntervals || [];
         const intervals = intervalSource.map((interval) => `<li>${escapeHtml(new Date(interval.startedAt).toLocaleString('ru-RU'))} — ${escapeHtml(new Date(interval.endedAt).toLocaleString('ru-RU'))} · ${escapeHtml(interval.source)}</li>`).join('');
-        return `<tr><td>${escapeHtml(shift.workDate)}</td><td>${escapeHtml(shift.employeeName)}</td><td>${escapeHtml(shift.plannedMinutes)}</td><td>${escapeHtml(shift.workedMinutes)}</td><td><details><summary>${escapeHtml(intervalSource.length)} интервалов</summary><ul>${intervals || '<li>Закрытых интервалов нет.</li>'}</ul></details></td></tr>`;
+        return `<tr><td>${escapeHtml(shift.workDate)}</td><td>${escapeHtml(shift.employeeName)}</td><td>${escapeHtml(shift.scheduledFunctionName || 'Не назначена')}</td><td>${escapeHtml(shift.plannedMinutes)}</td><td>${escapeHtml(shift.workedMinutes)}</td><td><details><summary>${escapeHtml(intervalSource.length)} интервалов</summary><ul>${intervals || '<li>Закрытых интервалов нет.</li>'}</ul></details></td></tr>`;
       }).join('');
       const pageControls = pageCount > 1 ? `<div class="toolbar-row"><button type="button" class="button small" data-attendance-page="${attendancePage - 1}" ${attendancePage === 0 ? 'disabled' : ''}>Предыдущие смены</button><span>Страница ${attendancePage + 1} из ${pageCount}. Просмотрено: ${attendanceVisitedPages.size} из ${pageCount}.</span><button type="button" class="button small" data-attendance-page="${attendancePage + 1}" ${attendancePage >= pageCount - 1 ? 'disabled' : ''}>Следующие смены</button></div>` : '';
       const history = (data?.history || []).map((item) => `<li>Ревизия ${escapeHtml(item.revision)} · ${escapeHtml(item.approvedByName)} · ${escapeHtml(new Date(item.approvedAt).toLocaleString('ru-RU'))} · ${escapeHtml(item.reason)}</li>`).join('');
       const approved = data?.currentApproval;
       const approval = approved ? `<section><strong>Последнее утверждение: ревизия ${escapeHtml(approved.revision)}</strong><p>${data.stale ? 'Источник изменился после утверждения — требуется новая проверка и ревизия.' : 'Источник совпадает с утверждённым снимком.'}</p><p>Утвердил: ${escapeHtml(approved.approvedByName)} · ${escapeHtml(new Date(approved.approvedAt).toLocaleString('ru-RU'))}</p></section>` : '<p>Для этого периода ещё нет утверждённого снимка.</p>';
-      attendanceResult.innerHTML = `<p><strong>${data?.complete ? 'Период можно утвердить' : 'Нужно исправить источник перед утверждением'}</strong></p><p>Плановых смен: ${escapeHtml(data?.scheduleCount ?? 0)} · Интервалов: ${escapeHtml(data?.logCount ?? 0)} · SHA-256 источника: <code>${escapeHtml(data?.sourceWatermark || '—')}</code></p>${reasons ? `<ul>${reasons}</ul>` : ''}${pageControls}<div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Дата</th><th>Сотрудник</th><th>План, мин</th><th>Факт, мин</th><th>Исходные интервалы</th></tr></thead><tbody>${shifts || '<tr><td colspan="5">Плановых смен за период нет.</td></tr>'}</tbody></table></div>${pageControls}${data?.stale ? '<p class="warning-message">Последний снимок устарел относительно текущего табеля.</p>' : ''}${approval}${history ? `<details><summary>История утверждений</summary><ul>${history}</ul></details>` : ''}`;
+      attendanceResult.innerHTML = `<p><strong>${data?.complete ? 'Период можно утвердить' : 'Нужно исправить источник перед утверждением'}</strong></p><p>Плановых смен: ${escapeHtml(data?.scheduleCount ?? 0)} · Интервалов: ${escapeHtml(data?.logCount ?? 0)} · SHA-256 источника: <code>${escapeHtml(data?.sourceWatermark || '—')}</code></p><p class="muted">Функция ниже взята из календаря и не является POS-цехом, станцией или подтверждением продажи.</p>${reasons ? `<ul>${reasons}</ul>` : ''}${pageControls}<div style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Дата</th><th>Сотрудник</th><th>Функция по расписанию</th><th>План, мин</th><th>Факт, мин</th><th>Исходные интервалы</th></tr></thead><tbody>${shifts || '<tr><td colspan="6">Плановых смен за период нет.</td></tr>'}</tbody></table></div>${pageControls}${data?.stale ? '<p class="warning-message">Последний снимок устарел относительно текущего табеля.</p>' : ''}${approval}${history ? `<details><summary>История утверждений</summary><ul>${history}</ul></details>` : ''}`;
       const allRowsReviewed = attendanceVisitedPages.size === pageCount;
       const canApprove = Boolean(data?.complete && data?.sourceWatermark && allRowsReviewed && (!approved || data.stale));
       attendanceApprove.disabled = !canApprove;
@@ -1129,8 +3254,14 @@
     previewInput.addEventListener('input', () => { previewInput.dataset.userEdited = 'true'; });
     const venueTimezonePromise = request('/api/venue').then((venue) => {
       if (typeof venue?.timezone === 'string' && venue.timezone.trim()) venueTimezone = venue.timezone.trim();
+      if (!diagnosticFrom.dataset.userEdited && !diagnosticTo.dataset.userEdited) {
+        const localToday=venueLocalToday(),nextFrom=`${localToday.slice(0,7)}-01`,nextTo=localToday;
+        if(diagnosticFrom.value!==nextFrom||diagnosticTo.value!==nextTo){diagnosticFrom.value=nextFrom;diagnosticTo.value=nextTo;invalidateEntryDiagnostic();}
+      }
       if (!previewInput.dataset.userEdited) previewInput.value = JSON.stringify(defaultPreview(), null, 2);
     }).catch(() => null);
+    diagnosticFrom.addEventListener('input',()=>{diagnosticFrom.dataset.userEdited='true';});
+    diagnosticTo.addEventListener('input',()=>{diagnosticTo.dataset.userEdited='true';});
 
     const notify = (text, kind = '') => { message.textContent = text; message.className = `form-message${kind ? ` ${kind}-message` : ''}`; };
     const definitionFromVersion = (version) => ({
@@ -1142,6 +3273,27 @@
       employeeOverrides: version.employeeOverrides, itemRules: version.itemRules
     });
     const sortedVersions = (scheme) => [...(scheme.versions || [])].sort((left, right) => Number(right.versionNo) - Number(left.versionNo));
+    const editorStateSnapshot = () => ({ name: nameField.value, description: descriptionField.value,
+      definition: definitionField.value, grid: JSON.stringify({ roles: rawGridFields(), overrides: rawGridOverrides() }),
+      sourcePolicy: JSON.stringify(sourcePolicyControls()), riskAcknowledged: payoutRiskAcknowledgementField.checked,
+      personalCapAcknowledged: personalCapField.checked, gridDirty, sourcePolicyDirty });
+    const editorHasUnsavedChanges = () => Boolean(editorAction
+      && payrollEditorStateChanged(editorBaseline, editorStateSnapshot()));
+    const confirmEditorReplacement = async () => {
+      if (!editorHasUnsavedChanges()) return true;
+      const title = 'Есть несохранённые изменения';
+      const description = 'Если открыть другой вариант схемы, текущие изменения редактора будут потеряны.';
+      if (typeof portalConfirm === 'function') return await portalConfirm(title, description, 'Открыть другой вариант');
+      return window.confirm(`${title}\n\n${description}`);
+    };
+    const editorTransition = createPayrollEditorTransitionGate(confirmEditorReplacement);
+    const beginEditorTransition = () => editorTransition.begin(editorHasUnsavedChanges());
+    const allowLoadedEditorReplacement = async (token, stateAtRequest) => {
+      if (!editorTransition.isCurrent(token)) return false;
+      if (editorHasUnsavedChanges() && payrollEditorStateChanged(stateAtRequest, editorStateSnapshot())
+          && !await confirmEditorReplacement()) return false;
+      return editorTransition.isCurrent(token);
+    };
     const renderList = () => {
       if (!schemes.length) { list.innerHTML = '<div class="empty">Схем пока нет. Создайте схему и сохраните первую черновую версию.</div>'; return; }
       list.innerHTML = schemes.map((scheme) => `<article class="finance-scheme-card"><div class="panel-head"><div><h3>${escapeHtml(scheme.name)}</h3><small class="muted">${escapeHtml(scheme.description || 'Без описания')}</small></div></div><div class="finance-scheme-versions">${sortedVersions(scheme).map((version) => `<div class="payment-row"><label><input type="checkbox" data-scheme-compare-version="${escapeHtml(version.id)}"> Сравнить</label><span>Версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode] || version.mode)} · ${escapeHtml(version.effectiveFrom)}${version.effectiveTo ? ` — ${escapeHtml(version.effectiveTo)}` : ''}<small class="muted">${version.payoutRiskAcknowledgement?.configDigest ? `Риск подтверждён владельцем ${escapeHtml(version.payoutRiskAcknowledgement.acknowledgedAt || '')}` : 'Подтверждение риска не сохранено'}</small></span><span class="badge ${version.status === 'active' ? 'success' : version.status === 'draft' ? 'warning' : ''}">${escapeHtml(editorStatusLabel(version.status))}</span><div class="toolbar-row"><button type="button" class="button small" data-scheme-open-version="${escapeHtml(version.id)}">Открыть</button>${version.status === 'draft' ? `<button type="button" class="button small primary" data-scheme-activate="${escapeHtml(version.id)}">Активировать</button>` : ''}<button type="button" class="button small" data-scheme-revisions="${escapeHtml(version.id)}">История</button></div></div>`).join('') || '<div class="empty">Черновых версий нет</div>'}<div class="toolbar-row"><button type="button" class="button small" data-scheme-new-version="${escapeHtml(scheme.id)}">Создать новую версию</button></div></div></article>`).join('');
@@ -1154,9 +3306,16 @@
       try { const data = await request('/api/payroll/schemes'); schemes = Array.isArray(data.items) ? data.items : []; renderList(); notify(schemes.length ? '' : ''); }
       catch (error) { schemes = []; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
     };
-    const openVersion = async (versionId) => {
-      selectedVersion=null;invalidateReadiness();
-      const version = await request(`/api/payroll/versions/${encodeURIComponent(versionId)}`);
+    const openVersion = async (versionId, transitionToken = null) => {
+      const token = transitionToken ?? await beginEditorTransition();
+      if (token === null || !editorTransition.isCurrent(token)) return false;
+      const stateAtRequest = editorStateSnapshot();
+      invalidateReadiness();
+      let version;
+      try { version = await request(`/api/payroll/versions/${encodeURIComponent(versionId)}`); }
+      catch (error) { if (!editorTransition.isCurrent(token)) return false; throw error; }
+      if (!editorTransition.isCurrent(token)) return false;
+      if (!await allowLoadedEditorReplacement(token, stateAtRequest)) return false;
       selectedVersion = version;
       previewBox.hidden = false;
       if (!previewInput.value.trim()) previewInput.value = JSON.stringify(defaultPreview(), null, 2);
@@ -1173,13 +3332,20 @@
       panel.querySelector('[data-scheme-save]').hidden = version.status !== 'draft';
       editor.hidden = false;
       rebuildGrid();
+      editorBaseline = editorStateSnapshot();
       refreshReadiness();
       selectWorkspace('configuration',{focus:true});
       notify(version.status === 'draft' ? 'Открыт редактируемый черновик.' : 'Сохранённая версия защищена от редактирования. Создайте новую версию для изменений.');
+      return true;
     };
-    const showEditor = async (action, { scheme = null, version = null } = {}) => {
-      selectedVersion=null;invalidateReadiness();
+    const showEditor = async (action, { scheme = null, version = null, transitionToken = null } = {}) => {
+      const token = transitionToken ?? await beginEditorTransition();
+      if (token === null || !editorTransition.isCurrent(token)) return false;
+      const stateAtRequest = editorStateSnapshot();
       await venueTimezonePromise;
+      if (!editorTransition.isCurrent(token)) return false;
+      if (!await allowLoadedEditorReplacement(token, stateAtRequest)) return false;
+      selectedVersion=null;invalidateReadiness();
       editorAction = action;
       selectedVersion = version;
       editor.hidden = false;
@@ -1193,14 +3359,17 @@
       descriptionField.value = scheme?.description || '';
       definitionField.value = JSON.stringify(version ? definitionFromVersion(version) : defaultDefinition(), null, 2);
       rebuildGrid();
+      editorBaseline = editorStateSnapshot();
       refreshReadiness();
       selectWorkspace('configuration',{focus:true});
       notify('Проверьте период действия, роли, назначения сотрудников и правила до сохранения.');
+      return true;
     };
 
     panel.addEventListener('click', async (event) => {
       const button = event.target.closest('button');
-      if (!button || pending) return;
+      // Only scheme actions may refresh the editor; custom-select buttons own their focus.
+      if (!button || pending || !button.matches('[data-scheme-workspace], [data-scheme-grid-rebuild], [data-source-policy-apply], [data-scheme-grid-apply], [data-grid-add-override], [data-grid-inherit], [data-grid-add-milestone-threshold], [data-grid-add-threshold], [data-attendance-page], [data-attendance-refresh], [data-attendance-approve], [data-scheme-reload], [data-scheme-retry], [data-scheme-new], [data-scheme-editor-cancel], [data-scheme-open-version], [data-scheme-new-version], [data-scheme-activate], [data-scheme-revisions], [data-scheme-run-preview], [data-scheme-run-approved-attendance], [data-scheme-run-venue-preview], [data-scheme-compare]')) return;
       try {
         if(button.matches('[data-scheme-workspace]')){selectWorkspace(button.dataset.schemeWorkspace,{focus:true});return;}
         if (button.matches('[data-scheme-grid-rebuild]')) { rebuildGrid(); return; }
@@ -1253,13 +3422,21 @@
         }
         if (button.matches('[data-scheme-reload], [data-scheme-retry]')) return await load();
         if (button.matches('[data-scheme-new]')) return await showEditor({ kind: 'create' });
-        if (button.matches('[data-scheme-editor-cancel]')) { editor.hidden = true; editorAction = null; invalidateReadiness(); selectWorkspace('list',{focus:true}); return; }
+        if (button.matches('[data-scheme-editor-cancel]')) { editorTransition.invalidate(); editorBaseline = null; editor.hidden = true; editorAction = null; selectedVersion = null; invalidateReadiness(); selectWorkspace('list',{focus:true}); return; }
         if (button.matches('[data-scheme-open-version]')) return await openVersion(button.dataset.schemeOpenVersion);
         if (button.matches('[data-scheme-new-version]')) {
+          const transitionToken = await beginEditorTransition();
+          if (transitionToken === null) return;
           const scheme = schemes.find((item) => item.id === button.dataset.schemeNewVersion);
+          if (!scheme) return;
           const latest = sortedVersions(scheme || {})[0];
-          const version = latest ? await request(`/api/payroll/versions/${encodeURIComponent(latest.id)}`) : null;
-          return await showEditor({ kind: 'new-version', schemeId: scheme.id }, { scheme, version });
+          const stateAtRequest = editorStateSnapshot();
+          let version;
+          try { version = latest ? await request(`/api/payroll/versions/${encodeURIComponent(latest.id)}`) : null; }
+          catch (error) { if (!editorTransition.isCurrent(transitionToken)) return; throw error; }
+          if (!editorTransition.isCurrent(transitionToken)) return;
+          if (!await allowLoadedEditorReplacement(transitionToken, stateAtRequest)) return;
+          return await showEditor({ kind: 'new-version', schemeId: scheme.id }, { scheme, version, transitionToken });
         }
         if (button.matches('[data-scheme-activate]')) {
           pending = true; button.disabled = true;
@@ -1345,7 +3522,7 @@
           result = await request(`/api/payroll/versions/${encodeURIComponent(editorAction.versionId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ definition, payoutRiskAcknowledgement }) });
           notify('Черновик сохранён; новая ревизия записана в историю.', 'success');
         }
-        editor.hidden = true; editorAction = null; pending = false; await load({ force: true });
+        editor.hidden = true; editorAction = null; await load({ force: true });
         const versionId = result.versionId || result.versions?.[0]?.versionId;
         if (versionId) { await openVersion(versionId); selectWorkspace('checks',{focus:true}); }
       } catch (error) { notify(`Не удалось сохранить схему: ${payrollSaveErrorLabels[error.message] || error.message}`, 'error'); }

@@ -6,7 +6,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'staff-schedule-ui.js'), 'utf8');
+const shared = fs.readFileSync(path.join(root, 'help-content.js'), 'utf8');
+const articles = JSON.parse(shared.match(/const articles = (.*);/)[1]);
+const source = fs.readFileSync(path.join(root, 'staff-schedule-ui.js'), 'utf8').replace('${guide.html}', articles.find(article => article.id === 'staff-schedule').html);
 const css = fs.readFileSync(path.join(root, 'staff-schedule-ui.css'), 'utf8');
 function between(start, end) {
   const a = source.indexOf(start);
@@ -15,7 +17,7 @@ function between(start, end) {
   assert.ok(b > a, `Missing extraction end: ${end}`);
   return source.slice(a, b);
 }
-const help = between('    helpButton.onclick = () => {', '    const commandbar =');
+const help = between('    helpButton.onclick = async () => {', '    const commandbar =');
 const search = between('      const helpSearch =', '      const previous = document.activeElement;');
 const sections = [...help.matchAll(/<section>([\s\S]*?)<\/section>/g)].map(m => m[1]);
 let checks = 0;

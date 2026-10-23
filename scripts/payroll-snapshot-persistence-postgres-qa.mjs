@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { addProvenance } from './payroll-provenance-storage-fixture.mjs';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -67,6 +68,7 @@ function fixture(mode = 'stable_percent', milestone = false) {
 const state = async () => {
   const result = {};
   for (const table of tables) result[table] = (await db.query(`SELECT * FROM ${table} WHERE venue_id=$1 ORDER BY id`, [id(1)])).rows;
+  result.payroll_run_provenance = (await db.query('SELECT * FROM payroll_run_provenance WHERE venue_id=$1 ORDER BY run_id', [id(1)])).rows;
   return result;
 };
 const ledgerCounts = async () => (await db.query('SELECT (SELECT count(*)::int FROM payroll_entries) AS entries,(SELECT count(*)::int FROM expenses) AS expenses')).rows[0];
@@ -168,6 +170,37 @@ try {
     assert.equal(stored.payroll_calculation_runs[0].milestone_evidence_version, 0);
     committed.push(bundle);
   }
+  const verifiedBundle = addProvenance(fixture());
+  const verifiedOutput = await commitBundle(verifiedBundle);
+  await readback(verifiedBundle, verifiedOutput);
+  assert.equal(verifiedOutput.counts.payroll_run_provenance, 1);
+  const storedProvenance = (await db.query('SELECT * FROM payroll_run_provenance WHERE venue_id=$1 AND run_id=$2',
+    [id(1), verifiedBundle.run.id])).rows[0];
+  for (const [key, value] of Object.entries(verifiedBundle.provenance)) {
+    assert.equal(storedProvenance[key], key === 'total_amount_cents' ? String(value) : value, `provenance.${key}`);
+  }
+  for (const table of ['payroll_run_provenance', 'payroll_daily_snapshots', 'payroll_daily_snapshot_lines']) {
+    let injected = false;
+    await failureThenCommit(addProvenance(fixture()), { query: async (sql, values) => {
+      const result = await db.query(sql, values);
+      if (!injected && sql.startsWith(`INSERT INTO ${table} `)) { injected = true; await db.query('SELECT 1/0'); }
+      return result;
+    } }, '22012');
+    assert.equal(injected, true);
+  }
+  await failureThenCommit(addProvenance(fixture()), { query: async (sql, values) => {
+    if (/^SET CONSTRAINTS.*IMMEDIATE$/s.test(sql)) await db.query('SELECT 1/0');
+    return db.query(sql, values);
+  } }, '22012');
+  evidence.assertions.push('New engine header, immutable provenance and typed snapshots persist together; SQL failure after evidence/day/line/constraint flush rolls all back even if caller catches and commits');
+  const overnightBundle = fixture();
+  Object.assign(overnightBundle.input.sourceLines[0], { soldAt: '2026-09-30T23:59:00.000Z',
+    recognizedAt: '2026-10-01T00:01:00.123456Z', recognizedLocalDate: '2026-10-01', timezoneSnapshot: 'UTC' });
+  const overnightRows = await readback(overnightBundle, await commitBundle(overnightBundle));
+  assert.equal(new Date(overnightRows.payroll_daily_snapshot_lines[0].sold_at).toISOString(), '2026-09-30T23:59:00.000Z');
+  assert.equal(overnightRows.payroll_daily_snapshot_lines[0].local_date, '2026-10-01');
+  assert.equal(overnightRows.payroll_daily_snapshot_lines[0].incentive_json.sourceRecognition.recognizedAt, '2026-10-01T00:01:00.123456Z');
+  evidence.assertions.push('Overnight sale preserves original sold_at, credited local_date and immutable recognition tuple in typed line evidence');
   const milestoneBundle = fixture('stable_percent', true), milestoneRows = await readback(milestoneBundle, await commitBundle(milestoneBundle));
   assert.equal(milestoneRows.payroll_milestone_day_snapshots.length, 2);
   assert.equal(milestoneRows.payroll_milestone_day_snapshots.find(r => r.local_date === '2026-10-02').decision_count, 0);

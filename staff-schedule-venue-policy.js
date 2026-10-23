@@ -1,4 +1,5 @@
 'use strict';
+const { beginPayrollSourceProducerTransaction } = require('./payroll-source-fence');
 
 const { createHash } = require('node:crypto');
 const { ScheduleError, UUID } = require('./staff-schedule-domain');
@@ -99,7 +100,7 @@ async function saveVenuePolicy(pool, principal, input) {
   });
   const db = await pool.connect();
   try {
-    await db.query('BEGIN');
+    await beginPayrollSourceProducerTransaction(db, principal.venueId);
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`schedule:${principal.venueId}`]);
     const access = await resolveAccess(db, principal, true);
     if (!access.canManageSettings) fail('schedule_settings_forbidden', 403);

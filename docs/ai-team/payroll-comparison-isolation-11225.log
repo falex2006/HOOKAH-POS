@@ -1,0 +1,4 @@
+PASS source policy v2 actual owner persistence/revision/activation: explicit immutable choice, legacy monetary capability still blocked
+PASS refund-aware comparison initial: seven actual-source modes, HTTP/UI, exact retry, source/ledger hashes unchanged
+PASS refund-aware comparison partial: seven actual-source modes, HTTP/UI, exact retry, source/ledger hashes unchanged
+PASS refund-aware comparison full: seven actual-source modes, HTTP/UI, exact retry, source/ledger hashes unchanged

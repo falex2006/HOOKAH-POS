@@ -78,6 +78,7 @@ const mapPayrollTypedSnapshotRows = (input) => {
         applied_rate_bps: line.appliedRateBps, item_rule_id: line.itemRuleId == null ? null : uuid(line.itemRuleId), commission_amount: decimal(line.commissionCents),
         snapshot_schema_version: 2, calculation_kind: mode, commission_kind: kind,
         incentive_json: { ...(allocation ? pick(allocation, kind === 'personal_target' ? TARGET_ALLOCATION_FIELDS : ALLOCATION_FIELDS) : {}),
+          ...(source.sourceRecognition ? { sourceRecognition: structuredClone(source.sourceRecognition) } : {}),
           ...pick(line, ['baseRateBps', 'itemRateBps']), itemRuleMode: line.itemRuleMode ?? null,
           ...(mode === 'margin_target' ? { marginPoolExcluded: line.marginPoolExcluded === true } : {}) },
         cost_snapshot_json: cost ? { ...cost } : null, net_cost_amount: cost ? decimal(cost.costCents) : null,

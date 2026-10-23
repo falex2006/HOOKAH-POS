@@ -3,6 +3,11 @@
 // Owner intent only. Validation/fact requirements execute no source policy and
 // establish neither manifest coverage nor authority for an official run.
 const fail = (code) => { throw Object.assign(new TypeError(code), { code }); };
+const PAYROLL_SOURCE_POLICY_V1 = 1;
+const PAYROLL_SOURCE_POLICY_V2 = 2;
+const PAYROLL_REMAINING_NET_EARNINGS_POLICY = 'remaining_merchandise_original_sale_date_v1';
+const PAYROLL_REFUND_ADJUSTED_VENUE_TURNOVER_POLICY = 'canonical_total_less_merchandise_returns_v1';
+const PAYROLL_FROZEN_SALE_DEPLETION_COST_PAYROLL_POLICY = 'frozen_sale_depletion_cost_payroll_v1';
 const object = (value, keys, code, required = keys) => {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype
       || Reflect.ownKeys(value).some((key) => typeof key !== 'string' || !keys.includes(key))
@@ -12,11 +17,15 @@ const object = (value, keys, code, required = keys) => {
 const exact = (value, expected, code) => { if (value !== expected) fail(code); };
 const normalizePayrollSourcePolicies = (value) => {
   if (value === undefined) return undefined;
-  object(value, ['schemaVersion', 'selectionReason', 'saleCredit', 'discountAllocation', 'refunds'], 'payroll_source_policies_invalid');
-  exact(value.schemaVersion, 1, 'payroll_source_policies_version_invalid');
+  object(value, ['schemaVersion', 'selectionReason', 'saleCredit', 'discountAllocation', 'refunds', 'earnings'],
+    'payroll_source_policies_invalid', ['schemaVersion', 'selectionReason', 'saleCredit', 'discountAllocation', 'refunds']);
+  if (![PAYROLL_SOURCE_POLICY_V1, PAYROLL_SOURCE_POLICY_V2].includes(value.schemaVersion)) fail('payroll_source_policies_version_invalid');
+  const version2 = value.schemaVersion === PAYROLL_SOURCE_POLICY_V2;
+  if (version2 !== Object.hasOwn(value, 'earnings')) fail('payroll_source_policies_version_shape_invalid');
   if (typeof value.selectionReason !== 'string' || value.selectionReason.trim().length < 3 || value.selectionReason.trim().length > 1000) fail('payroll_source_policies_reason_invalid');
   object(value.saleCredit, ['kind'], 'payroll_sale_credit_policy_invalid');
-  if (!['line_seller_snapshot', 'order_responsible_snapshot', 'explicit_line_allocation'].includes(value.saleCredit.kind)) fail('payroll_sale_credit_policy_invalid');
+  if (version2 ? value.saleCredit.kind !== 'line_seller_snapshot'
+    : !['line_seller_snapshot', 'order_responsible_snapshot', 'explicit_line_allocation'].includes(value.saleCredit.kind)) fail('payroll_sale_credit_policy_invalid');
   object(value.discountAllocation, ['kind', 'rounding', 'eligibility'], 'payroll_discount_policy_invalid', ['kind']);
   if (value.discountAllocation.kind === 'immutable_line_snapshot') object(value.discountAllocation, ['kind'], 'payroll_discount_policy_invalid');
   else if (value.discountAllocation.kind === 'eligible_gross_proportional_fixed_order') {
@@ -24,15 +33,26 @@ const normalizePayrollSourcePolicies = (value) => {
     exact(value.discountAllocation.rounding, 'largest_remainder_code_unit_v1', 'payroll_discount_policy_invalid');
     exact(value.discountAllocation.eligibility, 'pricing_source_snapshot', 'payroll_discount_policy_invalid');
   } else fail('payroll_discount_policy_invalid');
+  if (version2 && value.discountAllocation.kind !== 'immutable_line_snapshot') fail('payroll_discount_policy_invalid');
   object(value.refunds, ['recognition', 'closedRunTreatment', 'paidAdjustment', 'uncoveredBalance', 'clawback'], 'payroll_refund_policy_invalid');
-  if (!['recognized_event_date', 'original_sale_period_correction'].includes(value.refunds.recognition)) fail('payroll_refund_policy_invalid');
+  if (version2 ? value.refunds.recognition !== 'recognized_event_date'
+    : !['recognized_event_date', 'original_sale_period_correction'].includes(value.refunds.recognition)) fail('payroll_refund_policy_invalid');
   for (const [key, expected] of Object.entries({ closedRunTreatment: 'next_open_run_adjustment', paidAdjustment: 'owner_review_variable_pay_only',
     uncoveredBalance: 'carry_forward_review', clawback: 'no_automatic_clawback' })) exact(value.refunds[key], expected, 'payroll_refund_policy_invalid');
-  return { schemaVersion: 1, selectionReason: value.selectionReason.trim(), saleCredit: { kind: value.saleCredit.kind },
+  if (version2) {
+    object(value.earnings, ['refunds', 'venueTurnover', 'marginCost'], 'payroll_earnings_policy_invalid');
+    exact(value.earnings.refunds, PAYROLL_REMAINING_NET_EARNINGS_POLICY, 'payroll_earnings_policy_invalid');
+    exact(value.earnings.venueTurnover, PAYROLL_REFUND_ADJUSTED_VENUE_TURNOVER_POLICY, 'payroll_earnings_policy_invalid');
+    exact(value.earnings.marginCost, PAYROLL_FROZEN_SALE_DEPLETION_COST_PAYROLL_POLICY, 'payroll_earnings_policy_invalid');
+  }
+  const normalized = { schemaVersion: value.schemaVersion, selectionReason: value.selectionReason.trim(), saleCredit: { kind: value.saleCredit.kind },
     discountAllocation: value.discountAllocation.kind === 'immutable_line_snapshot' ? { kind: 'immutable_line_snapshot' } : {
       kind: 'eligible_gross_proportional_fixed_order', rounding: 'largest_remainder_code_unit_v1', eligibility: 'pricing_source_snapshot' },
     refunds: { recognition: value.refunds.recognition, closedRunTreatment: value.refunds.closedRunTreatment,
       paidAdjustment: value.refunds.paidAdjustment, uncoveredBalance: value.refunds.uncoveredBalance, clawback: value.refunds.clawback } };
+  if (version2) normalized.earnings = { refunds: value.earnings.refunds,
+    venueTurnover: value.earnings.venueTurnover, marginCost: value.earnings.marginCost };
+  return normalized;
 };
 const requiredPayrollSourceFacts = (value) => {
   const policy = normalizePayrollSourcePolicies(value);
@@ -47,6 +67,11 @@ const requiredPayrollSourceFacts = (value) => {
     'immutable_selected_fixed_order_discount', 'pricing_source_eligible_portion_gross_snapshot', 'complete_fixed_discount_allocation_conservation']));
   if (policy.refunds.recognition === 'original_sale_period_correction') facts.push('immutable_original_period_correction_run_lineage');
   else facts.push('finance_refund_recognition_date');
+  if (policy.schemaVersion === PAYROLL_SOURCE_POLICY_V2) facts.push('versioned_remaining_net_refund_earnings',
+    'refund_adjusted_canonical_venue_turnover', 'frozen_original_depletion_cost_for_payroll_incentive',
+    'immutable_original_period_correction_run_lineage');
   return facts.slice().sort();
 };
-module.exports = { normalizePayrollSourcePolicies, requiredPayrollSourceFacts };
+module.exports = { PAYROLL_SOURCE_POLICY_V1, PAYROLL_SOURCE_POLICY_V2, PAYROLL_REMAINING_NET_EARNINGS_POLICY,
+  PAYROLL_REFUND_ADJUSTED_VENUE_TURNOVER_POLICY, PAYROLL_FROZEN_SALE_DEPLETION_COST_PAYROLL_POLICY,
+  normalizePayrollSourcePolicies, requiredPayrollSourceFacts };
