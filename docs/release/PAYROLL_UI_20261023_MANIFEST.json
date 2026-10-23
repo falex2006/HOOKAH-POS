@@ -21,7 +21,7 @@
   "files": [
     {
       "path": "Dockerfile",
-      "sha256": "10fe82f58c8290828b4cd5a120fb379626220c1182a285e3366799afea8b228f"
+      "sha256": "7db8cec8468c07cae5122294a9f089651616124993cb5714c1deb717d92d97cb"
     },
     {
       "path": "MIGRATIONS.md",
@@ -29,47 +29,47 @@
     },
     {
       "path": "admin.html",
-      "sha256": "02b576df63b5d2ba18ca54c25efb9c97170ff2333779f12c3d1dcb4c4c7b1277"
+      "sha256": "97605e911809d387f99ec4e1cc324b23cf7fcc08d0ee47d5d76922bd4acf4f52"
     },
     {
       "path": "clients.html",
-      "sha256": "c4e4b2e0450f331df5392eb6969858252dd0c6b27c6ad6da0180d83043a75590"
+      "sha256": "bf0b6bba4e7299fedf519372d14859a28e16e9631676acf4279f841c0bd159ea"
     },
     {
       "path": "delivery.html",
-      "sha256": "5f6759b624f0837944493af89704745acd1b3a8d798f2c5dca8e3af3eaf2b2b9"
+      "sha256": "b72f556e185fbfe3756c47e39aaef20ef0a43bd5d0d58aa45f7c58455eef3670"
     },
     {
       "path": "dist/admin.html",
-      "sha256": "02b576df63b5d2ba18ca54c25efb9c97170ff2333779f12c3d1dcb4c4c7b1277"
+      "sha256": "97605e911809d387f99ec4e1cc324b23cf7fcc08d0ee47d5d76922bd4acf4f52"
     },
     {
       "path": "dist/admin/index.html",
-      "sha256": "02b576df63b5d2ba18ca54c25efb9c97170ff2333779f12c3d1dcb4c4c7b1277"
+      "sha256": "97605e911809d387f99ec4e1cc324b23cf7fcc08d0ee47d5d76922bd4acf4f52"
     },
     {
       "path": "dist/clients.html",
-      "sha256": "c4e4b2e0450f331df5392eb6969858252dd0c6b27c6ad6da0180d83043a75590"
+      "sha256": "bf0b6bba4e7299fedf519372d14859a28e16e9631676acf4279f841c0bd159ea"
     },
     {
       "path": "dist/clients/index.html",
-      "sha256": "c4e4b2e0450f331df5392eb6969858252dd0c6b27c6ad6da0180d83043a75590"
+      "sha256": "bf0b6bba4e7299fedf519372d14859a28e16e9631676acf4279f841c0bd159ea"
     },
     {
       "path": "dist/delivery.html",
-      "sha256": "5f6759b624f0837944493af89704745acd1b3a8d798f2c5dca8e3af3eaf2b2b9"
+      "sha256": "b72f556e185fbfe3756c47e39aaef20ef0a43bd5d0d58aa45f7c58455eef3670"
     },
     {
       "path": "dist/delivery/index.html",
-      "sha256": "5f6759b624f0837944493af89704745acd1b3a8d798f2c5dca8e3af3eaf2b2b9"
+      "sha256": "b72f556e185fbfe3756c47e39aaef20ef0a43bd5d0d58aa45f7c58455eef3670"
     },
     {
       "path": "dist/finance-categories.html",
-      "sha256": "06a1140aa5d31c43c87c1c077fd001fe56487301006fd8a83ca4676e21772577"
+      "sha256": "0cbb0476839ac2f0357504157eab6c144b3ce73bf6d39dc5e0aa7d065400e440"
     },
     {
       "path": "dist/finance-report.html",
-      "sha256": "4fd08f24d9050edc42d5564a7603da6490b4e542b9b672ec21935bdfc5efdb80"
+      "sha256": "d226bf65e22fbc5b0b9da9b774e231979be214b0908b2b389ddfce6bd8a8b7b5"
     },
     {
       "path": "dist/finance.html",
@@ -77,7 +77,7 @@
     },
     {
       "path": "dist/finance/categories/index.html",
-      "sha256": "06a1140aa5d31c43c87c1c077fd001fe56487301006fd8a83ca4676e21772577"
+      "sha256": "0cbb0476839ac2f0357504157eab6c144b3ce73bf6d39dc5e0aa7d065400e440"
     },
     {
       "path": "dist/finance/index.html",
@@ -85,7 +85,7 @@
     },
     {
       "path": "dist/finance/report/index.html",
-      "sha256": "4fd08f24d9050edc42d5564a7603da6490b4e542b9b672ec21935bdfc5efdb80"
+      "sha256": "d226bf65e22fbc5b0b9da9b774e231979be214b0908b2b389ddfce6bd8a8b7b5"
     },
     {
       "path": "dist/help-content.js",
@@ -93,63 +93,63 @@
     },
     {
       "path": "dist/index.html",
-      "sha256": "a9298508ac9638a99a0a725d50791f071adddae218d8009c9f957a2405a07f54"
+      "sha256": "2145c14d77b40088362bd8412e6ba0f47cee7b61f1508d63a4f369957754ac78"
     },
     {
       "path": "dist/integrations.html",
-      "sha256": "937137ec9538975f8417c6543fc8306d81a21aa80d9f44f218d13bf8fcf4889d"
+      "sha256": "01328d684ae914bccfbdba03e986725d0aa5e3a75339995befa2452e4038b7e6"
     },
     {
       "path": "dist/integrations/index.html",
-      "sha256": "937137ec9538975f8417c6543fc8306d81a21aa80d9f44f218d13bf8fcf4889d"
+      "sha256": "01328d684ae914bccfbdba03e986725d0aa5e3a75339995befa2452e4038b7e6"
     },
     {
       "path": "dist/inventory.html",
-      "sha256": "26936da5e87e48492aeba70d824891a8be1b9bd650803fb460cb18f5b890f919"
+      "sha256": "9c45ca4659e7e5d0b7ed43284b6ac55c2e957f85c03fc3315db3f82420e4e58d"
     },
     {
       "path": "dist/inventory/index.html",
-      "sha256": "26936da5e87e48492aeba70d824891a8be1b9bd650803fb460cb18f5b890f919"
+      "sha256": "9c45ca4659e7e5d0b7ed43284b6ac55c2e957f85c03fc3315db3f82420e4e58d"
     },
     {
       "path": "dist/login.html",
-      "sha256": "08f742525100a2ce17b0335d5e712b3728d863f7abf006ddfc44bb32ece3c698"
+      "sha256": "1916ae644833c6475d96f7025704839b8cc513e77c2a0bf8781e01db70ac5e7e"
     },
     {
       "path": "dist/login/index.html",
-      "sha256": "08f742525100a2ce17b0335d5e712b3728d863f7abf006ddfc44bb32ece3c698"
+      "sha256": "1916ae644833c6475d96f7025704839b8cc513e77c2a0bf8781e01db70ac5e7e"
     },
     {
       "path": "dist/network.html",
-      "sha256": "42425711640dd55a99b14527ac145e0a7b73ffdf61c521789dd6e6f5a91a8e30"
+      "sha256": "eeb3f0619e302e7cd8c4f05ed65be20cd34c3a5c0b5083dd4577c7ef8325e6f6"
     },
     {
       "path": "dist/network/index.html",
-      "sha256": "42425711640dd55a99b14527ac145e0a7b73ffdf61c521789dd6e6f5a91a8e30"
+      "sha256": "eeb3f0619e302e7cd8c4f05ed65be20cd34c3a5c0b5083dd4577c7ef8325e6f6"
     },
     {
       "path": "dist/orders.html",
-      "sha256": "f280f0c5e18425effe7a1d8d7bf10294ba225bd24f632f4d52161c98ade6e69a"
+      "sha256": "96368111db3bbbfddc9bc4361c460bd118441856a05ccc7920f9a0068c093622"
     },
     {
       "path": "dist/orders/index.html",
-      "sha256": "f280f0c5e18425effe7a1d8d7bf10294ba225bd24f632f4d52161c98ade6e69a"
+      "sha256": "96368111db3bbbfddc9bc4361c460bd118441856a05ccc7920f9a0068c093622"
     },
     {
       "path": "dist/payroll-scheme-ui.js",
-      "sha256": "043340a1efc791a00a7cde14ec7b27342e552226b4b28e3b6a47c9436ad5fdb1"
+      "sha256": "c97ff25831bfa33a6b05a63eb3a3dc0937ab5f87c1337e32d43fce27ffb3b094"
     },
     {
       "path": "dist/platform.html",
-      "sha256": "e897a8925eeef0b1893c24e6a62c79aac07ad913271589a0162d65c77e46e110"
+      "sha256": "264eccdc79690d6e149b3ab8b42b4ab84c8484a375c009b95214befc2e63a02d"
     },
     {
       "path": "dist/platform/index.html",
-      "sha256": "e897a8925eeef0b1893c24e6a62c79aac07ad913271589a0162d65c77e46e110"
+      "sha256": "264eccdc79690d6e149b3ab8b42b4ab84c8484a375c009b95214befc2e63a02d"
     },
     {
       "path": "dist/portal-session.js",
-      "sha256": "daedb0a9c7790502e8e94493324b02b7e927b716f4c2d39b6c02c75c07f8bf44"
+      "sha256": "c7020ff80010dbd8924dc0d50a31b60c4445ef097ce3123c3e454ec77315e942"
     },
     {
       "path": "dist/portal.js",
@@ -157,11 +157,11 @@
     },
     {
       "path": "dist/reservations.html",
-      "sha256": "462a130aabb4d382f8bdcc01c949ee1ae460e6dc6031f9921d255413822304b0"
+      "sha256": "493bb073dafe2c3c81108998722bbd1b84f018764f40c9f9753d935aa6896468"
     },
     {
       "path": "dist/reservations/index.html",
-      "sha256": "462a130aabb4d382f8bdcc01c949ee1ae460e6dc6031f9921d255413822304b0"
+      "sha256": "493bb073dafe2c3c81108998722bbd1b84f018764f40c9f9753d935aa6896468"
     },
     {
       "path": "dist/staff-attendance-ui.js",
@@ -181,7 +181,7 @@
     },
     {
       "path": "docs/ai-team/WORK_LOG.md",
-      "sha256": "2a52e2aa51006217506d29ad168b66622f34931ec4bb29d328bf78e447cc729c"
+      "sha256": "247d97c4dfdb17583aa26f60d25c8444507569394ba987a53a475ba2ad5a4154"
     },
     {
       "path": "docs/ai-team/payroll-comparison-isolation-11225.log",
@@ -237,11 +237,11 @@
     },
     {
       "path": "docs/requirements/PAYROLL_CALCULATION_ENTRY_BRIDGE.md",
-      "sha256": "e1a48f5589224e272f110fee3e0cbd05d5dd6b4406a9480db7f2f7f6ebd473e5"
+      "sha256": "d64554ee50627b9fc9a5905c3806415d0dcc4bf7f67daa2c6efbd6077825f7d4"
     },
     {
       "path": "docs/requirements/PAYROLL_CALCULATION_INPUT_CONTRACT.md",
-      "sha256": "43a804f85797039d7e35cec2176e0903e5d38af396a559ff4538da90f6bc2195"
+      "sha256": "fc608581b7bfd46d556b20760fa793a45d50cf4a9fb1fd067057255b6d3b650c"
     },
     {
       "path": "docs/requirements/PAYROLL_COMPLETION_EVIDENCE.md",
@@ -249,7 +249,7 @@
     },
     {
       "path": "docs/requirements/PAYROLL_OFFICIAL_CALCULATION_GATE.md",
-      "sha256": "04a00cdf9a0f07a48c11fdc0acd9353fc440d50528b9fb668b15848091b63a26"
+      "sha256": "f169264b1e562b4557c0f11249745d6f16f239d67a8b165874078460009be39a"
     },
     {
       "path": "docs/requirements/PAYROLL_PRODUCT_DEPARTMENT_MAPPING_CONTRACT.md",
@@ -257,11 +257,11 @@
     },
     {
       "path": "docs/requirements/PAYROLL_REFUND_AWARE_COMPARISON_CONTRACT.md",
-      "sha256": "c2ff2a90904f9d71e8fc474589ce6c9ff92b52b118f45f5756e8781eef2ddd59"
+      "sha256": "5b74fec2eb0304cf7183e02b1e240f57e46bbba1ddbe271a334def994b650491"
     },
     {
       "path": "docs/requirements/PAYROLL_SOURCED_PREVIEW_API.md",
-      "sha256": "b68d81d16912896b9e041f3b4595392f5f78617843e8749e3dea15d6f4d89d5b"
+      "sha256": "249d50cd751fee002979679930fe468062a5eba32338e61beeb5ffac7670ea1d"
     },
     {
       "path": "docs/requirements/POS_SALE_COST_EVIDENCE.md",
@@ -269,15 +269,15 @@
     },
     {
       "path": "docs/requirements/sql/payroll-entry-overlap-constraint.sql",
-      "sha256": "5095333f65bc66809df3375b9543b6062bc9d70cbe2ddce3933fb86338e21cce"
+      "sha256": "979c010c2de76a8074529f58d63e43cd7a7588cb837ecf78f15ed9afbe4819f4"
     },
     {
       "path": "finance-categories.html",
-      "sha256": "06a1140aa5d31c43c87c1c077fd001fe56487301006fd8a83ca4676e21772577"
+      "sha256": "0cbb0476839ac2f0357504157eab6c144b3ce73bf6d39dc5e0aa7d065400e440"
     },
     {
       "path": "finance-report.html",
-      "sha256": "4fd08f24d9050edc42d5564a7603da6490b4e542b9b672ec21935bdfc5efdb80"
+      "sha256": "d226bf65e22fbc5b0b9da9b774e231979be214b0908b2b389ddfce6bd8a8b7b5"
     },
     {
       "path": "finance.html",
@@ -289,11 +289,11 @@
     },
     {
       "path": "index.html",
-      "sha256": "a9298508ac9638a99a0a725d50791f071adddae218d8009c9f957a2405a07f54"
+      "sha256": "2145c14d77b40088362bd8412e6ba0f47cee7b61f1508d63a4f369957754ac78"
     },
     {
       "path": "integrations.html",
-      "sha256": "937137ec9538975f8417c6543fc8306d81a21aa80d9f44f218d13bf8fcf4889d"
+      "sha256": "01328d684ae914bccfbdba03e986725d0aa5e3a75339995befa2452e4038b7e6"
     },
     {
       "path": "inventory-order-cost-allocation.js",
@@ -305,11 +305,11 @@
     },
     {
       "path": "inventory.html",
-      "sha256": "26936da5e87e48492aeba70d824891a8be1b9bd650803fb460cb18f5b890f919"
+      "sha256": "9c45ca4659e7e5d0b7ed43284b6ac55c2e957f85c03fc3315db3f82420e4e58d"
     },
     {
       "path": "login.html",
-      "sha256": "08f742525100a2ce17b0335d5e712b3728d863f7abf006ddfc44bb32ece3c698"
+      "sha256": "1916ae644833c6475d96f7025704839b8cc513e77c2a0bf8781e01db70ac5e7e"
     },
     {
       "path": "migrations/187_pos_sale_cost_evidence.sql",
@@ -365,15 +365,15 @@
     },
     {
       "path": "migrations/208_payroll_refund_aware_paid_corrections.sql",
-      "sha256": "cbc2415ed140f1ed442dcd4421ea6462982f8bd401bf62ad9aab4ab5e7f3eadd"
+      "sha256": "2c11263b9dd1e6826b7cb852611a316a4f14835fdfe45f5ca5e36730ba2f9fd4"
     },
     {
       "path": "network.html",
-      "sha256": "42425711640dd55a99b14527ac145e0a7b73ffdf61c521789dd6e6f5a91a8e30"
+      "sha256": "eeb3f0619e302e7cd8c4f05ed65be20cd34c3a5c0b5083dd4577c7ef8325e6f6"
     },
     {
       "path": "orders.html",
-      "sha256": "f280f0c5e18425effe7a1d8d7bf10294ba225bd24f632f4d52161c98ade6e69a"
+      "sha256": "96368111db3bbbfddc9bc4361c460bd118441856a05ccc7920f9a0068c093622"
     },
     {
       "path": "payroll-attendance-manifest.js",
@@ -397,7 +397,7 @@
     },
     {
       "path": "payroll-calculation-entry-transition-command.js",
-      "sha256": "94eb68a8128d5507e9685422fc0bab85f735d788f87c24b947b9ce8eb9a4aec1"
+      "sha256": "f66443c6d80c8d5d608d2e2227a851ecb8b2e9ed700df8fed6a21c3f39b57a34"
     },
     {
       "path": "payroll-calculation-input-contract.js",
@@ -413,7 +413,7 @@
     },
     {
       "path": "payroll-candidate-calculation.js",
-      "sha256": "14c27697b994b203733d58ee6707489eee28e6ec07559c29db1efba1355cc261"
+      "sha256": "d834ae660894b321a43954ba4bd063b33e4c02dbe9a3ea85fd55d93efb6f116e"
     },
     {
       "path": "payroll-candidate-snapshot-bundle.js",
@@ -477,7 +477,7 @@
     },
     {
       "path": "payroll-recognition-preview.js",
-      "sha256": "c4e17f087fb98583164db1ba118a48d6f5d7ef6961c7d89d5e96edef0f6e4b31"
+      "sha256": "c7a8497fb68bbdbcc47cfe20dd4e53b9826f934a2e871911d139b0b300979f7f"
     },
     {
       "path": "payroll-refund-aware-calculation.js",
@@ -549,7 +549,7 @@
     },
     {
       "path": "payroll-refund-review.js",
-      "sha256": "12e30ddfc36000ef40ef5eac4a72f8ac895f232e4e59bff15085eb27073f7662"
+      "sha256": "be40cb10f787a8471c66f32345283c9c3d2355274de3c955833b41a31f843058"
     },
     {
       "path": "payroll-reviewed-correction-command.js",
@@ -589,7 +589,7 @@
     },
     {
       "path": "payroll-scheme-ui.js",
-      "sha256": "043340a1efc791a00a7cde14ec7b27342e552226b4b28e3b6a47c9436ad5fdb1"
+      "sha256": "c97ff25831bfa33a6b05a63eb3a3dc0937ab5f87c1337e32d43fce27ffb3b094"
     },
     {
       "path": "payroll-schemes.js",
@@ -621,7 +621,7 @@
     },
     {
       "path": "payroll-sourced-preview.js",
-      "sha256": "4b1055424886e66e34f3ce3bcd15410a9e3402d933658379448154634d562952"
+      "sha256": "6e9147deecacc37e32ce28000e3bf059c34189d76ed3a18ce931303c66fe3040"
     },
     {
       "path": "payroll-team-fund-source.js",
@@ -649,11 +649,11 @@
     },
     {
       "path": "platform.html",
-      "sha256": "e897a8925eeef0b1893c24e6a62c79aac07ad913271589a0162d65c77e46e110"
+      "sha256": "264eccdc79690d6e149b3ab8b42b4ab84c8484a375c009b95214befc2e63a02d"
     },
     {
       "path": "portal-session.js",
-      "sha256": "daedb0a9c7790502e8e94493324b02b7e927b716f4c2d39b6c02c75c07f8bf44"
+      "sha256": "c7020ff80010dbd8924dc0d50a31b60c4445ef097ce3123c3e454ec77315e942"
     },
     {
       "path": "portal.js",
@@ -665,7 +665,7 @@
     },
     {
       "path": "reservations.html",
-      "sha256": "462a130aabb4d382f8bdcc01c949ee1ae460e6dc6031f9921d255413822304b0"
+      "sha256": "493bb073dafe2c3c81108998722bbd1b84f018764f40c9f9753d935aa6896468"
     },
     {
       "path": "scripts/build-payroll-source-handoff.mjs",
@@ -677,7 +677,7 @@
     },
     {
       "path": "scripts/finance-categories-ui-contract.mjs",
-      "sha256": "5ec9dc8b9a5e314615eca09533a69ab23ca632d2b9e99ef93084a655c24cd3f4"
+      "sha256": "69ae4acc45ec7d9989ce813a546b4fe8c0a2f4ea45c338f4ff58155ec76acd6f"
     },
     {
       "path": "scripts/interface-preferences-browser-qa.mjs",
@@ -709,7 +709,7 @@
     },
     {
       "path": "scripts/payroll-calculation-entry-corrections-contract.mjs",
-      "sha256": "c3e8daf381e95d707dacfe4964668419186ba86e54977073e3e8ff6eeb84ee4e"
+      "sha256": "4aee02a53d63a1d0a7032530b806e718dd7b14e3106a8385e0b1a1af21f64c26"
     },
     {
       "path": "scripts/payroll-calculation-entry-evidence-contract.mjs",
@@ -717,7 +717,7 @@
     },
     {
       "path": "scripts/payroll-calculation-entry-lifecycle-contract.mjs",
-      "sha256": "153d3b3278400525521031d5eb0fd378530bb855d2a52af332b0ec320e16758c"
+      "sha256": "05c120787b47be6e4f41023790e24bac324f7a049fab4e32810c030c68c18774"
     },
     {
       "path": "scripts/payroll-calculation-entry-lifecycle-postgres-qa.mjs",
@@ -729,11 +729,11 @@
     },
     {
       "path": "scripts/payroll-calculation-entry-source-browser-helper.mjs",
-      "sha256": "2abeac9f9a505fd18841f36bd2aab7f39a9d9643ba9391446fb7dad95a20feba"
+      "sha256": "f5f41218b0a1f7b866afc192c4e72a504a600880ce73b677534279b0c7b9087d"
     },
     {
       "path": "scripts/payroll-calculation-entry-transition-command-contract.mjs",
-      "sha256": "dbf8620a1f48a8611732fe55e97501ad46720f5a5d99c5e92a9f03781aeb731e"
+      "sha256": "efb06ac849405acdc58b4ad4dabcbebb2d7742839daf13af5e28c62d3e193837"
     },
     {
       "path": "scripts/payroll-calculation-entry-ui-contract.mjs",
@@ -749,7 +749,7 @@
     },
     {
       "path": "scripts/payroll-candidate-calculation-contract.mjs",
-      "sha256": "911b51164f6f6274c4604c30eaf86be7f060c1e8cb437c2672672213eb40c549"
+      "sha256": "31a5e645e8c7a9f8eded75263bf6427bef030eea7a98841bfa48961f2a2c189e"
     },
     {
       "path": "scripts/payroll-correction-application-browser-helper.mjs",
@@ -781,7 +781,7 @@
     },
     {
       "path": "scripts/payroll-entry-overlap-constraint-postgres-qa.mjs",
-      "sha256": "4eb0af8e40a14cfe22b9c4ed441707e10bbea4f522bd8089bd7730e2fa8c683a"
+      "sha256": "71b2c4438399a2eae25e70bb597cd6a7771236b2c68f6e9568815e8f0e4c4694"
     },
     {
       "path": "scripts/payroll-entry-overlap-preflight-contract.mjs",
@@ -789,7 +789,7 @@
     },
     {
       "path": "scripts/payroll-entry-overlap-real-schema-qa.mjs",
-      "sha256": "8cc407391ef83c7c7b4a91e80bb5ecebb0496320d1d4dc3d1383c5ad46752086"
+      "sha256": "0da06406bfd4be830e12fb9e3ee763246648a33ff747416e69e1f2aa0dd59ab6"
     },
     {
       "path": "scripts/payroll-full-employee-net-revenue-contract.mjs",
@@ -821,7 +821,7 @@
     },
     {
       "path": "scripts/payroll-personal-revenue-input-contract.mjs",
-      "sha256": "35360f7e19304571866968a52623573bb9bc2b1f9d85bb51e271c35da3fa6338"
+      "sha256": "f94b92a58dc37caeeebf8e689383e3cac902633bdcabb5c19f99acc549883dd1"
     },
     {
       "path": "scripts/payroll-product-department-api-postgres-qa.mjs",
@@ -853,7 +853,7 @@
     },
     {
       "path": "scripts/payroll-recognition-preview-contract.mjs",
-      "sha256": "2813ef0274a98f9ce0b6568486967f991c8ead17c2eb2b56f26c1ed677d94bdc"
+      "sha256": "d806937530de5ebfcec74095d293d3eba7a9f168888f2be98967bf4d0b5570bf"
     },
     {
       "path": "scripts/payroll-recognition-preview-producer-contract.mjs",
@@ -881,7 +881,7 @@
     },
     {
       "path": "scripts/payroll-refund-aware-comparison-ui-contract.mjs",
-      "sha256": "94d6bda947507a7b513e33d770d94c34cc6b760ba617b40b3492780d6c5afd8a"
+      "sha256": "82fcf12d2bfa46aa30be78f6df4282c365dd5a74ab7aeb5b03815ebce24f5fdd"
     },
     {
       "path": "scripts/payroll-refund-aware-correction-policy-contract.mjs",
@@ -937,7 +937,7 @@
     },
     {
       "path": "scripts/payroll-refund-aware-sourced-comparison-contract.mjs",
-      "sha256": "f9f8dd497705df7792f7e9d89369d33a5996231c637b325bc5cec9bffeaae2df"
+      "sha256": "d79cb07700944e60ac8dc5bad6f398c408c00d4ae1ad1b807cfb6479902a0bb1"
     },
     {
       "path": "scripts/payroll-refund-aware-storage-guards.mjs",
@@ -973,7 +973,7 @@
     },
     {
       "path": "scripts/payroll-refund-review-contract.mjs",
-      "sha256": "c601ddcb9e3815e8ff5edf3e1add158873e4d3b88fee8858ce0dd0849f563c3b"
+      "sha256": "92ad6bc2432ba4869ed5029bf747e31d3206d3a751859dfd614747d1679e92ea"
     },
     {
       "path": "scripts/payroll-refund-review-routes-contract.mjs",
@@ -1001,7 +1001,7 @@
     },
     {
       "path": "scripts/payroll-reviewed-correction-store-contract.mjs",
-      "sha256": "bdb53eb40b13a21a0e48d5d19a0be6029d3022eb340d76613108b3e533b1d7de"
+      "sha256": "8cfc71a611bc98526e077d70011adc4fa8b0dd0e06359042644c6c14ad82180a"
     },
     {
       "path": "scripts/payroll-reviewed-correction-ui-contract.mjs",
@@ -1025,7 +1025,7 @@
     },
     {
       "path": "scripts/payroll-saved-run-browser-helper.mjs",
-      "sha256": "84b69316fb353fd6dbc77672d314b623d86c55e2cb72461b25b4906c6d30ec8e"
+      "sha256": "9417492c3ea6e67ccc33c765d7ad857bff02c298ee049eea84a95483cb39077a"
     },
     {
       "path": "scripts/payroll-saved-run-reader-contract.mjs",
@@ -1049,7 +1049,7 @@
     },
     {
       "path": "scripts/payroll-scheme-ui-contract.mjs",
-      "sha256": "e75cdd4a7b595461a7c04d578b9e4d69514a30940f9d54dc7f4d46809e45fcf1"
+      "sha256": "01e06b8cf5a7ed36fcc25df4b14f68ceded0e16467929c7f09d82a3b7ff03f40"
     },
     {
       "path": "scripts/payroll-schemes-contract.mjs",
@@ -1069,7 +1069,7 @@
     },
     {
       "path": "scripts/payroll-source-fence-postgres-qa.mjs",
-      "sha256": "2046c98bfda6d1df6090aac4b1f5331e60f785506035ed66ded8a5c42edd3061"
+      "sha256": "73c8a02391ea675c7cb7e58dd4a6cd1148d642a856309893c48f730e9b45192c"
     },
     {
       "path": "scripts/payroll-source-policies-contract.mjs",
@@ -1097,7 +1097,7 @@
     },
     {
       "path": "scripts/payroll-sourced-preview-contract.mjs",
-      "sha256": "8fe0f651a47ccb68016205d3407e2c05295df7798193fe683e5d1b11f465eb9b"
+      "sha256": "00c9fea6d40970b73b8bc3979b579e1785944ee7771df892aa8dd41fafc29280"
     },
     {
       "path": "scripts/payroll-team-fund-contract.mjs",
@@ -1125,7 +1125,7 @@
     },
     {
       "path": "scripts/payroll-unpaid-supersession-fixture.mjs",
-      "sha256": "f7f21f816c63c18a07ef989641a9dfd081144406381163dd512f692c3d5752a6"
+      "sha256": "103daf9df6f227e97dbe8cf1b2c6d917276a9aec410afd866e14ab7bcf2b8421"
     },
     {
       "path": "scripts/payroll-unpaid-supersession-postgres-helper.mjs",
@@ -1153,7 +1153,7 @@
     },
     {
       "path": "scripts/payroll-verified-run-postgres-qa.mjs",
-      "sha256": "e1cb965be4300e941747cdf7a60034b74336204eff53f2fb7aea5708ac3a1cf6"
+      "sha256": "f5f245fc188d7d637a98eac20ed32454754fd91149dcd7ca9f923dc8344f7ca2"
     },
     {
       "path": "scripts/payroll-verified-run-service-contract.mjs",
@@ -1161,7 +1161,7 @@
     },
     {
       "path": "scripts/payroll-verified-snapshot-input-contract.mjs",
-      "sha256": "7294b770795ae28bd6901fad71db12eaba65640b45ffc7e3bce90c43924b1c3c"
+      "sha256": "a9a50826dada6eca5385cd6684856c36266c4fed850b9ddc5b01932299e877c5"
     },
     {
       "path": "scripts/payroll-verified-source-transaction-contract.mjs",
@@ -1193,7 +1193,7 @@
     },
     {
       "path": "scripts/sync-published-assets.mjs",
-      "sha256": "a7d66e88742816dd95f502d9558b077ded647a83dfd41bfbd903d76d0980203a"
+      "sha256": "16818e2a457b1aca0a1d1b205c872fc9fc420b135ef1fd8ea891ecf0e299fdd2"
     },
     {
       "path": "server.js",
@@ -1251,5 +1251,6 @@
       "path": "style.css",
       "sha256": "e37898f2c0c92904ade64d3c25d62d056f1677e3ef77ef78288495dff63a6f85"
     }
-  ]
+  ],
+  "hashBasis": "committed Git blob bytes (LF), independent of Windows working-tree conversion"
 }
