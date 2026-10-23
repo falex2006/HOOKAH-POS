@@ -2453,7 +2453,7 @@ function setupVenueLayout() {
     if (archiveRoom || restoreRoom) {
       const button = archiveRoom || restoreRoom; const zone = zones.find((entry) => entry.id === button.dataset.zoneId); const table = zone?.tables?.find((entry) => entry.id === (button.dataset.roomArchive || button.dataset.roomRestore)); if (!table || !actionVenueId) return;
       const restoring = Boolean(restoreRoom); const action = restoring ? 'restore' : 'archive'; const archivedAt = restoring ? (button.dataset.archivedAt || table.archivedAt || table.archived_at) : null; const expectedArchiveVersion = Number(button.dataset.archiveVersion ?? archiveVersion(table));
-      if (!await portalConfirm(restoring ? `Восстановить стол «${table.name}»?` : `Переместить стол «${table.name}» в архив?`, restoring ? 'Стол вернётся в тот же зал. Его история заказов и бронирований сохранится.' : 'Стол исчезнет из активного списка. История заказов и бронирований сохранится; при открытом заказе архивация будет отклонена.', restoring ? 'Восстановить стол' : 'В архив')) return;
+      if (!await portalConfirm(restoring ? `Восстановить стол «${table.name}»?` : `Переместить стол «${table.name}» в архив?`, restoring ? 'Стол вернётся в тот же зал. Его история заказов и бронирований сохранится.' : 'Стол исчезнет из активного списка. История заказов и бронирований сохранится; при открытом заказе архивация будет отклонена.', restoring ? 'Восстановить стол' : 'В архив', !restoring)) return;
       button.disabled = true;
       try {
         await api(`/api/floor/tables/${encodeURIComponent(table.id)}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVenueId: actionVenueId, expectedArchivedAt: archivedAt, expectedArchiveVersion }) });

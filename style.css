@@ -5937,3 +5937,7 @@ body[data-page="inventory"] #page-content :is(#inventory-deletion-requests,[data
 #staff-action-form>.action-footer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
 #staff-action-form>.action-footer>button{width:100%;min-width:0;min-height:44px;margin:0}
 @media(max-width:640px){#staff-action-form>.action-footer{grid-template-columns:minmax(0,1fr)}}
+/* Shared action dialogs: keep primary and cancel aligned despite generic primary margins. */
+body.portal .action-modal .action-box>form>.action-footer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+body.portal .action-modal .action-box>form>.action-footer>button{width:100%;min-width:0;min-height:44px;margin:0}
+@media(max-width:640px){body.portal .action-modal .action-box>form>.action-footer{grid-template-columns:minmax(0,1fr)}}
