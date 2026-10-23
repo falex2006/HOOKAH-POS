@@ -1169,3 +1169,9 @@ Not closed: actualPG archive/delete/concurrency/customACL and reorder; legacy ve
 Actual guarded floor-table-archive-postgres-browser-qa PASS74 closes standard-role/tenant/concurrent/idempotent PostgreSQL archive/restore + history/reload evidence. Fresh random owned DB dropped and absence asserted by runner before PASS. Prior cleanup DELETE orders failed immutable payroll FK; QA-only redundant row cleanup removed, assertions/guards unchanged; syntax/diff/health GO. This supersedes prior actualPG archive/concurrency gap, not customACL/delete/reorder. Log: primary tmp/venue-layout-visual-review-20261023/postgres-archive-pass.log.
 
 CUA local31940: delete-zone390 confirmation/cancel/focus, table edit390/1440, scroll/footer/cancel inspected. New precise visual gap: table-edit desktop footer Cancel/Save widths differ; next step scope. Other remaining states unchanged, overall audit active. Production still bc25f387; no VPS change this continuation.
+
+## 2026-10-23 — venue edit footer closed / synchronization gap
+
+Zone/table edit dialogs now share scoped venue-layout-editor action layout:190x44 desktop/equal y/gap12; mobile324.8x44 one column. Current CUA1440/390 bothforms inspected, name required validation focus and real disposable-memory table rename→reload PASS, zoneCancel. Evidence primary tmp/venue-layout-visual-review-20261023/editor-aligned-{1440,390}.png and zone-editor-aligned-1440.png. Only optional CSS class + scoped style; shared dialog74+16/design/click/visual rules/syntax/diff/health GO. Prior footer-width issue closed.
+
+New confirmed separate issue: upper floor-editor retains old table name immediately after save in lower edit dialog, until reload; lower list and persisted reload have correct name. Needs draft-preserving synchronization investigation. Other customACL/SQL edit/delete/reorder/network/schedule/attendance/contact/setup states remain open. Production stillbc25f387; follow-up on PR57 only.
