@@ -49,4 +49,6 @@ Payroll ACL reconciliation остаётся отдельным локальны�
 
 Принят локальный test-only UI-пакет `b2523c2c` (`290803ac`): dashboard/demo/inventory hierarchy/category/preferences/PIN контракты PASS. `local-floor-management` остановился только из-за отсутствующего `tmp/full-local-qa/seed-manifest.json`; seed/reseed не выполнялся, существующие fixture-строки не сбрасывались. Product runtime не менялся.
 
+UI-поток завершил текущую статическую классификацию: `95/106` контрактов PASS. Оставшиеся 11 распределены как изолированные local server/DB проверки, исторические hash-boundary проверки и отсутствующие evidence-архивы; браузерный проход не подтверждён из-за недоступного/ненадёжно определяемого Edge-окна. Это не выдаётся за полную UI-приёмку.
+
 Локально принят test-only пакет UI `c2b4d6a8` (`ui043`, `ui051`, `ui091`) и подтверждённый runtime-пакет `6ef89486` + `8fc8433b`: исправлен один устаревший CSS-токен, а cache revision `style.css` поднят `2026102403 -> 2026102404` во всех 41 канонических HTML-алиасах. Code-health дал GO; изменения ограничены CSS, синхронизатором и точными HTML revision-строками. После cherry-pick все 15 локальных UI-контрактов, source/dist parity, синтаксис и `git diff --check` прошли. Это локальная приёмка, не публикация.
