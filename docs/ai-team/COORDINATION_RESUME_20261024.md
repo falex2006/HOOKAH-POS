@@ -43,6 +43,8 @@ Read-only сверка миграций относительно `HEAD=f3020e11`
 
 Dirty-пакет также расширяет `schema.sql` на 24 968 строк и меняет shared `app.js`, `server.js`, `portal.js`, `db.js` и миграционные runners. Это broad diff, а не изолированный loyalty patch; узкое cherry-pick/merge без владельцев shared-файлов и полного API→DB→reload QA запрещён.
 
+Payroll ACL reconciliation остаётся отдельным локальным документом `PAYROLL_ACL_RECONCILIATION.md`: он фиксирует конфликт `finance`/`finance_read`, owner-only materialization и DB-guards 202/205/206/208. Документ подтверждает HOLD и не является разрешением расширять доступ или переносить dirty-кандидат.
+
 Статические loyalty-контракты: simulator, POS explanation и progress — PASS. `loyalty-promotions-contract` и `loyalty-reconciliation-contract` остановились на строгом source/dist сравнении из-за CRLF/LF-представления, а не из-за бизнес-логики; это stale harness и требует нормализации сравнения до использования как release-доказательства.
 
 Принят локальный test-only UI-пакет `b2523c2c` (`290803ac`): dashboard/demo/inventory hierarchy/category/preferences/PIN контракты PASS. `local-floor-management` остановился только из-за отсутствующего `tmp/full-local-qa/seed-manifest.json`; seed/reseed не выполнялся, существующие fixture-строки не сбрасывались. Product runtime не менялся.
