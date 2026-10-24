@@ -24,8 +24,8 @@ assert.match(css, /\.department-editor input,\.department-editor select\{[^}]*mi
   'warehouse department fields match the shared input height');
 assert.match(css, /@media\(max-width:600px\)\{\.department-editor\{grid-template-columns:minmax\(0,1fr\)\}/,
   'warehouse department form collapses to one column on narrow devices');
-assert.match(portal, /class="panel wide reservation-panel"><div class="panel-head"><h2>Ближайшие бронирования<\/h2><input[^>]+id="reservation-filter"[^>]+><input[^>]+id="reservation-list-date"/,
-  'reservation title, search, and date filter keep a predictable semantic order');
+assert.match(portal, /class="panel wide reservation-panel"><div class="panel-head"><div class="reservation-list-heading"><h2[^>]*>[^<]+<\/h2><small[^>]*>[^<]+<\/small><\/div><div class="reservation-filters"><label for="reservation-filter">Поиск<input[^>]+id="reservation-filter"[^>]*><\/label><label for="reservation-list-date">Дата бронирования<input[^>]+id="reservation-list-date"/,
+  'reservation heading and labelled search/date controls keep a predictable semantic order');
 assert.match(css, /\.reservation-panel \.panel-head\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,
   'reservation heading and filters must not compete for one narrow flex row');
 assert.match(css, /\.reservation-list>\.empty\{display:flex;flex-direction:column;align-items:center;[^}]*gap:8px/,

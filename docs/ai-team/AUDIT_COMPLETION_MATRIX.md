@@ -1277,3 +1277,7 @@ The one approved isolated PostgreSQL attempt bootstrapped its owned PostgreSQL 1
 ## 2026-10-24 — role-shell contract recovery on f302
 
 The role-shell source contract had a stale exact-prefix expectation after cosmetic Finance/Payments label code was inserted before the unchanged management-shell marker. Product behavior was not regressed. The contract now bounds the marker and label helper calls inside `applyStaffSession` before `const permissions=new Set(...)`, with zero helper use in the permission-grant tail. Role-shell PASS plus dialog lifecycle74, mounted form16, local role9, deploy, network role/route and notification action contracts PASS. This closes only the stale static contract on current f302; runtime role geometry and the broader role×page×state audit remain separate.
+
+## 2026-10-24 — current-source UI contract alignment
+
+The reservation and navigation audit failures were traced to stale harness assumptions. Updated the reservation assertion to require the current grouped heading, hint and labelled search/date controls; updated the isolated navigation VM to execute the actual `canUseNetworkRoute` helper. Focused and surrounding sidebar/component/dialog/role contracts PASS, with independent code-health GO. Product/runtime files are unchanged. This closes the two static-contract false failures only; browser acceptance and full PostgreSQL POS coverage remain open boundaries.
