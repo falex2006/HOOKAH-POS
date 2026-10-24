@@ -53,6 +53,20 @@ assert.match(fs.readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'),
 assert.match(fs.readFileSync(new URL('../migrations/049_product_inventory_mode.sql', import.meta.url), 'utf8'), /needs_review/, 'legacy products without an unambiguous recipe are marked for review');
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 assert.match(portal, /id="product-inventory-mode" required/, 'catalog editor requires an explicit inventory choice');
-assert.match(portal, /Нужно проверить складской учёт/, 'legacy review state is visible on the product card');
+assert.match(portal, /Нужно проверить учёт/, 'legacy review state is visible on the product card');
+assert.match(portal, /Разрешить отрицательный остаток при продаже/, 'owner-facing inventory editor exposes the per-position negative stock option');
+assert.match(portal, /portalUser\.role === 'owner' \? '<label class="inventory-negative-stock-control"/, 'only owners see the negative stock control');
+assert.match(portal, /payload\.allowNegativeStock = Boolean\(document\.querySelector\('#inventory-item-allow-negative'\)\?\.checked\)/, 'owner setting is included in the inventory save request');
+assert.match(fs.readFileSync(new URL('../migrations/210_inventory_owner_negative_stock.sql', import.meta.url), 'utf8'), /allow_negative_stock boolean NOT NULL DEFAULT false/, 'existing positions keep the default safe behavior');
+assert.match(server, /Object\.hasOwn\(input, 'allowNegativeStock'\) && req\.user\?\.role !== 'owner'/, 'API independently enforces owner-only setting changes');
+assert.match(server, /pathname === '\/api\/inventory\/negative-stock-settings' && req\.method === 'POST'/, 'bulk negative-stock configuration has a dedicated API action');
+assert.match(server, /inventory_negative_stock_owner_required/, 'bulk negative-stock configuration remains owner-only at the API');
+assert.match(server, /negative_stock_items_not_found/, 'explicit item selection is rejected atomically when any selected item is outside the venue');
+assert.match(server, /excludedPremixCount/, 'bulk responses report premix outputs excluded from enabling negative stock');
+assert.match(server, /await repositories\.audit\.record\([\s\S]*?\n        await client\.query\('COMMIT'\)/, 'PostgreSQL audit evidence commits atomically with bulk stock settings');
+assert.match(server, /const venueInventory = inventory\.filter\(\(item\) => String\(item\.venueId \|\| ''\) === memoryVenueId\)/, 'memory fallback limits bulk targets to the active venue');
+assert.match(portal, /<option value="department">Позиции выбранного цеха<\/option><option value="category">Позиции выбранной категории<\/option><option value="items">Отметить позиции вручную<\/option>/, 'owner can scope a bulk setting to departments, categories, or explicit positions');
+assert.match(portal, /negative-stock-bulk-dialog/, 'owner has a focused bulk configuration dialog');
+assert.match(server, /item\.stock\.allowNegativeStock \|\| item\.stock\.isPremixOutput/, 'sales cannot bypass premix lot and expiry allocation safeguards');
 
-console.log('RECIPE DEPLETION CONTRACT QA: 18 assertions passed');
+console.log('RECIPE DEPLETION CONTRACT QA: 32 assertions passed');
