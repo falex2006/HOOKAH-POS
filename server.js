@@ -6700,9 +6700,10 @@ if (staffProfile && req.method === 'PATCH') {
 
       const input = allocationInput || await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); const idempotencyKey = String(input.idempotencyKey || req.headers['idempotency-key'] || '').trim();
       const receiptId = String(input.receiptId || '').trim();
-      const paymentAccountId=['cash','card','qr'].includes(method)?String(input.paymentAccountId||'').trim().toLowerCase():null;
+      // The POS records the tender type only. Finance destination is resolved
+      // server-side so cashiers never select a bank account or terminal.
+      let paymentAccountId=null;
       if (!validPaymentAmount(amount) || !['cash', 'card', 'qr', 'bonus', 'deposit', 'reservation'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' });
-      if (['cash','card','qr'].includes(method) && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(paymentAccountId||'')) return json(res,400,{error:'finance_account_required'});
       if (method === 'bonus' && (!Number.isInteger(amount) || amount <= 0)) return json(res, 400, { error: 'invalid_bonus_points' });
       if ((['bonus','deposit','reservation'].includes(method) && !idempotencyKey) || (method === 'reservation' && !/^[0-9a-f-]{36}$/i.test(receiptId)) || (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 120))) return json(res, 400, { error: 'valid_idempotency_key_required' });
       let client;
@@ -6715,18 +6716,19 @@ if (staffProfile && req.method === 'PATCH') {
         if (!persisted) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
         let reservationShiftId=null;
         if (method==='reservation') { const shiftGuard=await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE',[venueDbId]); reservationShiftId=shiftGuard.rows[0]?.id||null; if(!reservationShiftId){await client.query('ROLLBACK');return json(res,409,{error:'open_shift_required'});} }
-        if (idempotencyKey) { const { rows: priorRows } = await client.query('SELECT id,method,amount,status,shift_id AS "shiftId",finance_account_id AS "paymentAccountId",finance_account_name_snapshot AS "paymentAccountNameSnapshot",created_at AS "createdAt" FROM payments WHERE order_id=$1 AND idempotency_key=$2', [paymentPath[1], idempotencyKey]); if (priorRows[0]) { const prior=priorRows[0]; if (prior.method!==method || Number(prior.amount)!==amount || (['cash','card','qr'].includes(method)&&String(prior.paymentAccountId||'').toLowerCase()!==paymentAccountId)) { await client.query('ROLLBACK'); return json(res,409,{error:'idempotency_key_reused'}); } if(method==='reservation'){const allocation=await client.query('SELECT receipt_id AS "receiptId" FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND payment_id=$2',[venueDbId,prior.id]);if(!allocation.rows[0]||allocation.rows[0].receiptId!==receiptId){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}} const current=await pgOrderPricing(client,paymentPath[1]); let guestAccount=null;if(persisted.guestId){const {rows}=await client.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2',[persisted.guestId,venueDbId]);if(rows[0])guestAccount={guestId:persisted.guestId,bonusBalance:Number(rows[0].bonusBalance||0),depositBalance:Number(rows[0].depositBalance||0),conversionRate:1};}await client.query('COMMIT');return json(res,200,{...prior,due:current.due,paid:current.paid,remaining:Math.max(0,current.due-current.paid),closed:persisted.status==='closed',guestAccount,idempotentReplay:true}); } }
+        if (idempotencyKey) { const { rows: priorRows } = await client.query('SELECT id,method,amount,status,shift_id AS "shiftId",finance_account_id AS "paymentAccountId",finance_account_name_snapshot AS "paymentAccountNameSnapshot",created_at AS "createdAt" FROM payments WHERE order_id=$1 AND idempotency_key=$2', [paymentPath[1], idempotencyKey]); if (priorRows[0]) { const prior=priorRows[0]; if (prior.method!==method || Number(prior.amount)!==amount) { await client.query('ROLLBACK'); return json(res,409,{error:'idempotency_key_reused'}); } if(method==='reservation'){const allocation=await client.query('SELECT receipt_id AS "receiptId" FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND payment_id=$2',[venueDbId,prior.id]);if(!allocation.rows[0]||allocation.rows[0].receiptId!==receiptId){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}} const current=await pgOrderPricing(client,paymentPath[1]); let guestAccount=null;if(persisted.guestId){const {rows}=await client.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2',[persisted.guestId,venueDbId]);if(rows[0])guestAccount={guestId:persisted.guestId,bonusBalance:Number(rows[0].bonusBalance||0),depositBalance:Number(rows[0].depositBalance||0),conversionRate:1};}await client.query('COMMIT');return json(res,200,{...prior,due:current.due,paid:current.paid,remaining:Math.max(0,current.due-current.paid),closed:persisted.status==='closed',guestAccount,idempotentReplay:true}); } }
         if (method==='reservation' && idempotencyKey) { const priorAllocation=await client.query('SELECT order_id FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]); if(priorAllocation.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});} }
         if (persisted.status === 'closed' || persisted.status === 'cancelled') { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_already_final' }); }
         if (persisted.pricingLockedAt && !persisted.pricingVersion) { await client.query('ROLLBACK'); return json(res, 409, { error: 'legacy_paid_order_requires_reconciliation' }); }
         let accountRow=null;
-        if (paymentAccountId) {
-          const {rows}=await client.query('SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE',[venueDbId,paymentAccountId]);
-          accountRow=rows[0];
-          if(!accountRow){await client.query('ROLLBACK');return json(res,404,{error:'finance_account_not_found'});}
-          if(!accountRow.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_account_inactive'});}
+        if (['cash','card','qr'].includes(method)) {
+          const accountCode=method==='cash'?'main_cashbox':'pos_card_receipts';
+          const {rows}=await client.query('SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active FROM finance_accounts WHERE venue_id=$1 AND code=$2 FOR UPDATE',[venueDbId,accountCode]);
+          accountRow=rows[0];paymentAccountId=accountRow?.id||null;
+          if(!accountRow){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_source_unavailable',method});}
+          if(!accountRow.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_source_unavailable',method});}
           const validKind=method==='cash'?accountRow.kind==='pos_cashbox':method==='card'?['bank','electronic'].includes(accountRow.kind):accountRow.kind==='electronic';
-          if(!validKind||!(accountRow.allowedPaymentMethods||[]).includes(method)){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_method_account_mismatch'});}
+          if(!validKind||!(accountRow.allowedPaymentMethods||[]).includes(method)){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_source_unavailable',method});}
         }
         const { rows: shiftRows } = method==='reservation' ? { rows: [{id:reservationShiftId}] } : await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
         const activeShiftId = shiftRows[0]?.id;
@@ -6830,7 +6832,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
-      const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); const paymentAccountId=String(input.paymentAccountId||'').trim().toLowerCase(); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
+      const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
       let client;
       let result;
       try {
@@ -6862,12 +6864,12 @@ if (staffProfile && req.method === 'PATCH') {
         const remaining = Math.max(0, finalTotal - paid);
         let closePaymentAccount=null;
         if(remaining>0){
-          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(paymentAccountId)){await client.query('ROLLBACK');return json(res,400,{error:'finance_account_required'});}
-          const accountResult=await client.query('SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE',[venueDbId,paymentAccountId]);closePaymentAccount=accountResult.rows[0];
+          const accountCode=paymentMethod==='cash'?'main_cashbox':'pos_card_receipts';
+          const accountResult=await client.query('SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active FROM finance_accounts WHERE venue_id=$1 AND code=$2 FOR UPDATE',[venueDbId,accountCode]);closePaymentAccount=accountResult.rows[0];
           const validKind=paymentMethod==='cash'?closePaymentAccount?.kind==='pos_cashbox':paymentMethod==='card'?['bank','electronic'].includes(closePaymentAccount?.kind):closePaymentAccount?.kind==='electronic';
-          if(!closePaymentAccount){await client.query('ROLLBACK');return json(res,404,{error:'finance_account_not_found'});}
-          if(!closePaymentAccount.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_account_inactive'});}
-          if(!validKind||!(closePaymentAccount.allowedPaymentMethods||[]).includes(paymentMethod)){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_method_account_mismatch'});}
+          if(!closePaymentAccount){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_source_unavailable',method:paymentMethod});}
+          if(!closePaymentAccount.active){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_source_unavailable',method:paymentMethod});}
+          if(!validKind||!(closePaymentAccount.allowedPaymentMethods||[]).includes(paymentMethod)){await client.query('ROLLBACK');return json(res,409,{error:'finance_payment_source_unavailable',method:paymentMethod});}
         }
 
         await writePosOrderPricingSnapshot(client,{venueId:venueDbId,orderId:orderPath[1],pricing});
