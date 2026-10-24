@@ -53,7 +53,7 @@ assert.match(source, /path === '\/api\/expenses' && method === 'GET'[\s\S]*expen
 assert.match(source, /path === '\/api\/expenses' && method === 'POST'[\s\S]*demoState\.expenses\.push\(expense\)/, 'demo expense form persists entries into the same analytics data');
 assert.match(source, /data-current-date/, 'portal header dates are rendered from the current date');
 assert.match(source, /order\.clientId === client\.id \|\| order\.guestName === client\.name/, 'guest history links matching demo orders');
-const staffFloorStart = staffSource.indexOf('const refreshFloor=()=>{');
+const staffFloorStart = staffSource.indexOf('const refreshFloor=({background=false}={})=>{');
 const staffFloorEnd = staffSource.indexOf('if(staticStaffDemo())refreshFloor();', staffFloorStart);
 assert.ok(staffFloorStart >= 0 && staffFloorEnd > staffFloorStart);
 assert.match(staffSource.slice(staffFloorStart, staffFloorEnd), /staticStaffDemo\(\)\?Promise\.resolve\(\)\.then\(\(\)=>\{let state=\{\};try\{state=JSON\.parse\(localStorage\.getItem\('territory_crm_demo_state'/, 'staff hall reads the same isolated demo floor data through the asynchronous loader');

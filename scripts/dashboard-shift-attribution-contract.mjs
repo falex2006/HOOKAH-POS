@@ -6,7 +6,7 @@ const migration = readFileSync(new URL('migrations/039_shift_kpi_attribution.sql
 const server = readFileSync(new URL('server.js', root), 'utf8');
 assert.match(migration, /payments[\s\S]*ADD COLUMN IF NOT EXISTS shift_id uuid REFERENCES shifts\(id\)/);
 assert.match(migration, /orders[\s\S]*ADD COLUMN IF NOT EXISTS closed_in_shift_id uuid REFERENCES shifts\(id\)/);
-assert.match(server, /INSERT INTO payments \(order_id,method,amount,status,shift_id\)/,
+assert.match(server, /INSERT INTO payments \([^)]*\bshift_id\b[^)]*\) VALUES/,
   'new payment records must be attributed to the active shift');
 assert.match(server, /closed_in_shift_id=\$\d/,
   'order closure must remember the shift that completed the check');

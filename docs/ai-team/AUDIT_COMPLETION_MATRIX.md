@@ -1281,3 +1281,7 @@ The role-shell source contract had a stale exact-prefix expectation after cosmet
 ## 2026-10-24 — current-source UI contract alignment
 
 The reservation and navigation audit failures were traced to stale harness assumptions. Updated the reservation assertion to require the current grouped heading, hint and labelled search/date controls; updated the isolated navigation VM to execute the actual `canUseNetworkRoute` helper. Focused and surrounding sidebar/component/dialog/role contracts PASS, with independent code-health GO. Product/runtime files are unchanged. This closes the two static-contract false failures only; browser acceptance and full PostgreSQL POS coverage remain open boundaries.
+
+## 2026-10-24 — inventory and shell contract refresh
+
+Current-source contract updates close six stale false failures and strengthen the floor/reservation static boundary. Shift attribution, demo scenario, tobacco category, inventory hierarchy, responsive preferences and PIN/lock contracts PASS. The floor contract proves current structured validation, required place selection, shared venue-timezone SQL, current-day derived reservation state, range/capacity handling and escaped table names through its in-process repository phase; its existing seeded HTTP phase remains unexecuted because `tmp/full-local-qa/seed-manifest.json` is absent. No product runtime changed in this group; code-health GO.

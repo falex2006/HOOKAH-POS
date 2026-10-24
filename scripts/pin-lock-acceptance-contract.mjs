@@ -26,7 +26,9 @@ assert.match(server, /if \(pathname === '\/api\/session\/pin-return' && req\.met
 assert.match(server, /const STANDARD_SESSION_TTL_MS = 12 \* 60 \* 60 \* 1000[\s\S]*?const TRUSTED_SESSION_TTL_MS = 30 \* 24 \* 60 \* 60 \* 1000/, 'ordinary and trusted sessions keep separate expiry windows');
 assert.match(server.replace(/\s+/g, ' '), /if \(memorySession\) \{ if \(Date\.now\(\) > Number\(memorySession\.expiresAt \|\| memorySession\.createdAt \+ SESSION_TTL_MS\)\) \{ sessions\.delete\(token\); return null; \}/, 'expired memory sessions are rejected instead of restored by PIN (format-independent)');
 
-assert.match(login, /localStorage\.removeItem\('crm_session_token'\)/, 'login page clears stale local bearer state before trusted cookie probing');
+const loginStartup = login.slice(0, login.indexOf('async function checkTrustedPinReturn'));
+assert.match(loginStartup, /Merely opening this page must not sign out other tabs sharing this origin/, 'login page documents that opening it must preserve another tab session');
+assert.doesNotMatch(loginStartup, /localStorage\.removeItem\('crm_session_token'\)/, 'login page preserves local bearer state until successful replacement, explicit logout or a rejected session');
 assert.match(login, /if \(isPasswordReset \|\| !form \|\| trustedSessionUser\) return/, 'trusted PIN return does not interrupt password reset flow');
 assert.match(login, /if \(!session\?\.trustedDevice \|\| !user\?\.pinConfigured \|\| !adminPinRoles\.has\(user\.role\)\) return/, 'trusted PIN card appears only for trusted configured owner/admin/developer sessions');
 assert.match(login, /trustedReturnCard\.querySelector\('\[data-trusted-user\]'\)\.textContent = `\$\{name\} · доверенное устройство`/, 'trusted PIN card labels the remembered device state');

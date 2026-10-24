@@ -12,9 +12,9 @@ assert.match(server, /'staffDirectory'\];/, 'staff directory subfields must merg
 const portal = fs.readFileSync('portal.js', 'utf8');
 assert.match(portal, /data-dashboard-module-toggle/);
 assert.match(portal, /data-staff-view="cards"[\s\S]*data-staff-view="list"[\s\S]*data-staff-view="table"/, 'staff catalogue must expose cards, list and table modes');
-assert.match(portal, /Размер плиток/, 'card view must expose its scale control');
+assert.doesNotMatch(portal, /Размер плиток/, 'staff catalogue keeps one compact card size instead of exposing redundant scale controls');
 assert.match(portal, /hookah_pos_staff_directory_\$\{staffDirectoryIdentity\}/, 'local fallback must be keyed to the signed-in account');
 assert.match(portal, /saveSessionPreference\(\{ staffDirectory: partial \}\)/, 'staff directory preferences must persist through the account API');
 assert.match(portal, /preferencesByAccount/, 'static demo preferences must also remain isolated by account');
 assert.doesNotMatch(portal, /data-dashboard-revenue-style|data-insight-toggle/);
-console.log('LOCAL PREFERENCES CONTRACT: PASS (dashboard modules and staff catalogue display are per-account; staff view and scale are validated and merge-safe)');
+console.log('LOCAL PREFERENCES CONTRACT: PASS (dashboard modules and staff catalogue display are per-account; staff view is responsive and merge-safe)');
