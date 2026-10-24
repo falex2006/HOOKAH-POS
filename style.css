@@ -2038,7 +2038,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 #inventory-item-form .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 #inventory-item-form label { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 #inventory-item-form .inventory-negative-stock-control { grid-column: span 2; align-self: stretch; justify-content: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--surface-2, #1b1f25) 72%, transparent); }
-#inventory-item-form .inventory-negative-stock-control > span { display: flex; flex-direction: row; align-items: center; gap: 10px; color: var(--text, #eef1f3); font-size: 14px; }
+#inventory-item-form .inventory-negative-stock-control > span { display: flex; flex-direction: row; align-items: center; gap: 10px; color: var(--ui-text-primary); font-size: 14px; }
 #inventory-item-form .inventory-negative-stock-control input[type="checkbox"] { width: 18px; min-height: 18px; margin: 0; accent-color: #ff6b72; flex: 0 0 auto; }
 #inventory-item-form .inventory-negative-stock-control .field-hint { padding-left: 28px; line-height: 1.4; }
 #inventory-item-form .required-mark { display: inline; }

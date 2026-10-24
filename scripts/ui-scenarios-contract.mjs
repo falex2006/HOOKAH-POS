@@ -11,7 +11,7 @@ const checks = [
   ['Tasks render four status lanes', /class="tasks-board"[\s\S]*data-task-column="open"[\s\S]*data-task-column="in_progress"[\s\S]*data-task-column="done"[\s\S]*data-task-column="cancelled"/, portal],
   ['Task cards use role-aware status control', /<article class="task-card">[^\n]*\$\{taskStatusControl\(task\)\}/, portal],
   ['Task board has dedicated layout', /\.velora-theme \.tasks-board\{display:grid;/, css],
-  ['Task board collapses for tablet', /@media\(max-width:1100px\)\{\.velora-theme \.tasks-board\{grid-template-columns:repeat\(2/, css],
+  ['Task board collapses for laptop and tablet', /@media\(max-width:1600px\)\{\.velora-theme \.tasks-board\{grid-template-columns:repeat\(2/, css],
   ['Task board collapses to one column on mobile', /@media\(max-width:650px\)\{[\s\S]*?\.velora-theme \.tasks-board\{grid-template-columns:1fr/, css],
   ['Guest cards expose archive action', /data-client-action="archive"/, portal],
   ['Guest cards expose owner-only delete action', /data-client-action="delete"[\s\S]*Удалить гостя/, portal],

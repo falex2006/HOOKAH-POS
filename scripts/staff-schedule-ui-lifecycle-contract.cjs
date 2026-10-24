@@ -69,20 +69,24 @@ async function main() {
   for (const kind of ['functions', 'availability']) {
     for (const fail of [true, false]) {
       await check(`${kind} caller: ${fail ? 'failure permits retry' : 'success disables clean save'}`, async () => {
-        const save = control(), saveAvailability = control(), protectedControl = control(true);
-        const d = model([save, saveAvailability, protectedControl]);
+        const save = control(), saveAvailability = control(), defaultsButton = control(), protectedControl = control(true);
+        const d = model([save, saveAvailability, defaultsButton, protectedControl]);
         let calls = 0;
         const context = {
-          save, saveAvailability, d, employeeState: { userId: 'employee', version: 1 },
+          save, saveAvailability, defaultsButton, d, person: { value: 'employee' },
+          employeeState: { userId: 'employee', version: 1 }, employeeGeneration: 1, employeeWritePending: false,
           availabilityState: { userId: 'employee', version: 1 },
           assignments: { querySelectorAll: () => [], querySelector: () => ({ value: '' }) },
           rulesNode: { querySelectorAll: () => [] }, exceptionsNode: { querySelectorAll: () => [] },
           crypto: { randomUUID: () => 'unit-request-key' },
+          dialogIsOpen: () => true,
           api: async () => { calls++; if (fail) throw new Error('synthetic failure'); return { userId: 'employee', version: 2 }; },
           loadEmployee: async () => { save.disabled = true; },
           renderAvailability: () => { saveAvailability.disabled = true; }
         };
-        vm.runInNewContext(kind === 'functions' ? functionsCaller : availabilityCaller,
+        const readiness = `const currentEmployee=(selected,generation)=>dialogIsOpen(d)&&person.value===selected&&employeeGeneration===generation;
+          const employeeReady=()=>!!employeeState&&!!availabilityState&&employeeState.userId===person.value&&availabilityState.userId===person.value&&dialogIsOpen(d);`;
+        vm.runInNewContext(readiness + '\n' + (kind === 'functions' ? functionsCaller : availabilityCaller),
           context, { timeout: 1000 });
         const button = kind === 'functions' ? save : saveAvailability;
         await button.onclick();

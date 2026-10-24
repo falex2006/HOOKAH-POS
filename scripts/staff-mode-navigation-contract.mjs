@@ -124,7 +124,7 @@ assert.equal(distAttendanceUi, attendanceUi, 'published attendance UI must match
 assert.equal(distAttendanceCss, attendanceCss, 'published attendance styles must match their source');
 assert.match(portal, /personal\.onload\s*=\s*\(\)\s*=>\s*selfOnly\s*\?\s*resolve\(\)\s*:\s*loadPlanning\(\)/,
   'self-only schedule access must load its personal view without waiting for management planning UI');
-assert.match(portal, /staff-schedule-ui\.css\?rev=5/,
+assert.match(portal, /staff-schedule-ui\.css\?rev=6/,
   'schedule CSS cache revision must be bumped with the latest visual styles');
 assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`));
 assert.doesNotMatch(html, /Мария|Darkside Blueberry|2 100 ₽|<span>Смена открыта<\/span>/,

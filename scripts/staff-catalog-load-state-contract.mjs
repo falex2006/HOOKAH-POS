@@ -15,7 +15,7 @@ assert.match(app, /products=payload\.items\.map[\s\S]*?catalogState='ready'/, 'a
 assert.match(app, /requestRevision!==catalogRequestRevision\|\|accessRevision!==staffAccessRevision\|\|venueId!==String\(floorVenueId\)/, 'obsolete request sequence, session, or venue cannot overwrite the current catalog');
 assert.match(app, /catalogState='error'/, 'a failed current refresh enters the fail-closed error state');
 assert.match(app, /if\(e\.target\.closest\('\.catalog-retry'\)\)\{if\(!catalogAddPending\)loadProducts\(\);return;\}/, 'catalog failure must expose a retry action without overlapping an add');
-const catalogOpenStart = app.indexOf("document.querySelector('.primary')?.addEventListener('click'");
+const catalogOpenStart = app.indexOf("document.querySelector('.order > .primary')?.addEventListener('click'");
 const catalogOpenEnd = app.indexOf("document.querySelector('#catalog-close')", catalogOpenStart);
 assert.ok(catalogOpenStart >= 0 && catalogOpenEnd > catalogOpenStart, 'catalog open handler is present');
 const catalogOpen = app.slice(catalogOpenStart, catalogOpenEnd);
