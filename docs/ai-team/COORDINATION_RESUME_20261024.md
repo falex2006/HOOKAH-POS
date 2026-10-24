@@ -7,9 +7,9 @@
 | Поток | Проверенное состояние | Следующий шаг |
 | --- | --- | --- |
 | MASTER | `f3020e1179355665c95d8a2af2042efc59565498`, исходники чистые; существующий `tmp/` сохранён | Интеграция только точных принятых пакетов, без массового переноса dirty-деревьев |
-| ЗАРПЛАТНЫЙ | Новое дерево `payroll-current-integration/HOOKAH CRM 2` на `f3020e11`; runtime из старого дерева не перенесён | Закрыть несоответствие owner-конфигурации и finance-lifecycle сквозным ACL-пакетом |
+| ЗАРПЛАТНЫЙ | Новое дерево `payroll-current-integration/HOOKAH CRM 2` на `f3020e11`; read-only evidence audit завершён, runtime из старого дерева не перенесён | После снятия HOLD: зафиксировать candidate SHA/манифест, затем полный локальный payroll PG-run; отдельно остаются half-month, substitute calendar, dashboard и ₽/% reconciliation |
 | Разобрать смысл пункта | База `f3020e11`, локальный HEAD `649ac322`: только QA correction/docs, 3 tracked paths, без product UI/API/DB changes | Native `<details>` QA и code-health PASS; широкая PostgreSQL/browser интеграция не подтверждена: единственный прогон остановлен safety-preflight до product scenario |
-| ЛОЯЛЬНОСТЬ | Изолированная копия на `f3020e11`; broad manifest `372` payload files, 18 modified tracked + 354 untracked, conflict markers `0`; реестр `14/47` | Modal visibility QA PASS через установленный Playwright runtime. Full POS UI QA теперь реально запускается, но падает на assertion: после submit ожидается `Осталось 90,00`, фактически UI сообщает `Сохранённые платежи подтверждены.`; это требует contract review. Shared diff около 663 строк, V1/V2/API→DB→reload и migration/source/dist parity не доказаны; NO-GO для merge/release |
+| ЛОЯЛЬНОСТЬ | Изолированная копия на `f3020e11`; broad manifest `372` payload files, 18 modified tracked + 354 untracked, conflict markers `0`; реестр `14/47` | Modal visibility QA PASS. Старый текстовый assertion исправлен как stale; затем выявлен и разбирается ограниченный partial-payment UI сценарий, пока без изменения product `app.js/server.js`. Full POS/PG, V1/V2/API→DB→reload и migration/source/dist parity не доказаны; NO-GO для merge/release |
 
 Старые исходники и dirty/untracked зарплатного дерева сохранены владельцем; путь сохранения `tmp/payroll-transfer-preservation-20261024-201109`. Это сохранение, а не принятый release manifest.
 
