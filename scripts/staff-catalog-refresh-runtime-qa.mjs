@@ -22,6 +22,7 @@ const element = () => ({
   attributes: new Map(),
   handlers: new Map(),
   addEventListener(type, callback) { this.handlers.set(type, callback); },
+  focus() {},
   setAttribute(name, value) { this.attributes.set(name, value); },
   classList: {
     values: new Set(),
@@ -38,7 +39,7 @@ const close = element();
 const document = {
   visibilityState: 'visible',
   addEventListener(type, callback) { listeners.document.set(type, callback); },
-  querySelector(selector) { return selector === '.primary' ? primary : selector === '#catalog-close' ? close : null; },
+  querySelector(selector) { return ['.primary', '.order > .primary'].includes(selector) ? primary : selector === '#catalog-close' ? close : null; },
 };
 const window = {
   addEventListener(type, callback) { listeners.window.set(type, callback); },
@@ -53,7 +54,7 @@ const escapeFloorText = value => String(value ?? '').replace(/[&<>"']/g, char =>
 const displayProductName = value => String(value ?? '').trim();
 const staffIcon = () => '<svg></svg>';
 const createRuntime = new Function('deps', `
-  let floorVenueId='venue-a', staffAccessRevision=4, floorReady=true;
+  let floorVenueId='venue-a', staffAccessRevision=4, floorReady=true, staffFloorShiftState='open', currentShift={}, currentOrder=null;
   const {catalog,grid,search,document,window,primary,close,listeners,intervalCalls,staticStaffDemo,demoProducts,staffCanWork,staffFetchJson,escapeFloorText,displayProductName,staffIcon}=deps;
   ${source}
   return {

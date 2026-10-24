@@ -12,7 +12,7 @@ assert.ok(routeStart >= 0 && routeEnd > routeStart, 'actual demo premix producti
 const parserSource = portal.slice(parserStart, parserEnd);
 const routeSource = portal.slice(routeStart, routeEnd);
 const execute = new Function('path', 'method', 'input', 'portalPermissions', 'hasPortalPermission', 'demoState', 'demoSave', 'portalUser', 'demoAllocatePremixConsumption', `${parserSource}\nreturn (async () => { ${routeSource} })();`);
-const produce = (state, payload) => { const permissions = new Set(['inventory']); return execute('/api/inventory/premixes/produce', 'POST', payload, permissions, (permission) => permissions.has(permission), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' }, () => []); };
+const produce = (state, payload, allocate = () => []) => { const permissions = new Set(['inventory']); return execute('/api/inventory/premixes/produce', 'POST', payload, permissions, (permission) => permissions.has(permission), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' }, allocate); };
 const stateFor = (recipe, inventory) => ({ recipes: [recipe], inventory, premixBatches: [], movements: [], audit: [] });
 
 const itemRouteStart = portal.indexOf("if (path === '/api/inventory/items' && method === 'POST')");

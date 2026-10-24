@@ -44,6 +44,7 @@ vm.runInNewContext(block, {
   syncProductPreview: () => { previewCount += 1; },
   setProductEditorMode: () => {},
   icon: () => '',
+  bindManagementNotice: () => (message, kind) => notices.push({ message, kind }),
   compressUploadedImage: () => new Promise((resolve) => { compressResolve = resolve; }),
   portalNotice: (message, kind) => notices.push({ message, kind }),
   api: (url, options) => new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })),
@@ -62,7 +63,7 @@ submit();
 assert.equal(requests.length, 1, 'slow create must not duplicate');
 handlers.get('cancel-product:click')();
 assert.equal(resetCount, 0, 'cancel cannot erase pending editor');
-handlers.get('delete-product:click')();
+handlers.get('delete-product:click')({ currentTarget: elements.get('#delete-product') });
 assert.equal(requests.length, 1, 'delete cannot overlap save');
 requests[0].reject({ payload: { error: 'invalid_product' } });
 await tick();
@@ -83,7 +84,7 @@ assert.ok(notices.some((item) => item.message.includes('Товар создан'
 assert.ok(notices.some((item) => item.message.includes('каталог не обновился')));
 
 elements.get('#product-image-file').files = [{ type: 'image/png', size: 100 }];
-handlers.get('product-image-file:change')();
+handlers.get('product-image-file:change')({ currentTarget: elements.get('#product-image-file') });
 assert.equal(form.dataset.imageProcessing, '1');
 submit();
 assert.equal(requests.length, 3, 'submit waits for image compression');

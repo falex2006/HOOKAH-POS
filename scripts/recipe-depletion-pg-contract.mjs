@@ -32,11 +32,11 @@ function route(startMarker, endMarker) {
 }
 const payment = route("if (paymentPath && (req.method === 'GET' || req.method === 'POST'))", 'const orderPath = pathname.match(');
 const paymentPost = payment.slice(payment.indexOf('const amount = Number(input.amount);'));
-assert.match(paymentPost, /BEGIN[\s\S]*?INSERT INTO payments[\s\S]*?depleteRecipeForOrder[\s\S]*?COMMIT/, 'final payment insert and depletion share one DB transaction');
+assert.match(paymentPost, /beginPayrollSourceProducerTransaction[\s\S]*?INSERT INTO payments[\s\S]*?depleteRecipeForOrder[\s\S]*?COMMIT/, 'final payment insert and depletion share one DB transaction');
 assert.match(paymentPost, /catch \(error\) \{[\s\S]*?ROLLBACK[\s\S]*?recipe_invalid/, 'invalid active recipe rolls back a payment');
 assert.match(paymentPost, /product_recipe_required/, 'missing sale recipe rejects and rolls back final payment');
 const close = route("if (orderPath && req.method === 'POST' && orderPath[2] === 'close')", "if (orderPath && req.method === 'POST' && orderPath[2] === 'split')");
-assert.match(close, /BEGIN[\s\S]*?depleteRecipeForOrder[\s\S]*?UPDATE orders SET status=\$1[\s\S]*?INSERT INTO order_costs[\s\S]*?INSERT INTO payments[\s\S]*?COMMIT/, 'manual close, stock, COGS, and payment share one DB transaction');
+assert.match(close, /beginPayrollSourceProducerTransaction[\s\S]*?depleteRecipeForOrder[\s\S]*?UPDATE orders SET status=\$1[\s\S]*?INSERT INTO order_costs[\s\S]*?INSERT INTO payments[\s\S]*?COMMIT/, 'manual close, stock, COGS, and payment share one DB transaction');
 assert.match(close, /catch \(error\) \{[\s\S]*?ROLLBACK[\s\S]*?recipe_invalid/, 'invalid active recipe rolls back close');
 assert.match(close, /product_recipe_required/, 'missing sale recipe rejects and rolls back manual close');
 const productPatch = route("if (productProfile && req.method === 'PATCH')", "if (productProfile && req.method === 'DELETE')");

@@ -31,16 +31,16 @@ assert.ok(start > 0 && end > start, 'purchase handlers found');
 const block = portal.slice(start, end);
 
 const handlers = { list: [] };
-const message = { textContent: '', className: '' };
+const message = { textContent: '', className: '', dataset: {}, setAttribute() {} };
 const fields = new Map([
   ['#purchase-message', message], ['#purchase-supplier', { value: 'QA поставщик', focus: () => {} }],
   ['#purchase-number', { value: 'QA-1' }], ['#purchase-date', { value: '' }],
-  ['#purchase-note', { value: '' }], ['#purchase-save', { textContent: 'Сохранить черновик' }],
+  ['#purchase-note', { value: '' }], ['#purchase-save', { textContent: 'Сохранить черновик', focus() {} }],
   ['#purchase-cancel', { hidden: true, addEventListener: (_name, handler) => { handlers.cancel = handler; } }],
   ['#purchase-order-context', { hidden: true }],
   ['#purchase-document-list', { addEventListener: (_name, handler) => { handlers.list.push(handler); } }],
 ]);
-const form = { dataset: {}, addEventListener: (_name, handler) => { handlers.submit = handler; }, scrollIntoView: () => {} };
+const form = { dataset: {}, isConnected: true, closest: () => null, querySelectorAll: () => [], addEventListener: (_name, handler) => { handlers.submit = handler; }, scrollIntoView: () => {} };
 const requests = [];
 const notices = [];
 let resetCount = 0;
@@ -48,17 +48,25 @@ let modalCloseCount = 0;
 let loadResult = true;
 const context = {
   purchaseForm: form, purchaseActionPending: false,
+  target: { isConnected: true },
+  allItems: [{ id: 'stock-1', unit: 'шт' }],
+  canClassifyFinanceSources: false, purchaseFinanceCategory: null,
+  hasPortalPermission: () => true,
+  portalCriticalContext: () => 'qa-context',
+  portalCriticalAction: async ({ onSubmit, errorMessage }) => { try { return await onSubmit(); } catch (error) { const text = errorMessage?.(error); if (text) notices.push({ text, kind: 'error' }); throw error; } },
+  showPurchaseFieldError: (_field, text) => { message.textContent = text; },
   setPurchasePending: (pending) => { context.purchaseActionPending = pending; },
   closeMovementEditor: (key) => { assert.equal(key, 'purchase'); assert.equal(context.purchaseActionPending, false, 'receipt closes only after pending is released'); modalCloseCount += 1; },
   openMovementEditor: () => {},
   getPurchaseLines: () => [{ ingredientId: 'stock-1', quantity: 1, unit: 'шт', unitCost: 10 }],
-  document: { querySelector: (selector) => fields.get(selector) },
+  document: { activeElement: form, body: {}, querySelector: (selector) => fields.get(selector) },
   resetPurchaseForm: () => { resetCount += 1; },
   loadPurchaseDocuments: async () => loadResult,
   loadAutoOrders: async () => true,
   load: async () => true,
   purchaseDocuments: [{ id: 'draft-1', status: 'draft', supplierName: 'QA поставщик', totalCost: 10, sourceAutoOrderId: 'order-1', lines: [{ ingredientId: 'stock-1', quantity: 1, unit: 'шт', unitCost: 10 }] }],
   api: (url, options) => new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })),
+  bindManagementNotice: () => (text, kind) => notices.push({ text, kind }),
   portalNotice: (text, kind) => notices.push({ text, kind }),
   window: { confirm: () => true }, money: (value) => String(value),
   renderPurchaseLines: () => {}, updatePurchasePreviews: () => {},

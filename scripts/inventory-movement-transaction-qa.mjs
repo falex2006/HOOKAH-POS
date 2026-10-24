@@ -29,20 +29,21 @@ class FakePool {
 
 const pool = new FakePool();
 const inventory = new InventoryRepository(pool);
-await assert.rejects(() => inventory.move({ venueId: 'venue-1', ingredientId: 'ingredient-1', unit: 'кг', direction: 'out', quantity: 6 }),
+const venueId = '00000000-0000-0000-0000-000000000001';
+await assert.rejects(() => inventory.move({ venueId, ingredientId: 'ingredient-1', unit: 'кг', direction: 'out', quantity: 6 }),
   (error) => error.code === 'insufficient_stock' && error.onHand === 5);
 assert.equal(pool.balance, 5, 'rejected movement cannot alter the ledger');
-const movement = await inventory.move({ venueId: 'venue-1', ingredientId: 'ingredient-1', unit: 'кг', direction: 'out', quantity: 2 });
+const movement = await inventory.move({ venueId, ingredientId: 'ingredient-1', unit: 'кг', direction: 'out', quantity: 2 });
 assert.equal(movement.onHandBefore, 5);
 assert.equal(movement.onHandAfter, 3);
 assert.equal(pool.balance, 3);
-const receipt = await inventory.receive({ venueId: 'venue-1', ingredientId: 'ingredient-1', stockUnit: 'кг', quantity: 4, conversionFactor: 1, unitCost: 6 });
+const receipt = await inventory.receive({ venueId, ingredientId: 'ingredient-1', stockUnit: 'кг', quantity: 4, conversionFactor: 1, unitCost: 6 });
 assert.equal(receipt.onHandBefore, 3);
 assert.equal(receipt.onHandAfter, 7);
 assert.equal(receipt.weightedCost, 4.2857, 'preserve four-decimal weighted unit cost: (3 kg × 2 + 4 kg × 6) / 7 kg');
 assert.equal(pool.balance, 7);
 assert.equal(pool.queries.filter((query) => query === 'COMMIT').length, 2);
-assert.ok(pool.queries.every((query) => query === 'RELEASE' || ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(query) || query.includes('FOR UPDATE') || query.includes('SELECT COALESCE') || query.includes('INSERT INTO stock_movements') || query.startsWith('UPDATE ingredients SET cost=')),
+assert.ok(pool.queries.every((query) => query === 'RELEASE' || ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(query) || query.includes('pg_advisory_xact_lock_shared') || query.includes('FOR UPDATE') || query.includes('SELECT COALESCE') || query.includes('INSERT INTO stock_movements') || query.startsWith('UPDATE ingredients SET cost=')),
   'balance, stock ledger, and receipt cost must only use the transaction connection');
 
 const converted = PurchaseDocumentRepository.lineForItem({ ingredientId: 'ingredient-1', quantity: 2, unit: 'л', unitCost: 120 }, { id: 'ingredient-1', name: 'QA сироп', unit: 'мл' });

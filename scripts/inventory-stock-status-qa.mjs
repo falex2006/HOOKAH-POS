@@ -23,7 +23,7 @@ assert.match(rows.innerHTML, /В норме/, 'positive minimum plus sufficient 
 assert.equal(visibleCount.textContent, 3, 'unfiltered stock count matches all visible positions');
 const filteredCountDocument = { querySelector: (selector) => selector === '#inventory-rows' ? rows : selector === '#stock-visible-count' ? visibleCount : null,
   querySelectorAll: () => [] };
-new Function('allItems', 'canWriteInventory', 'document', 'normalizeInventorySearch', 'esc', 'displayName', 'money', 'alcoholProfileById', 'alcoholItemLabel', `${rendererSource}; draw('Сироп'); return document.querySelector('#inventory-rows').innerHTML;`)(items, false, filteredCountDocument, (value) => String(value || '').toLocaleLowerCase('ru-RU'), String, String, (value) => `${Number(value || 0)} ₽`, () => null, () => '');
+new Function('allItems', 'canWriteInventory', 'inventoryLoadState', 'document', 'normalizeInventorySearch', 'esc', 'displayName', 'money', 'alcoholProfileById', 'alcoholItemLabel', `${rendererSource}; draw('Сироп'); return document.querySelector('#inventory-rows').innerHTML;`)(items, false, 'loaded', filteredCountDocument, (value) => String(value || '').toLocaleLowerCase('ru-RU'), String, String, (value) => `${Number(value || 0)} ₽`, () => null, () => '');
 assert.equal(visibleCount.textContent, '1 / 3', 'filtered visible count reflects the search result and total');
 
 const lowStockMatcher = server.match(/const isBelowInventoryMinimum = ([^;]+);/);

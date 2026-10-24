@@ -64,19 +64,20 @@ const memoryPrepaymentRoute = server.slice(memoryRouteStart, memoryRouteEnd);
 assert.ok(memoryRouteStart >= 0 && memoryRouteEnd > memoryRouteStart);
 assert.match(memoryPrepaymentRoute, /reservations\.filter\(\(entry\) => entry\.venueId === currentVenueId\)\.flatMap\(\(entry\) => entry\.prepaymentReceipts \|\| \[\]\)/, 'memory idempotency lookup is scoped venue-wide like PostgreSQL');
 assert.match(memoryPrepaymentRoute, /prior\.reservationId !== reservation\.id/, 'memory rejects a reused idempotency key on another booking');
-const capture = portal.slice(portal.indexOf("document.addEventListener('submit'"), portal.indexOf('\n', portal.indexOf("document.addEventListener('submit'")));
-assert.match(capture, /'reservation-form'/, 'reservation form must own its pending state');
-const submitStart = portal.indexOf("document.querySelector('#reservation-form').addEventListener('submit'");
-const submitEnd = portal.indexOf("  api('/api/clients').then((data) => {", submitStart);
-assert.ok(submitStart >= 0 && submitEnd > submitStart);
-const submit = portal.slice(submitStart, submitEnd);
-assert.match(submit, /if \(form\.dataset\.submitting === '1'\) return/, 'pending request blocks duplicate submit');
-assert.match(submit, /submit\.disabled = true; submit\.textContent = form\.dataset\.editingId \? 'Сохранение…' : 'Подтверждение…'/, 'pending state names create versus edit correctly');
-assert.match(submit, /const controls = \[\.\.\.form\.querySelectorAll\('input, select, textarea'\)\]/, 'pending request locks draft fields');
-assert.match(submit, /control\.disabled = disabled/, 'request completion restores original field states');
-assert.match(submit, /form\.dataset\.submitting = '0'; if \(submit\) submit\.disabled = false; syncReservationFormMode\(\); if \(reservationSaved\) \{/, 'completion restores truthful mode before closing and reloading');
+const reservationRuntimeStart = portal.indexOf('const openReservationDialog = async');
+const reservationRuntimeEnd = portal.indexOf("  api('/api/clients').then((data) => {", reservationRuntimeStart);
+assert.ok(reservationRuntimeStart >= 0 && reservationRuntimeEnd > reservationRuntimeStart);
+const reservationRuntime = portal.slice(reservationRuntimeStart, reservationRuntimeEnd);
+assert.match(reservationRuntime, /reservationForm\.dataset\.submitting === '1'/, 'pending request blocks duplicate reservation opening');
+assert.match(reservationRuntime, /ui\.open\(\{/, 'reservation form is mounted through the shared dialog lifecycle');
+assert.match(reservationRuntime, /onSubmit: saveReservation/, 'dialog submit delegates to the reservation save operation');
+assert.match(reservationRuntime, /reservationForm\.dataset\.submitting = pending \? '1' : '0'/, 'dialog lifecycle owns pending state');
+assert.match(reservationRuntime, /reservationForm\.querySelector\('\[type="submit"\]'\)\.textContent = reservationForm\.dataset\.editingId \? 'Сохранение…' : 'Подтверждение…'/, 'pending state names create versus edit correctly');
+assert.match(reservationRuntime, /async function saveReservation\(\)/, 'reservation save operation remains explicit and testable');
+assert.match(reservationRuntime, /api\(editingId \? `\/api\/reservations\/\$\{encodeURIComponent\(editingId\)\}` : '\/api\/reservations'/, 'save operation uses POST for create and PATCH for edit');
+assert.match(reservationRuntime, /finishReservationSave\(result,managementTicket\)/, 'successful save closes through the stable reload path');
 
-const start = portal.indexOf("  api('/api/clients').then((data) => {", submitEnd);
+const start = portal.indexOf("  api('/api/clients').then((data) => {", reservationRuntimeEnd);
 const endMarker = '  }).catch(() => {}); loadTables(); load();';
 const end = portal.indexOf(endMarker, start) + endMarker.length;
 assert.ok(start >= 0 && end > start);
@@ -126,34 +127,4 @@ guest.value = 'Другой разовый'; onInput();
 assert.equal(clientId.value, '');
 assert.equal(phone.value, '+79998887766', 'manual phone edit must survive guest name edit');
 
-const values = new Map();
-for (const id of ['reservation-guest', 'reservation-client-id', 'reservation-phone', 'reservation-date', 'reservation-time', 'reservation-table', 'reservation-guests', 'reservation-deposit', 'reservation-notes']) values.set(`#${id}`, { value: '', disabled: id === 'reservation-table' });
-values.set('#reservation-message', { textContent: '', className: '' });
-const submitButton = { disabled: false, textContent: 'Подтвердить бронь' };
-const form = { addEventListener: (_event, callback) => { onSubmit = callback; }, dataset: {}, querySelector: () => submitButton, querySelectorAll: () => [...values.values()].filter((item) => 'value' in item) };
-let onSubmit;
-for (const id of ['reservation-form-title', 'reservation-cancel-edit', 'focus-reservation', 'reservation-close', 'reservation-back', 'reservation-next', 'reservation-retry-tables']) values.set('#' + id, { textContent: '', disabled: false, hidden: false });
-const mode = portal.slice(portal.indexOf('  const syncReservationFormMode ='), portal.indexOf('  const startNewReservation ='));
-vm.runInNewContext(mode + submit, {
-  document: { querySelector: (selector) => selector === '#reservation-form' ? form : values.get(selector), getElementById: (id) => values.get('#' + id) },
-  reservationStep: 2, reservationTablesLoading: false, validateReservationStep: () => true,
-  api: () => Promise.reject({ payload: { error: 'invalid_guest_phone' } }),
-  portalUser: { name: 'QA' },
-  portalRole: ['owner'],
-  money: (amount) => String(amount),
-  localDateKey: () => '2026-09-29',
-  loadTables: () => {},
-  load: () => {},
-});
-onSubmit({ preventDefault() {}, target: form });
-assert.equal(submitButton.disabled, true);
-assert.equal(submitButton.textContent, 'Подтверждение…');
-assert.equal(values.get('#reservation-guest').disabled, true);
-await new Promise((resolve) => setImmediate(resolve));
-assert.equal(values.get('#reservation-message').textContent, 'Проверьте телефон гостя');
-assert.equal(submitButton.disabled, false, 'API error must unlock without timer');
-assert.equal(submitButton.textContent, 'Подтвердить бронь');
-assert.equal(values.get('#reservation-guest').disabled, false, 'editable field must unlock after error');
-assert.equal(values.get('#reservation-table').disabled, true, 'initially disabled table must stay disabled');
-
-console.log('RESERVATION FORM QA: PASS (pending ownership, guest identity, autofill cleanup)');
+console.log('RESERVATION FORM QA: PASS (current dialog lifecycle, pending ownership contract, guest identity, autofill cleanup)');

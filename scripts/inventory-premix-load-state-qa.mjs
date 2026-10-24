@@ -24,7 +24,7 @@ const loaderSource = portal.slice(start, end + 1);
 const createFixture = () => {
   const createSelect = () => {
     let markup = '';
-    return { value: '', options: [], attributes: {}, setAttribute(key, value) { this.attributes[key] = value; }, get innerHTML() { return markup; }, set innerHTML(value) { markup = value; this.options = [...value.matchAll(/<option value="([^"]*)"/g)].map((match) => ({ value: match[1] })); this.value = this.options[0]?.value || ''; } };
+    return { value: '', options: [], attributes: {}, setAttribute(key, value) { this.attributes[key] = value; }, matches() { return false; }, get innerHTML() { return markup; }, set innerHTML(value) { markup = value; this.options = [...value.matchAll(/<option value="([^"]*)"/g)].map((match) => ({ value: match[1] })); this.value = this.options[0]?.value || ''; } };
   };
   const controls = [];
   const classes = new Set(); const attributes = new Map();

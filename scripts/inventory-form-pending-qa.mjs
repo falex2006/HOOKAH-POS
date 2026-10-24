@@ -39,14 +39,18 @@ const document = {
 };
 vm.runInNewContext(portal.slice(start, end), {
   canWriteInventory: true,
+  target: { querySelectorAll: () => [] },
+  mountInventoryCatalogPresentation: () => {},
   document,
   inventoryItemEditor,
   inventorySubdepartments: [],
   productCategoryItems: [],
+  portalUser: { role: 'owner' },
   syncAlcoholLinkSelector() {},
   syncTobaccoLinkSelector() {},
   allItems: [],
   api: () => new Promise((resolve, reject) => requests.push({ resolve, reject })),
+  bindManagementNotice: () => (text, kind) => notices.push({ text, kind }),
   portalNotice: (text, kind) => notices.push({ text, kind }),
   load: () => {},
   loadAutoOrders: () => {},
@@ -89,19 +93,23 @@ const movementFields = new Map([
   ['#movement-unit', { value: 'шт', disabled: false }],
   ['#movement-reason', { value: 'QA расход', disabled: false }],
 ]);
-const movementMessage = { textContent: '', className: '' };
-const movementButton = { disabled: false, textContent: 'Сохранить операцию' };
+const movementMessage = { textContent: '', className: '', setAttribute() {} };
+const movementButton = { disabled: false, textContent: 'Сохранить операцию', focus() {} };
 const movementClose = { disabled: false };
 const movementCancel = { disabled: false };
 let movementModalCloseCount = 0;
 let movementResetCount = 0;
 let selectRefreshCount = 0;
 movementFields.get('#movement-item')._customSelectRefresh = () => { selectRefreshCount += 1; };
-const movementForm = { dataset: {}, reset: () => { movementResetCount += 1; }, querySelector: () => movementButton, querySelectorAll: () => [...movementFields.values()] };
+const movementForm = { dataset: {}, isConnected: true, reset: () => { movementResetCount += 1; }, closest: () => null, querySelector: () => movementButton, querySelectorAll: () => [...movementFields.values()] };
 let onMovementSubmit;
 const movementRequests = [];
 vm.runInNewContext(portal.slice(movementStart, movementEnd), {
-  document: { querySelector: (selector) => selector === '#movement-form' ? { addEventListener: (_event, callback) => { onMovementSubmit = callback; } } : selector === '#movement-message' ? movementMessage : selector === '#inventory-movement-dialog [data-journal-close]' ? movementClose : selector === '#movement-cancel' ? movementCancel : movementFields.get(selector) },
+  document: { activeElement: movementForm, querySelector: (selector) => selector === '#movement-form' ? { addEventListener: (_event, callback) => { onMovementSubmit = callback; } } : selector === '#movement-message' ? movementMessage : selector === '#inventory-movement-dialog [data-journal-close]' ? movementClose : selector === '#movement-cancel' ? movementCancel : movementFields.get(selector) },
+  bindManagementNotice: () => () => {},
+  hasPortalPermission: () => true,
+  portalCriticalContext: () => 'qa-context',
+  movementEditors: new Map([['movement', { shell: { refresh() {} } }]]),
   api: () => new Promise((resolve, reject) => movementRequests.push({ resolve, reject })),
   portalNotice: () => {},
   closeMovementEditor: (key) => { assert.equal(key, 'movement'); assert.equal(movementForm.dataset.submitting, '0', 'movement closes after pending releases'); assert.equal(movementClose.disabled, false); assert.equal(movementCancel.disabled, false); movementModalCloseCount += 1; },
