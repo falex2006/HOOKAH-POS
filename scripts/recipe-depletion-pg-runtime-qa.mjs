@@ -23,6 +23,7 @@ const venueId = randomUUID();
 const organizationId = randomUUID();
 // Every run owns a fresh actor and venue. Never adopt or clean up a seeded account.
 const actorId = randomUUID();
+const managerId = randomUUID();
 const zoneId = randomUUID();
 const tableId = randomUUID();
 let posCashboxAccountId = '';
@@ -190,12 +191,17 @@ try {
   const pinSalt = randomBytes(16).toString('hex');
   const pinHash = `scrypt$${pinSalt}$${scryptSync('2468', pinSalt, 64).toString('hex')}`;
   await client.query('INSERT INTO users (id,organization_id,venue_id,full_name,login,password_hash,pin_hash,pin_updated_at,role) VALUES ($1,$2,$3,$4,$5,$6,$7,now(),$8)', [actorId, organizationId, venueId, 'QA Владелец', `qa-${venueId}`, passwordHash, pinHash, 'owner']);
+  const managerPasswordSalt = randomBytes(16).toString('hex');
+  const managerPasswordHash = `scrypt$${managerPasswordSalt}$${scryptSync('qa-manager-password', managerPasswordSalt, 64).toString('hex')}`;
+  await client.query('INSERT INTO users (id,organization_id,venue_id,full_name,login,password_hash,role) VALUES ($1,$2,$3,$4,$5,$6,$7)', [managerId, organizationId, venueId, 'QA Управляющий', `qa-manager-${venueId}`, managerPasswordHash, 'manager']);
   posCashboxAccountId = (await client.query("SELECT id FROM finance_accounts WHERE venue_id=$1 AND code='main_cashbox'", [venueId])).rows[0]?.id || '';
   assert.ok(posCashboxAccountId, 'new QA venue has its seeded POS cashbox finance account'); checks++;
   await client.query(`INSERT INTO finance_accounts (id,venue_id,code,name,kind,allowed_payment_methods)
     VALUES ($1,$3,'qa_supplier_bank','QA supplier bank','bank',ARRAY['bank_transfer','card']::text[]),
            ($2,$3,'qa_supplier_cash','QA supplier cash','cash',ARRAY['cash']::text[])`, [supplierBankAccountId, supplierCashAccountId, venueId]);
   await client.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'owner','active')", [organizationId, actorId]);
+  await client.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'member','active')", [organizationId, managerId]);
+  await client.query("INSERT INTO system_role_permission_overrides (venue_id,role,permission_scopes,updated_by) VALUES ($1,'manager','[\"inventory\"]'::jsonb,$2)", [venueId, actorId]);
   await client.query('INSERT INTO inventory_departments (venue_id,code,name) VALUES ($1,$2,$3) ON CONFLICT (venue_id,code) DO UPDATE SET name=EXCLUDED.name', [venueId, 'bar', 'Бар']);
   await client.query('INSERT INTO zones (id,venue_id,name) VALUES ($1,$2,$3)', [zoneId, venueId, 'QA зона']);
   await client.query('INSERT INTO tables (id,zone_id,name,capacity,status) VALUES ($1,$2,$3,2,$4)', [tableId, zoneId, 'QA стол', 'free']);
@@ -237,6 +243,10 @@ try {
   sessionToken = loginData.token;
   assert.ok(sessionToken, 'login response contains the bearer session');
   checks += 2;
+  const managerLogin = await fetch(`${base}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Organization-Id': organizationId }, body: JSON.stringify({ username: `qa-manager-${venueId}`, password: 'qa-manager-password' }) });
+  const managerLoginData = await managerLogin.json();
+  assert.equal(managerLogin.status, 200, 'PostgreSQL QA manager can create a real server session');
+  assert.ok(managerLoginData.token, 'manager login response contains the bearer session'); checks += 2;
   assert.equal((await authenticatedReq(base, sessionToken, '/api/session/unlock', 'POST', { pin: '2468' })).ok, true,
     'PIN unlock reads and verifies the current PostgreSQL PIN hash');
   assert.equal((await authenticatedReq(base, sessionToken, `/api/staff/${actorId}/pin`, 'PATCH', { pin: '9753' })).pinConfigured, true,
@@ -1059,6 +1069,48 @@ try {
   await req(base, `/api/orders/${unconfiguredPaymentId}/payments`, 'POST', { amount: 100, method: 'cash', paymentAccountId: posCashboxAccountId }, 409);
   assert.deepEqual(await paymentStockFacts(unconfiguredPaymentId), recoveredRecipe,
     'duplicate final cash payment cannot repeat payment or depletion'); checks++;
+
+  const negativeStockItem = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA позиция с разрешённым минусом', unit: 'мл', itemType: 'ingredient', cost: 0.02, department: 'bar',
+  }, 201);
+  const negativeStockBulkCategory = await req(base, '/api/product-categories', 'POST', { name: `QA минус ${venueId.slice(0, 8)}`, department: 'bar' }, 201);
+  const negativeStockBulkItem = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA позиция массовой настройки', unit: 'мл', itemType: 'ingredient', cost: 0.02, department: 'bar', category: negativeStockBulkCategory.name, categoryId: negativeStockBulkCategory.id,
+  }, 201);
+  await ownerReq(base, sessionToken, `/api/inventory/items/${negativeStockItem.id}`, 'PATCH', { allowNegativeStock: true }, 200);
+  const managerToggleDenied = await ownerReq(base, managerLoginData.token, `/api/inventory/items/${negativeStockItem.id}`, 'PATCH', { allowNegativeStock: false }, 403);
+  assert.equal(managerToggleDenied.error, 'inventory_negative_stock_owner_required', 'manager with inventory access cannot change the owner-only negative stock flag'); checks++;
+  const bulkToggleDenied = await ownerReq(base, managerLoginData.token, '/api/inventory/negative-stock-settings', 'POST', { enabled: true, scope: { type: 'all' } }, 403);
+  assert.equal(bulkToggleDenied.error, 'inventory_negative_stock_owner_required', 'manager cannot use the owner-only bulk negative-stock action'); checks++;
+  const categoryBulk = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: true, scope: { type: 'category', categoryId: negativeStockBulkCategory.id, category: negativeStockBulkCategory.name, department: 'bar' } }, 200);
+  assert.deepEqual({ updatedCount: categoryBulk.updatedCount, excludedPremixCount: categoryBulk.excludedPremixCount }, { updatedCount: 1, excludedPremixCount: 0 }, 'category scope is narrowed to its department and changes only matching stock positions'); checks++;
+  await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: false, scope: { type: 'category', categoryId: negativeStockBulkCategory.id, category: negativeStockBulkCategory.name, department: 'bar' } }, 200);
+  const bulkNegative = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: true, scope: { type: 'items', itemIds: [negativeStockItem.id, negativeStockBulkItem.id, premixOutput.id] } }, 200);
+  assert.deepEqual({ updatedCount: bulkNegative.updatedCount, unchangedCount: bulkNegative.unchangedCount, excludedPremixCount: bulkNegative.excludedPremixCount }, { updatedCount: 1, unchangedCount: 1, excludedPremixCount: 1 }, 'bulk selection updates exact eligible items, reports idempotent items, and skips premix outputs'); checks++;
+  const bulkNegativeFlags = await client.query('SELECT id,allow_negative_stock FROM ingredients WHERE venue_id=$1 AND id=ANY($2::uuid[]) ORDER BY id', [venueId, [negativeStockItem.id, negativeStockBulkItem.id, premixOutput.id]]);
+  assert.equal(bulkNegativeFlags.rows.filter((row) => row.allow_negative_stock).length, 2, 'bulk update persists selected ordinary items while premix output remains protected'); checks++;
+  const repeatedBulkNegative = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: true, scope: { type: 'items', itemIds: [negativeStockItem.id, negativeStockBulkItem.id] } }, 200);
+  assert.deepEqual({ updatedCount: repeatedBulkNegative.updatedCount, unchangedCount: repeatedBulkNegative.unchangedCount }, { updatedCount: 0, unchangedCount: 2 }, 'repeating a bulk selection is idempotent and reports unchanged positions'); checks++;
+  const invalidBulkScope = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: true, scope: { type: 'items', itemIds: [negativeStockItem.id, randomUUID()] } }, 404);
+  assert.equal(invalidBulkScope.error, 'negative_stock_items_not_found', 'bulk selection rejects cross-venue or missing ids atomically'); checks++;
+  assert.equal((await client.query('SELECT allow_negative_stock FROM ingredients WHERE id=$1 AND venue_id=$2', [negativeStockItem.id, venueId])).rows[0].allow_negative_stock, true,
+    'owner negative stock permission persists in the tenant-scoped ingredient row'); checks++;
+  const negativeProduct = await req(base, '/api/products', 'POST', { name: `QA продажа в минус ${venueId.slice(0, 8)}`, category: 'Бар', price: 50 }, 201);
+  await req(base, '/api/recipes', 'POST', { productId: negativeProduct.id, name: negativeProduct.name, ingredients: [{ ingredientId: negativeStockItem.id, name: negativeStockItem.name, quantity: '10 мл' }], yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1 }, 201);
+  const negativeOrderId = await createOrderFor(negativeProduct.id);
+  const negativeSale = await req(base, `/api/orders/${negativeOrderId}/close`, 'POST', { paymentMethod: 'cash', paymentAccountId: posCashboxAccountId }, 200);
+  assert.equal(negativeSale.status, 'closed', 'owner-enabled sale closes normally when its ingredient stock is insufficient'); checks++;
+  assert.equal(await getBalance(negativeStockItem.id), -10, 'authorized sale records the full recipe consumption as a negative stock balance'); checks++;
+  const manualStockOut = await req(base, '/api/inventory/movements', 'POST', { itemId: negativeStockItem.id, delta: -1, unit: 'мл', reason: 'Manual stock-out must remain guarded' }, 409);
+  assert.equal(manualStockOut.error, 'insufficient_stock', 'owner sale setting does not permit a manual stock-out to deepen a negative balance'); checks++;
+  const negativeReceipt = await req(base, '/api/inventory/purchase-documents', 'POST', { supplierName: 'Synthetic QA supplier', documentNumber: `QA-NEG-${venueId.slice(0, 8)}`, documentDate: currentDate, lines: [{ ingredientId: negativeStockItem.id, quantity: 1, unit: 'л', unitCost: 20 }] }, 201);
+  await req(base, `/api/inventory/purchase-documents/${negativeReceipt.id}/post`, 'POST', {}, 200);
+  assert.equal(await getBalance(negativeStockItem.id), 990, 'receipt first covers the negative 10 ml deficit, leaving 990 ml');
+  const recoveredNegativeCost = await client.query('SELECT cost FROM ingredients WHERE id=$1 AND venue_id=$2', [negativeStockItem.id, venueId]);
+  assert.equal(Number(recoveredNegativeCost.rows[0].cost), 0.02, 'weighted cost after a receipt covering negative stock equals the incoming unit cost'); checks += 2;
+  const barItemsCount = Number((await client.query("SELECT COUNT(*)::int AS count FROM ingredients WHERE venue_id=$1 AND is_marked=true AND department='bar'", [venueId])).rows[0].count);
+  const departmentBulk = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: false, scope: { type: 'department', department: 'bar' } }, 200);
+  assert.equal(departmentBulk.updatedCount + departmentBulk.unchangedCount, barItemsCount, 'department scope processes every active stock position in only the selected department'); checks++;
 
   console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase/payment→stock→pack/bottle conversions→tobacco and cocktail recipes→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {

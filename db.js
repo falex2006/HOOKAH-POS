@@ -117,7 +117,7 @@ class OrderRepository {
 class InventoryRepository {
   constructor(pool) { this.pool = pool; }
   async list(venueId) {
-    const { rows } = await this.pool.query(`SELECT i.id, i.name, i.short_name AS "shortName", i.department, i.subdepartment, i.category, i.category_id AS "categoryId", i.tobacco_catalog_item_id AS "tobaccoCatalogItemId", i.item_type AS "itemType", i.unit, i.purchase_unit AS "purchaseUnit", i.pack_multiplier AS "packMultiplier", i.cost, i.supplier, i.barcode, i.note, i.min_stock AS "minLevel", i.alcohol_catalog_item_id AS "alcoholCatalogItemId",
+    const { rows } = await this.pool.query(`SELECT i.id, i.name, i.short_name AS "shortName", i.department, i.subdepartment, i.category, i.category_id AS "categoryId", i.tobacco_catalog_item_id AS "tobaccoCatalogItemId", i.item_type AS "itemType", i.unit, i.purchase_unit AS "purchaseUnit", i.pack_multiplier AS "packMultiplier", i.cost, i.supplier, i.barcode, i.note, i.min_stock AS "minLevel", i.allow_negative_stock AS "allowNegativeStock", i.alcohol_catalog_item_id AS "alcoholCatalogItemId",
       (SELECT jsonb_build_object('id',ac.id,'brand',ac.brand,'productLine',ac.product_line,'name',ac.name,'spiritType',ac.spirit_type,'spiritSubtype',ac.spirit_subtype,'country',ac.country,'abv',ac.abv,'bottleMl',ac.bottle_ml,'ageYears',ac.age_years,'barcode',ac.barcode,'active',ac.is_active) FROM alcohol_catalog_items ac WHERE ac.id=i.alcohol_catalog_item_id AND ac.organization_id=i.organization_id) AS "alcoholCatalogItem",
       (SELECT jsonb_build_object('id',tc.id,'brand',tc.brand,'productLine',tc.product_line,'flavor',tc.flavor,'productType',tc.product_type,'packageGrams',tc.package_grams,'strength',tc.strength,'active',tc.is_active) FROM tobacco_catalog_items tc WHERE tc.id=i.tobacco_catalog_item_id AND tc.organization_id=i.organization_id) AS "tobaccoCatalogItem",
       COALESCE(SUM(CASE WHEN sm.direction IN ('in','transfer','adjustment') THEN sm.quantity WHEN sm.direction IN ('out','waste') THEN -sm.quantity ELSE 0 END),0) AS "onHand"
@@ -128,9 +128,9 @@ class InventoryRepository {
     return { items: rows.map((row) => ({ ...row, onHand: Number(row.onHand), minLevel: Number(row.minLevel), cost: Number(row.cost || 0), packMultiplier: Number(row.packMultiplier || 1) })), movements: movements.rows };
   }
   async create(venueId, input, client = this.pool) {
-    const { rows } = await client.query(`INSERT INTO ingredients (venue_id,name,short_name,department,subdepartment,category,category_id,tobacco_catalog_item_id,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note,alcohol_catalog_item_id,is_marked)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,true)
-      RETURNING id,name,short_name AS "shortName",department,subdepartment,category,category_id AS "categoryId",tobacco_catalog_item_id AS "tobaccoCatalogItemId",item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note,alcohol_catalog_item_id AS "alcoholCatalogItemId"`, [venueId, input.name, input.shortName || null, input.department || 'inventory', input.subdepartment || '', input.category || 'Без категории', input.categoryId || null, input.tobaccoCatalogItemId || null, input.itemType || 'ingredient', input.unit, input.purchaseUnit || null, input.packMultiplier || 1, input.cost || 0, input.minLevel || 0, input.supplier || null, input.barcode || null, input.note || null, input.alcoholCatalogItemId || null]);
+    const { rows } = await client.query(`INSERT INTO ingredients (venue_id,name,short_name,department,subdepartment,category,category_id,tobacco_catalog_item_id,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note,alcohol_catalog_item_id,allow_negative_stock,is_marked)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,true)
+      RETURNING id,name,short_name AS "shortName",department,subdepartment,category,category_id AS "categoryId",tobacco_catalog_item_id AS "tobaccoCatalogItemId",item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note,allow_negative_stock AS "allowNegativeStock",alcohol_catalog_item_id AS "alcoholCatalogItemId"`, [venueId, input.name, input.shortName || null, input.department || 'inventory', input.subdepartment || '', input.category || 'Без категории', input.categoryId || null, input.tobaccoCatalogItemId || null, input.itemType || 'ingredient', input.unit, input.purchaseUnit || null, input.packMultiplier || 1, input.cost || 0, input.minLevel || 0, input.supplier || null, input.barcode || null, input.note || null, input.alcoholCatalogItemId || null, Boolean(input.allowNegativeStock)]);
     return rows[0];
   }
   async update(venueId, id, input, client = this.pool) {
@@ -141,10 +141,10 @@ class InventoryRepository {
         if (history.rowCount) throw new Error('inventory_unit_has_movements');
       }
     }
-    const fields = []; const values = [id, venueId]; const allowed = [['name','name'],['shortName','short_name'],['department','department'],['subdepartment','subdepartment'],['category','category'],['categoryId','category_id'],['tobaccoCatalogItemId','tobacco_catalog_item_id'],['itemType','item_type'],['unit','unit'],['purchaseUnit','purchase_unit'],['packMultiplier','pack_multiplier'],['cost','cost'],['minLevel','min_stock'],['supplier','supplier'],['barcode','barcode'],['note','note'],['alcoholCatalogItemId','alcohol_catalog_item_id']];
+    const fields = []; const values = [id, venueId]; const allowed = [['name','name'],['shortName','short_name'],['department','department'],['subdepartment','subdepartment'],['category','category'],['categoryId','category_id'],['tobaccoCatalogItemId','tobacco_catalog_item_id'],['itemType','item_type'],['unit','unit'],['purchaseUnit','purchase_unit'],['packMultiplier','pack_multiplier'],['cost','cost'],['minLevel','min_stock'],['supplier','supplier'],['barcode','barcode'],['note','note'],['alcoholCatalogItemId','alcohol_catalog_item_id'],['allowNegativeStock','allow_negative_stock']];
     for (const [key, column] of allowed) if (input[key] !== undefined) { values.push(input[key]); fields.push(`${column}=$${values.length}`); }
     if (!fields.length) return null;
-    const { rows } = await client.query(`UPDATE ingredients SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name,short_name AS "shortName",department,subdepartment,category,category_id AS "categoryId",tobacco_catalog_item_id AS "tobaccoCatalogItemId",item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note,alcohol_catalog_item_id AS "alcoholCatalogItemId"`, values);
+    const { rows } = await client.query(`UPDATE ingredients SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name,short_name AS "shortName",department,subdepartment,category,category_id AS "categoryId",tobacco_catalog_item_id AS "tobaccoCatalogItemId",item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note,allow_negative_stock AS "allowNegativeStock",alcohol_catalog_item_id AS "alcoholCatalogItemId"`, values);
     return rows[0] || null;
   }
   async archive(venueId, id) {
@@ -205,7 +205,8 @@ class InventoryRepository {
       const onHandBefore = Number(balanceRows[0]?.value || 0);
       const onHandAfter = onHandBefore + quantity;
       const normalizedUnitCost = unitCost / factor;
-      const weightedCost = onHandAfter > 0 ? (Math.max(0, onHandBefore) * Number(item.cost || 0) + quantity * normalizedUnitCost) / onHandAfter : normalizedUnitCost;
+      const remainingReceipt = Math.max(0, quantity - Math.max(0, -onHandBefore));
+      const weightedCost = onHandAfter > 0 ? (Math.max(0, onHandBefore) * Number(item.cost || 0) + remainingReceipt * normalizedUnitCost) / onHandAfter : normalizedUnitCost;
       const { rows } = await client.query(`INSERT INTO stock_movements (venue_id, ingredient_id, direction, quantity, reason, created_by)
         VALUES ($1,$2,'in',$3,$4,$5) RETURNING id,ingredient_id AS "itemId",quantity,direction,reason,created_at AS "createdAt"`, [input.venueId, input.ingredientId, quantity, input.reason || null, input.createdBy || null]);
       const preciseWeightedCost = Number(weightedCost.toFixed(4));
@@ -517,10 +518,11 @@ class PurchaseDocumentRepository {
         const beforeOnHand = Number(beforeOnHandResult.rows[0]?.value || 0);
         const beforeCost = Number(currentCosts.get(line.ingredient_id) || 0);
         const beforeMovementVersion = Number(currentVersions.get(line.ingredient_id) || 0);
-        if (!Number.isFinite(beforeOnHand) || beforeOnHand < 0) throw new Error('purchase_reversal_snapshot_unavailable');
+        if (!Number.isFinite(beforeOnHand)) throw new Error('purchase_reversal_snapshot_unavailable');
         const movement = await client.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,created_by) VALUES ($1,$2,'in',$3,$4,$5) RETURNING id`, [venueId, line.ingredient_id, line.stock_quantity, `Поставка по документу ${doc.document_number || id}`, actorId || null]);
         const newOnHand = Number((beforeOnHand + Number(line.stock_quantity)).toFixed(6));
-        const nextCost = newOnHand > 0 ? ((beforeOnHand * beforeCost) + (Number(line.stock_quantity) * Number(line.receipt_unit_cost))) / newOnHand : Number(line.receipt_unit_cost);
+        const remainingReceipt = Math.max(0, Number(line.stock_quantity) - Math.max(0, -beforeOnHand));
+        const nextCost = newOnHand > 0 ? ((Math.max(0, beforeOnHand) * beforeCost) + (remainingReceipt * Number(line.receipt_unit_cost))) / newOnHand : Number(line.receipt_unit_cost);
         const preciseNextCost = Number(nextCost.toFixed(4));
         await client.query('UPDATE ingredients SET cost=$1 WHERE id=$2 AND venue_id=$3', [preciseNextCost, line.ingredient_id, venueId]);
         const versionCheck = await client.query('SELECT stock_movement_version FROM ingredients WHERE id=$1 AND venue_id=$2', [line.ingredient_id, venueId]);

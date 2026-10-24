@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 
 const read = (name) => fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 const migration = read('migrations/097_purchase_document_reversals.sql');
+const negativeStockMigration = read('migrations/210_inventory_owner_negative_stock.sql');
 const repository = read('db.js');
 const server = read('server.js');
 const portal = read('portal.js');
@@ -16,11 +17,11 @@ assertHas(migration, /CREATE INDEX IF NOT EXISTS expenses_unlinked_purchase_venu
 assertHas(migration, /inventory_purchase_documents_venue_id_id_uq[\s\S]*?ON inventory_purchase_documents\(venue_id,id\)/, 'tenant-composite parent key exists before scoped foreign keys');
 assertHas(migration, /source_movement_version[\s\S]*?inventory_purchase_reversal_movement_scope_guard/, 'reversal lines and movements retain source lineage');
 assertHas(repository, /async updateReversalPolicy[\s\S]*?INSERT INTO audit_events[\s\S]*?inventory\.purchase_reversal_policy_changed/, 'policy changes append a version and audit in one transaction');
-const post = repository.match(/async post\(venueId, id, actorId\) \{([\s\S]*?)\n  \}\n  async reverse/);
+const post = repository.match(/async post\(venueId, id, actorId\) \{([\s\S]*?)\r?\n  \}\r?\n  async reverse/);
 assert.ok(post, 'receipt posting method remains bounded and discoverable');
 assertHas(post[1], /on_hand_before_snapshot[\s\S]*?movement_version_after_snapshot/, 'posting captures exact valuation and movement version snapshots');
 assertHas(post[1], /source_auto_order_status_before[\s\S]*?source_auto_order_status_after/, 'posting captures exact auto-order rollback snapshots');
-const reverse = repository.match(/async reverse\(input\) \{([\s\S]*?)\n  \}\n\}/);
+const reverse = repository.match(/async reverse\(input\) \{([\s\S]*?)\r?\n  \}\r?\n\}/);
 assert.ok(reverse, 'reversal transaction method remains bounded and discoverable');
 for (const pattern of [
   /AND v\.organization_id=\$3[\s\S]*?FOR UPDATE OF d,v/,
@@ -41,4 +42,6 @@ assertHas(server, /pathname === '\/api\/venue\/purchase-reversal-policy'[\s\S]*?
 assertHas(server, /purchase_document_reversal_payment_coverage_unavailable:\s*409/, 'legacy payment coverage refusal is a conflict response');
 assertHas(portal, /purchase-reversal-enabled[\s\S]*?loadReversalPolicy[\s\S]*?data-purchase-reverse[\s\S]*?purchase-reversal:[\s\S]*?sessionStorage\.removeItem/, 'venue settings and retry-safe reversal action are present in the UI source');
 assert.equal(crypto.createHash('sha256').update(portal).digest('hex'), crypto.createHash('sha256').update(distPortal).digest('hex'), 'portal.js and dist/portal.js are byte-identical');
+assertHas(negativeStockMigration, /allow_negative_stock boolean NOT NULL DEFAULT false/, 'negative stock is disabled by default for all existing and new positions');
+assertHas(negativeStockMigration, /on_hand_after_snapshot > on_hand_before_snapshot/, 'purchase snapshots allow a receipt to cover negative stock while preserving forward movement');
 console.log('PURCHASE REVERSAL CONTRACT: PASS (migration, immutable evidence, tenant/RBAC, UI wiring, source/dist parity)');

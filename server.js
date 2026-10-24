@@ -555,7 +555,12 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
       if (ownsTransaction) await client.query('COMMIT');
       return { lines: [], totalCost: historicalCost, alreadyDepleted: true, costEvidenceInput: unavailableInventoryOrderCostCapture() };
     }
-    const { rows: stock } = await client.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','transfer','adjustment') THEN sm.quantity WHEN sm.direction IN ('out','waste') THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, queryIds, queryNames]);
+    const { rows: stock } = await client.query(`SELECT i.id, i.name, i.cost, i.unit, i.allow_negative_stock AS "allowNegativeStock",
+      (EXISTS (SELECT 1 FROM inventory_recipe_cards rc WHERE rc.venue_id=i.venue_id AND rc.output_ingredient_id=i.id AND rc.recipe_type='premix')
+        OR EXISTS (SELECT 1 FROM inventory_premix_batches pb WHERE pb.venue_id=i.venue_id AND pb.output_ingredient_id=i.id)) AS "isPremixOutput",
+      COALESCE(SUM(CASE WHEN sm.direction IN ('in','transfer','adjustment') THEN sm.quantity WHEN sm.direction IN ('out','waste') THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand
+      FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id
+      WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, queryIds, queryNames]);
     const byId = new Map(stock.map((item) => [item.id, item])); const byName = new Map(stock.map((item) => [item.name.toLowerCase(), item]));
     const grouped = new Map();
     const factors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
@@ -569,12 +574,13 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
       const previous = grouped.get(found.id);
       grouped.set(found.id, { ingredientId: found.id, name: found.name, unit: found.unit, quantity: (previous?.quantity || 0) + converted, stock: found });
     }
-    const finalRequirements = [...grouped.values()]; const missing = finalRequirements.filter((item) => !item.stock || Number(item.stock.on_hand || 0) < Number(item.quantity));
+    const finalRequirements = [...grouped.values()]; const missing = finalRequirements.filter((item) => !item.stock || (Number(item.stock.on_hand || 0) < Number(item.quantity) && (!item.stock.allowNegativeStock || item.stock.isPremixOutput)));
     if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((item) => ({ ...item, onHand: Number(item.stock?.on_hand || 0) })); throw error; }
     for (const item of finalRequirements) {
       const { rows: movementRows } = await client.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6) RETURNING id,quantity::text AS quantity`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
       costCapture.recordMovement(item.ingredientId, movementRows[0]);
-      await allocatePremixBatchConsumption(client, { venueId, ingredientId: item.ingredientId, stockMovementId: movementRows[0].id, quantity: item.quantity, onHandBefore: Number(item.stock?.on_hand || 0), createdBy: actorId, reason: `Списание по заказу ${orderId}` });
+      const availableForBatchAllocation = Math.min(Number(item.quantity), Math.max(0, Number(item.stock?.on_hand || 0)));
+      await allocatePremixBatchConsumption(client, { venueId, ingredientId: item.ingredientId, stockMovementId: movementRows[0].id, quantity: availableForBatchAllocation, onHandBefore: Number(item.stock?.on_hand || 0), createdBy: actorId, reason: `Списание по заказу ${orderId}` });
     }
     if (ownsTransaction) await client.query('COMMIT');
     return { lines: finalRequirements, totalCost: finalRequirements.reduce((sum, item) => sum + Number(item.quantity) * Number(item.stock?.cost || 0), 0), costEvidenceInput: costCapture.snapshot() };
@@ -940,12 +946,18 @@ const depleteMemoryOrder = (order, { reason = `Списание по заказ�
       if (previous) previous.quantity += quantity; else requirements.push({ name: stock.name, ingredientId: stock.id, quantity, stock });
     }
   }
-  const missing = requirements.filter((entry) => !entry.stock || !Number.isFinite(entry.quantity) || Number(entry.stock.onHand || 0) < entry.quantity);
+  const isPremixOutput = (ingredientId) => recipes.some((recipe) => (recipe.recipeType || 'sale') === 'premix' && String(recipe.outputIngredientId || '') === String(ingredientId))
+    || stockMovements.some((movement) => movement.type === 'premix' && String(movement.outputItemId || '') === String(ingredientId));
+  const missing = requirements.filter((entry) => !entry.stock || !Number.isFinite(entry.quantity)
+    || (Number(entry.stock.onHand || 0) < entry.quantity && (!entry.stock.allowNegativeStock || isPremixOutput(entry.ingredientId))));
   if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((entry) => ({ ...entry, onHand: Number(entry.stock?.onHand || 0) })); throw error; }
   const movementIds = new Map(requirements.map((entry) => [entry.ingredientId, `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`]));
-  for (const entry of requirements) allocateMemoryPremixConsumption(entry.stock.id, entry.quantity, Number(entry.stock.onHand || 0), movementIds.get(entry.ingredientId), reason, { apply: false });
+  for (const entry of requirements) {
+    const availableForBatchAllocation = Math.min(entry.quantity, Math.max(0, Number(entry.stock.onHand || 0)));
+    allocateMemoryPremixConsumption(entry.stock.id, availableForBatchAllocation, Number(entry.stock.onHand || 0), movementIds.get(entry.ingredientId), reason, { apply: false });
+  }
   const totalCost = requirements.reduce((sum, entry) => sum + Number(entry.quantity) * Number(entry.stock?.cost || 0), 0);
-  for (const entry of requirements) { const before = Number(entry.stock.onHand || 0); const movementId = movementIds.get(entry.ingredientId); allocateMemoryPremixConsumption(entry.stock.id, entry.quantity, before, movementId, reason); entry.stock.onHand = Number((before - entry.quantity).toFixed(6)); stockMovements.push({ id: movementId, itemId: entry.stock.id, itemName: entry.stock.name, direction: 'out', delta: -entry.quantity, quantity: entry.quantity, reason, orderId: order.id, createdAt: new Date().toISOString() }); }
+  for (const entry of requirements) { const before = Number(entry.stock.onHand || 0); const movementId = movementIds.get(entry.ingredientId); const availableForBatchAllocation = Math.min(entry.quantity, Math.max(0, before)); allocateMemoryPremixConsumption(entry.stock.id, availableForBatchAllocation, before, movementId, reason); entry.stock.onHand = Number((before - entry.quantity).toFixed(6)); stockMovements.push({ id: movementId, itemId: entry.stock.id, itemName: entry.stock.name, direction: 'out', delta: -entry.quantity, quantity: entry.quantity, reason, orderId: order.id, createdAt: new Date().toISOString() }); }
   order.recipeDepleted = true; order.costOfGoods = totalCost;
   return { lines: requirements, totalCost };
 };
@@ -3285,8 +3297,9 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
       try {
         await beginPayrollSourceProducerTransaction(client, venueDbId);
         if (outputIngredientId) {
-          const output = await client.query('SELECT id FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [outputIngredientId, venueDbId]);
+          const output = await client.query('SELECT id,allow_negative_stock AS "allowNegativeStock" FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [outputIngredientId, venueDbId]);
           if (!output.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'premix_output_item_not_found' }); }
+          if (output.rows[0].allowNegativeStock) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_output_negative_stock_not_allowed' }); }
           const duplicateOutput = await client.query("SELECT 1 FROM inventory_recipe_cards WHERE venue_id=$1 AND recipe_type='premix' AND output_ingredient_id=$2 LIMIT 1", [venueDbId, outputIngredientId]);
           if (duplicateOutput.rowCount) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_output_already_bound' }); }
         }
@@ -3336,8 +3349,9 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         const hasPremixBatches = existing.recipeType === 'premix' ? await client.query('SELECT 1 FROM inventory_premix_batches WHERE recipe_id=$1 AND venue_id=$2 LIMIT 1', [recipeProfile[1], venueDbId]) : { rowCount: 0 };
         if (hasPremixBatches.rowCount && (nextType !== 'premix' || (existing.outputIngredientId && String(nextOutputIngredientId) !== String(existing.outputIngredientId)))) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_recipe_has_batches' }); }
         if (nextOutputIngredientId) {
-          const output = await client.query('SELECT id FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [nextOutputIngredientId, venueDbId]);
+          const output = await client.query('SELECT id,allow_negative_stock AS "allowNegativeStock" FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [nextOutputIngredientId, venueDbId]);
           if (!output.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'premix_output_item_not_found' }); }
+          if (output.rows[0].allowNegativeStock) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_output_negative_stock_not_allowed' }); }
           const duplicateOutput = await client.query("SELECT 1 FROM inventory_recipe_cards WHERE venue_id=$1 AND recipe_type='premix' AND output_ingredient_id=$2 AND id<>$3 LIMIT 1", [venueDbId, nextOutputIngredientId, recipeProfile[1]]);
           if (duplicateOutput.rowCount) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_output_already_bound' }); }
         }
@@ -5053,6 +5067,54 @@ if (staffProfile && req.method === 'PATCH') {
     return json(res, 200, request);
   }
   const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
+  if (pathname === '/api/inventory/negative-stock-settings' && req.method === 'POST') {
+    if (req.user?.role !== 'owner') return json(res, 403, { error: 'inventory_negative_stock_owner_required' });
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const scope = input.scope || {};
+    if (typeof input.enabled !== 'boolean') return json(res, 400, { error: 'invalid_allow_negative_stock' });
+    if (!['all', 'department', 'category', 'items'].includes(scope.type)) return json(res, 400, { error: 'invalid_negative_stock_scope' });
+    if (scope.type === 'department' && (typeof scope.department !== 'string' || !scope.department.trim() || scope.department.length > 80)) return json(res, 400, { error: 'invalid_negative_stock_department' });
+    if (scope.type === 'category' && ((scope.categoryId != null && !/^[0-9a-f-]{36}$/i.test(String(scope.categoryId))) || (scope.categoryId == null && (typeof scope.category !== 'string' || !scope.category.trim() || scope.category.length > 80)))) return json(res, 400, { error: 'invalid_negative_stock_category' });
+    if (scope.type === 'category' && scope.department !== undefined && (typeof scope.department !== 'string' || !scope.department.trim() || scope.department.length > 80)) return json(res, 400, { error: 'invalid_negative_stock_department' });
+    if (scope.type === 'items' && (!Array.isArray(scope.itemIds) || !scope.itemIds.length || scope.itemIds.length > 500 || scope.itemIds.some((id) => typeof id !== 'string' || !id.trim()) || new Set(scope.itemIds).size !== scope.itemIds.length)) return json(res, 400, { error: 'invalid_negative_stock_items' });
+    if (repositories?.pool) {
+      if (scope.type === 'items' && scope.itemIds.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) return json(res, 400, { error: 'invalid_negative_stock_items' });
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        let candidates;
+        if (scope.type === 'items') {
+          candidates = await client.query('SELECT id,allow_negative_stock AS "allowNegativeStock" FROM ingredients WHERE venue_id=$1 AND is_marked=true AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE', [venueDbId, scope.itemIds]);
+          if (candidates.rows.length !== scope.itemIds.length) { await client.query('ROLLBACK'); return json(res, 404, { error: 'negative_stock_items_not_found' }); }
+        } else {
+          const where = scope.type === 'department' ? 'AND department=$2' : scope.type === 'category' ? 'AND (($2::uuid IS NOT NULL AND category_id=$2::uuid) OR ($2::uuid IS NULL AND lower(btrim(category))=lower(btrim($3)))) AND ($4::text IS NULL OR department=$4)' : '';
+          const params = scope.type === 'department' ? [venueDbId, scope.department.trim()] : scope.type === 'category' ? [venueDbId, scope.categoryId || null, scope.categoryId ? null : scope.category.trim(), scope.department || null] : [venueDbId];
+          candidates = await client.query(`SELECT id,allow_negative_stock AS "allowNegativeStock" FROM ingredients WHERE venue_id=$1 AND is_marked=true ${where} ORDER BY id FOR UPDATE`, params);
+        }
+        const ids = candidates.rows.map((row) => row.id);
+        if (!ids.length) { await client.query('COMMIT'); return json(res, 200, { enabled: input.enabled, updatedCount: 0, unchangedCount: 0, excludedPremixCount: 0 }); }
+        const premixes = input.enabled ? await client.query(`SELECT id FROM ingredients i WHERE i.venue_id=$1 AND i.id=ANY($2::uuid[]) AND (EXISTS(SELECT 1 FROM inventory_recipe_cards r WHERE r.venue_id=i.venue_id AND r.output_ingredient_id=i.id AND r.recipe_type='premix') OR EXISTS(SELECT 1 FROM inventory_premix_batches b WHERE b.venue_id=i.venue_id AND b.output_ingredient_id=i.id))`, [venueDbId, ids]) : { rows: [] };
+        const excludedIds = premixes.rows.map((row) => row.id); const eligibleIds = ids.filter((id) => !excludedIds.includes(id));
+        const eligibleRows = candidates.rows.filter((row) => eligibleIds.includes(row.id));
+        const unchangedCount = eligibleRows.filter((row) => Boolean(row.allowNegativeStock) === input.enabled).length;
+        const updatedCount = eligibleIds.length - unchangedCount;
+        if (updatedCount) await client.query('UPDATE ingredients SET allow_negative_stock=$3 WHERE venue_id=$1 AND id=ANY($2::uuid[]) AND allow_negative_stock IS DISTINCT FROM $3', [venueDbId, eligibleIds, input.enabled]);
+        const auditAfter = { enabled: input.enabled, scope: { type: scope.type, department: scope.department || null, categoryId: scope.categoryId || null, category: scope.category || null, itemCount: ids.length }, updatedCount, unchangedCount, excludedPremixCount: excludedIds.length };
+        await repositories.audit.record({ venueId: venueDbId, actorId: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, action: 'inventory.negative_stock_bulk_changed', entityType: 'inventory', entityId: null, beforeData: null, afterData: auditAfter }, client);
+        await client.query('COMMIT');
+        return json(res, 200, { enabled: input.enabled, updatedCount, unchangedCount, excludedPremixCount: excludedIds.length });
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'negative_stock_bulk_update_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
+    const memoryVenueId = String(req.user?.venueId || currentVenueId);
+    const venueInventory = inventory.filter((item) => String(item.venueId || '') === memoryVenueId);
+    const scoped = scope.type === 'items' ? venueInventory.filter((item) => scope.itemIds.includes(item.id)) : venueInventory.filter((item) => scope.type === 'all' || (scope.type === 'department' && item.department === scope.department) || (scope.type === 'category' && (!scope.department || item.department === scope.department) && ((scope.categoryId && String(item.categoryId) === String(scope.categoryId)) || (!scope.categoryId && String(item.category || '').trim().toLowerCase() === String(scope.category || '').trim().toLowerCase()))));
+    if (scope.type === 'items' && scoped.length !== scope.itemIds.length) return json(res, 404, { error: 'negative_stock_items_not_found' });
+    const eligible = input.enabled ? scoped.filter((item) => !item.isPremixOutput) : scoped; const excludedPremixCount = scoped.length - eligible.length; const unchangedCount = eligible.filter((item) => Boolean(item.allowNegativeStock) === input.enabled).length; const updatedCount = eligible.length - unchangedCount;
+    eligible.forEach((item) => { item.allowNegativeStock = input.enabled; });
+    recordAudit(req, 'inventory.negative_stock_bulk_changed', 'inventory', null, null, { enabled: input.enabled, scope: { type: scope.type, department: scope.department || null, categoryId: scope.categoryId || null, category: scope.category || null, itemCount: scoped.length }, updatedCount, unchangedCount, excludedPremixCount });
+    return json(res, 200, { enabled: input.enabled, updatedCount, unchangedCount, excludedPremixCount });
+  }
   const validateInventoryHierarchy = async (department, subdepartment, client = repositories?.pool) => {
     if (!repositories?.pool) return null;
     const departmentCode = String(department || '').trim(); const subdepartmentName = String(subdepartment || '').trim();
@@ -5136,6 +5198,8 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/inventory/items' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req);
+    if (Object.hasOwn(input, 'allowNegativeStock') && req.user?.role !== 'owner') return json(res, 403, { error: 'inventory_negative_stock_owner_required' });
+    if (input.allowNegativeStock !== undefined && typeof input.allowNegativeStock !== 'boolean') return json(res, 400, { error: 'invalid_allow_negative_stock' });
     const name = String(input.name || '').trim();
     const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
     const itemType = String(input.itemType || 'ingredient');
@@ -5151,14 +5215,16 @@ if (staffProfile && req.method === 'PATCH') {
     const alcoholLinkError=await validateAlcoholCatalogLink(input.alcoholCatalogItemId); if(alcoholLinkError) return json(res,400,{error:alcoholLinkError});
     if (input.tobaccoCatalogItemId !== undefined && input.tobaccoCatalogItemId !== null && typeof input.tobaccoCatalogItemId !== 'string') return json(res,400,{error:'invalid_tobacco_catalog_item_id'});
     const tobaccoLinkError=await validateTobaccoCatalogLink(input.tobaccoCatalogItemId); if(tobaccoLinkError) return json(res,400,{error:tobaccoLinkError});
-    const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, department, subdepartment: String(input.subdepartment || '').trim().slice(0, 80), category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', categoryId: input.categoryId || null, tobaccoCatalogItemId: input.tobaccoCatalogItemId || null, itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost: calculatedCost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null, alcoholCatalogItemId: input.alcoholCatalogItemId || null };
+    const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, department, subdepartment: String(input.subdepartment || '').trim().slice(0, 80), category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', categoryId: input.categoryId || null, tobaccoCatalogItemId: input.tobaccoCatalogItemId || null, itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost: calculatedCost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null, alcoholCatalogItemId: input.alcoholCatalogItemId || null, allowNegativeStock: input.allowNegativeStock === true };
     if (repositories?.inventory) { try { const result = repositories?.pool ? await withInventoryHierarchyTransaction(department, clean.subdepartment, clean.category, (client, categoryId) => repositories.inventory.create(venueDbId, { ...clean, categoryId }, client), clean.categoryId) : { value: await repositories.inventory.create(venueDbId, clean) }; if (result.error) return json(res, result.error === 'inventory_hierarchy_unavailable' ? 503 : 400, { error: result.error }); const item = result.value; recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, { ...item, onHand: 0 }); } catch (error) { const validationErrors = new Set(['inventory_category_not_found','inventory_category_ambiguous','inventory_category_subdepartment_mismatch']); if (validationErrors.has(error.message)) return json(res,400,{error:error.message}); return json(res, 409, { error: 'inventory_item_create_failed', detail: error.message }); } }
-    const item = { id: `ing-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`, ...clean, onHand: 0, active: true }; inventory.push(item); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, item);
+    const item = { id: `ing-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`, venueId: String(req.user?.venueId || currentVenueId), ...clean, onHand: 0, active: true }; inventory.push(item); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, item);
   }
   if (inventoryItemPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req);
-    const editableFields = ['name','shortName','department','subdepartment','category','categoryId','tobaccoCatalogItemId','itemType','unit','purchaseUnit','packMultiplier','purchaseCost','cost','minLevel','supplier','barcode','note','alcoholCatalogItemId'];
+    if (Object.hasOwn(input, 'allowNegativeStock') && req.user?.role !== 'owner') return json(res, 403, { error: 'inventory_negative_stock_owner_required' });
+    if (input.allowNegativeStock !== undefined && typeof input.allowNegativeStock !== 'boolean') return json(res, 400, { error: 'invalid_allow_negative_stock' });
+    const editableFields = ['name','shortName','department','subdepartment','category','categoryId','tobaccoCatalogItemId','itemType','unit','purchaseUnit','packMultiplier','purchaseCost','cost','minLevel','supplier','barcode','note','alcoholCatalogItemId','allowNegativeStock'];
     if (!Object.keys(input).length || Object.keys(input).some((key) => !editableFields.includes(key))) return json(res, 400, { error: 'invalid_inventory_item_fields' });
     const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
     if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'invalid_inventory_item_name' });
@@ -5172,14 +5238,15 @@ if (staffProfile && req.method === 'PATCH') {
     for (const key of ['cost', 'purchaseCost', 'minLevel', 'packMultiplier']) if (input[key] !== undefined && input[key] !== null && input[key] !== '' && (!Number.isFinite(Number(input[key])) || Number(input[key]) < (key === 'packMultiplier' ? 0.01 : 0))) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
     if (repositories?.inventory) {
       try {
-        let item;
+        let item; let previousAllowNegativeStock = false;
         if (repositories?.pool) {
           const client = await repositories.pool.connect();
           try {
             await beginPayrollSourceProducerTransaction(client, venueDbId);
-            const current = await client.query('SELECT department,subdepartment,category,category_id AS "categoryId",pack_multiplier AS "packMultiplier",cost FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [inventoryItemPath[1], venueDbId]);
+            const current = await client.query('SELECT department,subdepartment,category,category_id AS "categoryId",pack_multiplier AS "packMultiplier",cost,allow_negative_stock AS "allowNegativeStock" FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [inventoryItemPath[1], venueDbId]);
             if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_item_not_found' }); }
             const observed = current.rows[0];
+            previousAllowNegativeStock = Boolean(observed.allowNegativeStock);
             const nextDepartment = input.department !== undefined ? input.department : observed.department;
             const nextSubdepartment = input.subdepartment !== undefined ? input.subdepartment : observed.subdepartment;
             const nextCategory = input.category !== undefined ? input.category : observed.category;
@@ -5194,13 +5261,19 @@ if (staffProfile && req.method === 'PATCH') {
             const locked = await client.query('SELECT department,subdepartment,category FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [inventoryItemPath[1], venueDbId]);
             if (!locked.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_item_not_found' }); }
             if (locked.rows[0].department !== observed.department || locked.rows[0].subdepartment !== observed.subdepartment || locked.rows[0].category !== observed.category) { await client.query('ROLLBACK'); return json(res, 409, { error: 'inventory_item_changed_retry' }); }
+            if (input.allowNegativeStock === true) {
+              const premixOutput = await client.query(`SELECT EXISTS(SELECT 1 FROM inventory_recipe_cards WHERE venue_id=$1 AND output_ingredient_id=$2 AND recipe_type='premix')
+                OR EXISTS(SELECT 1 FROM inventory_premix_batches WHERE venue_id=$1 AND output_ingredient_id=$2) AS value`, [venueDbId, inventoryItemPath[1]]);
+              if (premixOutput.rows[0]?.value) { await client.query('ROLLBACK'); return json(res, 409, { error: 'premix_output_negative_stock_not_allowed' }); }
+            }
             const normalizedInput = { ...input }; if (input.purchaseCost !== undefined && input.purchaseCost !== null && input.purchaseCost !== '') { const factor = Number(input.packMultiplier ?? observed.packMultiplier); normalizedInput.cost = Number((Number(input.purchaseCost) / factor).toFixed(4)); } delete normalizedInput.purchaseCost; item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], { ...normalizedInput, ...(categoryChanged || input.categoryId !== undefined ? { categoryId: resolvedCategoryId } : {}) }, client);
             await client.query('COMMIT');
           } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
           finally { client.release(); }
-        } else { const normalizedInput = { ...input }; const current = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (input.purchaseCost !== undefined && input.purchaseCost !== null && input.purchaseCost !== '') { const factor = Number(input.packMultiplier ?? current?.packMultiplier ?? 1); normalizedInput.cost = Number((Number(input.purchaseCost) / factor).toFixed(4)); } delete normalizedInput.purchaseCost; item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], normalizedInput); }
+        } else { const normalizedInput = { ...input }; const current = inventory.find((entry) => entry.id === inventoryItemPath[1]); previousAllowNegativeStock = Boolean(current?.allowNegativeStock); if (input.allowNegativeStock === true && current?.isPremixOutput) return json(res, 409, { error: 'premix_output_negative_stock_not_allowed' }); if (input.purchaseCost !== undefined && input.purchaseCost !== null && input.purchaseCost !== '') { const factor = Number(input.packMultiplier ?? current?.packMultiplier ?? 1); normalizedInput.cost = Number((Number(input.purchaseCost) / factor).toFixed(4)); } delete normalizedInput.purchaseCost; item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], normalizedInput); }
         if (!item) return json(res, 404, { error: 'inventory_item_not_found' });
         recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item);
+        if (input.allowNegativeStock !== undefined) recordAudit(req, 'inventory.negative_stock_setting_changed', 'inventory', item.id, { allowNegativeStock: previousAllowNegativeStock }, { allowNegativeStock: item.allowNegativeStock });
         return json(res, 200, item);
       } catch (error) { const validationErrors = new Set(['inventory_category_not_found','inventory_category_ambiguous','inventory_category_subdepartment_mismatch']); if (validationErrors.has(error.message)) return json(res,400,{error:error.message}); return json(res, 409, { error: 'inventory_item_update_failed', detail: error.message }); }
     }
@@ -5214,7 +5287,8 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/inventory' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'inventory') && !hasPermission(req, 'inventory_read')) return json(res, 403, { error: 'forbidden', permission: 'inventory' });
     if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter(isBelowInventoryMinimum) }); } catch (_) { return json(res, 503, { error: 'inventory_unavailable' }); } }
-    return json(res, 200, { items: inventory, lowStock: inventory.filter(isBelowInventoryMinimum), movements: stockMovements.slice(-20).reverse() });
+    const memoryVenueId = String(req.user?.venueId || currentVenueId); const venueInventory = inventory.filter((item) => String(item.venueId || '') === memoryVenueId);
+    return json(res, 200, { items: venueInventory, lowStock: venueInventory.filter(isBelowInventoryMinimum), movements: stockMovements.slice(-20).reverse() });
   }
   if (pathname === '/api/inventory/supplies' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
