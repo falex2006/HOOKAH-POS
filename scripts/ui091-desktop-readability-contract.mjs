@@ -30,7 +30,9 @@ for(const body of [controls,cards,hero])assert.doesNotMatch(body,/var\(--(?:surf
 
 const marker='/* UI-09.1: confirmed desktop light-theme readability regressions. */';
 const scopeStart=css.indexOf(marker);assert.ok(scopeStart>=0,'readability remediation scope required');
-const scope=css.slice(scopeStart);
+const scopeEnd=css.indexOf('/* Canonical server-priced totals occupy a separate row above the seating timer. */',scopeStart);
+assert.ok(scopeEnd>scopeStart,'readability remediation scope boundary required');
+const scope=css.slice(scopeStart,scopeEnd);
 assert.equal([...scope.matchAll(/\{/g)].length,3,'readability scope contains only three proven light fixes');
 assert.doesNotMatch(scope,/!important|position:|height:|display:|\.portal-header|\.portal-sidebar/,'readability fixes cannot alter shell geometry');
 const headerSelector='.portal.light-theme :is(.inventory-stock-panel,.inventory-auto-order-panel) thead th';

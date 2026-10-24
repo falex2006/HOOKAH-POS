@@ -44,7 +44,7 @@ async function fixture(options = {}) {
     requests.push({ url, init, resolve: (status, payload) => resolve(response(status, payload)), reject });
     return promise;
   };
-  Object.assign(f.context, { localStorage, fetch, location: { replace: url => redirects.push(url) }, requestAnimationFrame: callback => frames.push(callback), Event: class { constructor(type) { this.type = type; } }, Date, JSON, encodeURIComponent });
+  Object.assign(f.context, { localStorage, fetch, location: { replace: url => redirects.push(url) }, requestAnimationFrame: callback => frames.push(callback), AbortController, Event: class { constructor(type) { this.type = type; } }, Date, JSON, encodeURIComponent });
   window.setTimeout = f.context.setTimeout;
   vm.runInContext(lockSource, f.context, { filename: 'lock.js' });
   await settle();
