@@ -175,7 +175,7 @@ async function handleFinancePayableRoute({ req, res, url, pool, venueId, json, r
     try {
       const activeOnly = url.searchParams.get('active') !== 'false';
       const { rows } = await pool.query(`SELECT id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active,code
-        FROM finance_accounts WHERE venue_id=$1 AND ($2::boolean=false OR active=true) ORDER BY active DESC,kind,code,id`, [venueId,activeOnly]);
+        FROM finance_accounts WHERE venue_id=$1 AND code<>'pos_card_receipts' AND ($2::boolean=false OR active=true) ORDER BY active DESC,kind,code,id`, [venueId,activeOnly]);
       return json(res,200,{ items:rows });
     } catch (error) { return json(res,503,{error:'finance_accounts_unavailable',detail:error.message}); }
   }
@@ -199,6 +199,7 @@ async function handleFinancePayableRoute({ req, res, url, pool, venueId, json, r
     try{await client.query('BEGIN');const current=await client.query('SELECT id,code,name,kind,active FROM finance_accounts WHERE venue_id=$1 AND id=$2 FOR UPDATE',[venueId,id]);
       if(!current.rows[0]){await client.query('ROLLBACK');return fail(json,res,404,'finance_account_not_found');}
       if(current.rows[0].code==='main_cashbox'&&input.active===false){await client.query('ROLLBACK');return fail(json,res,409,'finance_default_cashbox_cannot_be_archived');}
+      if(current.rows[0].code==='pos_card_receipts'&&input.active===false){await client.query('ROLLBACK');return fail(json,res,409,'finance_system_account_cannot_be_archived');}
       const {rows}=await client.query(`UPDATE finance_accounts SET name=COALESCE($1,name),active=COALESCE($2,active),updated_at=now()
         WHERE venue_id=$3 AND id=$4 RETURNING id,name,kind,allowed_payment_methods AS "allowedPaymentMethods",active,code`,[name,input.active??null,venueId,id]);
       await client.query('COMMIT');recordAudit?.(req,rows[0].active?'finance.account_updated':'finance.account_archived','finance_account',id,current.rows[0],rows[0]);return json(res,200,rows[0]);
