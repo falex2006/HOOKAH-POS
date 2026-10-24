@@ -9,7 +9,7 @@
 | MASTER | `f3020e1179355665c95d8a2af2042efc59565498`, исходники чистые; существующий `tmp/` сохранён | Интеграция только точных принятых пакетов, без массового переноса dirty-деревьев |
 | ЗАРПЛАТНЫЙ | Новое дерево `payroll-current-integration/HOOKAH CRM 2` на `f3020e11`; runtime из старого дерева не перенесён | Закрыть несоответствие owner-конфигурации и finance-lifecycle сквозным ACL-пакетом |
 | Разобрать смысл пункта | База `f3020e11`, локальный HEAD `649ac322`: только QA correction/docs, 3 tracked paths, без product UI/API/DB changes | Native `<details>` QA и code-health PASS; широкая PostgreSQL/browser интеграция не подтверждена: единственный прогон остановлен safety-preflight до product scenario |
-| ЛОЯЛЬНОСТЬ | Изолированная копия на `f3020e11`; 18 modified tracked + 354 untracked paths (89 JS, 50 migrations), conflict markers `0`; текущий реестр `14/47` | Fixture visibility QA PASS: открытая смена моделируется корректно, strict shift-gate сохранён. Полный POS/PG прогон и широкий пакет всё ещё не приняты; следующий незакрытый подэтап FL04.4 |
+| ЛОЯЛЬНОСТЬ | Изолированная копия на `f3020e11`; broad manifest `372` payload files, 18 modified tracked + 354 untracked, conflict markers `0`; реестр `14/47` | Архитектурный аудит дал NO-GO для переноса целиком: migration catalog `212` не согласован с bootstrap `210`, source/dist не пара, full POS/PG отсутствует. Следующий безопасный пакет — отдельный tender-routing с ручным shared-hunk review; FL04.4 cutover остаётся отдельным gate |
 
 Старые исходники и dirty/untracked зарплатного дерева сохранены владельцем; путь сохранения `tmp/payroll-transfer-preservation-20261024-201109`. Это сохранение, а не принятый release manifest.
 
