@@ -215,7 +215,7 @@ try {
   const assertSqlFailure = async (query, params, expectedCode, label, expectedConstraint = null) => {
     const savepoint = `loyalty_expected_failure_${expectedFailureIndex++}`;
     await client.query(`SAVEPOINT ${savepoint}`);
-    await assert.rejects(client.query(query, params), (error) => error.code === expectedCode
+    await assert.rejects(client.query(query, params), (error) => (typeof expectedCode === 'function' ? expectedCode(error) : error.code === expectedCode)
       && (!expectedConstraint || error.constraint === expectedConstraint), label);
     await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
     await client.query(`RELEASE SAVEPOINT ${savepoint}`);
@@ -260,9 +260,10 @@ try {
   await client.query('UPDATE users SET venue_id=NULL WHERE id=$1', [loyaltyUser]);
   await client.query('DELETE FROM orders WHERE id=$1', [snapshotOrderId]);
   await client.query('DELETE FROM products WHERE id=$1', [loyaltyProduct]);
-  await assertSqlFailure('DELETE FROM venues WHERE id=$1', [loyaltyVenue], '23503',
-    'immutable purchase-reversal policy history blocks hard deletion of its venue',
-    'inventory_purchase_reversal_policies_venue_id_fkey');
+  await assertSqlFailure('DELETE FROM venues WHERE id=$1', [loyaltyVenue],
+    (error) => (error.code === '23503' && error.constraint === 'inventory_purchase_reversal_policies_venue_id_fkey')
+      || (error.code === '23514' && error.message === 'finance_system_account_cannot_be_deleted'),
+    'immutable finance and purchase-reversal history block hard deletion of its venue');
   await client.query('ROLLBACK TO SAVEPOINT loyalty_venue_hard_delete_check');
   await client.query('RELEASE SAVEPOINT loyalty_venue_hard_delete_check');
   assert.equal((await client.query('SELECT id,is_active FROM venues WHERE id=$1', [loyaltyVenue])).rowCount, 1,

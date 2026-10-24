@@ -10,11 +10,13 @@ const payrollBlock = source.slice(start, end);
 const userId = '11111111-1111-4111-8111-111111111111';
 const ruleId = '22222222-2222-4222-8222-222222222222';
 const entryId = '33333333-3333-4333-8333-333333333333';
+const paymentAccountId = '44444444-4444-4444-8444-444444444444';
 
 const makeDb = ({ failExpenseInsert = false } = {}) => {
   const state = {
     entries: [], expenses: [], audits: [],
     user: { id: userId },
+    financeAccount: { id: paymentAccountId, name: 'QA расчётный счёт', kind: 'bank', allowed_payment_methods: ['bank_transfer'], active: true },
     rule: { id: ruleId, name: 'Почасовая', rule_type: 'hourly', rate: '500', active: true },
     logs: [{ hours: 2, shifts: 1 }],
   };
@@ -35,6 +37,7 @@ const makeDb = ({ failExpenseInsert = false } = {}) => {
       state.entries.push(row); return { rows: [{ ...row }] };
     }
     if (sql.startsWith('SELECT pg_advisory_xact_lock(hashtext')) return { rows: [] };
+    if (sql.startsWith('SELECT id,name,kind,allowed_payment_methods,active FROM finance_accounts')) return { rows: params[1] === paymentAccountId ? [{ ...state.financeAccount }] : [] };
     if (sql.startsWith('SELECT id FROM payroll_entries')) {
       const [venue, employee, ruleIdForCheck, exceptId, from, to] = params;
       const conflict = state.entries.find((row) => row.venue_id === venue && row.user_id === employee && row.rule_id === ruleIdForCheck && row.id !== exceptId && ['approved','paid'].includes(row.status) && row.period_from <= to && row.period_to >= from);
@@ -50,9 +53,9 @@ const makeDb = ({ failExpenseInsert = false } = {}) => {
       const row = state.entries.find((item) => item.id === params[0] && item.venue_id === params[1]); if (!row) return { rows: [] };
       Object.assign(row, { status: 'cancelled', cancelled_by: params[2], cancellation_reason: params[3], cancelled_at: '2025-09-26T10:00:00.000Z' }); return { rows: [{ ...row }] };
     }
-    if (sql.startsWith("INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,created_by)")) {
+    if (sql.startsWith("INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,created_by,payment_method,finance_account_id,finance_account_name_snapshot,shift_id)")) {
       if (failExpenseInsert) throw new Error('simulated_expense_insert_failure');
-      const row = { id: `expense-${state.expenses.length + 1}`, venue_id: params[0], category: 'Зарплата', amount: params[1], expense_date: params[2], description: params[3], source: 'payroll' }; state.expenses.push(row); return { rows: [{ id: row.id }] };
+      const row = { id: `expense-${state.expenses.length + 1}`, venue_id: params[0], category: 'Зарплата', amount: params[1], expense_date: params[2], description: params[3], source: 'payroll', payment_method: params[7], finance_account_id: params[8], finance_account_name_snapshot: params[9], shift_id: params[10] }; state.expenses.push(row); return { rows: [{ id: row.id }] };
     }
     if (sql.startsWith('UPDATE expenses SET category=')) {
       const row = state.expenses.find((item) => item.id === params[4] && item.venue_id === params[5]); if (!row) return { rows: [] };
@@ -91,12 +94,12 @@ const entryPath = `/api/payroll/entries/${firstEntryId}`;
 assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { action: 'approve' } })).status, 200);
 assert.equal(db.state.entries[0].status, 'approved');
 assert.equal(db.state.expenses.length, 0, 'approval accrues payroll cost but does not create a cash movement');
-assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26' } })).status, 200);
+assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26', paymentAccountId, paymentMethod: 'bank_transfer' } })).status, 200);
 assert.equal(db.state.entries[0].status, 'paid');
 assert.equal(db.state.expenses.length, 1, 'payment creates exactly one linked cash expense');
 assert.equal(db.state.entries[0].expense_id, db.state.expenses[0].id);
 assert.equal(db.state.expenses[0].description, 'Выплата зарплаты за 01.09.2025 — 30.09.2025');
-assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26' } })).status, 409);
+assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26', paymentAccountId, paymentMethod: 'bank_transfer' } })).status, 409);
 assert.equal(db.state.expenses.length, 1, 'repeated payment cannot duplicate cash expense');
 const listed = await run(db, { query: '?from=2025-09-01&to=2025-09-30' });
 assert.equal(listed.status, 200);
@@ -115,7 +118,7 @@ assert.equal(rejectedOverlap.data.error, 'payroll_period_overlap');
 assert.equal(overlapDb.state.entries.find((row) => row.id === overlappingPeriod.data.id).status, 'draft', 'overlap remains an editable draft');
 // Simulate legacy/directly-created state that bypassed approval validation.
 overlapDb.state.entries.find((row) => row.id === overlappingPeriod.data.id).status = 'approved';
-const blockedLegacyPayout = await run(overlapDb, { path: `/api/payroll/entries/${originalPeriod.data.id}`, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-30' } });
+const blockedLegacyPayout = await run(overlapDb, { path: `/api/payroll/entries/${originalPeriod.data.id}`, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-30', paymentAccountId, paymentMethod: 'bank_transfer' } });
 assert.equal(blockedLegacyPayout.status, 409, 'payout repeats the overlap check for legacy approved rows');
 assert.equal(blockedLegacyPayout.data.error, 'payroll_period_overlap');
 assert.equal(overlapDb.state.expenses.length, 0, 'overlap rejection does not create a cash expense');
@@ -131,7 +134,7 @@ assert.equal(cancelDb.state.expenses.length, 0, 'cancellation creates no cash ex
 const rollbackDb = makeDb({ failExpenseInsert: true });
 await run(rollbackDb, { method: 'POST', payload: { userId, ruleId, periodFrom: '2025-11-01', periodTo: '2025-11-30' } });
 await run(rollbackDb, { path: entryPath, method: 'PATCH', payload: { action: 'approve' } });
-const failedPayment = await run(rollbackDb, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-11-30' } });
+const failedPayment = await run(rollbackDb, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-11-30', paymentAccountId, paymentMethod: 'bank_transfer' } });
 assert.equal(failedPayment.status, 409);
 assert.equal(rollbackDb.state.entries[0].status, 'approved', 'failed cash-expense insert rolls back the payroll status transition');
 assert.equal(rollbackDb.state.expenses.length, 0);

@@ -22,7 +22,7 @@ const notices = [];
 let catalogRefreshes = 0, refreshedCatalogState='ready';
 const refreshProducts = async () => { catalogRefreshes += 1; return refreshedCatalogState; };
 const setup = new Function('grid', 'catalog', 'document', 'apiJson', 'orderHeaders', 'tableMinimums', 'normalizeTableId', 'notice', 'refreshProducts',
-  `let catalogAddPending=false;let catalogState='ready';let currentOrder=null;let openOrders=[];let queueDraws=0;let orderDraws=0;let orderLoads=0;
+  `let catalogAddPending=false;let catalogState='ready';let ordersReadState='ready';let currentOrder=null;let openOrders=[];let queueDraws=0;let orderDraws=0;let orderLoads=0;
    const loadProducts=async()=>{catalogState=await refreshProducts();};
    const drawQueue=()=>{queueDraws+=1;};const drawOrder=(order)=>{currentOrder=order;orderDraws+=1;};
    const loadOrders=async()=>{orderLoads+=1;};const refreshFloor=()=>Promise.resolve();

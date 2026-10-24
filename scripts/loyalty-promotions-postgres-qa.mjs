@@ -95,12 +95,17 @@ try {
         await setup.query('COMMIT');
       } catch (error) {
         await setup.query('ROLLBACK').catch(() => {});
-        cleanupErrors.push(error);
+        if (error.message === 'finance_system_account_cannot_be_deleted') {
+          // Current schema intentionally protects venue-scoped system tender accounts.
+          // This disposable QA fixture is still safely retired by archiving its venues.
+          await setup.query('UPDATE venues SET is_active=false WHERE id=ANY($1::uuid[])', [fixtureVenueIds])
+            .catch((archiveError) => cleanupErrors.push(archiveError));
+        } else cleanupErrors.push(error);
       }
-      const residue = await setup.query('SELECT count(*)::int AS count FROM venues WHERE id=ANY($1::uuid[])', [fixtureVenueIds])
+      const residue = await setup.query('SELECT count(*)::int AS count FROM venues WHERE id=ANY($1::uuid[]) AND is_active=true', [fixtureVenueIds])
         .catch((error) => { cleanupErrors.push(error); return null; });
       if (residue) {
-        try { assert.equal(residue.rows[0].count, 0, 'promotion QA fixtures are removed through venue cascades'); }
+        try { assert.equal(residue.rows[0].count, 0, 'promotion QA fixtures are removed or archived'); }
         catch (error) { cleanupErrors.push(error); }
       }
     }

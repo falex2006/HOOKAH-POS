@@ -4187,6 +4187,10 @@ body[data-page="network"] #page-content>.content-grid{align-items:start}
 /* Preparation adds another flow section: never shrink the floor below its contents. */
 .staff-theme main>.workspace{flex:0 0 auto}
 .staff-theme main>.preparation-queue,.staff-theme main>.queue{flex:0 0 auto}
+/* The queue is a full-width flow section in the floor view. Explicit width
+   avoids the flex item's auto/min-content cycle collapsing it to 0px when
+   cards have max-width:100%. */
+.staff-theme main>.queue{width:100%;}
 .staff-theme main>.preparation-queue{margin:18px 28px 0}
 @media(min-width:901px){
   .staff-theme.staff-orders-view main{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,420px);grid-template-rows:auto auto 1fr;align-content:start;column-gap:18px}

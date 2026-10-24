@@ -12,7 +12,7 @@ const genericSubmitEnd = portal.indexOf('\n', genericSubmitStart);
 assert.ok(genericSubmitStart >= 0 && genericSubmitEnd > genericSubmitStart, 'generic submit handler exists');
 assert.match(portal.slice(genericSubmitStart, genericSubmitEnd), /\[[^\]]*'loyalty-form-visible'[^\]]*\]\.includes\(form\.id\)[^;]*return;/, 'generic six-second submit timer excludes the owned form even when other owned forms are added');
 assert.match(portal, /if \(loyaltyForm\.dataset\.submitting === '1'\) list\.querySelectorAll\('button'\)/, 'redrawn list stays disabled while saving');
-assert.match(portal, /'#loyalty-program-list'\)\.addEventListener\('click', async \(event\) => \{\n    if \(loyaltyForm\.dataset\.submitting === '1'\) return;/, 'delegated list actions reject clicks while saving');
+assert.match(portal, /document\.querySelector\('#loyalty-program-list'\)\.addEventListener\('click', async \(event\) => \{[\s\S]{0,240}if \(loyaltyForm\.dataset\.submitting === '1'\) return;/, 'delegated list actions reject clicks while saving');
 
 const submit = { disabled: false, textContent: 'Сохранить программу' };
 const inputs = [
@@ -55,9 +55,10 @@ let loadCount = 0;
 const clear = () => { clearCount += 1; };
 const load = async () => { loadCount += 1; };
 const portalNotice = () => {};
-new Function('document', 'loyaltyForm', 'loyaltySubmit', 'api', 'clear', 'load', 'portalNotice',
+const bindManagementNotice = () => portalNotice;
+new Function('document', 'loyaltyForm', 'loyaltySubmit', 'api', 'clear', 'load', 'portalNotice', 'bindManagementNotice',
   `${portal.slice(pendingStart, pendingEnd)}\n${portal.slice(handlerStart, handlerEnd)}`
-)(document, form, submit, api, clear, load, portalNotice);
+)(document, form, submit, api, clear, load, portalNotice, bindManagementNotice);
 
 const send = () => handler({ preventDefault() {} });
 const settle = () => new Promise((resolve) => setImmediate(resolve));

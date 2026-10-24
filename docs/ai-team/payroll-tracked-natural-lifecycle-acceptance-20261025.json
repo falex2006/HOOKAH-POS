@@ -1,0 +1,56 @@
+{
+  "status": "PASS",
+  "scope": "positive_tracked_cost_saved_run_approve_pay_and_idempotent_retry",
+  "base": "74b08905f5ded55a4fbe7728a1ef81833ddb83af",
+  "dirtyWorktree": true,
+  "command": "PAYROLL_TRACKED_NATURAL_CLOSURE_QA=1 node scripts/local-full-pg-regression.cjs payroll-margin-source-postgres-qa.mjs",
+  "exitCode": 0,
+  "qaDatabase": "inventory_qa_66f24c285e25ce45",
+  "cleanup": "PASS",
+  "venueTimezone": "Asia/Yekaterinburg",
+  "initialClockUtc": "2026-10-24 18:55:15.945725+00",
+  "closedClockUtc": "2026-10-24 19:00:00.506157+00",
+  "period": {
+    "from": "2026-10-01",
+    "to": "2026-10-24"
+  },
+  "asserted": {
+    "historicalCostMinor": 5000,
+    "paidMinor": 1510,
+    "expenseMinor": 1510,
+    "oneAdditionalExpense": true,
+    "paymentRetryNoMutation": true,
+    "savedRunReplayMatched": true,
+    "openPeriodWriteBlocked": true,
+    "clockTimezoneTriggersUnchanged": true
+  },
+  "review": "independent code-health GO after replay method and API error wrapper test fixes",
+  "previousAttempt": {
+    "status": "FAIL",
+    "reason": "test expected unwrapped period closure reason from public API",
+    "artifact": "tmp/payroll-tracked-natural-lifecycle-first-failure-20261024.log",
+    "sha256": "ad23c39a985defea53bc293981aec726acaa50d808fb564bb78a2d40c91d98a1"
+  },
+  "log": "docs/ai-team/payroll-tracked-natural-lifecycle-20261025.log",
+  "logSha256": "b5123864ee20a737f16d8750a86130a52c7d09875e8110bd0d9df6ac3e7e6d60",
+  "fingerprintScope": "selected tested dependencies; not a full release fingerprint",
+  "sha256": {
+    "scripts/payroll-margin-source-postgres-qa.mjs": "81ef25815e8506a43f9e07bf7d4e4c180c77f3e30dec55db2c95a30dc7b92b89",
+    "scripts/payroll-tracked-cost-lifecycle-helper.mjs": "a6efe992a6a8bf0b9e10d912f04b69fee61366fc7135a0fb14cfcb9a2d4809fe",
+    "scripts/payroll-tracked-refund-cost-helper.mjs": "41cbb3edea8fddbf766dee7bae62045b3db92c9eca0a6a2fdafb32fb74160103",
+    "scripts/local-full-pg-regression.cjs": "f274843221dbfecfb10de5c61e727cf7b0f434c8e6ba0c02df5aa3cbf58cc3cb",
+    "payroll-scheme-service.js": "ae954cd48ce51c176042445c2d37efe8b69e3dd0be07f8eef0eec58e0067cf69",
+    "payroll-scheme-routes.js": "62dfac7cc94a94f5b81ac1edeb99d10d45084f68d84c5dc7ec2819a6edacadf9",
+    "payroll-refund-aware-calculation.js": "386557ffbeb7951639be385f82f85c4210eb4f4e06ce78ce072c23efb3b9e2fc",
+    "payroll-calculation-entry-lifecycle.js": "a320063ebfeeddfaf9efe1e5a8b7947d70e453643052492fdc5cf707bb899862",
+    "payroll-source-fence.js": "dec6ca43d7b096eb441e4c8ec15230f818fafc3439772b6139a8e726994367b2",
+    "pos-sale-cost-evidence.js": "8670dbb5a90b11b9455b4d0f98f94850736ec060a0cacf9b0953969574704bd6"
+  },
+  "limitations": [
+    "No browser UI acceptance",
+    "No complete original payroll specification acceptance",
+    "No refund-adjusted accounting COGS claim",
+    "Opt-in lifecycle test needs natural midnight within ten minutes; ordinary run does not execute lifecycle branch",
+    "No GitHub or VPS publication"
+  ]
+}

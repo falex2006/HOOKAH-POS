@@ -84,7 +84,7 @@ const staleSelectors = [];
 for (const id of ['date', 'refresh', 'message', 'revenue', 'checks', 'number']) {
   nodes.set(`#employee-report-${id}`, { textContent: '', disabled: false, get isConnected() { return currentReport; }, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } });
 }
-const target = { innerHTML: '', contains: (value) => currentReport && [...nodes.values()].includes(value), querySelector: (selector) => { assert.ok(nodes.has(selector), `known employee element ${selector}`); if (!currentReport) { staleSelectors.push(selector); return null; } return nodes.get(selector); } };
+const target = { innerHTML: '', classList: { add() {} }, contains: (value) => currentReport && [...nodes.values()].includes(value), querySelector: (selector) => { assert.ok(nodes.has(selector), `known employee element ${selector}`); if (!currentReport) { staleSelectors.push(selector); return null; } return nodes.get(selector); } };
 const requests = [];
 const api = (url) => new Promise((resolve, reject) => { requests.push({ url, resolve, reject }); });
 const helpers = source.split(/\r?\n/).filter((line) => line.startsWith('const formatRuDate =')).join('\n');

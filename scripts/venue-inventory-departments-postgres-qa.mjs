@@ -7,6 +7,7 @@ const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 const target = validateQaDatabaseUrl(databaseUrl, 'MIGRATIONS_PG_TEST_DATABASE_URL');
 const { Pool } = createRequire(import.meta.url)('pg');
 const { InventoryRepository } = createRequire(import.meta.url)('../db.js');
+const { beginPayrollSourceProducerTransaction } = createRequire(import.meta.url)('../payroll-source-fence.js');
 const client = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 5000, max: 4 });
 let venueId;
 let otherVenueId;
@@ -45,8 +46,8 @@ const callInventoryItemApi = async ({ pathname, method = 'POST', venue, input = 
   let response;
   const json = (_res, status, data) => { response = { status, data }; return response; };
   const denyUnless = (req, res, permission) => { if (req.user?.permissions?.includes(permission)) return false; json(res, 403, { error: 'forbidden' }); return true; };
-  const handler = new Function('pathname','req','res','url','repositories','venueDbId','denyUnless','body','json','recordAudit','inventory','stockMovements', `return (async()=>{${source.slice(inventoryItemStart, inventoryItemEnd)}})();`);
-  await handler(pathname, { method, user: { permissions: ['inventory'] } }, {}, new URL(`http://localhost${pathname}`), { pool: client, inventory: new InventoryRepository(client) }, venue, denyUnless, async () => input, json, () => {}, [], []);
+  const handler = new Function('pathname','req','res','url','repositories','venueDbId','denyUnless','body','json','recordAudit','inventory','stockMovements','beginPayrollSourceProducerTransaction', `return (async()=>{${source.slice(inventoryItemStart, inventoryItemEnd)}})();`);
+  await handler(pathname, { method, user: { permissions: ['inventory'] } }, {}, new URL(`http://localhost${pathname}`), { pool: client, inventory: new InventoryRepository(client) }, venue, denyUnless, async () => input, json, () => {}, [], [], beginPayrollSourceProducerTransaction);
   return response;
 };
 const subdepartmentRoute = source.slice(subdepartmentStart, subdepartmentEnd);
@@ -59,7 +60,7 @@ try {
   const identity = (await client.query(`SELECT current_database() AS database, inet_server_addr()::text AS address,
     inet_server_port() AS port, COALESCE((SELECT rolsuper FROM pg_roles WHERE rolname=current_user),false) AS superuser`)).rows[0];
   assertQaDatabaseIdentity(identity, target.database, Number(target.url.port || 5432));
-  venueId = (await client.query("INSERT INTO venues (name) VALUES ('New venue inventory departments QA') RETURNING id")).rows[0].id;
+  venueId = (await client.query("INSERT INTO venues (name,organization_id) VALUES ('New venue inventory departments QA','00000000-0000-0000-0000-000000000010') RETURNING id")).rows[0].id;
   const departments = (await client.query('SELECT code,name FROM inventory_departments WHERE venue_id=$1 ORDER BY sort_order', [venueId])).rows;
   assert.deepEqual(departments, [
     { code: 'kitchen', name: 'Кухня' },
@@ -67,7 +68,7 @@ try {
     { code: 'hookah', name: 'Кальяны' },
     { code: 'inventory', name: 'Хозяйственный склад' },
   ], 'every newly created venue receives the default inventory departments');
-  otherVenueId = (await client.query("INSERT INTO venues (name) VALUES ('Other venue inventory hierarchy QA') RETURNING id")).rows[0].id;
+  otherVenueId = (await client.query("INSERT INTO venues (name,organization_id) VALUES ('Other venue inventory hierarchy QA','00000000-0000-0000-0000-000000000010') RETURNING id")).rows[0].id;
   const privateDepartment = 'private-subdep-qa';
   await client.query('INSERT INTO inventory_departments (venue_id,code,name) VALUES ($1,$2,$3)', [venueId, privateDepartment, 'Частный тестовый цех']);
   const foreignParent = await callApi({ route: subdepartmentRoute, pathname: '/api/inventory/subdepartments', venue: otherVenueId, input: { departmentCode: privateDepartment, name: 'Чужой подцех' } });

@@ -1,0 +1,64 @@
+{
+  "recordedAt": "2026-10-24T18:36:51.492Z",
+  "base": "74b08905f5ded55a4fbe7728a1ef81833ddb83af",
+  "branch": "codex/three-stream-resume-20261024",
+  "dirtyWorktree": true,
+  "scope": "positive_tracked_cost_refund_aware_source_integration_only",
+  "command": "node scripts/local-full-pg-regression.cjs payroll-margin-source-postgres-qa.mjs",
+  "exitCode": 0,
+  "database": "inventory_qa_78bf7310ca8c7613",
+  "cleanup": "PASS",
+  "port": 31931,
+  "log": "tmp/payroll-tracked-refund-cost-current-20261024.log",
+  "logSha256": "fe357731174d10e04920ec60ef69f07bd13301db7169e5643b9d59b2fcda2aef",
+  "asserted": {
+    "originalCostMinor": 5000,
+    "remainingNetMinor": [
+      20100,
+      10050,
+      0
+    ],
+    "remainingQuantity": [
+      2,
+      1,
+      0
+    ],
+    "frozenCostMinor": [
+      5000,
+      5000,
+      5000
+    ],
+    "mutableRecipeCostIndependence": true,
+    "ledgerHashesUnchangedOnRead": true,
+    "legacyRefundBlocked": true
+  },
+  "notProven": [
+    "positive_cost_saved_run_and_payout",
+    "refund_adjusted_accounting_cogs",
+    "browser_acceptance",
+    "full_payroll_readiness"
+  ],
+  "review": "independent code_health GO; syntax and scoped diff PASS",
+  "fingerprintScope": "selected source/test dependencies observed after run; not entire repository or release identity",
+  "sha256": {
+    "scripts/payroll-margin-source-postgres-qa.mjs": "1476e9126bccf2c710ab1c0d750ce80fe4755bb06abfda4fa2ed1f385e527962",
+    "scripts/payroll-tracked-refund-cost-helper.mjs": "41cbb3edea8fddbf766dee7bae62045b3db92c9eca0a6a2fdafb32fb74160103",
+    "scripts/local-full-pg-regression.cjs": "f274843221dbfecfb10de5c61e727cf7b0f434c8e6ba0c02df5aa3cbf58cc3cb",
+    "scripts/postgres-qa-safety.mjs": "6747690522300294cfa70e19036760fb055e7b7d00e92566ac36661c92bd1b55",
+    "server.js": "faf418a5a7e995a20813542e3c9daa6f266d0ba748a989aac9569aa66ab432fe",
+    "db.js": "d21ebb2f76f65bac3b964d9a22296b2fc429c255faa1c3add8a383483b445ceb",
+    "pos-sale-cost-evidence.js": "8670dbb5a90b11b9455b4d0f98f94850736ec060a0cacf9b0953969574704bd6",
+    "inventory-order-cost-capture.js": "ddc8ed35f50747cfa28fb236d2642ff6aa94b0e3e73ab90f9bff6d73cba88c74",
+    "inventory-order-cost-allocation.js": "0572fa9c9428d787a19d6cb1e16de2cda26d24ab49e7bd5c77f19fbee32a59b6",
+    "payroll-source-fence.js": "dec6ca43d7b096eb441e4c8ec15230f818fafc3439772b6139a8e726994367b2",
+    "payroll-source-readiness.js": "5dc1a983722be286cf7c1a9f770911cbbaa6b126d0e6423328fb3169edc57fd0",
+    "payroll-margin-cost-source.js": "152d6f54f08c72a7390876df527f13d41acd104eeebaf6478c7794672d858b33",
+    "payroll-recognition-manifest.js": "ab2ed916d2037632b24a172776ef2f3b94ee4657f840d2f72c8241471ac27122",
+    "payroll-refund-economic-source.js": "a4c634110fdfc6a9c015d5ce5c9ea65a12cb7bbd8c342a64dd97c9ea45c6e939",
+    "payroll-refund-earnings-source.js": "e2df7b5d5167be329a5574ea5e01f5374f73c0290b2617056f02ab5a29c42b20",
+    "payroll-refund-earnings-projection.js": "f191c41c5db00ec843549c1bf3ee4dbcbbdf0887f147f85f107a1887ba1ecab0",
+    "payroll-refund-frozen-cost-source.js": "c67acd157062a73767bfd0bb5df3bd5a944fdb665ba7b7c1e6ad4c43fe13cbd5",
+    "payroll-source-policies.js": "12fafa09a9bb806c72932f191aff3585e355645245b8a18f74344b568529f969",
+    "migrations/187_pos_sale_cost_evidence.sql": "a144cfe454a582da0b831b890e1d7f60c87e2dceb7a5f90a06963f6dc3ba5188"
+  }
+}

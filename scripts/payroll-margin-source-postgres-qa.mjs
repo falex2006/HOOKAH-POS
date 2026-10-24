@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-safety.mjs';
+import { trackedRefundCostProbe } from './payroll-tracked-refund-cost-helper.mjs';
+import { verifyTrackedCostLifecycle } from './payroll-tracked-cost-lifecycle-helper.mjs';
 
 // Exercises the payroll read adapter against producer-owned immutable 144/090/092 facts.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -145,6 +147,12 @@ try {
   assert.equal(frozenLine.costSnapshot.version,frozenLine.producerWatermark);
   const persistedCost = (await db.query('SELECT watermark FROM pos_sale_cost_evidence WHERE venue_id=$1 AND order_id=$2',[ids.venue,order.id])).rows[0];
   assert.equal(frozenLine.producerWatermark,persistedCost.watermark);
+  const probeTrackedCost = trackedRefundCostProbe({ db, venueId: ids.venue, ownerId: ids.owner, orderId: order.id,
+    orderItemId: line.id, productId: product.id, period: { from, to }, producerWatermark: persistedCost.watermark });
+  const originalTrackedCost = await probeTrackedCost({ quantity: 2, netCents: 20100 });
+  if (process.env.PAYROLL_TRACKED_NATURAL_CLOSURE_QA === '1') {
+    await verifyTrackedCostLifecycle({ db, api, ids, accountId: cardAccount, from, to, marker, producerWatermark: persistedCost.watermark, connectionString: target.url.href });
+  }
   const calculationLines = ready.candidateCalculation.daily.flatMap(day=>day.lines);
   assert.equal(calculationLines.length,1); assert.equal(calculationLines[0].costSnapshot.costCents,5000);
   await api(`/api/inventory/items/${ingredient.id}`,'PATCH',{cost:9},200);
@@ -152,11 +160,17 @@ try {
   const again = await preview();
   assert.deepEqual(again.candidateCalculation,ready.candidateCalculation,'current recipe and cost do not rewrite historical source');
   assert.deepEqual(again.candidateSnapshot,ready.candidateSnapshot,'repeated snapshot remains source-identical');
+  assert.deepEqual(await probeTrackedCost({ quantity: 2, netCents: 20100 }), originalTrackedCost,
+    'mutable recipe and inventory valuation do not rewrite v2 historical cost');
   await api(`/api/payroll/versions/${version}/preview/sourced`,'POST',{periodFrom:from,periodTo:to},403,sellerToken);
   await api(`/api/finance/orders/${order.id}/refunds`,'POST',{amount:1,reason:'Margin QA linked return',idempotencyKey:`margin-refund-${marker}`,
     allocations:[{sourcePaymentId:payment.id,amount:1,payoutMethod:'card',paymentAccountId:cardAccount}],items:[{orderItemId:line.id,quantity:1}]},201);
   const refunded = await preview();
   assert.equal(refunded.candidateCalculation.status,'blocked'); assert.equal(refunded.candidateSnapshot,null);
+  await probeTrackedCost({ quantity: 1, netCents: 10050 });
+  await api(`/api/finance/orders/${order.id}/refunds`,'POST',{amount:1,reason:'Margin QA remaining item return',idempotencyKey:`margin-refund-full-${marker}`,
+    allocations:[{sourcePaymentId:payment.id,amount:1,payoutMethod:'card',paymentAccountId:cardAccount}],items:[{orderItemId:line.id,quantity:1}]},201);
+  await probeTrackedCost({ quantity: 0, netCents: 0 });
   // Reader-level missing/foreign evidence checks do not manufacture immutable
   // cost rows. The legacy fixture is deliberately not an HTTP-produced sale.
   const foreign = await readSaleCostEvidence(db, { venueId: randomUUID(), orderId: order.id });
@@ -177,7 +191,7 @@ try {
   const zeroEvidence = await readSaleCostEvidence(db,{venueId:ids.venue,orderId:zeroOrder.id});
   assert.equal(zeroEvidence.status,'incomplete'); assert.equal(zeroEvidence.totalCostMinor,null);
   assert.ok(zeroEvidence.reasons.includes('valuation_zero_unattested'));
-  console.log('PASS payroll-margin-source-postgres-qa: real purchase/recipe/close to historical cost and margin candidate; mutable sources ignored; refund blocked; no posting');
+  console.log('PASS payroll-margin-source-postgres-qa: real purchase/recipe/close to historical cost; legacy refund blocked; v2 partial/full returns retain tracked cost 5000; mutable sources ignored; source reads do not post or claim actual COGS; lifecycle opt-in=' + (process.env.PAYROLL_TRACKED_NATURAL_CLOSURE_QA === '1'));
 } finally {
   if(server && server.exitCode === null){server.kill('SIGTERM');await Promise.race([new Promise(resolve=>server.once('exit',resolve)),delay(5000)]);if(server.exitCode===null)server.kill('SIGKILL');}
   await db.end().catch(()=>{});

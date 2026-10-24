@@ -153,7 +153,10 @@ async function seedVenue(ownerToken, org, venueId, prefix, extensive) {
     if (quantity) await once(`${prefix}:initial-stock:${index}`, () => request(ownerToken, '/api/inventory/movements', 'POST', { itemId: item.id, delta: quantity, unit, reason: `QA ${prefix} начальный остаток` }, [201]));
   }
   const products = [];
-  for (const [index, title, department, price, inventoryMode] of [[0,'Лимонад','bar',300,'tracked'],[1,'Кальян','hookah',1200,'tracked'],[2,'Сэндвич','kitchen',450,'tracked'],[3,'Услуга','inventory',200,'non_stock'],[4,'Напиток с премиксом','bar',350,'tracked']]) products[index] = await ensure(ownerToken, `${prefix}:product:${index}`, '/api/products', '/api/products', { name: `QA ${title}`, category: categoryNames[department], price, inventoryMode, aliases: [`qa${index}`, title.toLowerCase()] });
+  for (const [index, title, department, price, inventoryMode, preparationStation] of [[0,'Лимонад','bar',300,'tracked','bar'],[1,'Кальян','hookah',1200,'tracked','hookah'],[2,'Сэндвич','kitchen',450,'tracked','bar'],[3,'Услуга','inventory',200,'non_stock',null],[4,'Напиток с премиксом','bar',350,'tracked','bar']]) {
+    products[index] = await ensure(ownerToken, `${prefix}:product:${index}`, '/api/products', '/api/products', { name: `QA ${title}`, category: categoryNames[department], price, inventoryMode, preparationStation, aliases: [`qa${index}`, title.toLowerCase()] });
+    await once(`${prefix}:product:${index}:preparation-station`, () => request(ownerToken, `/api/products/${products[index].id}`, 'PATCH', { preparationStation }, [200]));
+  }
   await once(`${prefix}:product:image`, () => request(ownerToken, `/api/products/${products[0].id}/image`, 'POST', { imageData: fixtureImage }));
   for (const [index, ingredientLines] of [[0,[[0,'30 мл'],[1,'200 мл'],[2,'20 г']]],[1,[[3,'20 г'],[4,'3 шт']]],[2,[[5,'100 г'],[6,'40 г']]],[4,[[7,'40 мл'],[1,'200 мл']]]]) await ensure(ownerToken, `${prefix}:recipe:${index}`, '/api/recipes', '/api/recipes', { name: `QA Техкарта ${index}`, productId: products[index].id, ingredients: ingredientLines.map(([itemIndex, quantity]) => ({ ingredientId: stock[itemIndex].id, quantity })), technology: 'Собрать согласно локальной тестовой карте', serve: 'Порция', yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1 });
   const premixRecipe = await ensure(ownerToken, `${prefix}:recipe:premix`, '/api/recipes', '/api/recipes', { name: 'QA Сироп премикс', recipeType: 'premix', outputIngredientId: stock[7].id, ingredients: [{ ingredientId: stock[0].id, quantity: '100 мл' },{ ingredientId: stock[1].id, quantity: '100 мл' }], yieldQuantity: 200, yieldUnit: 'мл', portionCount: 5 });
@@ -238,8 +241,19 @@ async function seedVenue(ownerToken, org, venueId, prefix, extensive) {
     const order = await ensure(ownerToken, key, '/api/orders', '/api/orders', { tableId: tables[index].id, notes: key }, candidate => candidate.notes === key);
     await once(`${key}:guest`, () => request(ownerToken, `/api/orders/${order.id}`, 'PATCH', { clientId: guests[index % 3].id }));
     await once(`${key}:item`, () => request(ownerToken, `/api/orders/${order.id}/items`, 'POST', { productId: products[index].id, quantity: 1 }, [201,200]));
-    if (index === 1 || index === 2) await once(`${key}:in-progress`, () => request(ownerToken, `/api/orders/${order.id}/status`, 'POST', { status: 'in_progress' }));
-    if (index === 2) await once(`${key}:ready`, () => request(ownerToken, `/api/orders/${order.id}/status`, 'POST', { status: 'ready' }));
+    if (index === 1 || index === 2) {
+      const current = items(await request(ownerToken, '/api/orders?withPricing=1')).find(candidate => candidate.id === order.id);
+      const item = current?.items?.find(candidate => candidate.productId === products[index].id);
+      assert.ok(item, `Active QA order ${index} must contain its product line`);
+      await once(`${key}:dispatch`, () => request(ownerToken, `/api/orders/${order.id}/dispatch`, 'POST', { station: item.preparationStation || (index === 1 ? 'hookah' : 'bar'), itemIds: [item.id] }, [200]));
+    }
+    if (index === 2) {
+      const current = items(await request(ownerToken, '/api/orders?withPricing=1')).find(candidate => candidate.id === order.id);
+      const item = current?.items?.find(candidate => candidate.productId === products[index].id);
+      assert.ok(item, `Ready QA order ${index} must contain its product line`);
+      await once(`${key}:preparation-in-progress`, () => request(ownerToken, `/api/orders/${order.id}/items/${item.id}/preparation`, 'PATCH', { status: 'in_progress', expectedStatus: 'queued' }, [200]));
+      await once(`${key}:preparation-ready`, () => request(ownerToken, `/api/orders/${order.id}/items/${item.id}/preparation`, 'PATCH', { status: 'ready', expectedStatus: 'in_progress' }, [200]));
+    }
     if (index === 3) await once(`${key}:cancelled`, () => request(ownerToken, `/api/orders/${order.id}/status`, 'POST', { status: 'cancelled' }));
     if (index === 4) await once(`${key}:partial-payment`, () => request(ownerToken, `/api/orders/${order.id}/payments`, 'POST', { amount: 100, method: 'cash' }, [201]));
     if (index === 0) await once(`${key}:pending-discount`, () => request(ownerToken, `/api/orders/${order.id}/discount-requests`, 'POST', { type: 'percent', value: 5, reason: 'QA заявка ждёт администратора' }, [201]));

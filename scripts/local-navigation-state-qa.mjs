@@ -27,6 +27,7 @@ const route = slice(app, 'const preserveWorkspaceRoute=', '\n');
 const sidebarHandler = slice(app, "document.querySelectorAll('aside nav button').forEach((button)=>button.addEventListener", 'let staffShiftActionPending=');
 for (const search of ['', '?venue=venue-a&venueId=123&workspace=desk&mode=legacy&operator=old']) {
   const buttons = ['Рабочий зал','Заказы','Задачи','Бронирования','Склад','Финансы'].map(text => element(text));
+  buttons[5].dataset.permission = 'finance_read';
   const queues = [], notices = [], scrolls = [], windowScrolls = [];
   const location = { origin: 'http://127.0.0.1:31932', href: '/' };
   const context = { URL, location, queryParams: new URLSearchParams(search), staffSessionPermissions: {}, hasStaffPermission: () => true, setStaffWorkspaceView: () => {}, window: { location, scrollTo: options => windowScrolls.push(options) },

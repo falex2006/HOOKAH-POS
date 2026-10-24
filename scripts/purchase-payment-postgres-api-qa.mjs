@@ -50,10 +50,10 @@ const callApi = async ({ path, method = 'GET', body = {}, permissions = ['financ
     return true;
   };
   const denyUnless = (req, res, required) => denyUnlessAny(req, res, [required]);
-  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','denyUnless','body','json','recordAudit','isOperationalEmployee','validatePurchasePaymentDocument','isValidIsoDate',
+  const result = await new Function('pathname','req','res','url','repositories','venueDbId','denyUnlessAny','denyUnless','body','json','recordAudit','isOperationalEmployee','validatePurchasePaymentDocument','isValidIsoDate',
     `return (async()=>{${route}})();`)(
     pathname,
-    { method, headers: {}, user: { id: null, permissions, role } }, {},
+    { method, headers: {}, user: { id: null, permissions, role } }, {}, new URL(`http://localhost${path}`),
     { pool, purchaseDocuments: new PurchaseDocumentRepository(pool) }, venue,
     denyUnlessAny, denyUnless, async () => (method === 'POST' && pathname.includes('/payments') ? { paymentAccountId: bankAccountId, ...body } : body),
     json, () => {}, isOperationalEmployee,

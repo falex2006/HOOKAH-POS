@@ -29,16 +29,22 @@ function harness() {
         ? { addEventListener(event, handler) { assert.equal(event, 'click'); retry = handler; } }
         : null;
     },
+    insertAdjacentHTML(position, value) { assert.equal(position, 'afterbegin'); html = value + html; },
+    querySelectorAll() { return []; },
   };
   const api = (url) => new Promise((resolve, reject) => requests.push({ url, resolve, reject }));
+  const window = { __portalSessionVerified: { user: { id: 'qa-owner', role: 'owner', venueId: 'qa-venue' } }, __portalSessionGate: { blocked: false } };
+  const localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+  const createPayrollLinkedController = () => ({ pending: () => null, listPending: () => [] });
+  const financeAccountItems = [];
   const { load, draw } = new Function(
     'payrollSection', 'register', 'registerMessage', 'api', 'staticDemo',
-    'esc', 'displayName', 'formatRuDate', 'money', 'entryStatuses', 'todayDate',
+    'esc', 'displayName', 'formatRuDate', 'money', 'entryStatuses', 'todayDate', 'window', 'localStorage', 'createPayrollLinkedController', 'financeAccountItems',
     `let loadPayroll; ${implementation}\nreturn { load: loadPayroll, draw: drawPayroll };`,
   )(
     { querySelector(selector) { assert.ok(fields.has(selector), selector); return fields.get(selector); } },
     register, { textContent: '' }, api, () => false,
-    String, String, String, String, { draft: ['Черновик', 'warning'] }, '2026-09-29',
+    String, String, String, String, { draft: ['Черновик', 'warning'] }, '2026-09-29', window, localStorage, createPayrollLinkedController, financeAccountItems,
   );
   return {
     requests, register, load, draw,

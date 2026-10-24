@@ -19,14 +19,14 @@ const at = (pattern, label) => {
   return match.index;
 };
 
-const begin = at(/await client\.query\('BEGIN'\)/, 'transaction begins');
+const begin = at(/(?:await client\.query\('BEGIN'\)|beginPayrollSourceProducerTransaction\(client, venueDbId\))/, 'transaction begins');
 const lock = at(/SELECT id,status,table_id AS "tableId",guest_id AS "guestId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'order row is locked');
 const shiftLock = at(/SELECT id FROM shifts WHERE venue_id=\$1 AND closed_at IS NULL[\s\S]*?FOR UPDATE/, 'active shift is locked');
 const depletion = at(/depleteRecipeForOrder\(repositories\.pool, orderPath\[1\], venueDbId, req\.user\?\.id, client\)/, 'depletion uses the active transaction client');
 const close = at(/UPDATE orders SET status=\$1,closed_at=now\(\)/, 'order closes transactionally');
 const loyalty = at(/accrueGuestOrderBonus\(client,[\s\S]*?eligibleBase: Math\.max\(0, net - Number\(redeemedRows\.rows\[0\]\?\.amount \|\| 0\)\)/, 'loyalty accrual excludes both VIP uplift and bonus-redeemed amounts');
 const orderCost = at(/INSERT INTO order_costs \(venue_id,order_id,cost\)/, 'COGS snapshot is inserted transactionally');
-const payment = at(/INSERT INTO payments \(order_id,method,amount,status,shift_id\)/, 'payment is inserted transactionally and assigned to the active shift');
+const payment = at(/INSERT INTO payments \(order_id,method,amount,status,shift_id(?:,[^)]+)?\)/, 'payment is inserted transactionally and assigned to the active shift');
 const table = at(/await refreshTableReservationStatus\(client, persisted\.tableId, venueDbId\)/, 'table release uses the active transaction client');
 const commit = at(/await client\.query\('COMMIT'\)/, 'transaction commits');
 const audit = at(/recordAudit\(req, 'order\.closed'/, 'audit event is emitted');
@@ -51,10 +51,10 @@ const paymentAt = (pattern, label) => {
   assert.ok(match, `${label} is present in the payments route`);
   return match.index;
 };
-const paymentBegin = paymentAt(/await client\.query\('BEGIN'\)/, 'payment transaction begins');
+const paymentBegin = paymentAt(/(?:await client\.query\('BEGIN'\)|beginPayrollSourceProducerTransaction\(client, venueDbId\))/, 'payment transaction begins');
 const paymentLock = paymentAt(/SELECT id,status,(?=[^\n]*table_id AS "tableId")(?=[^\n]*guest_id AS "guestId")(?=[^\n]*vip_minimum AS "minimumOrderTotal")[^\n]+ FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'payment locks the order row and reads the fields required by the transaction');
 const activeShift = paymentAt(/requireOpenShift|SELECT id FROM shifts WHERE venue_id=\$1 AND closed_at IS NULL[\s\S]*?FOR UPDATE/, 'active shift is required inside the payment transaction');
-const paymentInsert = paymentAt(/INSERT INTO payments \(order_id,method,amount,status,shift_id,idempotency_key\)/, 'payment insert records the tender, shift attribution and idempotency key transactionally');
+const paymentInsert = paymentAt(/INSERT INTO payments \(order_id,method,amount,status,shift_id,idempotency_key(?:,[^)]+)?\)/, 'payment insert records the tender, shift attribution and idempotency key transactionally');
 const paymentDepletion = paymentAt(/depleteRecipeForOrder\(repositories\.pool, paymentPath\[1\], venueDbId, req\.user\?\.id, client\)/, 'final payment depletion uses transaction client');
 const paymentClose = paymentAt(/UPDATE orders SET status=\\'closed\\',closed_at=now\(\)/, 'final payment closes order transactionally');
 const paymentLoyalty = paymentAt(/accrueGuestOrderBonus\(client,[\s\S]*?eligibleBase: Math\.max\(0, net - Number\(redeemedRows\.rows\[0\]\?\.amount \|\| 0\)\)/, 'final payment accrual excludes VIP uplift and bonus-redeemed amounts');
@@ -92,7 +92,7 @@ assert.match(transferRoute, /JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AN
 assert.match(transferRoute, /AND status=\$4 RETURNING id,status,table_id/, 'transfer uses a compare-and-set status guard');
 
 const orderRepository = readFileSync(new URL('../db.js', import.meta.url), 'utf8');
-assert.match(orderRepository, /SELECT t\.id,t\.min_order_total FROM tables t JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' AND t\.archived_at IS NULL FOR UPDATE OF t/, 'order creation validates/locks an active table and reads the server-owned minimum in the order venue');
-assert.match(orderRepository, /const vipMinimum = Math\.max\(Number\(input\.vipMinimum \|\| 0\), tableMinimum\)/, 'client input cannot lower the table minimum');
+assert.match(orderRepository, /SELECT t\.id,t\.min_order_total[\s\S]*?FROM tables t JOIN zones z ON z\.id=t\.zone_id[\s\S]*?WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' AND t\.archived_at IS NULL FOR UPDATE OF t/, 'order creation validates/locks an active table and reads the server-owned minimum in the order venue');
+assert.match(orderRepository, /const vipMinimum = tableMinimum/, 'order minimum remains server-owned and client input cannot override it');
 
 console.log('ORDER/PAYMENT TRANSACTION QA: assertions passed');

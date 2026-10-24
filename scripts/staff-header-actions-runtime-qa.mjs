@@ -23,7 +23,7 @@ assert.match(distApp,/const refreshVisibleStaffShift=/,'published app contains t
 let click, choice={openingCash:'0'}, failing=false, mutationFailing=false, current=null, delayedResolve;
 const requests=[],notices=[],mainActionRefreshStates=[];
 const button={dataset:{},disabled:true,innerHTML:'',title:'',attributes:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(_event,fn){click=fn;}};
-const context={staffAccessRevision:0,posWorkspaceMounted:true,
+const context={staffAccessRevision:0,posWorkspaceMounted:true,syncFloorShiftGate:()=>{},syncStaffShiftHeader:()=>{},
   updateOrderMainAction:()=>mainActionRefreshStates.push(button.dataset.shiftState),
   staffNotificationCenter:null,currentShift:null,currentOrder:null,staffShiftReadable:true,staffShiftManageable:true,document:{querySelector:()=>button,addEventListener(){},visibilityState:'visible'},staffIcon:(name)=>`<svg>${name}</svg>`,
   notice:(text)=>notices.push(text),window:{confirm:()=>true,addEventListener(){},setInterval(){return 1},HOOKAH_SHIFT_CLOSE:{checklistVersion:1,checklistItems:[{id:'ordersReviewed',label:'Проверить заказы'},{id:'cashCounted',label:'Пересчитать кассу'},{id:'inventoryReviewed',label:'Проверить склад'},{id:'externalFiscalReportsHandled',label:'Проверить внешние отчёты'}]}},requestStaffAction:async()=>choice,

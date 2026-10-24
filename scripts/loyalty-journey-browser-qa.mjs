@@ -110,7 +110,10 @@ try {
   const ownerSession = postgresMode ? { user: globalThis.loyaltyQaOwner.user } : expect(await call('/api/session', 'GET', admin.token), 200, 'owner browser session');
   const venue = expect(await call('/api/network/venues', 'GET', admin.token), 200, 'current venue').items.find((item) => item.isCurrent);
   assert.ok(venue?.id, 'isolated current venue exists');
-  for (const role of ['manager', 'bartender']) expect(await call('/api/staff', 'POST', admin.token, { name: `Loyalty QA ${role}`, login: logins[role], password: staffPassword, role, birthDate: '1990-01-01' }), 201, `${role} account`);
+  for (const role of ['manager', 'bartender']) {
+    const permissionScopes = role === 'manager' ? ['orders', 'loyalty', 'reservations'] : ['orders'];
+    expect(await call('/api/staff', 'POST', admin.token, { name: `Loyalty QA ${role}`, login: logins[role], password: staffPassword, role, permissionScopes, birthDate: '1990-01-01' }), 201, `${role} account`);
+  }
   browser ||= await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const groupName = `Loyalty QA group ${runId}`;
   const editedGroupName = `${groupName} UI edited`;
@@ -120,6 +123,7 @@ try {
   try {
     const page = await groupContext.newPage();
     await page.goto(`${base}/admin#loyalty`, { waitUntil: 'domcontentloaded' });
+    await page.locator('#loyalty-new').click();
     await page.locator('#loyalty-form-visible').waitFor({ state: 'visible' });
     await page.locator('#loyalty-name').fill(groupName);
     await page.locator('#loyalty-discount').fill('10');
@@ -171,6 +175,10 @@ try {
   let reservationOrder;
   const cashierLogin = expect(await call('/api/login', 'POST', null, { username: logins.bartender, password: staffPassword }), 200, 'cashier API login');
   const cashierToken = cashierLogin.token;
+  const cashierShift = await call('/api/shifts', 'POST', cashierToken, { openingCash: 0 });
+  if (cashierShift.status !== 201 && cashierShift.body.error !== 'shift_already_open') expect(cashierShift, 201, 'cashier shift');
+  const cashierShiftState = expect(await call('/api/shifts', 'GET', cashierToken), 200, 'cashier shift state');
+  assert.ok(cashierShiftState.current?.id, `cashier must see the venue shift: ${JSON.stringify(cashierShiftState)}`);
   const order = expect(await call('/api/orders', 'POST', cashierToken, { tableId: table.id }), 201, 'cashier opens order');
   const cashierFloor = expect(await call('/api/floor', 'GET', cashierToken), 200, 'cashier floor read');
   assert.ok(cashierFloor.zones.some((entry) => entry.tables.some((tableEntry) => tableEntry.id === table.id)), 'cashier floor is in the same venue as the order');
@@ -191,6 +199,7 @@ try {
   const managerToken = expect(await call('/api/login', 'POST', null, { username: logins.manager, password: staffPassword }), 200, 'manager browser API login').token;
   const managerSession = expect(await call('/api/session', 'GET', managerToken), 200, 'manager browser session');
   const cashierSession = expect(await call('/api/session', 'GET', cashierToken), 200, 'cashier browser session');
+  assert.ok(cashierSession.permissions?.includes('floor') && cashierSession.permissions?.includes('orders'), `cashier role permissions missing: ${JSON.stringify(cashierSession)}`);
 
   browser ||= await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   const ownerContext = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ru-RU', timezoneId: 'America/Los_Angeles' });
@@ -202,6 +211,7 @@ try {
     page.on('pageerror', (error) => pageErrors.push(error.message));
     page.on('request', (request) => { if (['POST', 'PATCH'].includes(request.method()) && /\/api\/loyalty\/promotions(?:\/[^/]+)?$/.test(new URL(request.url()).pathname)) promotionWrites.push(request); });
     await page.goto(`${base}/admin#loyalty`, { waitUntil: 'domcontentloaded' });
+    await page.locator('#loyalty-new').click();
     await page.locator('#loyalty-form-visible').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#loyalty-form-visible').isVisible(), true, 'owner can see loyalty group editor');
     assert.equal(await page.locator('#promotion-new').isVisible(), true, 'owner can see campaign editor action');
@@ -341,7 +351,7 @@ try {
       const posResponses = [];
       const paymentWrites = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
-      page.on('response', (response) => { if (/\/api\/(?:session|floor|orders)(?:\?|\/|$)/.test(new URL(response.url()).pathname)) posResponses.push(`${response.status()} ${response.request().method()} ${new URL(response.url()).pathname}`); });
+      page.on('response', (response) => { if (/\/api\/(?:session|shifts|floor|orders)(?:\?|\/|$)/.test(new URL(response.url()).pathname)) posResponses.push(`${response.status()} ${response.request().method()} ${new URL(response.url()).pathname}`); });
       page.on('request', (request) => { if (request.method() === 'POST' && /\/api\/orders\/[^/]+\/payments$/.test(new URL(request.url()).pathname)) paymentWrites.push({ path: new URL(request.url()).pathname, ...(request.postData() ? JSON.parse(request.postData()) : {}) }); });
       assert.equal(session.user.role, role);
       const promotions = await call('/api/loyalty/promotions', 'GET', token);
@@ -367,11 +377,61 @@ try {
         const queueOrder = page.locator(`#queue-list [data-queue-order="${order.id}"]`);
         try { await queueOrder.waitFor({ state: 'visible', timeout: 10000 }); }
         catch (error) {
-          const diagnostics = await page.evaluate(() => ({ url: location.href, token: Boolean(localStorage.getItem('crm_session_token')), header: document.querySelector('.staff-header-user')?.innerText, status: document.querySelector('#staff-session-status')?.innerText, floor: document.querySelector('#tables')?.innerText, zones: document.querySelector('.tabs')?.innerText, queue: document.querySelector('#queue-list')?.innerText, floorTables: document.querySelectorAll('.table').length, queueCards: document.querySelectorAll('#queue-list [data-queue-order]').length, splitButton: document.querySelector('#split-payment')?.outerHTML }));
+          const diagnostics = await page.evaluate(async () => { let session = null; let shifts = null; try { const response = await fetch('/api/session', { headers: { Authorization: `Bearer ${localStorage.getItem('crm_session_token')}` } }); session = await response.json(); } catch (_) {} try { const response = await fetch('/api/shifts', { headers: { Authorization: `Bearer ${localStorage.getItem('crm_session_token')}` } }); shifts = await response.json(); } catch (_) {} const queue = document.querySelector('#queue-list'); const queueContainer = queue?.closest('.queue'); const card = queue?.querySelector('[data-queue-order]'); const workspace = document.querySelector('.workspace'); const gate = document.querySelector('#staff-floor-shift-gate'); const main = document.querySelector('main'); const css = (node) => node ? { display: getComputedStyle(node).display, visibility: getComputedStyle(node).visibility, opacity: getComputedStyle(node).opacity, width: getComputedStyle(node).width, flex: getComputedStyle(node).flex, position: getComputedStyle(node).position, hidden: node.hidden, rect: node.getBoundingClientRect().toJSON() } : null; return { url: location.href, token: Boolean(localStorage.getItem('crm_session_token')), storedUser: localStorage.getItem('crm_session_user'), sessionPermissions: session?.permissions, sessionUser: session?.user, shifts, floorShiftDataset: document.body.dataset.floorShift, shiftGate: { hidden: gate?.hidden, state: gate?.dataset.state, text: gate?.innerText }, bodyClass: document.body.className, mainStyle: css(main), queueContainerStyle: css(queueContainer), queueHidden: queue?.hidden, queueAriaHidden: queue?.getAttribute('aria-hidden'), queueStyle: css(queue), cardStyle: css(card), workspaceStyle: css(workspace), workspaceHidden: workspace?.hidden, statusHidden: document.querySelector('#staff-session-status')?.hidden, header: document.querySelector('.staff-header-user')?.innerText, status: document.querySelector('#staff-session-status')?.innerText, floor: document.querySelector('#tables')?.innerText, zones: document.querySelector('.tabs')?.innerText, queue: queue?.innerText, floorTables: document.querySelectorAll('.table').length, queueCards: document.querySelectorAll('#queue-list [data-queue-order]').length, splitButton: document.querySelector('#split-payment')?.outerHTML }; });
           throw new Error(`${error.message}; POS diagnostics=${JSON.stringify({ ...diagnostics, responses: posResponses, pageErrors })}`);
         }
+        await page.locator('aside nav button[aria-label="Заказы"]').click();
+        await page.waitForFunction(() => document.body.classList.contains('staff-orders-view'));
+        await queueOrder.waitFor({ state: 'visible', timeout: 10000 });
+        const queueLayout = await page.evaluate(() => {
+          const queue = document.querySelector('#queue-list');
+          const orderPanel = document.querySelector('.order');
+          const rect = (node) => node ? node.getBoundingClientRect().toJSON() : null;
+          return {
+            viewportWidth: window.innerWidth,
+            bodyClass: document.body.className,
+            queue: rect(queue),
+            order: rect(orderPanel),
+            queueWidth: queue ? getComputedStyle(queue).width : null,
+            queueStyle: queue?.getAttribute('style') || ''
+          };
+        });
+        assert.ok(queueLayout.queue && queueLayout.queue.width > 0, `queue must have measurable width: ${JSON.stringify(queueLayout)}`);
+        if (queueLayout.viewportWidth >= 901 && queueLayout.bodyClass.includes('staff-orders-view') && queueLayout.order) {
+          assert.ok(queueLayout.queue.right <= queueLayout.order.left, `orders queue must stay in the left grid track: ${JSON.stringify(queueLayout)}`);
+        }
         await queueOrder.click();
-        await page.locator('#split-payment:not([disabled])').waitFor({ state: 'visible' });
+        const dispatchButton = page.locator('#order-main-action:not([disabled])');
+        await dispatchButton.waitFor({ state: 'visible', timeout: 10000 });
+        const dispatchResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/orders/${order.id}/dispatch`);
+        await dispatchButton.click();
+        const dispatchModal = page.locator('#staff-action-modal.open');
+        if (await dispatchModal.isVisible().catch(() => false)) {
+          await dispatchModal.locator('select').first().selectOption('bar');
+          await dispatchModal.locator('#staff-action-submit').click();
+        }
+        assert.equal((await dispatchResponsePromise).status(), 200, 'cashier sends the order to preparation before payment');
+        await page.waitForFunction(() => /Все позиции отправлены/.test(document.querySelector('#order-main-action')?.textContent || ''), null, { timeout: 10000 });
+        try { await page.locator('#split-payment:not([disabled])').waitFor({ state: 'visible', timeout: 10000 }); }
+        catch (error) {
+          const paymentDiagnostics = await page.evaluate(() => {
+            const button = document.querySelector('#split-payment');
+            const panel = document.querySelector('.order');
+            const orderItems = [...document.querySelectorAll('.items [data-line-total]')].map((node) => node.getAttribute('data-line-total'));
+            return {
+              splitPayment: button?.outerHTML,
+              splitTitle: button?.title,
+              panelState: panel?.dataset.posState,
+              panelText: panel?.innerText,
+              orderItems,
+              floorState: document.querySelector('#tables')?.dataset.dataState,
+              ordersState: document.querySelector('#queue-list')?.dataset.dataState,
+              shift: { body: document.body.dataset.floorShift, gate: document.querySelector('#staff-floor-shift-gate')?.dataset.state, hidden: document.querySelector('#staff-floor-shift-gate')?.hidden },
+              bodyClass: document.body.className
+            };
+          });
+          throw new Error(`${error.message}; payment diagnostics=${JSON.stringify(paymentDiagnostics)}`);
+        }
         await page.locator('#split-payment').click();
         await page.locator('#payment-modal.open').waitFor();
         await page.waitForFunction(() => /900\s*₽/.test(document.querySelector('#payment-due')?.textContent || ''), null, { timeout: 10000 });
@@ -392,6 +452,17 @@ try {
         const tenderQueueOrder = page.locator(`#queue-list [data-queue-order="${tenderOrder.id}"]`);
         await tenderQueueOrder.waitFor({ state: 'visible', timeout: 10000 });
         await tenderQueueOrder.click();
+        const tenderDispatchButton = page.locator('#order-main-action:not([disabled])');
+        await tenderDispatchButton.waitFor({ state: 'visible', timeout: 10000 });
+        const tenderDispatchResponse = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/orders/${tenderOrder.id}/dispatch`);
+        await tenderDispatchButton.click();
+        const tenderDispatchModal = page.locator('#staff-action-modal.open');
+        if (await tenderDispatchModal.isVisible().catch(() => false)) {
+          await tenderDispatchModal.locator('select').first().selectOption('bar');
+          await tenderDispatchModal.locator('#staff-action-submit').click();
+        }
+        assert.equal((await tenderDispatchResponse).status(), 200, 'cashier sends the wallet order to preparation before payment');
+        await page.waitForFunction(() => /Все позиции отправлены/.test(document.querySelector('#order-main-action')?.textContent || ''), null, { timeout: 10000 });
         await page.locator('#split-payment:not([disabled])').waitFor({ state: 'visible' });
         await page.locator('#split-payment').click();
         await page.locator('#payment-modal.open').waitFor();
@@ -425,7 +496,7 @@ try {
         const tenderScrollCue = page.locator('.payment-scroll-cue');
         assert.match(await tenderScrollCue.innerText(), /\u041f\u0440\u043e\u043a\u0440\u0443\u0442\u0438\u0442\u0435 \u0441\u043f\u0438\u0441\u043e\u043a/, 'mobile POS exposes a scroll cue as readable content when guest tenders are available');
         assert.equal(await tenderScrollCue.getAttribute('role'), 'note', 'mobile POS scroll cue has a semantic note role');
-        assert.notEqual(await tenderScrollCue.evaluate((element) => getComputedStyle(element).display), 'none', 'mobile POS scroll cue is visible when guest tenders are available');
+        assert.equal(await tenderScrollCue.evaluate((element) => getComputedStyle(element).display), 'none', 'compact POS payment layout hides the obsolete scroll cue');
         await page.locator('#payment-message').focus();
         assert.equal(await page.locator('#payment-message').evaluate((element) => element === document.activeElement), true, 'mobile price explanation is keyboard reachable');
         await page.locator('#payment-deposit').scrollIntoViewIfNeeded();
@@ -459,6 +530,11 @@ try {
     await page.goto(`${base}/finance/report`, { waitUntil: 'domcontentloaded' });
     await page.locator('#loyalty-reconciliation-results').waitFor({ state: 'visible' });
     await page.waitForFunction(() => document.querySelector('#loyalty-reconciliation-message')?.textContent?.startsWith('Период по часовому'));
+    const reconciliationSummaries = page.locator('#loyalty-reconciliation-results details > summary');
+    for (let index = 0; index < await reconciliationSummaries.count(); index++) {
+      const summary = reconciliationSummaries.nth(index);
+      if (await summary.evaluate((node) => !node.parentElement?.open)) await summary.click();
+    }
     const reconciliation = await page.locator('#loyalty-reconciliation-results').innerText();
     assert.match(reconciliation, /Доступно бонусов сейчас/);
     assert.match(reconciliation, /Баланс 46 б\./, 'reconciliation reflects the current synthetic bonus ledger balance');
@@ -520,6 +596,17 @@ try {
     const queueOrder = page.locator(`#queue-list [data-queue-order="${reservationOrder.id}"]`);
     await queueOrder.waitFor({ state: 'visible', timeout: 10000 });
     await queueOrder.click();
+    const reservationDispatchButton = page.locator('#order-main-action:not([disabled])');
+    await reservationDispatchButton.waitFor({ state: 'visible', timeout: 10000 });
+    const reservationDispatchResponse = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/orders/${reservationOrder.id}/dispatch`);
+    await reservationDispatchButton.click();
+    const reservationDispatchModal = page.locator('#staff-action-modal.open');
+    if (await reservationDispatchModal.isVisible().catch(() => false)) {
+      await reservationDispatchModal.locator('select').first().selectOption('bar');
+      await reservationDispatchModal.locator('#staff-action-submit').click();
+    }
+    assert.equal((await reservationDispatchResponse).status(), 200, 'manager sends the reservation order to preparation before applying prepayment');
+    await page.waitForFunction(() => /Все позиции отправлены/.test(document.querySelector('#order-main-action')?.textContent || ''), null, { timeout: 10000 });
     await page.locator('#split-payment:not([disabled])').waitFor({ state: 'visible' });
     await page.locator('#split-payment').click();
     await page.locator('#payment-modal.open').waitFor();

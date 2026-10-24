@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 
 const port = 3218;
-const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), AUTH_REQUIRED: 'false', DATABASE_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), AUTH_REQUIRED: 'false', DATABASE_URL: '', API_RATE_LIMIT: '180' }, stdio: ['ignore', 'pipe', 'pipe'] });
 const raw = async (path, body) => fetch(`http://127.0.0.1:${port}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 try {
   await new Promise((resolve, reject) => { const timer = setTimeout(resolve, 800); child.once('error', reject); child.once('exit', (code) => code && reject(new Error(`server exited ${code}`))); });

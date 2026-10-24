@@ -1371,18 +1371,28 @@
         || !/^[A-Z]{3}$/.test(String(source.currency || '')) || !/^[a-f0-9]{64}$/.test(source.sourceWatermark || '')) {
       throw new Error('Подтверждённые итоги сверки не прошли проверку.');
     }
+    const differencePercent = (difference, amount) => {
+      if (amount === 0n) return 'не рассчитывается';
+      const hundredths = (difference * 20000n + amount) / (amount * 2n);
+      return `${hundredths / 100n},${String(hundredths % 100n).padStart(2, '0')}%`;
+    };
     let total = 0n, lines = 0n, adjustment = 0n, residual = 0n;
     const rows = source.orders.map(row => {
       if (!row || row.status !== 'available' || !/^[0-9a-f-]{36}$/i.test(row.orderId || '')
           || fields.some(field => !Number.isSafeInteger(row[field]) || row[field] < 0)) throw new Error('Строка сверки некорректна.');
-      total += BigInt(row.closedOrderTotalMinor); lines += BigInt(row.recognizedLineNetMinor);
+      const rowTotal = BigInt(row.closedOrderTotalMinor), rowLines = BigInt(row.recognizedLineNetMinor);
+      if (rowTotal !== rowLines + BigInt(row.minimumPriceAdjustmentMinor) + BigInt(row.unattributedResidualMinor)) {
+        throw new Error('Сумма чека не совпадает с товарными строками и корректировками.');
+      }
+      const difference = rowTotal - rowLines;
+      total += rowTotal; lines += rowLines;
       adjustment += BigInt(row.minimumPriceAdjustmentMinor); residual += BigInt(row.unattributedResidualMinor);
-      return `<tr><td>${escapeHtml(row.closedAt || '—')}</td><td><code>${escapeHtml(row.orderId)}</code></td><td>${money(row.closedOrderTotalMinor, source.currency)}</td><td>${money(row.recognizedLineNetMinor, source.currency)}</td><td>${money(row.minimumPriceAdjustmentMinor, source.currency)}</td><td>${money(row.unattributedResidualMinor, source.currency)}</td></tr>`;
+      return `<tr><td>${escapeHtml(row.closedAt || '—')}</td><td><code>${escapeHtml(row.orderId)}</code></td><td>${money(row.closedOrderTotalMinor, source.currency)}</td><td>${money(row.recognizedLineNetMinor, source.currency)}</td><td>${money(Number(difference), source.currency)} · ${differencePercent(difference, rowTotal)}</td><td>${money(row.minimumPriceAdjustmentMinor, source.currency)}</td><td>${money(row.unattributedResidualMinor, source.currency)}</td></tr>`;
     }).join('');
     if (total !== BigInt(source.totals.closedOrderTotalMinor) || lines !== BigInt(source.totals.recognizedLineNetMinor)
         || adjustment !== BigInt(source.totals.minimumPriceAdjustmentMinor) || residual !== BigInt(source.totals.unattributedResidualMinor)
         || total !== lines + adjustment + residual) throw new Error('Итоги сверки не совпадают со строками заказов.');
-    return `<section data-payroll-order-reconciliation-status="available"><h4>${labels.available}</h4>${explanation}<p>Закрытых заказов: ${source.closedOrderCount} · общая сумма ${money(source.totals.closedOrderTotalMinor, source.currency)} · строки товаров ${money(source.totals.recognizedLineNetMinor, source.currency)} · минимальная корректировка ${money(source.totals.minimumPriceAdjustmentMinor, source.currency)} · нераспределённая разница ${money(source.totals.unattributedResidualMinor, source.currency)}.</p>${source.orders.length ? `<div tabindex="0" role="region" aria-label="Сверка сумм закрытых заказов" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Закрыт</th><th>Заказ</th><th>Сумма чека</th><th>Товарные строки</th><th>Минимальная корректировка</th><th>Разница</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>Закрытых чеков за этот период нет.</p>'}${fingerprint}</section>`;
+    return `<section data-payroll-order-reconciliation-status="available"><h4>${labels.available}</h4>${explanation}<p>Закрытых заказов: ${source.closedOrderCount} · общая сумма ${money(source.totals.closedOrderTotalMinor, source.currency)} · строки товаров ${money(source.totals.recognizedLineNetMinor, source.currency)}.</p><p data-payroll-reconciliation-difference>Разница чека и товарных строк: ${money(Number(total - lines), source.currency)} · ${differencePercent(total - lines, total)}. Процент от общей суммы закрытых чеков.</p><p>В том числе корректировка до минимальной суммы: ${money(source.totals.minimumPriceAdjustmentMinor, source.currency)} · нераспределённый остаток: ${money(source.totals.unattributedResidualMinor, source.currency)}.</p>${source.orders.length ? `<div tabindex="0" role="region" aria-label="Сверка сумм закрытых заказов" style="max-width:100%;overflow-x:auto"><table><thead><tr><th>Закрыт</th><th>Заказ</th><th>Сумма чека</th><th>Товарные строки</th><th>Разница, ₽ и %</th><th>Минимальная корректировка</th><th>Нераспределённый остаток</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>Закрытых чеков за этот период нет.</p>'}${fingerprint}</section>`;
   };
   const renderRefundReview = payload => {
     const review = payload?.sources?.refundReview;

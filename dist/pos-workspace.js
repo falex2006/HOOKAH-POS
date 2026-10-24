@@ -235,7 +235,14 @@
     const view = currentView();
     toolbar.hidden = view === 'orders';
     const queue = document.querySelector('.app > main > .queue');
-    if (queue) queue.hidden = view !== 'orders';
+    if (queue) {
+      // The queue remains available below the floor map; orders view moves it
+      // into the desktop grid and owns its width through the responsive rule.
+      const ordersGrid = document.body.classList.contains('staff-orders-view');
+      queue.hidden = false;
+      queue.style.width = ordersGrid ? '' : '100%';
+      queue.style.flex = ordersGrid ? '' : '0 0 auto';
+    }
     toolbar.querySelectorAll('[data-pos-view]').forEach((control) => {
       control.hidden = control.dataset.posView === 'preparation' && !snapshot.canReadPreparation;
       control.setAttribute('aria-pressed', String(control.dataset.posView === view));
