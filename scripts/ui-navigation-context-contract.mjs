@@ -4,9 +4,11 @@ import assert from 'node:assert/strict';
 const portal=fs.readFileSync('portal.js','utf8');
 const start=portal.indexOf('// UI-03.2:'),end=portal.indexOf('// Keep the sidebar structure',start);
 assert.ok(start>=0&&end>start);
+const networkRouteHelper=portal.match(/const canUseNetworkRoute = \(\) =>[^;]+;/)?.[0];
+assert.ok(networkRouteHelper,'Actual network route permission helper is available');
 const navigationHelper=portal.match(/const hasNavigationPermission = \(node\) =>[\s\S]*?;(?=\r?\nconst operationsNav)/)?.[0];
 assert.ok(navigationHelper,'Actual permission helper is available');
-const source=navigationHelper+'\n'+portal.slice(start,end)+'\nglobalThis.subject={hasNavigationPermission,sidebarDisclosureKey,readSidebarDisclosure,sidebarRouteGroup,createSidebarNavigation};';
+const source=networkRouteHelper+'\n'+navigationHelper+'\n'+portal.slice(start,end)+'\nglobalThis.subject={hasNavigationPermission,sidebarDisclosureKey,readSidebarDisclosure,sidebarRouteGroup,createSidebarNavigation};';
 let checks=0;const equal=(a,b,message)=>{assert.deepEqual(a,b,message);checks++;};
 function fixture({user='u',venue='a',role='owner',route='/clients',type='navigate',store=new Map(),fail=false,denied=[]}={}) {
  const location=new URL(route,'http://example.invalid');
