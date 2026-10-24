@@ -10,8 +10,8 @@ const managementThemeRevision = '2026102305';
 const portalRevision = '2026102403';
 const portalSessionRevision = '2026102403';
 // This employee-page iteration invalidates only its own HTML asset URLs.
-const employeePaymentsCssRevision = '2026102401';
-const employeePaymentsSessionRevision = '2026102401';
+const employeePaymentsCssRevision = '2026102403';
+const employeePaymentsSessionRevision = '2026102403';
 const notificationCenterRevision = '2026102305';
 const lockRevision = '2026102305';
 const appRevision = '2026102413';
