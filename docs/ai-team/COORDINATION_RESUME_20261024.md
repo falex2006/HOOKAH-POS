@@ -41,4 +41,6 @@ Live preflight не обнаружил соответствующего node run
 
 Read-only сверка миграций относительно `HEAD=f3020e11`: все 162 tracked migration-файла имеют нулевой hash drift; loyalty-worktree содержит 50 дополнительных untracked migration-файлов (включая 145–186, 192–193 и 195–200). Поэтому базовая версия сохранна, но extra-пакет остаётся отдельным dirty-кандидатом и не может быть принят без отдельной проверки каталога, schema и replay.
 
+Dirty-пакет также расширяет `schema.sql` на 24 968 строк и меняет shared `app.js`, `server.js`, `portal.js`, `db.js` и миграционные runners. Это broad diff, а не изолированный loyalty patch; узкое cherry-pick/merge без владельцев shared-файлов и полного API→DB→reload QA запрещён.
+
 Локально принят test-only пакет UI `c2b4d6a8` (`ui043`, `ui051`, `ui091`) и подтверждённый runtime-пакет `6ef89486` + `8fc8433b`: исправлен один устаревший CSS-токен, а cache revision `style.css` поднят `2026102403 -> 2026102404` во всех 41 канонических HTML-алиасах. Code-health дал GO; изменения ограничены CSS, синхронизатором и точными HTML revision-строками. После cherry-pick все 15 локальных UI-контрактов, source/dist parity, синтаксис и `git diff --check` прошли. Это локальная приёмка, не публикация.
