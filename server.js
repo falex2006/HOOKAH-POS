@@ -6474,7 +6474,7 @@ if (staffProfile && req.method === 'PATCH') {
     releaseMemoryTableIfIdle(order.tableId); staffNotifications.push({ id: `order-deleted-${crypto.randomUUID()}`, venueId: notificationVenueScope(req, venueDbId), ...notification }); recordAudit(req, 'order.deleted', 'order', order.id, { status: 'open', items: order.items || [] }, notification);
     return json(res, 200, { ...order, deleted: true, comment, writeoff: Boolean(input.writeoff), totalCost: Number(depletion.totalCost || 0), notification });
   }
-  if (await handleOrderPreparation({ req, res, pathname, pool: repositories?.pool, orders, venueId: venueDbId, body, json, hasPermission, requireOpenShift, recordAudit, tableName: (id) => floor.flatMap((zone) => zone.tables).find((table) => table.id === id)?.name || id })) return;
+  if (await handleOrderPreparation({ req, res, pathname, pool: repositories?.pool, orders, venueId: repositories?.pool ? venueDbId : currentVenueId, body, json, hasPermission, requireOpenShift, recordAudit, tableName: (id) => floor.flatMap((zone) => zone.tables).find((table) => table.id === id)?.name || id })) return;
   const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
   if (orderAction && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;

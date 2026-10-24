@@ -52,9 +52,10 @@ try {
   const floor = await api('/api/floor', 'GET', undefined, 200);
   const zone = floor.zones?.[0] || await api('/api/floor/zones', 'POST', { expectedVenueId: floor.venueId, name: 'Зал Responsive QA' });
   const table = await api('/api/floor/tables', 'POST', { expectedVenueId: floor.venueId, zoneId: zone.id, name: 'Стол Responsive QA', capacity: 2 });
-  const product = await api('/api/products', 'POST', { name: 'Responsive QA service', category: 'Услуги', price: 100, inventoryMode: 'non_stock' });
+  const product = await api('/api/products', 'POST', { name: 'Responsive QA service', category: 'Услуги', price: 100, inventoryMode: 'non_stock', preparationStation: 'bar' });
   const order = await api('/api/orders', 'POST', { tableId: table.id });
-  await api(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 2 });
+  const item = await api(`/api/orders/${order.id}/items`, 'POST', { productId: product.id, quantity: 2 });
+  await api(`/api/orders/${order.id}/dispatch`, 'POST', { station: 'bar', itemIds: [item.id] }, 200);
   await api(`/api/orders/${order.id}/payments`, 'POST', { amount: 50, method: 'cash' });
   const sizes = [
     ['mobile-320', 320, 568], ['mobile-360', 360, 800], ['mobile-375', 375, 812],
@@ -126,10 +127,20 @@ try {
   assert.ok(paymentGeometry.left >= 0 && paymentGeometry.right <= 320 && paymentGeometry.top >= 0 && paymentGeometry.bottom <= 568,
     `payment dialog fits viewport: ${JSON.stringify(paymentGeometry)}`);
   assert.equal(paymentGeometry.closeTopmost, true, 'payment close control is above sidebar and header');
-  assert.ok(paymentGeometry.scrollHeight > paymentGeometry.clientHeight, 'short phone can scroll all payment fields and submit');
+  assert.ok(paymentGeometry.scrollHeight > paymentGeometry.clientHeight
+    || (paymentGeometry.submitTop >= paymentGeometry.top && paymentGeometry.submitBottom <= paymentGeometry.bottom + 1),
+  'short phone either scrolls or keeps the payment submit control inside the dialog');
   await page.screenshot({ path: path.join(outputDir, 'pos-payment-mobile-320.png'), fullPage: false });
   await page.locator('#payment-form button[type="submit"]').scrollIntoViewIfNeeded();
   assert.equal(await page.locator('#payment-form button[type="submit"]').isVisible(), true, 'payment submit remains reachable');
+  const reachableSubmit = await page.locator('#payment-form').evaluate((form) => {
+    const rect = form.getBoundingClientRect();
+    const submit = form.querySelector('button[type="submit"]').getBoundingClientRect();
+    return { formTop: rect.top, formBottom: rect.bottom, submitTop: submit.top, submitBottom: submit.bottom, viewportHeight: innerHeight };
+  });
+  assert.ok(reachableSubmit.submitTop >= Math.max(0, reachableSubmit.formTop)
+    && reachableSubmit.submitBottom <= Math.min(reachableSubmit.viewportHeight, reachableSubmit.formBottom) + 1,
+  `payment submit is inside the visible dialog after scrolling: ${JSON.stringify(reachableSubmit)}`);
   await page.screenshot({ path: path.join(outputDir, 'pos-payment-mobile-320-scrolled.png'), fullPage: false });
   await page.setViewportSize({ width: 768, height: 1024 });
   assert.match(await page.locator('#payment-remaining').textContent(), /150/, 'Fold expand preserves payment balance');
