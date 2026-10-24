@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | MASTER | `f3020e1179355665c95d8a2af2042efc59565498`, исходники чистые; существующий `tmp/` сохранён | Интеграция только точных принятых пакетов, без массового переноса dirty-деревьев |
 | ЗАРПЛАТНЫЙ | Новое дерево `payroll-current-integration/HOOKAH CRM 2` на `f3020e11`; read-only evidence audit завершён, runtime из старого дерева не перенесён | После снятия HOLD: зафиксировать candidate SHA/манифест, затем полный локальный payroll PG-run; отдельно остаются half-month, substitute calendar, dashboard и ₽/% reconciliation |
-| Разобрать смысл пункта | База `f3020e11`, локальный HEAD `649ac322`: только QA correction/docs, 3 tracked paths, без product UI/API/DB changes | Native `<details>` QA и code-health PASS; широкая PostgreSQL/browser интеграция не подтверждена: единственный прогон остановлен safety-preflight до product scenario |
+| Разобрать смысл пункта | Локально приняты test-only коммиты `44478ab8` и `584a66b3` поверх `f3020e11`; product UI/API/DB/dist не менялись | Role-shell, visual-live-defects и actual-source navigation contracts PASS; browser acceptance и широкая PostgreSQL-интеграция не подтверждены, поэтому это QA evidence, не runtime release |
 | ЛОЯЛЬНОСТЬ | Изолированная копия на `f3020e11`; broad manifest `372` payload files, 18 modified tracked + 354 untracked, conflict markers `0`; реестр `14/47` | Modal visibility QA PASS и focused partial-payment resubmit QA PASS (Chromium; product source unchanged). Full POS/PG, V1/V2/API→DB→reload и migration/source/dist parity не доказаны; NO-GO для merge/release |
 
 Старые исходники и dirty/untracked зарплатного дерева сохранены владельцем; путь сохранения `tmp/payroll-transfer-preservation-20261024-201109`. Это сохранение, а не принятый release manifest.
