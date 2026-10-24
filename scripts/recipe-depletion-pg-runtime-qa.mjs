@@ -1111,6 +1111,13 @@ try {
   const barItemsCount = Number((await client.query("SELECT COUNT(*)::int AS count FROM ingredients WHERE venue_id=$1 AND is_marked=true AND department='bar'", [venueId])).rows[0].count);
   const departmentBulk = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: false, scope: { type: 'department', department: 'bar' } }, 200);
   assert.equal(departmentBulk.updatedCount + departmentBulk.unchangedCount, barItemsCount, 'department scope processes every active stock position in only the selected department'); checks++;
+  const allActiveItemsCount = Number((await client.query('SELECT COUNT(*)::int AS count FROM ingredients WHERE venue_id=$1 AND is_marked=true', [venueId])).rows[0].count);
+  const allNegativeEnabled = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: true, scope: { type: 'all' } }, 200);
+  assert.equal(allNegativeEnabled.updatedCount + allNegativeEnabled.unchangedCount + allNegativeEnabled.excludedPremixCount, allActiveItemsCount,
+    'owner all-items scope processes every active stock position and reports protected premix outputs'); checks++;
+  const allNegativeDisabled = await ownerReq(base, sessionToken, '/api/inventory/negative-stock-settings', 'POST', { enabled: false, scope: { type: 'all' } }, 200);
+  assert.equal(allNegativeDisabled.updatedCount + allNegativeDisabled.unchangedCount, allActiveItemsCount,
+    'owner can disable negative stock for all active positions, including previously protected premix outputs'); checks++;
 
   console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase/payment→stock→pack/bottle conversions→tobacco and cocktail recipes→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {
