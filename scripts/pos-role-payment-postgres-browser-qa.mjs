@@ -519,6 +519,8 @@ try {
   await bartender.locator(`[data-queue-order="${attributionOrder.id}"]`).evaluate((button) => button.click());
   const attributedRow = bartender.locator(`.order-item-row[data-item-id="${attributedItem.id}"]`);
   await attributedRow.waitFor();
+  await attributedRow.locator('.order-item-details > summary').click();
+  assert.equal(await attributedRow.locator('.order-item-details').evaluate((details) => details.open), true, 'staff can expand persisted seller and sale time after reload');
   assert.match(await attributedRow.locator('.order-item-attribution').innerText(), /QA Bartender/);
   assert.equal(await attributedRow.evaluate((row) => getComputedStyle(row).display), 'flex', 'floor order row retains its responsive layout after adding attribution');
   assert.match(await bartender.locator(`.order-item-row[data-item-id="${attributedItem.id}"] .order-item-attribution`).innerText(), /QA Bartender/, 'reload shows the persisted item attribution');
