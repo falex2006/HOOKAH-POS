@@ -1249,8 +1249,16 @@ const createRichDemoScenario = () => {
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const paid = Math.round(total * paidRatio);
     const minutesAgo = 35 + (Number(String(id).match(/\d+$/)?.[0] || 0) % 5) * 35;
-    const createdAt = offset === 0 ? new Date(Date.now() - minutesAgo * 60_000).toISOString() : iso(offset, 20 + (Number(id.slice(-1)) % 3), 10);
-    const closedAt = status === 'closed' ? (offset === 0 ? new Date(new Date(createdAt).getTime() + 12 * 60_000).toISOString() : iso(offset, 22, 45)) : null;
+    // Keep the current-day demo order valid even when the local clock crosses midnight
+    // while the scenario is being inspected. A synthetic closed order must never be
+    // placed in the future, but the dashboard contract still needs one paid order today.
+    const now = Date.now();
+    const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+    const elapsedToday = Math.max(0, now - dayStart.getTime());
+    const currentCreatedAt = now - Math.min(minutesAgo * 60_000, Math.max(1_000, elapsedToday - 1_000));
+    const createdAt = offset === 0 ? new Date(currentCreatedAt).toISOString() : iso(offset, 20 + (Number(id.slice(-1)) % 3), 10);
+    const currentClosedAt = Math.min(now, currentCreatedAt + 12 * 60_000);
+    const closedAt = status === 'closed' ? (offset === 0 ? new Date(currentClosedAt).toISOString() : iso(offset, 22, 45)) : null;
     const payments = paid > 0 ? [{ id: `${id}-payment-1`, method: paymentMethod, amount: paid, status: paidRatio === 1 ? 'paid' : 'partially_paid', shiftId: offset === 0 ? 'demo-shift-open' : null, createdAt: closedAt || createdAt }] : [];
     const guest = guestRefs[Number(String(id).match(/\d+$/)?.[0] || 0) % guestRefs.length];
     return { id, orderNumber: id.replace('demo-order-', ''), orderType: 'regular', tableId, tableName: floorZones.flatMap((zone) => zone.tables).find((entry) => entry.id === tableId)?.name || tableId, zoneName: floorZones.find((zone) => zone.tables.some((entry) => entry.id === tableId))?.name || '', status, items, subtotal: total, finalTotal: total, total, discountTotal: 0, payments, clientId: guest.id, createdBy: staff.find((person) => person.name === staffName)?.id || null, createdByName: staffName, waiterName: staffName, guestName: guest.name, guestPhone: guest.phone, notes: status === 'ready' ? 'Гости скоро вернутся к столу' : '', createdAt, updatedAt: closedAt || createdAt, closedAt, closedInShiftId: status === 'closed' && offset === 0 ? 'demo-shift-open' : null, minimumOrderTotal: 0 };
