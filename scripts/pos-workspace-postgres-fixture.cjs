@@ -42,7 +42,7 @@ async function main(){
     console.log('REUSE existing isolated POS QA '+existing.base+'; private manifest ready; no reset/reseed/restart');return;
   }
   assert.ok(!process.argv.includes('--stop'),'No owned QA manifest to stop');
-  const m={ownerTag,root,state:'creating',database:'audit_qa_'+randomBytes(8).toString('hex'),createdAt:new Date().toISOString(),ids:{organization:randomUUID(),venue:randomUUID(),foreignOrganization:randomUUID(),foreignVenue:randomUUID(),zones:[randomUUID(),randomUUID()],tables:Array.from({length:10},()=>randomUUID()),orders:{mixed:randomUUID(),ready:randomUUID(),paidUnfinished:randomUUID()},products:{bar:randomUUID(),hookah:randomUUID(),unknown:randomUUID(),barLong:randomUUID(),barSecond:randomUUID(),hookahSecond:randomUUID(),unknownSecond:randomUUID()},items:{}},actors:{}};
+  const m={ownerTag,root,state:'creating',database:'audit_qa_'+randomBytes(8).toString('hex'),createdAt:new Date().toISOString(),ids:{organization:randomUUID(),venue:randomUUID(),foreignOrganization:randomUUID(),foreignVenue:randomUUID(),cardAccount:randomUUID(),zones:[randomUUID(),randomUUID()],tables:Array.from({length:10},()=>randomUUID()),orders:{mixed:randomUUID(),ready:randomUUID(),paidUnfinished:randomUUID()},products:{bar:randomUUID(),hookah:randomUUID(),unknown:randomUUID(),barLong:randomUUID(),barSecond:randomUUID(),hookahSecond:randomUUID(),unknownSecond:randomUUID()},items:{}},actors:{}};
   const password=randomBytes(24).toString('base64url'),salt=randomBytes(16).toString('hex'),hash=`scrypt$${salt}$${scryptSync(password,salt,64).toString('hex')}`;
   for(const role of ['owner','admin','manager','bartender','hookah_master','cleaner','foreign'])m.actors[role]={id:randomUUID(),login:'pos-workspace-'+role+'-'+randomUUID(),password};
   write(m);
@@ -65,6 +65,7 @@ async function main(){
       await pool.query('INSERT INTO users(id,venue_id,organization_id,full_name,login,password_hash,role,preferences) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[a.id,venue,org,names[role],a.login,hash,foreign?'owner':role,{theme:'dark'}]);
       await pool.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role,status) VALUES($1,$2,$3,'active')",[org,a.id,['owner','foreign'].includes(role)?'owner':'member']);
     }
+    await pool.query("INSERT INTO finance_accounts(id,venue_id,code,name,kind,allowed_payment_methods,created_by) VALUES($1,$2,'qa_card','QA card account','bank',ARRAY['card']::text[],$3)",[m.ids.cardAccount,m.ids.venue,m.actors.owner.id]);
     for(let z=0;z<2;z++)await pool.query('INSERT INTO zones(id,venue_id,name,sort_order) VALUES($1,$2,$3,$4)',[m.ids.zones[z],m.ids.venue,z?'VIP-зал':'Основной зал',z]);
     const statuses=['free','occupied','reserved','awaiting_payment','blocked'];
     for(let i=0;i<10;i++)await pool.query('INSERT INTO tables(id,zone_id,name,capacity,status,layout,min_order_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[m.ids.tables[i],m.ids.zones[Math.floor(i/5)],i<5?'Стол '+(i+1):'VIP '+(i-4),i<5?4:6,statuses[i%5],{unit:'px',x:(i%5%3)*225+24,y:Math.floor(i%5/3)*165+24,width:180,height:120,shape:i===6?'round':'rect'},i<5?0:1500]);
