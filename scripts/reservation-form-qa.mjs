@@ -127,4 +127,24 @@ guest.value = 'Другой разовый'; onInput();
 assert.equal(clientId.value, '');
 assert.equal(phone.value, '+79998887766', 'manual phone edit must survive guest name edit');
 
+// Keep a runtime error-path check on the current shared dialog implementation:
+// a rejected save must leave the draft open and restore editable controls.
+const runtime = createReservationFixture();
+validDraft(runtime);
+runtime.context.showStep(2);
+assert.equal(await runtime.context.openWizard(runtime.trigger), true);
+const runtimeHandle = runtime.context.getWindow();
+runtimeHandle.form.dispatch('submit');
+await settle();
+assert.equal(runtimeHandle.pending, true);
+assert.equal(runtime.get('guest').disabled, true, 'failed save locks the draft while the request is pending');
+assert.equal(runtime.get('phone').disabled, true, 'pending save locks the other editable draft field');
+runtime.pending[0].reject(new Error('offline'));
+await settle();
+assert.equal(runtimeHandle.pending, false, 'failed save releases the shared dialog pending state');
+assert.equal(runtimeHandle.element.isConnected, true, 'failed save keeps the reservation dialog open');
+assert.equal(runtime.get('guest').disabled, false, 'failed save restores editable controls');
+assert.equal(runtime.get('phone').disabled, false, 'failed save restores the other editable draft field');
+assert.match(runtimeHandle.element.querySelector('.ui-modal-message').textContent, /сохранить/i);
+
 console.log('RESERVATION FORM QA: PASS (current dialog lifecycle, pending ownership contract, guest identity, autofill cleanup)');
