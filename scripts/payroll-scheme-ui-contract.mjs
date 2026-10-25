@@ -13,10 +13,10 @@ const sync = fs.readFileSync(path.join(root, 'scripts', 'sync-published-assets.m
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 
 assert.equal(ui, distUi, 'published UI asset matches the source');
-assert.match(finance, /payroll-scheme-ui\.js\?rev=38/, 'finance source loads the current owner payroll UI revision');
-assert.match(distFinance, /payroll-scheme-ui\.js\?rev=38/, 'published finance page loads the current payroll UI revision');
-assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=38/, 'directory alias loads the same payroll UI revision');
-assert.match(sync, /payrollSchemeUiRevision = '38'/, 'asset revision is managed by the publish sync');
+assert.match(finance, /payroll-scheme-ui\.js\?rev=39/, 'finance source loads the current owner payroll UI revision');
+assert.match(distFinance, /payroll-scheme-ui\.js\?rev=39/, 'published finance page loads the current payroll UI revision');
+assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=39/, 'directory alias loads the same payroll UI revision');
+assert.match(sync, /payrollSchemeUiRevision = '39'/, 'asset revision is managed by the publish sync');
 assert.match(ui, /saved:'Сохранённые расчёты'/, 'saved runs remain in the existing payroll workspace');
 assert.match(ui, /sessionStorage\.setItem\(storageKey,\s*input\.idempotencyKey\)/, 'save intent is retained across reload');
 assert.match(ui, /detailToken === detailAtSubmit/, 'save completion preserves a later detail selection');
@@ -108,6 +108,10 @@ assert.match(ui, /Личный дневной план/, 'personal target previe
 assert.match(ui, /row\.marginIncentive/, 'margin preview shows signed/payable daily margin');
 assert.match(ui, /line\.costSnapshot/, 'margin line explains versioned net total cost');
 assert.match(ui, /текущая себестоимость меню не подставляется/, 'cost source limitation is disclosed');
+assert.match(ui, /полной первоначальной себестоимостью строки продажи из зафиксированного снимка\. При возврате выручка уменьшается, а эта себестоимость сохраняется\./,
+  'margin help describes the existing frozen original sale-cost policy after returns');
+assert.doesNotMatch(ui, /полной себестоимостью оставшегося количества после возвратов/,
+  'margin help must not promise remaining-quantity cost recalculation');
 assert.match(ui, /day\.teamFunds/, 'team fund preview presents each pooled computation once');
 assert.match(ui, /Доля командного фонда до лимитов/, 'employee pool share stays distinct from sale commission');
 assert.match(ui, /независимо от выхода/, 'configured weight attendance independence is explicit');
