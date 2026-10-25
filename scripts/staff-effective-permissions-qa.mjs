@@ -6,23 +6,23 @@ const adminRule=source.match(/const canOpenStaffAdmin=.*?;/)?.[0];assert.ok(admi
 const adminContext={};vm.runInNewContext(adminRule+'this.allowed=canOpenStaffAdmin;',adminContext);
 assert.equal(adminContext.allowed(new Set(['orders','floor','bar_tasks'])),false,'orders-only bartender stays work desktop');
 for(const permission of ['staff','staff_view','settings','diagnostics','tasks_manage','loyalty'])assert.equal(adminContext.allowed(new Set([permission])),true,'explicit admin section grant exposes link: '+permission);
-const start=source.indexOf('const clearStaffAccessState=()=>{');
+const start=source.indexOf('const clearStaffAccessState=');
 const end=source.indexOf("document.addEventListener('click',(event)=>{if(event.target.closest('[data-staff-session-retry]'))",start);
 assert.ok(start>0&&end>start);
-const nodes=new Map();const node=()=>({hidden:false,inert:false,textContent:'',innerHTML:'',classList:{remove(){}},setAttribute(){},removeAttribute(){}});
+const nodes=new Map();const node=()=>({hidden:false,inert:false,textContent:'',innerHTML:'',classList:{remove(){},toggle(){}},setAttribute(){},removeAttribute(){}});
 const status=node(),workspace=node(),nav=node(),order=node(),shift=node();
 nodes.set('#staff-session-status',status);nodes.set('#shift-toggle',shift);
 let calls=0,refreshes=0,loads=0,applies=0,clears=0;
 let payload={user:{id:'staff',venueId:'a'},permissions:['orders','floor']};
 let error=null,pending=null,token='real-token';
 const events={},intervals=[];
-const context={Promise,Set,JSON,Array,Error,clearPreparationQueue(){},loadPreparationQueue(){},
+const context={Promise,Set,JSON,Array,Error,clearPreparationQueue(){},loadPreparationQueue(){},closeStaffAttendanceDialog(){},renderStaffShiftControl(){},
  document:{body:node(),visibilityState:'visible',querySelector:s=>nodes.get(s),querySelectorAll:s=>s.includes('.portal-sidebar')?[nav]:s.includes('.workspace')?[workspace,order]:[],addEventListener:(type,fn)=>events[type]=fn},
  window:{addEventListener:(type,fn)=>events[type]=fn,setInterval:(fn,ms)=>intervals.push({fn,ms}),location:{replace(){}}},
  localStorage:{getItem:()=>token,setItem(){},removeItem(){}},
  staticStaffDemo:()=>false,staffFetchJson:async()=>{calls++;if(pending)return pending;if(error)throw error;return payload;},
  applyStaffSession:s=>{applies++;context.staffSessionPermissions=new Set(s.permissions);context.staffShiftReadable=s.permissions.includes('orders');},
- applyStaffHeader(){},mountStaffExtensions(){},refreshFloor:()=>refreshes++,loadProducts:()=>loads++,refreshShift(){},
+ applyStaffHeader(){},mountStaffExtensions(){},openSelfAttendanceDeepLink(){},refreshFloor:()=>refreshes++,loadProducts:()=>loads++,refreshShift(){},
  draw(){},showFloorUnavailable:()=>clears++,catalog:node(),
  staffSessionVerified:false,staffSessionRequest:null,staffAccessRevision:0,staffSessionSignature:'',staffSessionPermissions:new Set(),staffShiftReadable:false,staffShiftManageable:false,staffNotificationCenter:null,
  catalogRequestRevision:0,catalogRequest:null,catalogRequestContext:'',
@@ -41,5 +41,5 @@ let resolve;pending=new Promise(r=>resolve=r);const before=calls;const one=conte
 const priorApplies=applies;payload={...payload,user:{...payload.user,role:'manager'}};await context.verify();assert.equal(applies,priorApplies+1,'same permissions with changed role refreshes role-dependent presentation');
 pending=new Promise((_resolve,reject)=>resolve=reject);const stale=context.verify();token='new-real-token';resolve(Object.assign(new Error('old401'),{status:401}));await stale;pending=null;assert.equal(context.staffSessionVerified,true,'old-token failure cannot clear newer-session state');
 documentCheck();
-function documentCheck(){assert.ok(events.focus&&events.visibilitychange&&events.storage);assert.ok(clears>=4);assert.match(source,/loyaltyLink\.onclick=/);assert.match(source,/guestsLink\.onclick=.*staffSessionPermissions\.has\('orders'\)/);assert.match(source,/accessRevision!==staffAccessRevision/);assert.match(source,/revision!==staffAccessRevision/);}
+function documentCheck(){assert.ok(events.focus&&events.visibilitychange&&events.storage);assert.ok(clears>=4);assert.match(source,/loyaltyLink\.onclick=/);assert.match(source,/guestsLink\.onclick=.*staffSessionPermissions\.has\('orders'\)/);assert.match(source,/accessRevision!==staffAccessRevision/);assert.match(source,/revision!==preparationRevision\|\|access!==staffAccessRevision/);}
 console.log('STAFF EFFECTIVE PERMISSIONS QA: PASS (grant/revoke, empty authoritative, failed/recovered session, no duplicate apply, bounded single-flight refresh, sensitive-state invalidation)');
