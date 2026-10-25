@@ -176,6 +176,14 @@ try {
   const order = await orderResponse.json();
   assert.equal(order.tableId, table.id, 'POS order uses the exact hall-settings table ID'); checks++;
   assert.equal((await itemCreatePromise).status(), 201, 'POS UI adds the tracked recipe item'); checks++;
+  await page.locator('#catalog-done').click();
+  await page.locator('#catalog').waitFor({ state: 'hidden' });
+  await page.locator('#order-main-action').click();
+  await page.locator('#staff-action-modal').waitFor({ state: 'visible' });
+  await page.locator('#staff-action-fields [name="station_0"]').selectOption('bar');
+  await page.locator('#staff-action-submit').click();
+  await page.locator('#staff-action-modal').waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => document.querySelector('#order-main-action')?.textContent.includes('Все позиции отправлены'));
   const occupiedFloor = await page.evaluate(async () => {
     const response = await fetch('/api/floor', { headers: { Authorization: `Bearer ${localStorage.getItem('crm_session_token')}` } });
     return response.json();
