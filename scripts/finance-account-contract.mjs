@@ -29,7 +29,7 @@ assert.match(server,/GET[\s\S]*?\/api\/pos\/payment-accounts/,'floor account cat
 assert.match(server,/finance_account_name_snapshot/);
 assert.match(server,/paymentAccountId,account\.rows\[0\]\.name,shiftId/,'POS payment event stores selected account identity and snapshot');
 assert.match(server,/order_refund_tenders[\s\S]*?finance_account_id,finance_account_name_snapshot,shift_id/,'refund payout keeps its own account and cash shift');
-assert.match(server,/const paymentShiftId=accountRow\?\.kind==='pos_cashbox'\?activeShiftId:null/,'only cashbox POS tender receives the shift attribution');
+assert.match(server,/const paymentShiftId=method==='reservation'\|\|accountRow\?\.kind==='pos_cashbox'\?activeShiftId:null/,'cashbox tender and internal reservation settlement receive explicit shift attribution');
 assert.match(server,/closePaymentAccount\.kind==='pos_cashbox'\?activeShiftId:null/,'close flow matches payment route shift attribution');
 assert.match(app,/savePaymentIntent\(orderId,frozen\)/,'POS split tender freezes exact entries before the first write');
 assert.match(app,/const nextIndex=entryIndex\+1/,'POS split tender persists confirmed progress for safe retry');

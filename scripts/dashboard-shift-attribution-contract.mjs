@@ -21,6 +21,8 @@ assert.match(dashboardRoute, /if \(employeeView\) \{[\s\S]*?o\.venue_id=\$1 AND 
   'employee payment totals must use the actor, venue and venue-local event date');
 assert.match(dashboardRoute, /o\.closed_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*?shifts: \[\{ id: 'employee-today' \}\]/,
   'employee closed orders use local closure date and response hides shift identity');
+assert.equal((dashboardRoute.match(/COUNT\(p\.id\) FILTER \(WHERE p\.method<>'reservation' OR o\.status='closed'\)/g) || []).length, 2,
+  'employee and management KPI counts exclude open-order reservation settlements together with revenue');
 assert.doesNotMatch(dashboardRoute.slice(0, dashboardRoute.indexOf('const unmatchedResult')), /p\.created_at>=s\.opened_at/,
   'dashboard totals must not guess payment shift from timestamp intervals');
 assert.match(dashboardRoute, /unmatchedResult[\s\S]*p\.shift_id IS NULL[\s\S]*p\.created_at>=s\.opened_at/,

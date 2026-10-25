@@ -1,5 +1,6 @@
 'use strict';
 const { orderPricingSqlCtes } = require('./pos-order-pricing-sql');
+const { venueTimezoneSql } = require('./reservation-calendar');
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isoDate = (value) => { const raw=String(value||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return false;const d=new Date(`${raw}T00:00:00Z`);return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===raw; };
@@ -15,9 +16,10 @@ const mapRow = async (client,venueId,sourceKey,venueDate) => {
 async function writePosOrderIncomeCategorySnapshot(client,{venueId,orderId}) {
   const prior=await client.query('SELECT id FROM pos_order_income_category_snapshots WHERE venue_id=$1 AND order_id=$2',[venueId,orderId]);
   if(prior.rows[0])return prior.rows[0].id;
+  const timezone=venueTimezoneSql('$1');
   const source=await client.query(`SELECT s.id AS "pricingSnapshotId",s.final_total_minor AS "recognizedTotalMinor",s.minimum_adjustment_minor AS "minimumAdjustmentMinor",
-      o.closed_at::text AS "closedAt",COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg') AS "venueTimezone",
-      (o.closed_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg'))::date::text AS "venueDate"
+      o.closed_at::text AS "closedAt",${timezone} AS "venueTimezone",
+      (o.closed_at AT TIME ZONE ${timezone})::date::text AS "venueDate"
     FROM orders o JOIN venues v ON v.id=o.venue_id
     LEFT JOIN organizations org ON org.id=v.organization_id
     JOIN pos_order_pricing_snapshots s ON s.venue_id=o.venue_id AND s.order_id=o.id

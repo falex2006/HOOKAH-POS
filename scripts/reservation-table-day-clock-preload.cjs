@@ -32,6 +32,10 @@ const query = Client.prototype.query;
 Client.prototype.query = function (config, ...args) {
   const rewrite = text => {
     const stamp = `'${instant()}'::timestamptz`;
+    // Sale-cost evidence is guarded by PostgreSQL transaction_timestamp().
+    // Keep order finalization on that same database clock; this suite freezes
+    // only calendar-facing reads and reservation timestamps.
+    if (/UPDATE\s+orders\s+SET[\s\S]*\bclosed_at\s*=\s*(?:COALESCE\(closed_at,\s*)?now\s*\(\s*\)/i.test(text)) return text;
     return text.replace(/\b(?:now|transaction_timestamp|statement_timestamp|clock_timestamp)\s*\(\s*\)/gi, `(${stamp})`)
       .replace(/\bCURRENT_TIMESTAMP\b/gi, `(${stamp})`).replace(/\bCURRENT_DATE\b/gi, `(${stamp})::date`);
   };
