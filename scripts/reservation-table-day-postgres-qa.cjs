@@ -106,6 +106,13 @@ async function main() {
             eq(await status(id), relevant ? 'reserved' : 'free', `${sessionTimezone}/${f.label}/${side}/${action}/relevant=${relevant}`);
           }
         }
+        if (side === 'before' && sessionTimezone === 'UTC' && f.label.startsWith('invalid ')) {
+          const categoryId = (await pool.query("INSERT INTO finance_categories(venue_id,name,kind) VALUES($1,$2,'income') RETURNING id", [f.venue, `QA timezone income ${sessionTimezone} ${f.label}`])).rows[0].id;
+          const mapping = await api('/api/finance/income-category-mappings', token, 'POST', { sourceKey: 'Бар', categoryId, effectiveFrom: '2026-10-01', expectedMappingId: '' }, 201);
+          eq(mapping.categoryId, categoryId, `${sessionTimezone}/${f.label} finance mapping uses the validated timezone fallback`);
+          const incomeReport = await api('/api/finance/income-category-report?from=2026-10-01&to=2026-10-31', token);
+          eq(incomeReport.coverage.legacyUnclassifiedSalesCount >= 0, true, `${sessionTimezone}/${f.label} finance report accepts the validated timezone fallback`);
+        }
         const a = await table(), b = await table(), r = await reserve(a, date, time);
         await api('/api/reservations/' + r.id, token, 'PATCH', { guestName: 'Edited QA', tableId: b, date, time, guests: 2, deposit: 0 });
         eq(await status(a), 'free', 'reservation move releases original table');

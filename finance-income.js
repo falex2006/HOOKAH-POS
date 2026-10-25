@@ -86,7 +86,8 @@ async function handleFinanceIncomeRoute({req,res,url,pool,venueId,json,readBody,
     const input=await readBody(req);const sourceKey=String(input.sourceKey||'');const categoryId=String(input.categoryId||'');const effectiveFrom=String(input.effectiveFrom||'');const expectedMappingId=input.expectedMappingId==null?'':String(input.expectedMappingId);
     if((sourceKey!=='@minimum-adjustment'&&(!sourceKey.trim()||sourceKeyLength(sourceKey)>500))||!uuid.test(categoryId)||!isoDate(effectiveFrom)||!effectiveFrom.endsWith('-01'))return fail(json,res,400,'invalid_finance_income_mapping');
     const client=await pool.connect();try{await client.query('BEGIN');
-      const date=await client.query("SELECT date_trunc('month',now() AT TIME ZONE timezone)::date::text AS date FROM venues WHERE id=$1",[venueId]);
+      const timezone=venueTimezoneSql('$1');
+      const date=await client.query(`SELECT date_trunc('month',now() AT TIME ZONE ${timezone})::date::text AS date`,[venueId]);
       if(!date.rows[0]||effectiveFrom<date.rows[0].date){await client.query('ROLLBACK');return fail(json,res,409,'finance_income_mapping_must_be_current_or_future');}
       const source=await client.query(`SELECT EXISTS(SELECT 1 FROM products WHERE venue_id=$1 AND is_active=true AND category=CASE WHEN $2='@menu:@minimum-adjustment' THEN '@minimum-adjustment' WHEN $2='@menu:@unclassified' THEN '@unclassified' ELSE $2 END)
         OR EXISTS(SELECT 1 FROM pos_order_income_category_allocations WHERE venue_id=$1 AND source_key=$2 AND allocation_kind='item')
@@ -119,6 +120,7 @@ async function handleFinanceIncomeRoute({req,res,url,pool,venueId,json,readBody,
         if(!selectedVenue)return fail(json,res,403,'forbidden');
         venueId=selectedVenue.id;
       }
+      const timezone=venueTimezoneSql('$1');
       const [sales,legacy,historicalUnclassified,refunds,refundCoverage]=await Promise.all([
         pool.query(`SELECT a.category_id AS "categoryId",a.category_name_snapshot AS "categoryName",SUM(a.amount_minor)::text AS "amountMinor",COUNT(DISTINCT s.order_id)::int AS "orderCount",COUNT(*)::int AS "allocationCount"
           FROM pos_order_income_category_snapshots s JOIN pos_order_income_category_allocations a ON a.venue_id=s.venue_id AND a.income_snapshot_id=s.id
@@ -129,21 +131,21 @@ async function handleFinanceIncomeRoute({req,res,url,pool,venueId,json,readBody,
             GREATEST(0,GREATEST(COALESCE(o.vip_minimum,0),COALESCE(i.subtotal,0)-COALESCE(d.discount,0))))),0)::numeric(14,2)::text AS amount
           FROM orders o JOIN venues v ON v.id=o.venue_id LEFT JOIN pos_order_pricing_snapshots s ON s.venue_id=o.venue_id AND s.order_id=o.id
           LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN discount_totals d ON d.order_id=o.id
-          WHERE o.venue_id=$1 AND o.status='closed' AND s.id IS NULL AND (o.closed_at AT TIME ZONE v.timezone)::date BETWEEN $2::date AND $3::date`,[venueId,from,to]),
+          WHERE o.venue_id=$1 AND o.status='closed' AND s.id IS NULL AND (o.closed_at AT TIME ZONE ${timezone})::date BETWEEN $2::date AND $3::date`,[venueId,from,to]),
         pool.query(`SELECT COUNT(*)::int AS count,COALESCE(SUM(s.final_total_minor),0)::text AS "amountMinor"
           FROM orders o JOIN venues v ON v.id=o.venue_id
           JOIN pos_order_pricing_snapshots s ON s.venue_id=o.venue_id AND s.order_id=o.id
           LEFT JOIN pos_order_income_category_snapshots income ON income.venue_id=o.venue_id AND income.order_id=o.id
           WHERE o.venue_id=$1 AND o.status='closed' AND income.id IS NULL
-            AND (o.closed_at AT TIME ZONE v.timezone)::date BETWEEN $2::date AND $3::date`,[venueId,from,to]),
+            AND (o.closed_at AT TIME ZONE ${timezone})::date BETWEEN $2::date AND $3::date`,[venueId,from,to]),
         pool.query(`SELECT a.category_id AS "categoryId",a.category_name_snapshot AS "categoryName",SUM(ri.returned_item_value_minor)::text AS "amountMinor",COUNT(DISTINCT ri.refund_id)::int AS "refundCount",COUNT(*)::int AS "returnedLineCount"
           FROM order_refunds r JOIN order_refund_items ri ON ri.venue_id=r.venue_id AND ri.refund_id=r.id AND ri.order_id=r.order_id
           JOIN pos_order_income_category_snapshots s ON s.venue_id=ri.venue_id AND s.order_id=ri.order_id
           JOIN pos_order_income_category_allocations a ON a.venue_id=s.venue_id AND a.income_snapshot_id=s.id AND a.order_item_id=ri.order_item_id
-          WHERE r.venue_id=$1 AND (r.created_at AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date BETWEEN $2::date AND $3::date
+          WHERE r.venue_id=$1 AND (r.created_at AT TIME ZONE ${timezone})::date BETWEEN $2::date AND $3::date
           GROUP BY a.category_id,a.category_name_snapshot ORDER BY a.category_id NULLS LAST,a.category_name_snapshot`,[venueId,from,to]),
         pool.query(`SELECT COUNT(*) FILTER(WHERE r.item_attribution_status='unattributed')::int AS "unattributedRefunds",COUNT(*) FILTER(WHERE r.item_attribution_status='complete')::int AS "itemAttributedRefunds"
-          FROM order_refunds r WHERE r.venue_id=$1 AND (r.created_at AT TIME ZONE (SELECT timezone FROM venues WHERE id=$1))::date BETWEEN $2::date AND $3::date`,[venueId,from,to]),
+          FROM order_refunds r WHERE r.venue_id=$1 AND (r.created_at AT TIME ZONE ${timezone})::date BETWEEN $2::date AND $3::date`,[venueId,from,to]),
       ]);
       const unclassified=sales.rows.find(row=>row.categoryId===null)||null;
       return json(res,200,{from,to,dateBasis:'venue_local_closed_at',...(selectedVenue?{venue:{id:selectedVenue.id,name:selectedVenue.name,timeZone:selectedVenue.timeZone}}:{}),items:sales.rows,refundItemValues:refunds.rows,
