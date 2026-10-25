@@ -1,10 +1,61 @@
-import { cpSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const supportedFlags = new Set(['--check', '--staff-schedule-only', '--payroll-scheme-ui-only', '--saas-only']);
+const requestedFlags = process.argv.slice(2);
+const unknownFlags = requestedFlags.filter(flag => !supportedFlags.has(flag));
+if (unknownFlags.length) throw new Error(`Unknown sync option: ${unknownFlags.join(', ')}`);
+if (requestedFlags.length > 1) throw new Error('Use exactly one sync option at a time.');
+
+function listFiles(directory, base = directory, output = []) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) listFiles(path, base, output);
+    else if (entry.isFile()) output.push(relative(base, path));
+  }
+  return output;
+}
+
+if (requestedFlags[0] === '--check') {
+  const candidate = mkdtempSync(resolve(tmpdir(), 'hookah-published-assets-check-'));
+  const excludedRoots = new Set(['.git', 'node_modules', 'tmp', 'docs']);
+  try {
+    cpSync(root, candidate, {
+      recursive: true,
+      filter(source) {
+        const rel = relative(root, source);
+        if (!rel) return true;
+        const first = rel.split(/[\\/]/, 1)[0];
+        return !excludedRoots.has(first) && !first.startsWith('.env');
+      },
+    });
+    execFileSync(process.execPath, [resolve(candidate, 'scripts', 'sync-published-assets.mjs')], {
+      cwd: candidate,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const mismatches = [];
+    for (const rel of listFiles(candidate)) {
+      const actual = resolve(root, rel);
+      const expected = resolve(candidate, rel);
+      if (!existsSync(actual) || !statSync(actual).isFile() || !readFileSync(actual).equals(readFileSync(expected))) {
+        mismatches.push(rel.replaceAll('\\', '/'));
+      }
+    }
+    if (mismatches.length) {
+      throw new Error(`Published assets are not synchronized (${mismatches.length}):\n${mismatches.slice(0, 30).join('\n')}`);
+    }
+    console.log('Published asset sync check: PASS (read-only; full sync would be a no-op).');
+  } finally {
+    rmSync(candidate, { recursive: true, force: true });
+  }
+  process.exit(0);
+}
 const cssRevision = '2026102404';
 const managementThemeRevision = '2026102305';
 const portalRevision = '2026102403';
@@ -24,7 +75,7 @@ const loginRevision = '2026101803';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '2026102305';
-const payrollSchemeUiRevision = '39';
+const payrollSchemeUiRevision = '40';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
 const speedDialRevision = '1';
