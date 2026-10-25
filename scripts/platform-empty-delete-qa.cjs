@@ -10,8 +10,23 @@ const container = JSON.parse(require('node:child_process').execFileSync('docker'
 c.dbPassword = container.Config.Env.find(value => value.startsWith('POSTGRES_PASSWORD=')).slice('POSTGRES_PASSWORD='.length);
 const db = new pg.Client({ host: '127.0.0.1', port: c.dbPort, database: c.database, user: c.dbUser, password: c.dbPassword });
 const base = 'http://127.0.0.1:31939';
+async function removeSyntheticOrganization(organizationId, { removeOrganization = false } = {}) {
+  await db.query('BEGIN');
+  try {
+    await db.query('DELETE FROM tobacco_catalog_items WHERE organization_id=$1', [organizationId]);
+    if (removeOrganization) {
+      await db.query('DELETE FROM organization_subscriptions WHERE organization_id=$1', [organizationId]);
+      await db.query('DELETE FROM organizations WHERE id=$1', [organizationId]);
+    }
+    await db.query('COMMIT');
+  } catch (error) {
+    await db.query('ROLLBACK').catch(() => {});
+    throw error;
+  }
+}
 (async () => {
-  let browser, id;
+  let browser, id, functionalError;
+  const cleanupErrors = [];
   try {
     await db.connect();
     const slug = `delete-qa-${Date.now()}`;
@@ -23,9 +38,11 @@ const base = 'http://127.0.0.1:31939';
     assert.equal((await remove({}, 'invalid')).status, 401);
     assert.equal((await remove({})).status, 400);
     assert.equal((await remove({ confirmation: 'Удалить', slug: 'wrong', acknowledged: true })).status, 400);
-    const venue = (await db.query('INSERT INTO venues(name,organization_id,is_active) VALUES($1,$2,false) RETURNING id', ['QA inactive guard', id])).rows[0].id;
+    const guardItem = (await db.query(`INSERT INTO tobacco_catalog_items(organization_id,scope,brand,flavor)
+      VALUES($1,'organization','QA delete guard','Synthetic non-empty organization') RETURNING id`, [id])).rows[0].id;
     assert.equal((await remove({ confirmation: 'Удалить', slug, acknowledged: true })).status, 409);
-    await db.query('DELETE FROM venues WHERE id=$1', [venue]);
+    assert.ok(guardItem);
+    await removeSyntheticOrganization(id);
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     await page.goto(base + '/login');
@@ -53,5 +70,13 @@ const base = 'http://127.0.0.1:31939';
     await page.locator('#settings-refresh').click();
     await page.locator('#settings-result').filter({ hasText: 'обновлены' }).waitFor();
     console.log('PASS: auth, confirmation, inactive-data guard, UI deletion, reload, DB audit, settings refresh');
-  } finally { await browser?.close(); if (id) await db.query('DELETE FROM organizations WHERE id=$1', [id]).catch(() => {}); await db.end(); }
+  } catch (error) { functionalError = error; }
+  finally {
+    try { await browser?.close(); } catch (error) { cleanupErrors.push(error); }
+    if (id) { try { await removeSyntheticOrganization(id, { removeOrganization: true }); } catch (error) { cleanupErrors.push(error); } }
+    try { await db.end(); } catch (error) { cleanupErrors.push(error); }
+  }
+  if (functionalError && cleanupErrors.length) throw new AggregateError([functionalError, ...cleanupErrors], 'Platform QA failed and cleanup was incomplete');
+  if (functionalError) throw functionalError;
+  if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'Platform QA cleanup failed');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
