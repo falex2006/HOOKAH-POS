@@ -5604,7 +5604,7 @@ if (staffProfile && req.method === 'PATCH') {
               COALESCE(payments.cash,0) AS cash, COALESCE(payments.cashless,0) AS cashless,
               COALESCE(payments.other,0) AS other, checks.closed_orders
             FROM (
-              SELECT SUM(p.amount) FILTER (WHERE p.method<>'reservation' OR o.status='closed') AS revenue, COUNT(p.id)::int AS payment_count,
+              SELECT SUM(p.amount) FILTER (WHERE p.method<>'reservation' OR o.status='closed') AS revenue, COUNT(p.id) FILTER (WHERE p.method<>'reservation' OR o.status='closed')::int AS payment_count,
                 SUM(p.amount) FILTER (WHERE p.method='cash') AS cash,
                 SUM(p.amount) FILTER (WHERE p.method IN ('card','qr')) AS cashless,
                 SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','card','qr') AND (p.method<>'reservation' OR o.status='closed')) AS other
@@ -5639,7 +5639,7 @@ if (staffProfile && req.method === 'PATCH') {
           FROM shifts s
           LEFT JOIN LATERAL (
             SELECT SUM(p.amount) FILTER (WHERE p.method<>'reservation' OR o.status='closed') AS revenue,
-              COUNT(p.id)::int AS payment_count,
+              COUNT(p.id) FILTER (WHERE p.method<>'reservation' OR o.status='closed')::int AS payment_count,
               SUM(p.amount) FILTER (WHERE p.method='cash') AS cash,
               SUM(p.amount) FILTER (WHERE p.method IN ('card','qr')) AS cashless,
               SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','card','qr') AND (p.method<>'reservation' OR o.status='closed')) AS other
@@ -6842,7 +6842,7 @@ if (staffProfile && req.method === 'PATCH') {
           await client.query('UPDATE orders SET pricing_locked_at=now(),group_discount_base=$3,group_discount_amount=$4,effective_discount_source=$5,subtotal_snapshot=$6,discount_total_snapshot=$7,minimum_adjustment_snapshot=$8,final_total_snapshot=$9,pricing_version=1,pricing_offers_snapshot=$10,selected_promotion_id=$11,selected_promotion_version=$12,selected_promotion_name=$13,selected_promotion_benefit_kind=$14,selected_promotion_benefit_value=$15,selected_promotion_basis=$16,selected_promotion_amount=$17 WHERE id=$1 AND venue_id=$2 AND pricing_locked_at IS NULL', [paymentPath[1], venueDbId, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, due, JSON.stringify(pricing.offers || []), promotion?.promotionId || null, promotion?.version || null, promotion?.label || null, promotion?.benefitKind || null, promotion?.benefitValue ?? null, promotion?.eligibleBasis ?? null, promotion?.amount ?? null]);
         }
         await writePosOrderPricingSnapshot(client,{venueId:venueDbId,orderId:paymentPath[1],pricing});
-        const paymentShiftId=accountRow?.kind==='pos_cashbox'?activeShiftId:null;
+        const paymentShiftId=method==='reservation'||accountRow?.kind==='pos_cashbox'?activeShiftId:null;
         const { rows } = await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id,idempotency_key,finance_account_id,finance_account_name_snapshot) VALUES ($1,$2,$3,\'paid\',$4,$5,$6,$7) RETURNING id,method,amount,status,shift_id AS "shiftId",finance_account_id AS "paymentAccountId",finance_account_name_snapshot AS "paymentAccountNameSnapshot",idempotency_key AS "idempotencyKey",created_at AS "createdAt"', [paymentPath[1], method, amount, paymentShiftId, idempotencyKey||null,paymentAccountId,accountRow?.name||null]);
         if (method === 'reservation') {
           await client.query('INSERT INTO reservation_pre_payment_allocations (venue_id,reservation_id,receipt_id,order_id,payment_id,shift_id,amount,idempotency_key,actor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',[venueDbId,persisted.reservationId,receiptId,paymentPath[1],rows[0].id,activeShiftId,amount,idempotencyKey,req.user?.id||null]);

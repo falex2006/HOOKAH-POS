@@ -14,6 +14,8 @@ assert.match(new URL(databaseUrl).pathname, /(?:test|qa|scratch)/i,
 const require = createRequire(import.meta.url);
 const { Client, Pool } = require('pg');
 const { orderPricingSqlCtes } = require('../pos-order-pricing-sql');
+const { beginPayrollSourceProducerTransaction } = require('../payroll-source-fence');
+const { persistSaleCostEvidence } = require('../pos-sale-cost-evidence');
 const setup = new Client({ connectionString: databaseUrl });
 const pool = new Pool({ connectionString: databaseUrl, max: 4 });
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
@@ -52,6 +54,7 @@ let otherVenueId = null;
 let organizationId = null;
 let userId = null;
 let orderId = null;
+let orderItemId = null;
 let productId = null;
 let guestId = null;
 let shiftId = null;
@@ -115,18 +118,18 @@ const callShiftApi = async ({ path, method = 'POST', body = {}, role = 'owner', 
 const callPaymentApi = async ({ path, method = 'POST', body = {} }) => {
   let response;
   const pathname = path;
-  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnless','body','json','recordAudit','requireOpenShift','orders','scaleBatchRecipeIngredients','depleteRecipeForOrder','approvedDiscountTotal','orderTotal','validPaymentAmount','roundMoney','orderBalanceConflict','moneyCents','pgOrderPricing','accrueGuestOrderBonus','writePosOrderPricingSnapshot','writePosOrderIncomeCategorySnapshot',
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnless','body','json','recordAudit','requireOpenShift','orders','scaleBatchRecipeIngredients','depleteRecipeForOrder','approvedDiscountTotal','orderTotal','validPaymentAmount','roundMoney','orderBalanceConflict','moneyCents','pgOrderPricing','accrueGuestOrderBonus','writePosOrderPricingSnapshot','writePosOrderIncomeCategorySnapshot','beginPayrollSourceProducerTransaction','persistSaleCostEvidence',
     `return (async()=>{${paymentRoute}})();`)(
     pathname, { method, headers: {}, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool, audit: { record: async () => {} } }, venueId,
     () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {},
-    async () => false, [], () => [], async () => ({ lines: [], totalCost: 0 }), () => 0, () => 0,
+    async () => false, [], () => [], async () => ({ lines: [], totalCost: 0, costEvidenceInput: { captureVersion: 1, status: 'captured', reasons: [], lines: [{ orderItemId, productId, quantity: '1', inventoryMode: 'non_stock', recipe: null }], components: [], movements: [] } }), () => 0, () => 0,
     (value) => Number.isFinite(value) && value > 0 && Math.abs(value * 100 - Math.round(value * 100)) < 1e-7,
     (value) => Math.round(Number(value) * 100) / 100,
     ({ due, paid }) => Math.round(Number(paid) * 100) > Math.round(Number(due) * 100),
     (value) => Math.round(Number(value) * 100),
     async (client, id, minimum = 0) => { const items = await client.query('SELECT oi.id AS "orderItemId",oi.product_id AS "productId",oi.quantity,oi.unit_price AS "unitPrice",oi.station,oi.sales_employee_id AS "sellerId",oi.sold_at::text AS "soldAt",p.name AS "productName",p.category,p.is_active AS "productActive" FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=$1 ORDER BY oi.id', [id]); const payments = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM payments WHERE order_id=$1 AND status IN ('paid','partially_paid')", [id]); const lineAllocations = items.rows.map((item) => { const grossCents = Math.round(Number(item.quantity) * Number(item.unitPrice) * 100); return { orderItemId: item.orderItemId, grossCents, discountCents: 0, netCents: grossCents, eligibleForSelectedOffer: false }; }); const subtotal = lineAllocations.reduce((sum, line) => sum + line.grossCents, 0) / 100; const due = Math.max(subtotal, Number(minimum || 0)); return { subtotal, discount: 0, net: subtotal, due, paid: Number(payments.rows[0]?.amount || 0), minimumAdjustment: due - subtotal, source: 'none', groupDiscountAmount: null, groupDiscountGroupId: null, groupDiscountName: null, groupDiscountPercent: null, groupDiscountBase: null, offers: [], pricingInputs: {}, pricingLines: items.rows, lineAllocations, lineSnapshotStatus: 'complete' }; },
     async () => ({ base: 0, percent: 0, earned: 0, balance: null }),
-    writePosOrderPricingSnapshot,writePosOrderIncomeCategorySnapshot,
+    writePosOrderPricingSnapshot,writePosOrderIncomeCategorySnapshot,beginPayrollSourceProducerTransaction,persistSaleCostEvidence,
   );
   return response || result;
 };
@@ -139,9 +142,9 @@ try {
   await setup.query('UPDATE venues SET organization_id=$1 WHERE id=$2',[organizationId,venueId]);
   userId = (await setup.query(`INSERT INTO users (venue_id,full_name,login,role)
     VALUES ($1,'Cash QA','shift-cash-qa-${process.pid}','owner') RETURNING id`, [venueId])).rows[0].id;
-  productId = (await setup.query("INSERT INTO products (venue_id,name,category,sale_price) VALUES ($1,'QA order','bar',300) RETURNING id", [venueId])).rows[0].id;
+  productId = (await setup.query("INSERT INTO products (venue_id,name,category,sale_price,inventory_mode) VALUES ($1,'QA order','bar',300,'non_stock') RETURNING id", [venueId])).rows[0].id;
   orderId = (await setup.query("INSERT INTO orders (venue_id,opened_by,status) VALUES ($1,$2,'open') RETURNING id", [venueId, userId])).rows[0].id;
-  await setup.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price) VALUES ($1,$2,1,300)', [orderId, productId]);
+  orderItemId = (await setup.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price) VALUES ($1,$2,1,300) RETURNING id', [orderId, productId])).rows[0].id;
 
   const opened = await callShiftApi({ path: '/api/shifts', body: { openingCash: 1000 } });
   assert.equal(opened.status, 201);
@@ -161,7 +164,7 @@ try {
   assert.equal((await setup.query('SELECT closed_at FROM shifts WHERE id=$1', [shiftId])).rows[0].closed_at, null,
     'a failed checklist validation does not change the open shift');
 
-  unresolvedOrderId = (await setup.query("INSERT INTO orders (venue_id,opened_by,status,closed_at) VALUES ($1,$2,'closed',now()) RETURNING id", [venueId, userId])).rows[0].id;
+  unresolvedOrderId = (await setup.query("INSERT INTO orders (venue_id,opened_by,status) VALUES ($1,$2,'open') RETURNING id", [venueId, userId])).rows[0].id;
   await setup.query('ALTER TABLE payments DISABLE TRIGGER payments_finance_account_guard');
   try { unresolvedPaymentId = (await setup.query("INSERT INTO payments (order_id,method,amount,status,shift_id,created_at) VALUES ($1,'cash',40,'paid',NULL,now()) RETURNING id", [unresolvedOrderId])).rows[0].id; }
   finally { await setup.query('ALTER TABLE payments ENABLE TRIGGER payments_finance_account_guard'); }

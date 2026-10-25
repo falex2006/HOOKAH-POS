@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const financeIncome = readFileSync(new URL('../finance-income.js', import.meta.url), 'utf8');
+const incomeFallback = readFileSync(new URL('../migrations/211_finance_income_timezone_fallback.sql', import.meta.url), 'utf8');
+assert.match(financeIncome, /venueTimezoneSql\('\$1'\)/, 'POS income writer validates venue then organization timezone through the shared SQL resolver');
+assert.doesNotMatch(financeIncome, /AT TIME ZONE (?:v\.timezone|timezone\)|\(SELECT timezone FROM venues)/, 'POS income mapping and reporting never pass an unvalidated persisted timezone to PostgreSQL');
+assert.match(incomeFallback, /pg_catalog\.pg_timezone_names[\s\S]*?v\.timezone[\s\S]*?pg_catalog\.pg_timezone_names[\s\S]*?org\.timezone[\s\S]*?'Asia\/Yekaterinburg'/, 'deferred immutable snapshot validation uses the same legacy-safe timezone fallback');
 const helperStart = source.indexOf('const venueBusinessDateContext = async (pool, venueId) => {');
 const helperEnd = source.indexOf('const recentBusinessDates', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'venue business date helper exists');

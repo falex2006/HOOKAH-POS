@@ -98,6 +98,7 @@ const staticTests = [
   "payroll-lifecycle-runtime-qa.mjs",
   "payroll-register-load-state-qa.mjs",
   "payroll-register-ui-contract.mjs",
+  "payroll-scheme-owner-authorization-contract.mjs",
   "platform-saas-contract.mjs",
   "portal-action-keyboard-qa.mjs",
   "portal-api-auth-qa.mjs",

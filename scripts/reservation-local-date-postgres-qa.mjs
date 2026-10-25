@@ -31,7 +31,6 @@ assert.equal(Object.keys(container.HostConfig.PortBindings).length, 1);
 assert.deepEqual(container.HostConfig.PortBindings['5432/tcp'], [{ HostIp: '127.0.0.1', HostPort: '31931' }]);
 const pool = new Pool({ connectionString, max: 2 });
 const childMode = process.argv[2] === '--child';
-let fixturesTouched = false;
 const fixtures = childMode ? JSON.parse(process.argv[3]) : ['Asia/Yekaterinburg', 'America/Los_Angeles'].map(timezone => ({
   org: randomUUID(), venue: randomUUID(), zone: randomUUID(), table: randomUUID(), guest: randomUUID(), timezone
 }));
@@ -40,13 +39,15 @@ async function runChild() {
   const hostTimezone = process.env.TZ;
   assert.ok(['Asia/Yekaterinburg', 'America/Los_Angeles'].includes(hostTimezone));
   assert.equal(Intl.DateTimeFormat().resolvedOptions().timeZone, hostTimezone, 'Node must apply the selected host timezone');
-  // Replay only the old SELECT projection to prove this regression detects the defect.
+  // Simulate the legacy driver shape to prove this regression detects a host-local Date.
   // No product source, PostgreSQL type parser, or stored timestamp is changed.
   if (process.env.RESERVATION_QA_LEGACY_PROJECTION === '1') {
     const query = pool.query.bind(pool);
-    pool.query = (sql, ...args) => query(typeof sql === 'string' && sql.startsWith('SELECT r.id,')
-      ? sql.replace(/to_char\((\(r\.starts_at AT TIME ZONE .*?\)),\s*'YYYY-MM-DD'\) AS date/, '$1::date AS date')
-      : sql, ...args);
+    pool.query = async (sql, ...args) => {
+      const result = await query(sql, ...args);
+      if (typeof sql === 'string' && sql.startsWith('SELECT r.id,')) result.rows = result.rows.map((row) => ({ ...row, date: new Date(`${row.date}T00:00:00Z`) }));
+      return result;
+    };
   }
   const repository = new ReservationRepository(pool);
   for (const fixture of fixtures) {
@@ -109,7 +110,6 @@ try {
   assertQaDatabaseIdentity(identity, target.database, 31931, 'Reservation date PostgreSQL');
   if (childMode) await runChild();
   else {
-    fixturesTouched = true;
     for (const fixture of fixtures) {
       await pool.query("INSERT INTO organizations(id,name,slug,plan) VALUES($1,'Reservation date QA',$2,'enterprise')", [fixture.org, `reservation-date-${fixture.org}`]);
       await pool.query("INSERT INTO venues(id,organization_id,name,timezone) VALUES($1,$2,'Reservation date QA',$3)", [fixture.venue, fixture.org, fixture.timezone]);
@@ -120,18 +120,8 @@ try {
     for (const timezone of ['Asia/Yekaterinburg', 'America/Los_Angeles']) await spawnHost(timezone);
     assert.equal(Number((await pool.query('SELECT count(*) AS count FROM reservations WHERE venue_id=ANY($1::uuid[])', [fixtures.map(entry => entry.venue)])).rows[0].count), 12);
     await spawnHost('Asia/Yekaterinburg', true);
-    console.log('PASS reservation calendar date PostgreSQL regression: 12 scenarios, exact ISO calendar strings, tenant isolation, owned fixture cleanup');
+    console.log('PASS reservation calendar date PostgreSQL regression: 12 scenarios, exact ISO calendar strings, tenant isolation; guarded runner owns whole-database cleanup');
   }
 } finally {
-  if (fixturesTouched) {
-    const venues = fixtures.map(entry => entry.venue);
-    await pool.query('DELETE FROM reservations WHERE venue_id=ANY($1::uuid[])', [venues]);
-    await pool.query('DELETE FROM guests WHERE id=ANY($1::uuid[])', [fixtures.map(entry => entry.guest)]);
-    await pool.query('DELETE FROM tables WHERE id=ANY($1::uuid[])', [fixtures.map(entry => entry.table)]);
-    await pool.query('DELETE FROM zones WHERE id=ANY($1::uuid[])', [fixtures.map(entry => entry.zone)]);
-    await pool.query('DELETE FROM venues WHERE id=ANY($1::uuid[])', [venues]);
-    await pool.query('DELETE FROM organizations WHERE id=ANY($1::uuid[])', [fixtures.map(entry => entry.org)]);
-    assert.equal(Number((await pool.query('SELECT count(*) AS count FROM venues WHERE id=ANY($1::uuid[])', [venues])).rows[0].count), 0);
-  }
   await pool.end();
 }
