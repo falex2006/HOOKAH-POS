@@ -154,8 +154,14 @@ try {
   assert.equal((await db.query('SELECT id,zone_id FROM tables WHERE id=$1', [table.id])).rows[0]?.zone_id, hall.id, 'the exact UI-created table identity is persisted'); checks++;
 
   await page.goto(base, { waitUntil: 'networkidle' });
-  await page.locator(`[data-zone-id="${hall.id}"]`).waitFor();
-  await page.locator(`[data-zone-id="${hall.id}"]`).click();
+  const hallTab = page.locator(`[data-zone-id="${hall.id}"]`);
+  await hallTab.waitFor({ state: 'attached' });
+  if (await hallTab.isVisible()) {
+    await hallTab.click();
+  } else {
+    assert.equal(await page.locator('[data-zone-id]').count(), 1, 'only a single hall may omit the hall switcher'); checks++;
+    assert.equal(await hallTab.getAttribute('aria-selected'), 'true', 'the single hidden hall tab is already selected'); checks++;
+  }
   await page.locator(`[data-table="${table.id}"]`).click();
   await page.locator('#table-context-actions [data-table-action="close-panel"]').evaluate((node) => node.click());
   assert.equal(await page.locator(`[data-table="${table.id}"]`).evaluate((node) => node.classList.contains('sel')), true, 'closing the table card preserves the selected table'); checks++;
