@@ -108,6 +108,10 @@ assert.match(ui, /Личный дневной план/, 'personal target previe
 assert.match(ui, /row\.marginIncentive/, 'margin preview shows signed/payable daily margin');
 assert.match(ui, /line\.costSnapshot/, 'margin line explains versioned net total cost');
 assert.match(ui, /текущая себестоимость меню не подставляется/, 'cost source limitation is disclosed');
+assert.match(ui, /полной первоначальной себестоимостью строки продажи из зафиксированного снимка\. При возврате выручка уменьшается, а эта себестоимость сохраняется\./,
+  'margin help describes the existing frozen original sale-cost policy after returns');
+assert.doesNotMatch(ui, /полной себестоимостью оставшегося количества после возвратов/,
+  'margin help must not promise remaining-quantity cost recalculation');
 assert.match(ui, /day\.teamFunds/, 'team fund preview presents each pooled computation once');
 assert.match(ui, /Доля командного фонда до лимитов/, 'employee pool share stays distinct from sale commission');
 assert.match(ui, /независимо от выхода/, 'configured weight attendance independence is explicit');
