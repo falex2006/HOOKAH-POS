@@ -486,7 +486,7 @@
           .map(row => ({ id: row.id, name: row.name, active: row.active === true }));
         snapshot = nextSnapshot;
         setMessage(status, nextSnapshot.current ? `Последнее изменение: версия ${Number(nextSnapshot.current.revisionNo)} · ${nextSnapshot.current.createdByName || 'владелец'}`
-          : 'История ещё не настроена.');
+          : '');
         renderRoster(); renderHistory();
       } catch (error) {
         status.textContent = showError(error);
@@ -2712,6 +2712,8 @@
     panel.className = 'panel finance-payroll-schemes';
     panel.innerHTML = `
       <style data-payroll-editor-responsive>
+        #page-content.finance-workspace details.finance-secondary-details.finance-payroll-settings>summary::after{content:'';display:block;flex:0 0 8px;width:8px;height:8px;border:solid currentColor;border-width:0 2px 2px 0;margin:0 8px 4px;transform:rotate(45deg)}
+        #page-content.finance-workspace details.finance-secondary-details.finance-payroll-settings[open]>summary::after{transform:rotate(225deg)}
         .finance-payroll-schemes{min-width:0;max-width:100%;box-sizing:border-box}
         .finance-payroll-schemes fieldset,.finance-payroll-schemes form,.finance-payroll-schemes details,.finance-payroll-schemes section,.finance-payroll-schemes [data-scheme-grid],.finance-payroll-schemes [data-grid-overrides]{min-width:0;min-inline-size:0;max-width:100%;box-sizing:border-box}
         .finance-payroll-schemes .panel-head,.finance-payroll-schemes .panel-head>*,.finance-payroll-schemes .toolbar-row,.finance-payroll-schemes .form-row,.finance-payroll-schemes label{min-width:0;max-width:100%;box-sizing:border-box}
