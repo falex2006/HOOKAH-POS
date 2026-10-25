@@ -320,6 +320,7 @@ const recordRevision = async (db, actor, scheme, changeKind) => {
 
 const withOwnerTransaction = async (pool, principal, callback, { sourceProducer = false } = {}) => {
   const client = await pool.connect();
+  let cleanupError;
   try {
     if (sourceProducer) await beginPayrollSourceProducerTransaction(client, principal?.venueId);
     else await client.query('BEGIN');
@@ -328,7 +329,7 @@ const withOwnerTransaction = async (pool, principal, callback, { sourceProducer 
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(error => { cleanupError = error; });
     if (error instanceof PayrollSchemeServiceError) throw error;
     if (error?.code === '23505') fail('payroll_scheme_conflict', 409);
     if (error?.code === '23P01' && error?.message === 'payroll employment periods overlap') fail('payroll_employment_periods_overlap', 409);
@@ -344,7 +345,7 @@ const withOwnerTransaction = async (pool, principal, callback, { sourceProducer 
     if (error?.code === '22P02' || error?.code === '22003') fail('payroll_scheme_reference_invalid', 400);
     throw error;
   } finally {
-    client.release();
+    client.release(cleanupError);
   }
 };
 
