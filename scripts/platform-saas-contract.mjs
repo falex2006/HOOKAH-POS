@@ -92,6 +92,7 @@ assert.match(server, /platform_organizations_unavailable/);
 assert.match(server, /invalid_subscription_status/);
 assert.match(server, /saas_account_unavailable/);
 assert.match(server, /input\.login!==undefined && error\.code==='23505'\) return json\(res,409,\{error:'owner_login_already_exists'\}\)/, 'duplicate owner login edits must return a specific client error');
+assert.match(server, /action === 'reset'[\s\S]*?BEGIN[\s\S]*?password_reset_token_hash[\s\S]*?INSERT INTO audit_events \(venue_id,actor_id,action,entity_type,entity_id,after_data\) VALUES \(NULL,NULL,'platform\.owner_reset_issued'[\s\S]*?COMMIT[\s\S]*?owner_reset_failed/, 'owner recovery issuance and its global platform audit must commit atomically');
 assert.match(server, /subscription_unavailable/);
 assert.match(server, /use_subscription_endpoint/);
 console.log('PLATFORM SAAS CONTRACT: PASS (controls, API links, truthful states, role/data contracts, published assets)');

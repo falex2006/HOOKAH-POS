@@ -250,4 +250,4 @@ body.platform-page .platform-header{height:auto;min-height:68px;gap:12px;padding
 body.platform-page .platform-sidebar .portal-nav a{color:var(--ui-text-secondary)}
 body.platform-page .platform-sidebar .portal-nav a.active{background:var(--ui-action-fill);color:var(--ui-text-on-action)}
 body.platform-page :is(a,button,input,select,textarea):focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
-@media(max-width:560px){body.platform-page .platform-header{align-items:flex-start}body.platform-page .modal-actions{flex-wrap:wrap}body.platform-page .platform-modal-panel{padding:20px}}
+@media(max-width:560px){body.platform-page .platform-header{align-items:flex-start}body.platform-page .modal-actions{flex-wrap:wrap}body.platform-page .platform-modal .modal-actions{flex-direction:column}body.platform-page .platform-modal-panel{padding:20px}}

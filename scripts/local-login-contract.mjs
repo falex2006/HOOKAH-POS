@@ -47,6 +47,7 @@ const required = [
   ['recovery token stays in the URL fragment and is submitted once', /location\.hash\.slice\(1\)/.test(js) && /resetToken: passwordResetToken, newPassword: password/.test(js) && /history\.replaceState\(null, '', '\/login'\)/.test(js)],
   ['recovery flow verifies confirmation and does not fall through to first-run setup', /password !== passwordResetConfirmInput\.value/.test(js) && /if \(isPasswordReset\) return;/.test(js)],
   ['server consumes valid recovery tokens only with a configured database', /password_reset_requires_database/.test(server) && /password_reset_token_hash=NULL,password_reset_expires_at=NULL/.test(server)],
+  ['completed recovery audit is transactional and scoped to the recovered owner venue', server.includes('venue_id AS \\"venueId\\" FROM users WHERE password_reset_token_hash') && /DELETE FROM auth_sessions[\s\S]*INSERT INTO audit_events \(venue_id,actor_id,action,entity_type,entity_id,after_data\)[\s\S]*auth\.password_reset_completed[\s\S]*COMMIT/.test(server)],
   ['published login behavior and cache revisions stay synchronized', js === distJs && [html,distHtml,distDirectoryHtml].every(markup => markup.includes(`login.js?rev=${loginRevision}`))],
   ['first-run setup is opt-in for the current environment', /FIRST_RUN_SETUP_ENABLED === 'true'/.test(server) && /if \(!firstRunSetupEnabled\) return json\(res, 200, \{ required: false \}\)/.test(server)],
   ['login HTML cannot stay cached with stale first-run markup', /if \(requestPath === '\/login\.html'\) headers\['Cache-Control'\] = 'no-store'/.test(server)],

@@ -1374,7 +1374,7 @@ async function api(req, res) {
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
     if (input.resetToken && input.newPassword && !repositories?.pool) return json(res, 503, { error: 'password_reset_requires_database' });
-    if (input.resetToken && input.newPassword && repositories?.pool) { const tokenHash = crypto.createHash('sha256').update(String(input.resetToken)).digest('hex'); const newPassword = String(input.newPassword); if (newPassword.length < 8) return json(res, 400, { error: 'password_too_short' }); try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const result = await client.query('SELECT id,login,organization_id AS \"organizationId\" FROM users WHERE password_reset_token_hash=$1 AND password_reset_expires_at>now() AND is_active=true AND deleted_at IS NULL FOR UPDATE', [tokenHash]); if (!result.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'reset_token_invalid_or_expired' }); } const row = result.rows[0]; await client.query('UPDATE users SET password_hash=$1,password_reset_token_hash=NULL,password_reset_expires_at=NULL WHERE id=$2', [await hashPassword(newPassword), row.id]); await client.query('DELETE FROM auth_sessions WHERE user_id=$1', [row.id]); await client.query('COMMIT'); recordAudit(req, 'auth.password_reset_completed', 'organization_owner', row.id, null, { organizationId: row.organizationId, login: row.login }); return json(res, 200, { ok: true, login: row.login }); } catch (error) { await client.query('ROLLBACK').catch(()=>{}); return json(res, 503, { error: 'password_reset_failed' }); } finally { client.release(); } } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); } }
+    if (input.resetToken && input.newPassword && repositories?.pool) { const tokenHash = crypto.createHash('sha256').update(String(input.resetToken)).digest('hex'); const newPassword = String(input.newPassword); if (newPassword.length < 8) return json(res, 400, { error: 'password_too_short' }); try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const result = await client.query('SELECT id,login,organization_id AS \"organizationId\",venue_id AS \"venueId\" FROM users WHERE password_reset_token_hash=$1 AND password_reset_expires_at>now() AND is_active=true AND deleted_at IS NULL FOR UPDATE', [tokenHash]); if (!result.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'reset_token_invalid_or_expired' }); } const row = result.rows[0]; await client.query('UPDATE users SET password_hash=$1,password_reset_token_hash=NULL,password_reset_expires_at=NULL WHERE id=$2', [await hashPassword(newPassword), row.id]); await client.query('DELETE FROM auth_sessions WHERE user_id=$1', [row.id]); await client.query('INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES ($1,NULL,$2,$3,$4,$5)', [row.venueId, 'auth.password_reset_completed', 'organization_owner', row.id, { organizationId: row.organizationId, login: row.login }]); await client.query('COMMIT'); return json(res, 200, { ok: true, login: row.login }); } catch (error) { await client.query('ROLLBACK').catch(()=>{}); return json(res, 503, { error: 'password_reset_failed' }); } finally { client.release(); } } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); } }
     if (process.env.DATABASE_URL && (!repositories?.pool || !sessionRepository)) return json(res, 503, { error: 'authentication_unavailable' });
     if (String(input.website || '').trim()) return json(res, 400, { error: 'bot_detected' });
     const loginKey = String(input.username || '').trim().toLowerCase() || 'anonymous';
@@ -1808,10 +1808,18 @@ async function api(req, res) {
       }
       if (req.method === 'POST' && action === 'reset' && targetId) {
         const token = crypto.randomBytes(32).toString('hex'); const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-        const result = await repositories.pool.query(`UPDATE users u SET password_reset_token_hash=$1,password_reset_expires_at=now()+interval '30 minutes' FROM organization_memberships m WHERE u.id=$2 AND u.organization_id=$3 AND m.user_id=u.id AND m.organization_id=$3 AND m.membership_role='owner' RETURNING u.id,u.login`, [tokenHash,targetId,organizationId]);
-        if (!result.rows[0]) return json(res, 404, { error: 'owner_not_found' });
-        recordAudit(req, 'platform.owner_reset_issued', 'organization_owner', targetId, null, { organizationId, login: result.rows[0].login, expiresInMinutes: 30 });
-        return json(res, 200, { userId: targetId, login: result.rows[0].login, resetToken: token, expiresInMinutes: 30 });
+        const client = await repositories.pool.connect();
+        try {
+          await client.query('BEGIN');
+          const result = await client.query(`UPDATE users u SET password_reset_token_hash=$1,password_reset_expires_at=now()+interval '30 minutes' FROM organization_memberships m WHERE u.id=$2 AND u.organization_id=$3 AND m.user_id=u.id AND m.organization_id=$3 AND m.membership_role='owner' RETURNING u.id,u.login`, [tokenHash,targetId,organizationId]);
+          if (!result.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'owner_not_found' }); }
+          await client.query("INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES (NULL,NULL,'platform.owner_reset_issued','organization_owner',$1,$2)", [targetId, { organizationId, login: result.rows[0].login, expiresInMinutes: 30, actorRole: 'platform_owner', actorName: req.user?.name || null }]);
+          await client.query('COMMIT');
+          return json(res, 200, { userId: targetId, login: result.rows[0].login, resetToken: token, expiresInMinutes: 30 });
+        } catch (error) {
+          await client.query('ROLLBACK').catch(()=>{});
+          return json(res,503,{error:'owner_reset_failed'});
+        } finally { client.release(); }
       }
       if (req.method === 'POST' && action === 'transfer' && targetId) {
         const client = await repositories.pool.connect(); try { await client.query('BEGIN');
