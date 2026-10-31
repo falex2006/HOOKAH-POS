@@ -3241,15 +3241,26 @@ function renderDashboard() {
     const phones = Array.isArray(items) && items.length ? items : [{ label: 'Основной', number: '', primary: true }];
     companyPhoneList.innerHTML = phones.map((phone, index) => `<div class="staff-phone-row company-phone-row"><select aria-label="Тип телефона"><option ${phone.label === 'Основной' ? 'selected' : ''}>Основной</option><option ${phone.label === 'Рабочий' ? 'selected' : ''}>Рабочий</option><option ${phone.label === 'Резервный' ? 'selected' : ''}>Резервный</option></select><input type="tel" inputmode="tel" value="${esc(phone.number || '')}" placeholder="Например, +7 912 345-67-89" aria-label="Номер телефона"><label><input type="radio" name="company-primary-phone" ${phone.primary || (!phones.some((entry) => entry.primary) && index === 0) ? 'checked' : ''}> основной</label><button type="button" class="staff-phone-row__remove" aria-label="Удалить номер">×</button></div>`).join('');
     companyPhoneList.querySelectorAll('.staff-phone-row__remove').forEach((button) => button.addEventListener('click', () => {
-      if (companyPhoneRows().length > 1) {
-        const wasPrimary = button.closest('.company-phone-row').querySelector('input[type=radio]').checked;
-        button.closest('.company-phone-row').remove();
+      const row = button.closest('.company-phone-row');
+      const rows = companyPhoneRows();
+      const index = rows.indexOf(row);
+      const ownsFocus = row?.contains(document.activeElement);
+      if (rows.length > 1) {
+        const wasPrimary = row.querySelector('input[type=radio]').checked;
+        row.remove();
         if (wasPrimary) companyPhoneList.querySelector('input[type=radio]').checked = true;
       } else {
-        button.closest('.company-phone-row').querySelector('input[type=tel]').value = '';
-        button.closest('.company-phone-row').querySelector('input[type=radio]').checked = true;
+        row.querySelector('input[type=tel]').value = '';
+        row.querySelector('input[type=radio]').checked = true;
       }
       refreshCompanyPhoneLimit();
+      if (ownsFocus) {
+        const remaining = companyPhoneRows();
+        const next = remaining[Math.min(index, remaining.length - 1)]?.querySelector('input[type=tel]');
+        const fallback = companyForm.querySelector('#company-add-phone');
+        const destination = [next, fallback].find(node => node?.isConnected && !node.disabled && node.getClientRects().length);
+        destination?.focus({ preventScroll: true });
+      }
     }));
     refreshCompanyPhoneLimit();
   };
