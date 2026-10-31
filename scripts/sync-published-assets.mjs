@@ -58,11 +58,11 @@ if (requestedFlags[0] === '--check') {
 }
 const cssRevision = '2026102404';
 const managementThemeRevision = '2026102305';
-const portalRevision = '2026102403';
-const portalSessionRevision = '2026102403';
+const portalRevision = '2026103112';
+const portalSessionRevision = '2026103112';
 // This employee-page iteration invalidates only its own HTML asset URLs.
 const employeePaymentsCssRevision = '2026102404';
-const employeePaymentsSessionRevision = '2026102403';
+const employeePaymentsSessionRevision = '2026103112';
 const notificationCenterRevision = '2026102305';
 const lockRevision = '2026102305';
 const appRevision = '2026102413';

@@ -8141,7 +8141,14 @@ const sectionMeta=report.sections?.[key];const totalCount=sectionMeta?.count??ro
     if(button.dataset.bound)return;
     button.dataset.bound='true';
     button.addEventListener('click',async()=>{
-      if(button.dataset.snapshotExpired==='true'){loadUnifiedReport();return;}
+      if(button.dataset.snapshotExpired==='true'){
+        if(document.activeElement===button){
+          const fallback=unifiedPanel.querySelector('[data-unified-from]');
+          const destination=[unifiedLoadButton,fallback].find(control=>control?.isConnected&&!control.disabled&&control.getClientRects().length);
+          destination?.focus();
+        }
+        loadUnifiedReport();return;
+      }
       const section=button.dataset.unifiedReportNext,cursor=report.nextCursorBySection?.[section];
       const group=button.closest('details.report-source-group');
       if(!cursor||!report.snapshot?.id||!group?.isConnected||button.disabled)return;
@@ -8178,8 +8185,8 @@ const sectionMeta=report.sections?.[key];const totalCount=sectionMeta?.count??ro
         if(request!==unifiedReportRequest||!group.isConnected)return;
         const note=pageMessage();note.setAttribute('role','alert');
         if(error.payload?.error==='finance_report_snapshot_expired'){
-          note.textContent='Снимок истёк. Сформируйте новый отчёт.';
-          results.querySelectorAll('[data-unified-report-next]').forEach(action=>{action.dataset.snapshotExpired='true';action.textContent='Сформировать новый отчёт';});
+          note.textContent='Срок действия отчёта закончился. Показанные операции остаются на экране. Чтобы загрузить остальные, обновите отчёт.';
+          results.querySelectorAll('[data-unified-report-next]').forEach(action=>{action.dataset.snapshotExpired='true';action.textContent='Обновить отчёт';});
         }else{note.textContent='Не удалось загрузить страницу снимка. Повторите попытку.';button.textContent='Повторить';}
         if(hadFocus&&[button,document.body].includes(document.activeElement))focusTarget=button;
       }finally{
@@ -8888,7 +8895,8 @@ function renderTasks() {
   target._tasksCleanup = cleanup;
   detachObserver.observe(target, { childList: true });
   refreshButton.addEventListener('click', () => load());
-  document.querySelector('#task-status-filter').addEventListener('change', draw); document.querySelector('#task-priority-filter').addEventListener('change', draw);
+  const drawTaskFilter = () => { if (loadedOnce) draw(); };
+  document.querySelector('#task-status-filter').addEventListener('change', drawTaskFilter); document.querySelector('#task-priority-filter').addEventListener('change', drawTaskFilter);
   if (canManageTasks) list.addEventListener('click', async (event) => { const portalNotice = bindManagementNotice(event.currentTarget);
     const editButton = event.target.closest('[data-task-edit]');
     const deleteButton = event.target.closest('[data-task-delete]');
