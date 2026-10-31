@@ -2710,6 +2710,10 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .payable-payment-history-item b{justify-self:end;font-variant-numeric:tabular-nums;color:#f2f4f7}
 .payable-payment-history-item a{color:#ff9b8d;text-decoration:none}
 .payable-payment-history-item a:hover{text-decoration:underline}
+.portal.light-theme #payables .payable-payment-history>summary{color:var(--ui-text-secondary);border-color:var(--ui-border-control)}
+.portal.light-theme #payables .payable-payment-history>summary:hover{background:var(--ui-raised);color:var(--ui-text-primary);border-color:var(--ui-border-control)}
+.portal.light-theme #payables .payable-payment-history-item :is(time,span){color:var(--ui-text-secondary)}
+.portal.light-theme #payables .payable-payment-history-item a{color:var(--ui-link)}
 .payable-payment-editor{grid-column:1/-1;min-width:0;margin-top:2px}
 .payable-payment-editor>summary{display:inline-flex;align-items:center;list-style:none}
 .payable-payment-editor>summary::-webkit-details-marker{display:none}
@@ -5107,6 +5111,18 @@ body[data-page="delivery"] #delivery-editor>.panel-head>#delivery-close { flex:0
 
 /* UI-09.1: confirmed desktop light-theme readability regressions. */
 .portal.light-theme :is(.inventory-stock-panel,.inventory-auto-order-panel) thead th{background:var(--ui-raised);color:var(--ui-text-secondary);border-color:var(--ui-border-control)}
+@media(max-width:1000px){
+  .portal.light-theme .inventory-stock-panel tbody tr{background:var(--ui-panel);border-color:var(--ui-border-subtle)}
+  .portal.light-theme .inventory-stock-panel tbody td:is(.inventory-item-cell,:last-child){border-color:var(--ui-border-subtle)}
+  .portal.light-theme .inventory-stock-panel tbody td::before,.portal.light-theme .inventory-stock-panel tbody td.inventory-item-cell>small{color:var(--ui-text-secondary)}
+  .portal.light-theme .inventory-stock-panel tbody td.inventory-item-cell>b{color:var(--ui-text-primary)}
+  .velora-theme .inventory-stock-panel tbody td[hidden]{display:none!important}
+}
+@media(max-width:390px){
+  .velora-theme .inventory-stock-panel tbody td:is([data-label="Состояние"],[data-label="Действия"]){display:grid;grid-template-columns:minmax(0,1fr);justify-content:stretch;gap:6px;text-align:left}
+  .velora-theme .inventory-stock-panel tbody td:is([data-label="Состояние"],[data-label="Действия"])::before{overflow-wrap:normal;word-break:normal}
+  .velora-theme .inventory-stock-panel tbody td[data-label="Действия"] .inventory-item-actions{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+}
 .portal.light-theme[data-page="orders"] .badge.warning{background:var(--ui-raised);color:var(--ui-warning)}
 .portal.light-theme #shift-close{background:var(--ui-panel);color:var(--ui-danger);border-color:var(--ui-danger)}
 
@@ -5739,6 +5755,11 @@ body.portal .action-box>.modal-head>.modal-close>.icon{width:18px;height:18px}
 .audit-readable dl{display:grid;gap:12px;margin:0 0 20px}.audit-readable dl>div{display:grid;grid-template-columns:minmax(100px,.6fr) minmax(0,1fr);gap:12px}.audit-readable dt{color:var(--ui-text-secondary)}.audit-readable dd{margin:0;overflow-wrap:anywhere}
 .audit-technical>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;cursor:pointer;list-style:none;border-radius:8px;color:var(--ui-text-secondary)}.audit-technical>summary::-webkit-details-marker{display:none}.audit-technical>summary::after{content:"⌄";width:24px;flex:0 0 24px;text-align:center}.audit-technical[open]>summary::after{transform:rotate(180deg)}.audit-technical>.audit-detail-grid{margin-top:12px}
 @media(max-width:400px){.audit-readable dl>div{grid-template-columns:minmax(0,1fr);gap:4px}}
+body.portal.light-theme #audit-detail{background:var(--ui-panel);color:var(--ui-text-primary);border-color:var(--ui-border-subtle)}
+body.portal.light-theme #audit-detail .audit-detail-summary{background:var(--ui-raised);border-color:var(--ui-border-subtle)}
+body.portal.light-theme #audit-detail .audit-detail-summary p{color:var(--ui-success)}
+body.portal.light-theme #audit-detail :is(pre,#audit-fields){background:var(--ui-input);color:var(--ui-text-primary);border-color:var(--ui-border-subtle)}
+body.portal.light-theme #audit-detail h3{color:var(--ui-text-secondary)}
 
 /* Keep long company-policy status messages below their action button. */
 #company .purchase-reversal-settings .toolbar-row{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
@@ -6015,6 +6036,7 @@ body.portal #page-content.finance-category-workspace .finance-category-filters{g
 body.portal #page-content.finance-category-workspace .finance-category-filter-options>summary{min-height:44px}
 body.portal #page-content.finance-category-workspace .finance-category-filter-fields{grid-template-columns:minmax(0,1fr)}
 @media(max-width:700px){body.portal #page-content.finance-category-workspace .finance-category-filters{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}body.portal #page-content.finance-category-workspace .finance-category-filters>label:first-child{grid-column:1/-1}}
+@media(max-width:390px){body.portal #page-content.finance-category-workspace .finance-category-filters{grid-template-columns:minmax(0,1fr)}}
 
 /* Staff directory: one compact tile size and contained laptop table. */
 /* Staff controls: one segment boundary and contained, neutral focus indicators. */
@@ -6117,3 +6139,42 @@ body.portal #settings-dashboard-modules .settings-dashboard-insights>label>input
 /* Keep long staff names within the profile dialog. */
 .staff-admin-modal .staff-admin-identity > div { min-width: 0; overflow-wrap: anywhere; }
 .staff-admin-modal .staff-admin-identity > .staff-admin-avatar { flex: 0 0 48px; }
+
+/* Balanced employee directory columns while keeping statuses on one line. */
+@media(min-width:1201px) and (max-width:1360px){
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table :is(th,td):nth-child(3){display:none}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-table-access-compact{display:block;margin-top:6px;color:var(--ui-text-secondary);font-size:11px}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(1){width:24%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(2){width:17%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(4){width:10%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(5){width:17%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(6){width:16%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(7){width:16%}
+}
+@media(min-width:1361px){
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(1){width:24%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(2){width:14%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(3){width:11%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(4){width:10%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(5){width:15%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(6){width:14%}
+#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table th:nth-child(7){width:12%}
+}
+@media(min-width:1201px){#page-content.ui-admin-pages #staff.staff-catalog .staff-directory-table .staff-card-status{white-space:nowrap;overflow-wrap:normal;min-inline-size:max-content}}
+
+/* Keep request details and actions legible on intermediate and phone widths. */
+@media(max-width:1100px){
+ .velora-theme .inventory-auto-orders-mode .auto-order-request-row{display:grid;align-items:start;gap:10px 12px}
+ .velora-theme .inventory-auto-orders-mode .auto-order-request-row>div:first-child{grid-column:1/-1;min-width:0}
+ .velora-theme .inventory-auto-orders-mode .auto-order-request-row>.button{margin:0;align-self:stretch;display:flex;align-items:center;justify-content:center;min-width:0;width:100%;min-height:44px;white-space:normal;text-align:center}
+}
+@media(min-width:761px) and (max-width:1100px){.velora-theme .inventory-auto-orders-mode .auto-order-request-row{grid-template-columns:repeat(3,minmax(0,1fr));align-items:center}}
+@media(max-width:760px){
+ .velora-theme .inventory-auto-orders-mode .auto-order-request-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .velora-theme .inventory-auto-orders-mode .auto-order-request-row>.badge{grid-column:1/-1;min-width:0;justify-self:start}
+}
+@media(max-width:360px){.velora-theme .inventory-auto-orders-mode .auto-order-request-row>.button{grid-column:1/-1;overflow-wrap:normal;word-break:normal}}
+
+/* Keep long stock names and the arrow inside receipt selectors. */
+#purchase-document-dialog .purchase-line .custom-select-trigger{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:44px}
+html:not([data-portal-access="checking"]) :is(#page-content[data-management-theme="mt"] #purchase-document-dialog,#purchase-document-dialog[data-management-theme="mt"]) .purchase-line .custom-select-trigger{padding-right:44px}
