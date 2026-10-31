@@ -6112,3 +6112,8 @@ body.portal #settings-dashboard-modules .settings-dashboard-insights>label>input
 .negative-stock-preview{margin:0;padding:12px;border:1px solid #3b4652;border-radius:10px;background:#20252c;color:#dce5ef}
 .inventory-negative-stock-dialog [hidden]{display:none!important}
 @media(max-width:600px){.inventory-negative-stock-dialog{padding:18px;border-radius:16px}.inventory-stock-filters{align-items:stretch}.inventory-stock-filters>#open-negative-stock-bulk{width:100%}}
+
+
+/* Keep long staff names within the profile dialog. */
+.staff-admin-modal .staff-admin-identity > div { min-width: 0; overflow-wrap: anywhere; }
+.staff-admin-modal .staff-admin-identity > .staff-admin-avatar { flex: 0 0 48px; }
