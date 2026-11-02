@@ -56,13 +56,13 @@ if (requestedFlags[0] === '--check') {
   }
   process.exit(0);
 }
-const cssRevision = '2026103114';
-const managementThemeRevision = '2026102305';
-const portalRevision = '2026103114';
-const portalSessionRevision = '2026103114';
+const cssRevision = '2026110214';
+const managementThemeRevision = '2026110214';
+const portalRevision = '2026110214';
+const portalSessionRevision = '2026110214';
 // This employee-page iteration invalidates only its own HTML asset URLs.
-const employeePaymentsCssRevision = '2026103114';
-const employeePaymentsSessionRevision = '2026103114';
+const employeePaymentsCssRevision = '2026110214';
+const employeePaymentsSessionRevision = '2026110214';
 const notificationCenterRevision = '2026102305';
 const lockRevision = '2026102305';
 const appRevision = '2026102413';

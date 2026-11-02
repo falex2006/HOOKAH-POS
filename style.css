@@ -280,7 +280,7 @@ body .login .login-card :is(h1,p){white-space:normal;overflow-wrap:anywhere}
 
 .audit-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end;margin:16px 0 12px}.audit-toolbar>*{min-width:0}.audit-toolbar .table-search{grid-column:span 2}.audit-toolbar>.button{white-space:nowrap}.audit-date-field{display:grid;gap:5px;color:#89939f;font-size:11px;line-height:1.2}.audit-date-field input{width:100%}.audit-toolbar input,.audit-toolbar select{min-height:38px;padding:0 11px;border:1px solid #dfe7ea;border-radius:10px;background:#fff;color:#18232b}.audit-row-button{width:100%;border:0;text-align:left;background:transparent;font:inherit;color:inherit;cursor:pointer}.audit-row-button:hover{background:rgba(95,225,181,.05)}.audit-chevron{color:#788993;font-size:22px}.audit-detail{width:min(860px,calc(100vw - 28px));max-height:85vh;border:1px solid #30343b;border-radius:16px;background:#17191d;color:#e8ebee;padding:20px;box-shadow:0 22px 80px #0008}.audit-detail::backdrop{background:#030507aa;backdrop-filter:blur(4px)}.audit-detail .panel-head{margin-bottom:18px}.audit-detail h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#89939f}.audit-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.audit-detail-summary{grid-column:1/-1;padding:10px 12px;border:1px solid #2d333b;border-radius:10px;background:#111317}.audit-detail-summary p{margin:0;color:#7de7bd;font-size:13px}.audit-detail pre{margin:0;min-height:0;overflow-wrap:anywhere;max-height:380px;overflow:auto;padding:14px;border:1px solid #2d333b;border-radius:10px;background:#0f1114;color:#c9d3dc;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap}.velora-theme .audit-toolbar input,.velora-theme .audit-toolbar select{background:#111317;border-color:#363b44;color:#eef1f3}.velora-theme .audit-toolbar .button{border-color:#363b44;color:#b8c2cc;background:#202329}.velora-theme .audit-detail{background:#17191d;border-color:#30343b}@media(max-width:850px){.audit-toolbar{grid-template-columns:1fr 1fr}.audit-toolbar .table-search{grid-column:1/-1}}@media(max-width:560px){.audit-toolbar{grid-template-columns:1fr}.audit-detail-grid{grid-template-columns:1fr}.audit-detail{padding:14px}}
 
-.success-message{color:#57dfa8!important}.error-message{color:#ff8290!important}.reservation-list .reservation-row{transition:background .16s ease}.reservation-list .reservation-row:hover{background:rgba(255,255,255,.025)}
+.success-message{color:#57dfa8!important}.error-message{color:var(--ui-danger,#ff8290)!important}.reservation-list .reservation-row{transition:background .16s ease}.reservation-list .reservation-row:hover{background:rgba(255,255,255,.025)}
 
 .movement-history{margin-top:20px}.movement-history-list{display:grid}.movement-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid #edf2f4}.movement-row small{display:block;margin-top:4px;color:#82939b}.movement-in{color:#159b70}.movement-out{color:#d85a63}.velora-theme .movement-row{border-bottom-color:#2a2e35}.velora-theme .movement-row small{color:#7e8792}.velora-theme .movement-in{color:#5ce0a9}.velora-theme .movement-out{color:#ff8290}
 
@@ -6178,3 +6178,145 @@ body.portal #settings-dashboard-modules .settings-dashboard-insights>label>input
 /* Keep long stock names and the arrow inside receipt selectors. */
 #purchase-document-dialog .purchase-line .custom-select-trigger{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:44px}
 html:not([data-portal-access="checking"]) :is(#page-content[data-management-theme="mt"] #purchase-document-dialog,#purchase-document-dialog[data-management-theme="mt"]) .purchase-line .custom-select-trigger{padding-right:44px}
+
+/* Light navigation controls share the light shell palette. */
+.portal.light-theme .sidebar-mobile-toggle { background:#fff;color:#943b2e;border-color:#d3dfe5;box-shadow:none; }
+.portal.light-theme .sidebar-mobile-toggle:hover { background:#fff0eb;border-color:#b97566; }
+.portal.light-theme .sidebar-mobile-toggle:focus-visible { outline:2px solid #943b2e;outline-offset:2px;box-shadow:none; }
+
+.portal.light-theme .sidebar-count, .portal.light-theme #notification-count { background:#b4233b;color:#fff; }
+
+/* Keep the light shell readable on legacy team sections as well. */
+.portal.light-theme .portal-sidebar .portal-nav a.active { background:#fff0eb !important;color:#943b2e;box-shadow:none; }
+.portal.light-theme .portal-sidebar .sidebar-nav-group > summary.has-active-child,
+.portal.light-theme .portal-sidebar .sidebar-nav-group[open] > summary { background:#fff0eb;color:#943b2e;box-shadow:none; }
+.portal.light-theme .portal-sidebar .portal-nav a.active .icon,
+.portal.light-theme .portal-sidebar .sidebar-nav-group > summary.has-active-child > .icon,
+.portal.light-theme .portal-sidebar .sidebar-nav-group[open] > summary > .icon { color:inherit;filter:none; }
+.portal.light-theme .portal-sidebar .sidebar-menu-search:focus-within { border-color:#943b2e;box-shadow:none; }
+.portal.light-theme .portal-sidebar .sidebar-menu-search { background:#fff;color:#526672;border-color:#71818b; }
+.portal.light-theme .portal-sidebar .sidebar-menu-search input { background:transparent;color:#20313d; }
+.portal.light-theme .portal-sidebar .sidebar-menu-search input::placeholder,
+.portal.light-theme.velora-theme .staff-catalog .staff-list-tools input::placeholder { color:#526672;opacity:1; }
+
+.portal.light-theme .portal-sidebar .sidebar-nav-group > summary::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23943b2e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");border-color:#b97566;background-color:#fff0eb; }
+.portal.light-theme.velora-theme .staff-catalog #staff-list > .empty { color:#526672; }
+.portal.light-theme.velora-theme .staff-add-button { color:#211a19;box-shadow:none; }
+
+.portal.light-theme.velora-theme .portal-sidebar.is-expanded { background:#fff; }
+
+.portal.light-theme .ui-components .ui-button--primary:not(:disabled):not([aria-disabled="true"]) { --ui-text-on-action:#211a19; }
+
+/* Owner stock dialog: light surfaces must match inherited light text tokens. */
+.portal.light-theme .inventory-negative-stock-dialog { background:var(--ui-panel);color:var(--ui-text-primary);border-color:var(--ui-border-control); }
+.portal.light-theme .inventory-negative-stock-dialog::backdrop { background:var(--ui-overlay); }
+.portal.light-theme .inventory-negative-stock-dialog .negative-stock-item-list { background:var(--ui-input);border-color:var(--ui-border-control); }
+.portal.light-theme .inventory-negative-stock-dialog .negative-stock-item-option:hover { background:var(--ui-raised); }
+.portal.light-theme .inventory-negative-stock-dialog .negative-stock-preview { background:var(--ui-raised);color:var(--ui-text-secondary);border-color:var(--ui-border-subtle); }
+.portal.light-theme.velora-theme .inventory-negative-stock-dialog button.button:not(.primary) { background:var(--ui-raised);color:var(--ui-text-primary);border-color:var(--ui-border-control); }
+
+/* Leave room for the visible keyboard focus ring between manual-selection controls. */
+.inventory-negative-stock-dialog .negative-stock-scope-field[data-scope-field="items"] { display:grid;gap:12px;min-width:0; }
+
+/* Native stock dialog follows the shared modal action order and spacing. */
+.portal .inventory-negative-stock-dialog .negative-stock-head { display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:start;gap:12px;margin:0;padding:0; }
+.portal .inventory-negative-stock-dialog .negative-stock-head > div { min-width:0; }
+.portal.velora-theme .inventory-negative-stock-dialog .negative-stock-head > button.button:not(.primary) { display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;margin:0;border:0;background:transparent;box-shadow:none;font-size:20px;line-height:1; }
+.portal .inventory-negative-stock-dialog .negative-stock-footer { display:grid;grid-template-columns:repeat(2,minmax(0,200px));justify-content:end;gap:12px;margin:0; }
+.portal .inventory-negative-stock-dialog .negative-stock-footer > button { width:100%;min-width:0;min-height:44px;margin:0; }
+@media(max-width:600px){.portal .inventory-negative-stock-dialog .negative-stock-footer { grid-template-columns:minmax(0,1fr); }}
+
+/* Item editor: one surface, no implicit extra mobile grid column, shared action order. */
+body.portal #page-content #inventory-item-form { background:transparent; }
+body.portal #page-content #inventory-item-form .inventory-negative-stock-control { background:transparent;border:0;padding:0; }
+#inventory-item-form > .inventory-item-footer { display:grid;grid-template-columns:repeat(2,minmax(0,200px));justify-content:end;gap:12px;margin:0; }
+#inventory-item-form > .inventory-item-footer > button { width:100%;min-width:0;min-height:44px;margin:0; }
+@media(max-width:640px){#inventory-item-form .form-grid > .inventory-negative-stock-control { grid-column:1 / -1; }#inventory-item-form > .inventory-item-footer { grid-template-columns:minmax(0,1fr); }}
+
+/* Light overlays retain the shared palette even outside management-theme roots. */
+.light-theme :is(.staff-profile-dialog,.lock-settings-card,.staff-drawer-panel,.notification-panel-card) { background:var(--ui-panel);color:var(--ui-text-primary);border-color:var(--ui-border-subtle);box-shadow:0 18px 48px rgba(20,35,45,.16);color-scheme:light; }
+.light-theme :is(.staff-profile-dialog__heading h2,.staff-drawer-head h2,.lock-settings-head h2,.lock-settings-section-head,.notification-panel-head h2,.notification-item-copy>b,.notification-item.is-unread .notification-item-copy>b) { color:var(--ui-text-primary); }
+.light-theme :is(.staff-profile-field,.staff-profile-phones__head,.staff-profile-phone-row label,.staff-profile-dialog__heading p,.staff-drawer-head p,.staff-drawer-form label,.staff-drawer-form small,.lock-settings-head p:last-child,.lock-settings-note,.lock-pin-fields label,.notification-panel-count,.notification-item-copy p,.notification-item-copy small,.notification-state) { color:var(--ui-text-secondary); }
+.light-theme .staff-profile-dialog :is(input,select,textarea) { background:var(--ui-input)!important;color:var(--ui-text-primary)!important;border-color:var(--ui-border-control)!important; }
+.light-theme .staff-profile-dialog :is(input,select,textarea):focus { border-color:var(--ui-focus)!important;outline:2px solid var(--ui-focus);outline-offset:2px;box-shadow:none; }
+.light-theme :is(.staff-profile-dialog,.staff-drawer-panel,.lock-settings-card) :is(input,textarea)::placeholder { color:var(--ui-text-muted);opacity:1; }
+.light-theme .staff-profile-dialog input[type=file]::file-selector-button { background:var(--ui-raised);color:var(--ui-text-primary);border:1px solid var(--ui-border-control);border-radius:8px;padding:7px 10px; }
+.light-theme :is(.staff-profile-phones,.staff-drawer-panel .staff-phone-list,.lock-pin-settings) { background:transparent;border-color:var(--ui-border-subtle); }
+.light-theme :is(.staff-profile-error,.lock-pin-message.error) { color:var(--ui-danger); }
+.light-theme :is(.lock-pin-message.success,.lock-settings-section-head span) { color:var(--ui-success); }
+.light-theme .staff-profile-actions .staff-profile-save,
+.light-theme .lock-settings-save { color:#211a19; }
+.light-theme :is(.staff-profile-actions button:not(.staff-profile-save),.staff-profile-close,.lock-settings-close,.staff-drawer-close,.notification-panel-close) { background:var(--ui-raised);color:var(--ui-text-primary);border-color:var(--ui-border-control);box-shadow:none; }
+.light-theme :is(.staff-profile-actions button:not(.staff-profile-save),.staff-profile-close,.lock-settings-close,.staff-drawer-close,.notification-panel-close):hover { background:var(--ui-panel);color:var(--ui-link); }
+.light-theme .lock-settings-card .lock-pin-fields input { background:var(--ui-input);color:var(--ui-text-primary);border-color:var(--ui-border-control);caret-color:var(--ui-text-primary); }
+.light-theme .lock-timeout-options span { background:var(--ui-input);color:var(--ui-text-secondary);border-color:var(--ui-border-control); }
+.light-theme .lock-timeout-options input:checked+span { background:var(--ui-raised);color:var(--ui-link);border-color:var(--ui-focus);box-shadow:none; }
+.light-theme .lock-settings-card :is(input,button):focus-visible,
+.light-theme .lock-timeout-options input:focus-visible+span { outline:2px solid var(--ui-focus);outline-offset:2px; }
+.light-theme .staff-drawer-panel>.staff-drawer-head { background:var(--ui-panel);border-color:var(--ui-border-subtle); }
+.light-theme .staff-drawer-panel .staff-drawer-form { background:transparent; }
+.light-theme .staff-drawer-panel :is(input:not([type=checkbox]):not([type=radio]),select,textarea,.custom-select-trigger,.custom-select-menu) { background:var(--ui-input);color:var(--ui-text-primary);border-color:var(--ui-border-control);color-scheme:light; }
+.light-theme .staff-drawer-panel .custom-select-option { background:var(--ui-input);color:var(--ui-text-primary); }
+.light-theme .staff-drawer-panel .custom-select-option:is(:hover,:focus-visible,[aria-selected=true]) { background:var(--ui-raised);color:var(--ui-link); }
+.light-theme .staff-drawer-panel :is(.staff-sensitive-fields,.permission-scope-fields) { background:transparent;color:var(--ui-text-primary);border-color:var(--ui-border-subtle); }
+.light-theme .staff-drawer-panel :is(.staff-sensitive-fields,.permission-scope-fields)>summary,
+.light-theme .staff-drawer-panel .staff-sensitive-fields[open]>summary { background:var(--ui-raised);color:var(--ui-text-primary);border-color:var(--ui-border-subtle); }
+.light-theme .staff-drawer-panel :is(.staff-sensitive-fields,.permission-scope-fields)>summary::before { color:var(--ui-link); }
+.light-theme .staff-drawer-panel :is(.scope-option,.staff-sensitive-fields label) { color:var(--ui-text-primary); }
+.light-theme .staff-drawer-panel input:is([type=date],[type=time])::-webkit-calendar-picker-indicator { filter:none; }
+.light-theme .staff-drawer-panel :is(input,textarea,button,summary):focus-visible { outline:2px solid var(--ui-focus);outline-offset:2px; }
+.light-theme .notification-panel { color:var(--ui-text-primary); }
+.light-theme :is(.notification-panel-head,.notification-panel-toolbar,.notification-item) { border-color:var(--ui-border-subtle); }
+.light-theme .notification-filter { background:var(--ui-raised);border-color:var(--ui-border-subtle); }
+.light-theme .notification-filter button { color:var(--ui-text-secondary); }
+.light-theme .notification-filter button[aria-pressed=true] { background:var(--ui-panel);color:var(--ui-link); }
+.light-theme :is(.notification-read-all,.notification-open-link,.notification-mark-read) { color:var(--ui-link); }
+.light-theme .notification-mark-read:hover { color:var(--ui-text-primary); }
+.light-theme .notification-item.is-unread { background:var(--ui-raised); }
+.light-theme .notification-inline-error { background:var(--ui-raised);color:var(--ui-danger); }
+.light-theme .notification-inline-error button { background:var(--ui-panel);color:var(--ui-danger);border-color:var(--ui-danger); }
+.light-theme .notification-panel :is(button,a):focus-visible { outline-color:var(--ui-focus); }
+.portal.light-theme.velora-theme :is(#purchase-add-line,#purchase-cancel,[data-custom-role-create],[data-system-role-edit]) { background:var(--ui-raised);color:var(--ui-text-primary);border-color:var(--ui-border-control);box-shadow:none; }
+.portal.light-theme.velora-theme :is(#purchase-add-line,#purchase-cancel,[data-custom-role-create],[data-system-role-edit]):hover:not(:disabled) { background:var(--ui-panel);color:var(--ui-link); }
+.portal.light-theme .auto-order-calculation-help>summary { color:var(--ui-text-secondary); }
+
+/* Expanded group is distinct from the selected page, in either palette. */
+.portal.velora-theme .portal-sidebar .sidebar-nav-group[open] { background:transparent; }
+.portal.velora-theme .portal-sidebar .sidebar-nav-group[open]>summary { border-radius:12px;background:var(--ui-raised);color:var(--ui-text-secondary);box-shadow:none; }
+.portal.velora-theme .portal-sidebar .sidebar-nav-group[open]>.portal-nav { margin-block-start:6px; }
+.portal.velora-theme .portal-sidebar .sidebar-nav-group[open]>summary:focus-visible { outline-color:var(--ui-focus); }
+
+.light-theme .staff-drawer-panel .staff-form .staff-phone-list { background:transparent;border-color:var(--ui-border-subtle);box-shadow:none; }
+.light-theme .staff-drawer-panel .staff-form .staff-phone-list__header strong { color:var(--ui-text-primary); }
+.light-theme .staff-drawer-panel .staff-form .staff-phone-row__remove { background:var(--ui-panel);border-color:var(--ui-border-subtle);color:var(--ui-danger); }
+.light-theme .staff-drawer-panel .staff-form .staff-phone-row__remove:hover { background:var(--ui-raised);border-color:var(--ui-danger); }
+/* Native item editor keeps the existing roomy form and mobile one-column layout. */
+body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:16px;width:min(920px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);height:fit-content;padding:24px;overflow:auto;border:1px solid var(--ui-border-control)!important;background:var(--ui-panel);color:var(--ui-text-primary);animation:none; }
+@media(max-width:640px){body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:8px;width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);padding:16px;border-radius:16px; }}
+
+.light-theme :is(.staff-profile-dialog,.lock-settings-card) :is(.custom-select-trigger,.custom-select-menu,.custom-select-option) { background:var(--ui-input);color:var(--ui-text-primary);border-color:var(--ui-border-control); }
+.light-theme :is(.staff-profile-dialog,.lock-settings-card) .custom-select-option:is(:hover,:focus-visible,[aria-selected=true]) { background:var(--ui-raised);color:var(--ui-link); }
+.light-theme .staff-profile-upload-button { background:var(--ui-raised);color:var(--ui-text-primary);border-color:var(--ui-border-control); }
+.light-theme .staff-profile-file-name { color:var(--ui-text-secondary); }
+.light-theme .staff-profile-phone-remove { background:var(--ui-panel);color:var(--ui-danger);border-color:var(--ui-border-subtle); }
+.light-theme .staff-profile-phone-remove:hover { background:var(--ui-raised);color:var(--ui-danger);border-color:var(--ui-danger); }
+
+.light-theme :is(.staff-profile-dialog,.lock-settings-card,.staff-drawer-panel,.notification-panel-card),
+.light-theme :is(.staff-profile-dialog,.lock-settings-card,.staff-drawer-panel,.notification-panel-card) * { scrollbar-color:var(--ui-border-control) var(--ui-raised); }
+.light-theme :is(.staff-profile-dialog,.lock-settings-card,.staff-drawer-panel) .custom-select-option { box-sizing:border-box;min-width:0;width:100%;overflow-wrap:anywhere; }
+.light-theme :is(.staff-profile-dialog,.lock-settings-card,.staff-drawer-panel) .custom-select-trigger:focus-visible { border-color:var(--ui-focus);outline:2px solid var(--ui-focus);outline-offset:2px;box-shadow:none; }
+
+.light-theme :is(.staff-profile-dialog,.lock-settings-card,.staff-drawer-panel) .custom-select-trigger::after { border-color:var(--ui-text-secondary); }
+.light-theme .staff-profile-dialog .custom-select-menu { min-width:min(180px,calc(100vw - 64px)); }
+
+/* An expanded phone drawer has room for the product name, unlike the compact rail. */
+@media(max-width:900px){
+ :is(.velora-theme,.staff-theme) .portal-sidebar.is-expanded .brand { padding-right:54px;padding-bottom:20px; }
+ .portal-sidebar.is-expanded .brand>.hookah-pos-brand { width:min(190px,100%);height:auto;max-height:61px;aspect-ratio:200/64; }
+ .portal-sidebar.is-expanded .hookah-pos-brand img { content:url('/assets/brand/hookah-pos-lockup-animated.svg?rev=2');object-fit:contain;object-position:left center; }
+ .light-theme .portal-sidebar.is-expanded .hookah-pos-brand img { content:url('/assets/brand/hookah-pos-lockup-light-animated.svg?rev=2'); }
+}
+@media(max-width:900px) and (prefers-reduced-motion:reduce){
+ .portal-sidebar.is-expanded .hookah-pos-brand img { content:url('/assets/brand/hookah-pos-lockup.svg?rev=2'); }
+ .light-theme .portal-sidebar.is-expanded .hookah-pos-brand img { content:url('/assets/brand/hookah-pos-lockup-light.svg?rev=2'); }
+}
