@@ -184,7 +184,7 @@ html:not([data-portal-access="checking"]) :is(#page-content,[data-management-the
 /* Sidebar disclosure state belongs to its actual summary, not only details.
    Semantic surfaces prevent inherited legacy dark islands in light mode. */
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar { --sidebar-open-bg:var(--ui-raised); }
-html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar .sidebar-nav-group[open] { background:var(--ui-raised); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar .sidebar-nav-group[open] { background:transparent; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar .sidebar-nav-group>summary.has-active-child { background:var(--mt-selected);color:var(--ui-link);border-color:var(--mt-selected-border);box-shadow:none; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar .sidebar-menu-search { background:var(--ui-input);color:var(--ui-text-muted);border-color:var(--ui-border-control);box-shadow:none; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar .sidebar-menu-search input { background:transparent;color:var(--ui-text-primary);border:0;min-height:0;padding:0;outline:0;box-shadow:none; }
@@ -308,6 +308,7 @@ html:not([data-portal-access="checking"]) :is(#page-content,[data-management-the
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.settings-category-card,.integration-card,.help-topic,.network-row) :is(b,strong,h3) { color:var(--ui-text-primary);line-height:1.4; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.settings-category-card,.integration-card,.help-topic,.network-row) :is(small,p,.muted) { color:var(--ui-text-secondary);line-height:1.5;overflow-wrap:anywhere; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.settings-category-card .icon,.integration-card .icon,.help-topic-chevron) { color:var(--ui-link); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"][data-management-scheme="light"] .settings-category-icon { background:var(--mt-selected);color:var(--ui-link); }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.settings-category-card[aria-current="page"],.settings-category-card.is-active) { background:var(--mt-selected);border-color:var(--mt-selected-border);color:var(--ui-link); }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.dashboard-module-settings-list,.insight-settings-list,.logo-upload,.company-phone-row,.integration-detail-grid>div,.audit-detail,#audit-fields) { background:var(--ui-raised);color:var(--ui-text-secondary);border-color:var(--ui-border-subtle);box-shadow:none; }
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(.company-form label,.network-row small,.integration-group-head,.help-topic ol) { color:var(--ui-text-secondary); }
@@ -338,3 +339,9 @@ html:not([data-portal-access="checking"]) #settings-dashboard-modules[data-manag
 
 /* Keep filled destructive actions visually related to primary gradients. */
 html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] :is(button,a):is(.button.danger,.ui-button--danger):not(.danger-outline):not(:disabled):not([aria-disabled="true"]) { background:linear-gradient(100deg,var(--ui-danger-fill-start),var(--ui-danger-fill-end));border-color:var(--ui-danger-fill-start);color:var(--ui-text-on-danger); }
+
+/* Shared segmented catalog view: a single group contour, no nested button borders. */
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .product-catalog-view-switch>button { border:0;background:transparent;box-shadow:none;color:var(--ui-text-secondary); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .product-catalog-view-switch>button[aria-pressed="true"] { background:var(--mt-selected);color:var(--ui-link); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"] .product-catalog-view-switch>button:hover:not([aria-pressed="true"]) { background:var(--ui-raised); }
+html:not([data-portal-access="checking"]) :is(#page-content,[data-management-theme])[data-management-theme="mt"].portal-sidebar .sidebar-nav-group[open]>summary { background:var(--ui-raised);color:var(--ui-text-secondary);border-radius:12px;box-shadow:none; }
