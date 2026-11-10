@@ -7431,13 +7431,19 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
     });
     document.addEventListener('payroll-run-entry-open', async event => {
       if (!payrollSection.isConnected) return;
-      const { entryId, from, to } = event.detail || {};
+      const { entryId, employeeId, from, to } = event.detail || {};
       if (!entryId || !/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) return;
       payrollSection.querySelector('#payroll-filter-from').value = from;
       payrollSection.querySelector('#payroll-filter-to').value = to;
       for (const selector of ['#payroll-filter-user', '#payroll-filter-rule', '#payroll-filter-half']) payrollSection.querySelector(selector).value = '';
       await loadPayroll();
       if (!payrollSection.isConnected) return;
+      const employeeFilter = payrollSection.querySelector('#payroll-filter-user');
+      if (employeeId && [...employeeFilter.options].some(option => option.value === employeeId)) {
+        employeeFilter.value = employeeId;
+        employeeFilter._customSelectRefresh?.();
+        drawPayroll();
+      }
       const row = [...register.querySelectorAll('[data-payroll-entry]')].find(item => item.dataset.payrollEntry === entryId);
       const target = row || register;
       target.tabIndex = -1; target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.focus({ preventScroll: true });
