@@ -799,7 +799,8 @@ const calculatePeriod = (input, firstHalf) => {
       if (!roleId) continue;
       const params = resolveRoleParameters(scheme, employeeId, roleId, date);
       const employeeMode = params?.mode || scheme.mode;
-      if (firstHalf && employeeMode === 'final_month_threshold') continue;
+      // Turnover milestones are monthly even when the employee earns daily commission.
+      if (firstHalf) continue;
       const applyMilestones = params?.applyMilestones ?? scheme.applyMilestones ?? employeeMode === 'progressive_daily';
       if (!applyMilestones && !explainMilestoneEligibility) continue;
       for (const [thresholdText, bonusCents] of Object.entries(params?.milestoneBonusesCents || {})) {

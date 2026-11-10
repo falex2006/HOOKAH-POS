@@ -52,6 +52,22 @@ const milestone = calculatePayrollH1FixedShifts({...base,scheme:{...scheme,roleP
 }}});
 assert.equal(milestone.status,'ready',JSON.stringify(milestone.blockers));
 assert.equal(pay(milestone,'a'),5001,'crossing the bonus threshold before day 14 does not pay out the monthly bonus early');
+for (const mode of ['stable_percent', 'progressive_daily']) {
+  const withMonthlyBonus = {
+    ...base, scheme: { ...scheme, itemRules: [], roleParameters: { ...scheme.roleParameters,
+      bar: { ...monthly, mode, stableRateBps: 1000, bracketRatesBps: {0:1000},
+        applyMilestones: true, milestoneBonusesCents: {20000:750} }
+    }}
+  };
+  const interim = calculatePayrollH1FixedShifts(withMonthlyBonus);
+  assert.equal(interim.status, 'ready', JSON.stringify(interim.blockers));
+  assert.equal(pay(interim, 'a'), 8001, 'daily commission and fixed shift remain available');
+  const final = calculatePayrollScheme({...withMonthlyBonus, periodTo:end, monthClosed:true,
+    coverage:{...base.coverage,kind:'month_closed_complete',through:end},
+    attendanceCoverage:{...base.attendanceCoverage,through:end}});
+  assert.equal(final.status, 'ready', JSON.stringify(final.blockers));
+  assert.equal(pay(final, 'a') - pay(interim, 'a'), 750, 'month-end reconciliation includes the milestone once');
+}
 // On September 10 this employee switches from a known 10% rate to a month-end rate.
 const switched = {
   ...base,
