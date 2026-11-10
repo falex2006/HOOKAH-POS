@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { posix } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
@@ -74,18 +75,26 @@ assert.match(server, /DEMO_OWNER_PASSWORD \|\| \(process\.env\.AUTH_REQUIRED ===
 assert.match(server, /DEMO_STAFF_PASSWORD \|\| \(process\.env\.AUTH_REQUIRED === 'true' \? '' : 'demo'\)/, 'protected runtime must not fall back to staff/demo');
 assert.match(compose, /com\.hookahpos\.release-id:/, 'Compose container must expose the release id label');
 assert.match(dockerfile, /LABEL com\.hookahpos\.release-id=\$CRM_RELEASE_ID/, 'built image must identify its release');
-const dockerFiles = new Set([...dockerfile.matchAll(/^COPY (.+) \.\/$/gm)].flatMap(match => match[1].split(/\s+/)));
+const copies = [...dockerfile.matchAll(/^COPY (.+) (\.\/\S*)$/gm)].flatMap(([, sources, destination]) =>
+  sources.split(/\s+/).map(source => ({ source, destination: posix.normalize(destination) })));
+const copiesModuleInPlace = file => copies.some(({ source, destination }) => {
+  if (destination === './') return posix.dirname(file) === '.' && posix.matchesGlob(file, source);
+  const directory = source.replace(/\/$/, '');
+  return destination.replace(/\/$/, '') === directory && file.startsWith(directory + '/');
+});
 const runtimeModules = new Set();
 const visitRuntimeModule = moduleName => {
   const moduleFile = moduleName.endsWith('.js') ? moduleName : `${moduleName}.js`;
   if (runtimeModules.has(moduleFile)) return;
   const source = read(moduleFile);
   runtimeModules.add(moduleFile);
-  for (const [, dependency] of source.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)) visitRuntimeModule(dependency);
+  for (const [, dependency] of source.matchAll(/require\(['"](\.{1,2}\/[^'"]+)['"]\)/g)) {
+    visitRuntimeModule(posix.join(posix.dirname(moduleFile), dependency));
+  }
 };
 visitRuntimeModule('server');
 for (const moduleFile of runtimeModules) {
-  assert.ok(dockerFiles.has(moduleFile), `reachable server runtime module ${moduleFile} must be copied into the CRM image`);
+  assert.ok(copiesModuleInPlace(moduleFile), `reachable server runtime module ${moduleFile} must be copied into the CRM image`);
 }
 assert.match(deploy, /state_dir="\/var\/lib\/territory-crm\/\$project_name"/, 'release state must be shared across checkouts');
 assert.match(deploy, /backup_dir="\/var\/backups\/territory-crm\/\$project_name"/, 'release backups must be shared across checkouts');
