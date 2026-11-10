@@ -247,10 +247,17 @@ try {
   const refundId = randomUUID();
   const refundSourcePaymentId = (await client.query('SELECT id FROM payments WHERE order_id=$1 AND status IN (\'paid\',\'partially_paid\') ORDER BY amount LIMIT 1', [splitOrderId])).rows[0].id;
   const refundEventDate = new Date();
-  await client.query(`INSERT INTO order_refunds (id,venue_id,order_id,shift_id,amount,reason,idempotency_key,actor_id,created_at)
-    VALUES ($1,$2,$3,$4,30,'Analytics POS refund coverage QA',$5,$6,$7)`, [refundId, venueId, splitOrderId, shiftB, `analytics-refund-${refundId}`, ownerId, refundEventDate]);
-  await client.query(`INSERT INTO order_refund_tenders (venue_id,refund_id,order_id,source_payment_id,amount,payout_method,created_at,finance_account_id,finance_account_name_snapshot,shift_id)
-    VALUES ($1,$2,$3,$4,15,'cash',$5,$6,$7,$8),($1,$2,$3,$4,15,'card',$5,$9,$10,NULL)`, [venueId, refundId, splitOrderId, refundSourcePaymentId, refundEventDate,posCashbox.id,posCashbox.name,shiftB,cardAccount.id,cardAccount.name]);
+  await client.query('BEGIN');
+  try {
+    await client.query(`INSERT INTO order_refunds (id,venue_id,order_id,shift_id,amount,reason,idempotency_key,actor_id,created_at)
+      VALUES ($1,$2,$3,$4,30,'Analytics POS refund coverage QA',$5,$6,$7)`, [refundId, venueId, splitOrderId, shiftB, `analytics-refund-${refundId}`, ownerId, refundEventDate]);
+    await client.query(`INSERT INTO order_refund_tenders (venue_id,refund_id,order_id,source_payment_id,amount,payout_method,created_at,finance_account_id,finance_account_name_snapshot,shift_id)
+      VALUES ($1,$2,$3,$4,15,'cash',$5,$6,$7,$8),($1,$2,$3,$4,15,'card',$5,$9,$10,NULL)`, [venueId, refundId, splitOrderId, refundSourcePaymentId, refundEventDate,posCashbox.id,posCashbox.name,shiftB,cardAccount.id,cardAccount.name]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
   const posRefundAnalytics = await request('/api/analytics?days=7');
   assert.equal(posRefundAnalytics.totalRevenue, beforePosRefund.totalRevenue, 'POS refund tenders do not multiply or subtract gross paid sales');
   assert.equal(posRefundAnalytics.posRefundCoverage.status, 'incomplete', 'sale-period POS refund makes recognition coverage incomplete');
@@ -261,6 +268,18 @@ try {
   assert.equal(posRefundAnalytics.netProfit, null, 'unresolved POS refund recognition withholds official profit');
   assert(posRefundAnalytics.days.filter((day) => day.orders > 0).every((day) => day.netProfit === null), 'affected report period does not show a numeric daily profit');
 
+  await client.query(`INSERT INTO payroll_entries
+    (venue_id,user_id,period_from,period_to,amount,status,approved_at,approved_by)
+    SELECT $1,$2,day - 5,day,100,'approved',now(),$2 FROM
+      (SELECT (now() AT TIME ZONE 'Asia/Yekaterinburg')::date AS day) calendar`, [venueId, ownerId]);
+  const fullPayroll = await request('/api/analytics?days=7');
+  const partialPayroll = await request('/api/analytics?days=3');
+  assert.deepEqual(fullPayroll.days.slice(-6).map(day => day.payroll), [16.67,16.66,16.67,16.67,16.66,16.67]);
+  assert.equal(fullPayroll.totalPayroll, 100);
+  assert.deepEqual(partialPayroll.days.map(day => day.payroll), fullPayroll.days.slice(-3).map(day => day.payroll));
+  assert.equal(partialPayroll.totalPayroll, 50);
+  assert.equal(fullPayroll.payrollCoverage.officialReady, false, 'one approved entry cannot certify payroll coverage');
+
   console.log('FINANCE SHIFT/ANALYTICS POSTGRES QA: PASS (sale snapshots vs event-date cash receipts, bonus tender exclusion, legacy fallbacks, shift attribution, medians, station allocation, zero-total discount, POS refund coverage)');
 } catch (error) {
   console.error('FINANCE SHIFT/ANALYTICS POSTGRES QA failed before cleanup:', error);
@@ -270,6 +289,14 @@ try {
   if (serverExitPromise && server?.exitCode === null && server?.signalCode === null) await serverExitPromise;
   if (client._connected) {
     try {
+      // Delete only this fixture's immutable event rows in dependency order.
+      // DDL locks and trigger changes remain inside the cleanup transaction.
+      await client.query('BEGIN');
+      for (const table of ['pos_payroll_refund_line_events', 'pos_payroll_refund_events', 'pos_payroll_sale_line_events', 'pos_payroll_sale_events', 'pos_payroll_recognition_epochs', 'pos_sale_cost_epochs']) {
+        await client.query(`ALTER TABLE ${table} DISABLE TRIGGER USER`);
+        await client.query(`DELETE FROM ${table} WHERE venue_id=$1`, [venueId]);
+        await client.query(`ALTER TABLE ${table} ENABLE TRIGGER USER`);
+      }
       await client.query('ALTER TABLE order_refund_tenders DISABLE TRIGGER USER');
       try { await client.query('DELETE FROM order_refund_tenders WHERE venue_id=$1', [venueId]); }
       finally { await client.query('ALTER TABLE order_refund_tenders ENABLE TRIGGER USER'); }
@@ -294,9 +321,12 @@ try {
       await client.query('ALTER TABLE inventory_purchase_reversal_policies DISABLE TRIGGER USER');
       try { await client.query('DELETE FROM inventory_purchase_reversal_policies WHERE venue_id=$1', [venueId]); }
       finally { await client.query('ALTER TABLE inventory_purchase_reversal_policies ENABLE TRIGGER USER'); }
+      await client.query('ALTER TABLE finance_accounts DISABLE TRIGGER finance_accounts_pos_system_tender_guard');
       await client.query('DELETE FROM finance_accounts WHERE venue_id=$1', [venueId]);
+      await client.query('ALTER TABLE finance_accounts ENABLE TRIGGER finance_accounts_pos_system_tender_guard');
       const deletedVenue = await client.query('DELETE FROM venues WHERE id=$1 RETURNING id', [venueId]);
       assert.equal(deletedVenue.rowCount, 1, 'finance report QA venue is fully removed');
+      await client.query('COMMIT');
     } finally { await client.end(); }
   }
 }
