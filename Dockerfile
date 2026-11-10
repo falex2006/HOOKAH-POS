@@ -17,7 +17,7 @@ COPY finance-payable-recognition.js finance-report-venue-access.js finance-other
 COPY audit-privacy.js ./
 COPY payroll-snapshot-persistence.js payroll-typed-snapshot-serializer.js payroll-milestone-storage-serializer.js ./
 COPY payroll-verified-calculation.js payroll-verified-snapshot-input.js payroll-run-provenance.js ./
-COPY payroll-saved-run-reader.js ./
+COPY payroll-saved-run-reader.js payroll-monthly-entry-options.js ./
 COPY payroll-run-source-freshness.js ./
 COPY payroll-refund-review-assessment.js payroll-refund-review-store.js ./
 COPY payroll-calculation-entry-bridge.js ./
