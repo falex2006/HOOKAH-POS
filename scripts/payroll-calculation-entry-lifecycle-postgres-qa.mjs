@@ -67,13 +67,14 @@ async function entryFixture(rate = 1000) { const f = await fixture(randomUUID(),
 // these columns as text, and this fixture preserves the same calendar value.
 const day = value => value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}` : value;
 const ledgerHash = 'e'.repeat(64);
-function transitionRow(entry, action, override = {}) {
+async function transitionRow(db, entry, action, override = {}) {
+  const { rows } = await db.query('SELECT transaction_timestamp() AS checked_at');
   const gross = Number(entry.calculation_gross_cents), net = Math.round(Number(entry.amount) * 100);
   const proof = { schemaVersion: 1, proofKind: 'current_transition', venueId: entry.venue_id, entryId: entry.id,
     employeeId: entry.user_id, runId: entry.calculation_run_id, entryStatus: entry.status, origin: 'calculation_run', currency: 'RUB',
     periodFrom: day(entry.period_from), periodTo: day(entry.period_to), grossCents: gross, netCents: net, protectedFixedCents: 0,
     evidenceHashes: { provenanceSha256: entry.calculation_provenance_sha256 },
-    freshness: { status: 'current', checkedAt: new Date().toISOString() }, corrections: { ledgerHash, netCents: net } };
+    freshness: { status: 'current', checkedAt: rows[0].checked_at.toISOString() }, corrections: { ledgerHash, netCents: net } };
   const payload = action === 'cancel' ? null : canonical(proof);
   return { id: randomUUID(), venue_id: entry.venue_id, entry_id: entry.id, action, from_status: entry.status,
     to_status: { approve: 'approved', pay: 'paid', cancel: 'cancelled' }[action], employee_id: entry.user_id,
@@ -110,7 +111,7 @@ async function journal(db, transition, extra = {}) {
 async function act(db, entry, action, extra = {}, write = true) {
   let patch = extra;
   if (action === 'pay' && Number(entry.amount) > 0 && !extra.expense_id) patch = { ...payFields(await expense(db, entry, { payroll_calculation_entry_id: entry.id })), ...extra };
-  const row = (await insert(db, 'payroll_calculation_entry_transitions', transitionRow(entry, action, patch))).rows[0];
+  const row = (await insert(db, 'payroll_calculation_entry_transitions', await transitionRow(db, entry, action, patch))).rows[0];
   if (write) await updateFromTransition(db, row);
   const request = await journal(db, row);
   return { row, request };
@@ -137,11 +138,11 @@ try {
   await reject(db, () => act(db, draft, 'approve', {}, false), 'transition_incomplete');
   await reject(db, () => db.query('UPDATE payroll_entries SET amount=9 WHERE id=$1', [draft.id]), 'net_reconciliation_required');
   await reject(db, () => db.query('DELETE FROM payroll_entries WHERE id=$1', [draft.id]), 'immutable', '55000');
-  const altered = transitionRow(draft, 'approve'), alteredProof = JSON.parse(altered.source_proof_payload);
+  const altered = await transitionRow(db, draft, 'approve'), alteredProof = JSON.parse(altered.source_proof_payload);
   alteredProof.corrections.netCents--;
   altered.source_proof_payload = canonical(alteredProof); altered.source_proof_sha256 = sha(altered.source_proof_payload);
   await reject(db, () => insert(db, 'payroll_calculation_entry_transitions', altered), 'source_proof_mismatch');
-  const stale = transitionRow(draft, 'approve'), staleProof = JSON.parse(stale.source_proof_payload);
+  const stale = await transitionRow(db, draft, 'approve'), staleProof = JSON.parse(stale.source_proof_payload);
   staleProof.freshness.checkedAt = '2020-01-01T00:00:00.000Z';
   stale.source_proof_payload = canonical(staleProof); stale.source_proof_sha256 = sha(stale.source_proof_payload);
   await reject(db, () => insert(db, 'payroll_calculation_entry_transitions', stale), 'source_proof_stale');
