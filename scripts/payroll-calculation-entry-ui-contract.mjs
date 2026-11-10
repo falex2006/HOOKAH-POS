@@ -192,13 +192,18 @@ const fixture = () => {
   assert.equal(other.calls[0].path, '/api/payroll/calculation-runs/run-1/h2-entries');
 }
 
-const renderStart = portal.indexOf('      register.innerHTML = rows.map((item) => {');
-const renderEnd = portal.indexOf("      }).join('');", renderStart);
-assert.ok(renderStart >= 0 && renderEnd > renderStart);
-const renderer = portal.slice(renderStart, renderEnd + "      }).join('');".length);
-const renderRegister = (item, { owner = true, state = null, pending = null, busy = false, accounts } = {}) => {
-  const register = {};
-  const context = { register, rows: [item], entryStatuses: { draft: ['Черновик', 'warning'], approved: ['Утверждено', 'success'], cancelled: ['Отменено', 'muted'] },
+const renderStart = portal.indexOf('    const drawPayroll =');
+const renderEnd = portal.indexOf('    loadPayroll =', renderStart);
+const rememberStart = portal.indexOf('    const rememberExpandedEntries =');
+const rememberEnd = portal.indexOf('    let payrollReady', rememberStart);
+assert.ok(renderStart >= 0 && renderEnd > renderStart && rememberStart >= 0 && rememberEnd > rememberStart);
+const renderer = portal.slice(rememberStart, rememberEnd) + portal.slice(renderStart, renderEnd) + '\ndrawPayroll();';
+const renderRegister = (item, { owner = true, state = null, pending = null, busy = false, accounts,
+  rows = [item], existingDetails = [], expanded = new Set() } = {}) => {
+  const register = {insertAdjacentHTML() {}, querySelectorAll: selector =>
+    selector === 'details[data-payroll-expand]' ? existingDetails : []};
+  const context = { register, payrollReady:true, payrollItems:rows, expandedPayrollEntries:expanded, linkedPayrollRecovery:()=> '',
+    payrollSection:{querySelector:()=>({value:''})}, entryStatuses: { draft: ['Черновик', 'warning'], approved: ['Утверждено', 'success'], cancelled: ['Отменено', 'muted'] },
     formatRuDate: value => value, esc: value => String(value ?? ''), displayName: value => value, money: value => value,
     financeAccountItems: accounts || [{ id: 'bank', name: 'Банк', kind: 'bank', allowedPaymentMethods: ['bank_transfer'] }],
     linkedPayrollStates: new Map(state ? [[item.id, state]] : []), linkedPayrollPending: () => pending,
@@ -211,6 +216,16 @@ const renderRegister = (item, { owner = true, state = null, pending = null, busy
   vm.runInNewContext(portal.slice(actionsStart, actionsEnd) + '\n' + renderer, context);
   return register.innerHTML;
 };
+// A redraw remembers the single opened employee and forgets explicitly closed rows.
+{
+  const employees = ['first', 'second'].map(id=>({...entry, id, status:'draft', amount:125}));
+  const details = employees.map(({id},index)=>({dataset:{payrollExpand:id},open:index===1}));
+  const html = renderRegister(employees[0], {rows:employees, existingDetails:details, expanded:new Set(['first'])});
+  assert.match(html, /data-payroll-entry="first"><details data-payroll-expand="first"\s*>/);
+  assert.match(html, /data-payroll-entry="second"><details data-payroll-expand="second" open>/);
+  assert.equal((html.match(/data-payroll-expand=/g)||[]).length,2);
+  assert.doesNotMatch(renderRegister(employees[0]), /data-payroll-expand=/, 'one employee remains visible directly');
+}
 for (const status of ['draft', 'approved', 'cancelled']) {
   const html = renderRegister({ ...entry, status, hours: null, amount: 125 });
   assert.doesNotMatch(html, /data-payroll-action="(?:approve|pay)"|Отработано:/);
