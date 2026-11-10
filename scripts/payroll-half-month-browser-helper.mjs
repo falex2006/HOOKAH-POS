@@ -82,15 +82,15 @@ export async function verifyHalfMonthBrowser({page,base,pool,fixture}) {
     const path='/api/payroll/calculation-runs/'+run.runId+'/'+(first?'h1-entries':'h2-entries');
     const colleague=page.locator('[data-saved-entry-employee="'+colleagueId+'"]');
     if (first) {
-      const {body}=await post(path,()=>colleague.getByRole('button',{name:/÷åðíîâèê çà 1–14 ÷èñëî/i}).click());
+      const {body}=await post(path,()=>colleague.getByRole('button',{name:/Ñ‡ÐµÑ€Ð½Ð¾Ð²Ð¸Ðº Ð·Ð° 1â€“14 Ñ‡Ð¸ÑÐ»Ð¾/i}).click());
       const draft=Object.hasOwn(body,'currentEntry') ? body.currentEntry : body.entry;
       assert.equal(draft.userId,colleagueId);
       assert.equal(draft.amountCents,1000,'colleague has positive earned pay');
       assert.equal(draft.status,'draft');
       colleagueDraft=[{id:draft.id,status:'draft',half:'h1',expense_id:null}];
     } else {
-      await colleague.locator('text=/óòâåðäèòå íà÷èñëåíèå çà 1–14 ÷èñëî/i').waitFor();
-      assert.equal(await colleague.getByRole('button',{name:/çà âòîðóþ ïîëîâèíó/i}).count(),0);
+      await colleague.locator('text=/ÑƒÑ‚Ð²ÐµÑ€Ð´Ð¸Ñ‚Ðµ Ð½Ð°Ñ‡Ð¸ÑÐ»ÐµÐ½Ð¸Ðµ Ð·Ð° 1â€“14 Ñ‡Ð¸ÑÐ»Ð¾/i').waitFor();
+      assert.equal(await colleague.getByRole('button',{name:/Ð·Ð° Ð²Ñ‚Ð¾Ñ€ÑƒÑŽ Ð¿Ð¾Ð»Ð¾Ð²Ð¸Ð½Ñƒ/i}).count(),0);
     }
     const {body:materialized}=await post(path,()=>cell.getByRole('button',{name:first?/Ñ‡ÐµÑ€Ð½Ð¾Ð²Ð¸Ðº Ð·Ð° 1â€“14 Ñ‡Ð¸ÑÐ»Ð¾/i:/Ð·Ð° Ð²Ñ‚Ð¾Ñ€ÑƒÑŽ Ð¿Ð¾Ð»Ð¾Ð²Ð¸Ð½Ñƒ/i}).click());
     const entry=Object.hasOwn(materialized,'currentEntry') ? materialized.currentEntry : materialized.entry;
@@ -101,9 +101,23 @@ export async function verifyHalfMonthBrowser({page,base,pool,fixture}) {
     await page.locator('#payroll-filter-to').fill(period.to);
     await page.locator('#payroll-reload').click();
     const row=page.locator('[data-payroll-entry="'+entry.id+'"]'), transition='/api/payroll/calculation-entries/'+entry.id+'/transition';
-    await row.locator('[data-payroll-linked-check]').click();
+    const checkAction = async action => {
+      const stateUrl = base + transition.replace(/transition$/, 'state');
+      const [response] = await Promise.all([
+        page.waitForResponse(r => r.url() === stateUrl && r.request().method() === 'GET'),
+        row.locator('[data-payroll-linked-check]').click()
+      ]);
+      const text = await response.text();
+      assert.ok(response.ok(), stateUrl+' returned '+response.status()+' '+text.slice(0,400));
+      const state = JSON.parse(text);
+      assert.ok(state.allowedActions?.includes(action), JSON.stringify({
+        half:entry.halfKind,action,allowed:state.allowedActions,sourceStatus:state.sourceStatus,
+        reasons:state.blockedReason || state.reasons || state.blockers,entryStatus:state.entry?.status
+      }));
+    };
+    await checkAction('approve');
     await post(transition,()=>row.locator('[data-payroll-action="approve"]').click());
-    await row.locator('[data-payroll-linked-check]').click();
+    await checkAction('pay');
     await row.locator('[data-payroll-payment-date]').fill(period.to);
     // Lose only the response. The payment passes through the real HTTP handler.
     let firstPayment, command;
