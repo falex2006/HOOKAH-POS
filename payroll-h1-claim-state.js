@@ -1,8 +1,8 @@
 'use strict';
-// Read the locked H1 claim, creation receipt, transitions and expense. Requires a source-fenced OWNER write
+// Read the H1 claim, creation receipt, transitions and expense in a source-fenced OWNER
 // transaction. This observes H1 but never authorizes H2 or any payout.
 const { createHash } = require('node:crypto');
-const { hasPayrollVerifiedWriteSnapshot } = require('./payroll-source-fence');
+const { hasPayrollVerifiedWriteSnapshot, hasPayrollVerifiedReadSnapshot } = require('./payroll-source-fence');
 const { verifyPayrollCalculationEntryEvidence } = require('./payroll-calculation-entry-evidence');
 const { verifyCapturedH1Corrections } = require('./payroll-calculation-entry-corrections');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -44,11 +44,12 @@ function receipt(row, action, claim) {
       ||proof.grossCents-proof.corrections.appliedCents!==proof.netCents) fail('transition_proof_invalid');
   return {payload:p,corrections:proof.corrections,netMinor:cents(row.net_cents),grossMinor:cents(row.gross_cents),ledgerHash:row.ledger_hash};
 }
-async function readH1StateInTransaction(db, actor, input, {checkFreshness}={}) {
+async function readH1StateInTransaction(db, actor, input, {checkFreshness, readOnly = false}={}) {
+  const verifiedSnapshot = readOnly ? hasPayrollVerifiedReadSnapshot : hasPayrollVerifiedWriteSnapshot;
   const q=requestShape(input);
   if(!db || typeof db.query!=='function' || !record(actor) || !validId(actor.venueId) || !validId(actor.userId)
-      || !hasPayrollVerifiedWriteSnapshot(db,actor.venueId)) fail('source_transaction_required');
-  const own=(await db.query("SELECT id FROM users WHERE venue_id=$1 AND id=$2 AND role='owner' AND is_active=true AND deleted_at IS NULL FOR SHARE",[actor.venueId,actor.userId])).rows;
+      || !verifiedSnapshot(db,actor.venueId)) fail('source_transaction_required');
+  const own=(await db.query(`SELECT id FROM users WHERE venue_id=$1 AND id=$2 AND role='owner' AND is_active=true AND deleted_at IS NULL${readOnly ? '' : ' FOR SHARE'}`,[actor.venueId,actor.userId])).rows;
   if(own.length!==1 || own[0].id!==actor.userId) fail('owner_required');
   const rows=(await db.query(`SELECT c.id AS claim_id,c.venue_id,c.employee_id,c.month_from::text AS month_from,
     c.period_from::text AS period_from,c.period_to::text AS period_to,c.run_id,c.entry_id,c.provenance_sha256,c.created_by,
@@ -59,7 +60,7 @@ async function readH1StateInTransaction(db, actor, input, {checkFreshness}={}) {
     e.payment_date::text AS payment_date,e.expense_id,e.finance_category_id,e.finance_category_name_snapshot,e.materialized_by
     FROM payroll_h1_claim_slots s JOIN payroll_half_month_claims c ON c.venue_id=s.venue_id AND c.employee_id=s.employee_id AND c.month_from=s.month_from AND c.id=s.claim_id
     JOIN payroll_entries e ON e.venue_id=c.venue_id AND e.id=c.entry_id
-    WHERE s.venue_id=$1 AND s.employee_id=$2 AND s.month_from=$3::date FOR UPDATE OF s,e`,[actor.venueId,q.employeeId,q.from])).rows;
+    WHERE s.venue_id=$1 AND s.employee_id=$2 AND s.month_from=$3::date ${readOnly ? '' : 'FOR UPDATE OF s,e'}`,[actor.venueId,q.employeeId,q.from])).rows;
   if(rows.length!==1) fail(rows.length?'claim_ambiguous':'claim_missing');
   const c=rows[0];
   if(!validId(c.claim_id)||!validId(c.entry_id)||!validId(c.run_id)||c.venue_id!==actor.venueId||c.entry_venue_id!==actor.venueId
@@ -101,8 +102,8 @@ async function readH1StateInTransaction(db, actor, input, {checkFreshness}={}) {
   if(approves.length!==1 || (c.status==='paid'?pays.length!==1:pays.length!==0) || payload.some(x=>!['approve','pay'].includes(x.action))) fail('transition_history_invalid');
   const approval=receipt(approves[0],'approve',c);
   if(c.status==='approved' && (c.expense_id!==null || c.paid_at!==null || c.paid_by!==null || c.payment_date!==null)) fail('payment_mismatch');
-  const proof=await verifyPayrollCalculationEntryEvidence(db,actor,c,{purpose:c.status==='paid'?'historical_paid':'current_transition',checkFreshness});
-  const corrections=await verifyCapturedH1Corrections(db,actor,proof,approval.corrections);
+  const proof=await verifyPayrollCalculationEntryEvidence(db,actor,c,{purpose:c.status==='paid'?'historical_paid':'current_transition',checkFreshness,readOnly});
+  const corrections=await verifyCapturedH1Corrections(db,actor,proof,approval.corrections,readOnly);
   if(!corrections || !SHA.test(corrections.ledgerHash||'') || !Number.isSafeInteger(proof.netCents)
       || !Number.isSafeInteger(proof.grossCents) || !Number.isSafeInteger(corrections.appliedCents)
       || corrections.appliedCents<0 || proof.grossCents!==cents(c.calculation_gross_cents)
@@ -112,7 +113,7 @@ async function readH1StateInTransaction(db, actor, input, {checkFreshness}={}) {
   let paidMinor=0;
   if(c.status==='paid') {
     const t=pays[0], observed=receipt(t,'pay',c); paidMinor=observed.netMinor;
-    const settlementCorrections=await verifyCapturedH1Corrections(db,actor,proof,observed.corrections);
+    const settlementCorrections=await verifyCapturedH1Corrections(db,actor,proof,observed.corrections,readOnly);
     if(settlementCorrections.appliedCents!==corrections.appliedCents || paidMinor!==proof.netCents || observed.grossMinor!==proof.grossCents  || t.created_by!==c.paid_by || t.payment_date!==c.payment_date
         || t.expense_id!==c.expense_id || !c.paid_at || !t.created_at || new Date(c.paid_at).getTime()!==new Date(t.created_at).getTime()) fail('payment_mismatch');
     if(t.settlement_kind==='zero') { if(paidMinor!==0 || c.expense_id!==null || t.expense_row_id!==null || t.payment_method!==null

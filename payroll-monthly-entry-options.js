@@ -2,13 +2,18 @@
 const { randomUUID } = require('node:crypto');
 const { calculatePayrollDeferredMonthEvidence } = require('./payroll-deferred-month-evidence');
 
-async function explainMonthlyEntries(db, actor, runId, detail, { loadEvidence, checkFreshness, readH1 }) {
+function isHalfMonthSettlementCandidate(detail) {
   const { from, to } = detail.period;
   if (detail.capabilityVersion !== 'employee_attributed_remaining_net_refund_v2'
-      || !/^\d{4}-\d{2}-01$/.test(from) || !detail.employees.length) return detail;
-  const month = from.slice(0, 7);
+      || !/^\d{4}-\d{2}-01$/.test(from) || !detail.employees.length) return false;
   const monthEnd = new Date(Date.UTC(Number(from.slice(0, 4)), Number(from.slice(5, 7)), 0)).toISOString().slice(0, 10);
-  if (to !== monthEnd) return detail;
+  return to === monthEnd;
+}
+
+async function explainMonthlyEntries(db, actor, runId, detail, { loadEvidence, checkFreshness, readH1 }) {
+  if (!isHalfMonthSettlementCandidate(detail)) return detail;
+  const { from, to } = detail.period;
+  const month = from.slice(0, 7);
   const { evidence } = await loadEvidence();
   const schema = (await db.query(`SELECT to_regclass('payroll_h1_claim_slots') IS NOT NULL AS h1,
     to_regclass('payroll_h2_claim_slots') IS NOT NULL AS h2`)).rows[0];
@@ -69,4 +74,4 @@ async function explainMonthlyEntries(db, actor, runId, detail, { loadEvidence, c
   }
   return { ...detail, employees };
 }
-module.exports = { explainMonthlyEntries };
+module.exports = { isHalfMonthSettlementCandidate, explainMonthlyEntries };

@@ -5,7 +5,7 @@
 // An older approval, cached preview or stored claim is not freshness authority.
 const { createHash } = require('node:crypto');
 const { samePayrollCorrectionSource } = require('./payroll-correction-ledger-source');
-const { hasPayrollVerifiedWriteSnapshot } = require('./payroll-source-fence');
+const { hasPayrollVerifiedWriteSnapshot, hasPayrollVerifiedReadSnapshot } = require('./payroll-source-fence');
 const { verifyPayrollCalculationEntryEvidence } = require('./payroll-calculation-entry-evidence');
 const { collectPayrollRefundReviewAssessment } = require('./payroll-refund-review-assessment');
 const { buildReviewedCorrectionWaiverPlan } = require('./payroll-reviewed-correction-policy');
@@ -94,8 +94,9 @@ async function verifyPayrollEntryCorrections(db, actor, proof) {
 }
 // Verify the ledger captured by the immutable approval/payment receipt. Later
 // journal events for another entry can legitimately exist for the employee.
-async function verifyCapturedH1Corrections(db, actor, proof, capture) {
-  if (!hasPayrollVerifiedWriteSnapshot(db, actor.venueId) || proof.venueId !== actor.venueId
+async function verifyCapturedH1Corrections(db, actor, proof, capture, readOnly = false) {
+  const verifiedSnapshot = readOnly ? hasPayrollVerifiedReadSnapshot : hasPayrollVerifiedWriteSnapshot;
+  if (!verifiedSnapshot(db, actor.venueId) || proof.venueId !== actor.venueId
       || capture?.ledgerCaptureSchemaVersion !== 1 || capture.entryId !== proof.entryId
       || capture.employeeId !== proof.employeeId || capture.venueId !== proof.venueId
       || capture.netCents !== proof.netCents || capture.protectedFixedCents !== proof.protectedFixedCents
@@ -104,7 +105,7 @@ async function verifyCapturedH1Corrections(db, actor, proof, capture) {
   if (hash(basis) !== correctionEvidenceHash) fail('capture_invalid');
   const ids = new Set(capture.ledgerEventIds);
   if (ids.size !== capture.ledgerEventIds.length) fail('capture_invalid');
-  const history = await readReviewedCorrectionLedger(db, actor, proof.employeeId);
+  const history = await readReviewedCorrectionLedger(db, actor, proof.employeeId, readOnly);
   const frozen = history.filter(event => ids.has(event.id));
   if (ids.size !== frozen.length || hash([...frozen].sort((a,b) => a.id.localeCompare(b.id))) !== capture.ledgerHash
       || history.some(event => event.targetEntryId === proof.entryId && !ids.has(event.id))) fail('capture_invalid');

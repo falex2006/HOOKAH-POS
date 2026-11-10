@@ -7,7 +7,7 @@ const {verifyPayrollDeferredMonthEvidence} = require('./payroll-deferred-month-e
 // This module can only verify saved run evidence; it never posts money.
 const { createHash } = require('node:crypto');
 const { payrollCorrectionLedgerEventFromRow, samePayrollCorrectionSource } = require('./payroll-correction-ledger-source');
-const { hasPayrollVerifiedWriteSnapshot } = require('./payroll-source-fence');
+const { hasPayrollVerifiedWriteSnapshot, hasPayrollVerifiedReadSnapshot } = require('./payroll-source-fence');
 const { loadSavedRunEvidenceInTransaction } = require('./payroll-saved-run-reader');
 const { executeCalculatorReplay, executePayrollH1FixedShiftsReplay } = require('./payroll-calculator-replay');
 
@@ -117,7 +117,7 @@ const verifyDailySnapshots = async (db, identity, replayResult) => {
 // pay transition and the exact incoming applications settled by that receipt.
 // Later outgoing claims legitimately change the employee ledger; never compare
 // the receipt's historical whole-ledger hash with today's whole ledger.
-const verifyZeroSettlement = async (db, identity, current, totals, capabilityVersion) => {
+const verifyZeroSettlement = async (db, identity, current, totals, capabilityVersion, readOnly) => {
   if (identity.netCents !== 0n || current.expense_id !== null || current.linked_expense_id !== null
       || !current.payment_date || totals.protectedFixedCents !== 0n) fail('zero_settlement_invalid');
   const rows = (await db.query(`SELECT t.*,t.gross_cents::text AS gross_cents,t.net_cents::text AS net_cents,
@@ -125,7 +125,7 @@ const verifyZeroSettlement = async (db, identity, current, totals, capabilityVer
       t.payment_date::text AS payment_date,
       EXISTS(SELECT 1 FROM payroll_calculation_entry_transition_requests q
         WHERE q.venue_id=t.venue_id AND q.transition_id=t.id AND q.created_by=t.created_by) AS request_journaled
-    FROM payroll_calculation_entry_transitions t WHERE t.venue_id=$1 AND t.entry_id=$2 AND t.action='pay' FOR SHARE OF t`,
+    FROM payroll_calculation_entry_transitions t WHERE t.venue_id=$1 AND t.entry_id=$2 AND t.action='pay' ${readOnly ? '' : 'FOR SHARE OF t'}`,
   [identity.venueId, identity.id])).rows;
   if (rows.length !== 1) fail('zero_settlement_required');
   const receipt = rows[0];
@@ -226,10 +226,11 @@ const canonicalIds = values => {
  * proof kinds: current transitions require fresh sources; historical basis
  * requires a paid entry with its matching payroll expense or immutable zero settlement.
  */
-const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purpose, checkFreshness } = {}) => {
+const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purpose, checkFreshness, readOnly = false } = {}) => {
+  const verifiedSnapshot = readOnly ? hasPayrollVerifiedReadSnapshot : hasPayrollVerifiedWriteSnapshot;
   if (!PURPOSES.has(purpose)) fail('purpose_invalid');
   const venueId = uuid(actor?.venueId);
-  if (!db || typeof db.query !== 'function' || !hasPayrollVerifiedWriteSnapshot(db, venueId)) fail('source_transaction_required');
+  if (!db || typeof db.query !== 'function' || !verifiedSnapshot(db, venueId)) fail('source_transaction_required');
   const expected = normalizedEntryIdentity(entryRow);
   if (expected.venueId !== venueId || !SHA.test(expected.provenanceSha256 || '')
       || expected.periodTo < expected.periodFrom || expected.periodFrom.slice(0, 7) !== expected.periodTo.slice(0, 7)) fail('entry_context_invalid');
@@ -241,7 +242,7 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
       to_jsonb(pe)->>'payroll_half_kind' AS payroll_half_kind,
       e.id::text AS linked_expense_id,e.venue_id::text AS expense_venue_id,e.source AS expense_source,e.amount::text AS expense_amount
     FROM payroll_entries pe LEFT JOIN expenses e ON e.venue_id=pe.venue_id AND e.id=pe.expense_id
-    WHERE pe.venue_id=$1 AND pe.id=$2 AND pe.calculation_run_id IS NOT NULL FOR SHARE OF pe`, [venueId, expected.id])).rows[0];
+    WHERE pe.venue_id=$1 AND pe.id=$2 AND pe.calculation_run_id IS NOT NULL ${readOnly ? '' : 'FOR SHARE OF pe'}`, [venueId, expected.id])).rows[0];
   if (!current) fail('entry_not_found');
   const persisted = normalizedEntryIdentity(current);
   if (persisted.id !== expected.id || persisted.venueId !== expected.venueId
@@ -288,7 +289,7 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
     if (purpose==='historical_paid'&&!h2Claim.active) fail('deferred_claim_not_active');
     const settlement=purpose==='historical_paid' && expected.netCents===0n && current.expense_id===null
       ? await verifyZeroSettlement(db,persisted,current,{grossCents:expected.grossCents,
-        protectedFixedCents:BigInt(doc.h2ProtectedFixedMinor),eligibleVariableCents:BigInt(doc.h2EligibleVariableMinor)},doc.capabilityVersion)
+        protectedFixedCents:BigInt(doc.h2ProtectedFixedMinor),eligibleVariableCents:BigInt(doc.h2EligibleVariableMinor)},doc.capabilityVersion,readOnly)
       : null;
     const proof=deepFreeze({schemaVersion:1,capabilityVersion:doc.capabilityVersion,proofKind:purpose,
       ...(settlement ? {settlement} : {}),
@@ -329,7 +330,7 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
   if (totals.grossCents !== BigInt(expected.grossCents)) fail('entry_gross_mismatch');
   if (expected.netCents > totals.grossCents) fail('entry_net_exceeds_gross');
   const zeroSettlement = purpose === 'historical_paid' && expected.netCents === 0n && current.expense_id === null;
-  const settlement = zeroSettlement ? await verifyZeroSettlement(db, persisted, current, totals, evidence.capabilityVersion) : null;
+  const settlement = zeroSettlement ? await verifyZeroSettlement(db, persisted, current, totals, evidence.capabilityVersion, readOnly) : null;
   if (purpose === 'historical_paid' && !zeroSettlement && decimalCents(current.expense_amount) !== expected.netCents) {
     fail('paid_expense_amount_mismatch');
   }

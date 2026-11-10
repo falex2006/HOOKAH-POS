@@ -109,7 +109,7 @@ function fixture(options = {}) {
   const db = { async query(sql, values = []) {
     const text = sql.replace(/\s+/g, ' ').trim(); calls.push(text);
     if (text.startsWith('SELECT pg_advisory_lock(') || text === 'BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE'
-        || text === 'COMMIT' || text === 'ROLLBACK') return { rows: [] };
+        || text === 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' || text === 'COMMIT' || text === 'ROLLBACK') return { rows: [] };
     if (text.startsWith('SELECT pg_advisory_unlock(')) return { rows: [{ unlocked: true }] };
     if (text.startsWith('SELECT t.*,t.gross_cents::text')) {
       assert.deepEqual(values, [ids.venue, ids.entry]); return { rows: settings.receiptMissing ? [] : [zeroReceipt] };
@@ -282,3 +282,17 @@ for (const zeroGross of [false, true]) {
 }
 
 console.log('PASS payroll calculation entry evidence: current and historical proof kinds, real replay, immutable snapshots, freshness, fence, fixed/variable reconciliation, zero settlement receipt and mixed incoming correction authority');
+
+{
+  const f = fixture({zero: true, v2Capture: true});
+  const release = await fence.beginPayrollVerifiedReadSourceTransaction(f.db, ids.venue);
+  try {
+    const verify = options => f.verifier.verifyPayrollCalculationEntryEvidence(f.db, actor, f.currentEntry,
+      {purpose:'historical_paid', ...options});
+    await assert.rejects(verify({}), errorCode('source_transaction_required'));
+    const proof = await verify({readOnly:true});
+    assert.equal(proof.proofKind, 'historical_paid');
+    assert.equal(proof.netCents, 0);
+    assert.ok(f.calls.every(sql => !/FOR (?:UPDATE|SHARE)/i.test(sql)), 'a fenced display proof must not take row locks');
+  } finally { await f.db.query('COMMIT'); await release(); }
+}

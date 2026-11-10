@@ -4,7 +4,7 @@
 // migration205 supplies the immutable approval, settlement and cancellation path.
 const { createHash, randomUUID } = require('node:crypto');
 const { payrollCorrectionLedgerEventFromRow } = require('./payroll-correction-ledger-source');
-const { hasPayrollVerifiedWriteSnapshot } = require('./payroll-source-fence');
+const { hasPayrollVerifiedWriteSnapshot, hasPayrollVerifiedReadSnapshot } = require('./payroll-source-fence');
 const { verifyPayrollCalculationEntryEvidence } = require('./payroll-calculation-entry-evidence');
 const { collectPayrollRefundReviewAssessment } = require('./payroll-refund-review-assessment');
 const { saveRefundReviewAssessment } = require('./payroll-refund-review-store');
@@ -34,8 +34,9 @@ async function requireOwner(db, actor) {
   if (!owner) fail('owner_required', 403);
   return { venueId: actor.venueId, userId: actor.userId, name: owner.full_name };
 }
-async function readReviewedCorrectionLedger(db, actor, employeeId) {
-  if (!hasPayrollVerifiedWriteSnapshot(db, actor.venueId) || typeof employeeId !== 'string' || !UUID.test(employeeId)) fail('source_transaction_required');
+async function readReviewedCorrectionLedger(db, actor, employeeId, readOnly = false) {
+  const verifiedSnapshot = readOnly ? hasPayrollVerifiedReadSnapshot : hasPayrollVerifiedWriteSnapshot;
+  if (!verifiedSnapshot(db, actor.venueId) || typeof employeeId !== 'string' || !UUID.test(employeeId)) fail('source_transaction_required');
   // The extra row detects an oversized history. Never allocate using a prefix.
   const rows = (await db.query(`SELECT e.id,e.sequence_no::text,e.kind,e.amount_cents::text,e.target_entry_id,e.reverses_event_id,
       e.venue_id,e.employee_id,c.currency,c.original_entry_id,c.refund_line_event_id,e.claim_id,

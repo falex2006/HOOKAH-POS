@@ -48,6 +48,7 @@ const verifiedReadSnapshots = new WeakMap();
 const pendingVerifiedSnapshots = new WeakSet();
 const hasPayrollVerifiedWriteSnapshot = (db, venueId) =>
   verifiedWriteSnapshots.get(db) === keyForVenue(venueId);
+const hasPayrollVerifiedReadSnapshot = (db, venueId) => verifiedReadSnapshots.get(db) === keyForVenue(venueId);
 const hasPayrollVerifiedSourceSnapshot = (db, venueId) =>
   hasPayrollVerifiedWriteSnapshot(db, venueId) || verifiedReadSnapshots.get(db) === keyForVenue(venueId);
 // A read capability exposes source evidence only. It never authorizes snapshot
@@ -96,4 +97,4 @@ const beginPayrollVerifiedRunSourceTransaction = async (db, venueId) => {
 };
 module.exports = { beginPayrollSourceProducerTransaction, beginPayrollSourceConsumerTransaction,
   acquirePayrollSourceSnapshotLock, beginPayrollVerifiedRunSourceTransaction, hasPayrollVerifiedWriteSnapshot,
-  beginPayrollVerifiedReadSourceTransaction, hasPayrollVerifiedSourceSnapshot };
+  beginPayrollVerifiedReadSourceTransaction, hasPayrollVerifiedSourceSnapshot, hasPayrollVerifiedReadSnapshot };

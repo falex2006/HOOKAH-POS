@@ -46,7 +46,7 @@ const { normalRevisionRequest, retroactiveRevisionRequest, buildNextDayDepartmen
 const { readPayrollEntryOverlapDiagnostic } = require('./payroll-entry-overlap-diagnostic');
 const { buildPayrollOrderRevenueReconciliation } = require('./payroll-order-revenue-reconciliation');
 const { beginPayrollSourceProducerTransaction, acquirePayrollSourceSnapshotLock, beginPayrollVerifiedRunSourceTransaction,
-  beginPayrollVerifiedReadSourceTransaction } = require('./payroll-source-fence');
+  beginPayrollVerifiedReadSourceTransaction, hasPayrollVerifiedReadSnapshot } = require('./payroll-source-fence');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAYOUT_RISK_ACK_POLICY = 'payroll-own-revenue-ceiling-v1';
@@ -1671,11 +1671,12 @@ const makeService = (pool) => {
   };
 
   const readH1StatesOrVerifiedZero = async (db, actor, monthlyRunId, month, monthlyEvidence, employeeRows) => {
+    const readOnly = hasPayrollVerifiedReadSnapshot(db,actor.venueId);
     const states = [];
     for (const employee of employeeRows) {
       try {
         states.push(await readH1StateInTransaction(db, actor, { employeeId: employee.employeeId, month }, {
-          checkFreshness: (client, owner, h1RunId) => lifecycleFreshness(client, owner, h1RunId)
+          readOnly, checkFreshness: (client, owner, h1RunId) => lifecycleFreshness(client, owner, h1RunId)
         }));
       } catch (error) {
         if (error?.code !== 'payroll_h1_state_claim_missing') throw error;
@@ -1686,7 +1687,7 @@ const makeService = (pool) => {
             AND local_date BETWEEN $4::date AND $5::date`,
         [actor.venueId,monthlyRunId,employee.employeeId,window.from,window.to])).rows[0];
         const active = (await db.query(`SELECT id FROM payroll_entries WHERE venue_id=$1 AND user_id=$2
-          AND status IN ('draft','approved','paid') AND period_from<=$3::date AND period_to>=$4::date LIMIT 1 FOR SHARE`,
+          AND status IN ('draft','approved','paid') AND period_from<=$3::date AND period_to>=$4::date LIMIT 1 ${readOnly ? '' : 'FOR SHARE'}`,
         [actor.venueId,employee.employeeId,window.to,window.from])).rows;
         if (!snapshot || snapshot.gross_minor !== '0' || active.length) fail('payroll_half_month_h1_zero_base_requires_review', 409);
         const zeroBaseEvidence = { schemaVersion:1,venueId:actor.venueId,employeeId:employee.employeeId,month,
@@ -1702,15 +1703,16 @@ const makeService = (pool) => {
     return states;
   };
   const deferredH2Freshness = async (db,actor,runId) => {
+    const lock = hasPayrollVerifiedReadSnapshot(db,actor.venueId) ? '' : 'FOR SHARE';
     const claim=(await db.query(`SELECT employee_id::text,month_from::text,monthly_run_id::text,h2_entry_id::text,evidence_sha256
-      FROM payroll_h2_settlement_claims WHERE venue_id=$1 AND h2_run_id=$2 FOR SHARE`,[actor.venueId,runId])).rows[0];
+      FROM payroll_h2_settlement_claims WHERE venue_id=$1 AND h2_run_id=$2 ${lock}`,[actor.venueId,runId])).rows[0];
     if (!claim) return {status:'stale',runId,reasons:['payroll_half_month_claim_missing']};
     let monthly;
     try { monthly=await savedRunReader.loadSavedRunEvidenceInTransaction(db,actor.venueId,claim.monthly_run_id); }
     catch (_) { return {status:'stale',runId,reasons:['payroll_half_month_monthly_evidence_invalid']}; }
     const current=await lifecycleFreshness(db,actor,claim.monthly_run_id);
     if (current.status!=='current') return {...current,runId};
-    const proofRow=(await db.query(`SELECT evidence_payload FROM payroll_run_provenance WHERE venue_id=$1 AND run_id=$2 FOR SHARE`,
+    const proofRow=(await db.query(`SELECT evidence_payload FROM payroll_run_provenance WHERE venue_id=$1 AND run_id=$2 ${lock}`,
       [actor.venueId,runId])).rows[0];
     if (!proofRow?.evidence_payload) return {status:'stale',runId,reasons:['payroll_half_month_saved_evidence_invalid']};
     const employee=monthly.evidence.calculatorReplay.result.employees.find(row=>row.employeeId===claim.employee_id);
@@ -1971,16 +1973,23 @@ const makeService = (pool) => {
     replaySavedRun: (principal, runId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.replaySavedRun(db, actor.venueId, runId)),
     checkSavedRunFreshness: (principal, runId) => withOwnerRead(pool, principal,
       (db, actor) => lifecycleFreshness(db, actor, runId), { sourceSnapshot: true }),
-    getSavedRun: (principal, runId, query) => withOwnerSourceWrite(pool, principal, async (db, actor) => {
-      const detail = await savedRunReader.getSavedRun(db, actor.venueId, runId, query);
-      const { explainMonthlyEntries } = require('./payroll-monthly-entry-options');
-      return explainMonthlyEntries(db, actor, runId, detail, {
-        loadEvidence: () => savedRunReader.loadSavedRunEvidenceInTransaction(db, actor.venueId, runId),
-        checkFreshness: () => lifecycleFreshness(db, actor, runId),
-        readH1: (month, evidence, employee) =>
-          readH1StatesOrVerifiedZero(db, actor, runId, month, evidence, [employee])
-      });
-    }, 'payroll_entry_materialization'),
+    getSavedRun: async (principal, runId, query) => {
+      const { isHalfMonthSettlementCandidate, explainMonthlyEntries } = require('./payroll-monthly-entry-options');
+      const ordinary = await withOwnerRead(pool, principal, (db, actor) =>
+        savedRunReader.getSavedRun(db, actor.venueId, runId, query));
+      if (!isHalfMonthSettlementCandidate(ordinary)) return ordinary;
+      // Re-read the entire response inside the single fenced snapshot used for
+      // current H1/source evidence; the first lookup only selects this route.
+      return withOwnerRead(pool, principal, async (db, actor) => {
+        const detail = await savedRunReader.getSavedRun(db, actor.venueId, runId, query);
+        return explainMonthlyEntries(db, actor, runId, detail, {
+          loadEvidence: () => savedRunReader.loadSavedRunEvidenceInTransaction(db, actor.venueId, runId),
+          checkFreshness: () => lifecycleFreshness(db, actor, runId),
+          readH1: (month, evidence, employee) =>
+            readH1StatesOrVerifiedZero(db, actor, runId, month, evidence, [employee])
+        });
+      }, { sourceSnapshot: true });
+    },
     getSavedRunEmployee: (principal, runId, employeeId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunEmployee(db, actor.venueId, runId, employeeId)),
     getSavedRunLines: (principal, runId, snapshotId, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunLines(db, actor.venueId, runId, snapshotId, query)),
     listEmploymentEligibilityEmployees,
