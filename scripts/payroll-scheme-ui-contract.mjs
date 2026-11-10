@@ -13,10 +13,11 @@ const sync = fs.readFileSync(path.join(root, 'scripts', 'sync-published-assets.m
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 
 assert.equal(ui, distUi, 'published UI asset matches the source');
-assert.match(finance, /payroll-scheme-ui\.js\?rev=40/, 'finance source loads the current owner payroll UI revision');
-assert.match(distFinance, /payroll-scheme-ui\.js\?rev=40/, 'published finance page loads the current payroll UI revision');
-assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=40/, 'directory alias loads the same payroll UI revision');
-assert.match(sync, /payrollSchemeUiRevision = '40'/, 'asset revision is managed by the publish sync');
+assert.match(finance, /payroll-scheme-ui\.js\?rev=41/, 'finance source loads the current owner payroll UI revision');
+assert.match(distFinance, /payroll-scheme-ui\.js\?rev=41/, 'published finance page loads the current payroll UI revision');
+assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=41/, 'directory alias loads the same payroll UI revision');
+assert.ok(server.includes('/payroll-scheme-ui.js?rev=41"'), 'legacy finance HTML fallback loads the same payroll revision');
+assert.match(sync, /payrollSchemeUiRevision = '41'/, 'asset revision is managed by the publish sync');
 assert.match(ui, /saved:'Сохранённые расчёты'/, 'saved runs remain in the existing payroll workspace');
 assert.match(ui, /sessionStorage\.setItem\(storageKey,\s*input\.idempotencyKey\)/, 'save intent is retained across reload');
 assert.match(ui, /detailToken === detailAtSubmit/, 'save completion preserves a later detail selection');
@@ -188,4 +189,10 @@ assert.match(ui, /data-scheme-compare-version/, 'owner can select versions for c
 assert.equal(['/api/payroll/entries', '/api/expenses', '/api/orders', '/api/loyalty'].some((pathPart) => ui.includes(pathPart)), false,
   'scheme configuration UI never mutates existing payroll, expense, order or loyalty data');
 
+assert.match(ui, /Данные сохранённого расчёта; сумма сама по себе не подтверждает выплату\./, 'saved day details remain descriptive, not a payout claim');
+for (const [field, label] of [['shifts', 'Учтённые смены'], ['teamFundCents', 'Командный фонд'], ['itemAdjustmentsCents', 'Товарные корректировки']]) {
+  assert.ok(ui.includes(`day.${field}`) && ui.includes(label), `saved day detail renders ${field}`);
+}
+assert.match(ui, /data-saved-run-table[\s\S]*?overflow-x:auto|overflow-x:auto[\s\S]*?data-saved-run-table/, 'saved data table has a horizontal scrolling region');
+assert.match(ui, /const runId = selectedRunId, token = \+\+detailToken;[\s\S]*?if \(!alive\(\) \|\| token !== detailToken\) return;/, 'late employee responses cannot replace a newer selection');
 console.log('PAYROLL SCHEME UI CONTRACT: PASS (owner-only finance mount, published asset, version config, audit and scenario UI)');

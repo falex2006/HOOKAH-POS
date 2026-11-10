@@ -2563,9 +2563,11 @@
         const data = await savedRequest(`/api/payroll/calculation-runs/${runId}/employees/${encodeURIComponent(employeeId)}`);
         if (!alive() || token !== detailToken) return;
         target.innerHTML = `<h4>${escapeHtml(data.employeeName)} · ${money(data.amountCents, data.currency)}</h4>
-          ${table('Расчёт по дням', ['Дата', 'Базовая часть', 'Комиссия', 'Премия', 'Уменьшение по лимиту', 'Итого', 'Расшифровка'],
-            data.days.map(day => `<tr><td>${escapeHtml(day.localDate)}</td><td>${money(day.basePayCents, data.currency)}</td>
-              <td>${money(day.commissionCents, data.currency)}</td><td>${money(day.milestoneBonusCents, data.currency)}</td>
+          <p class="muted">Данные сохранённого расчёта; сумма сама по себе не подтверждает выплату.</p>
+          ${table('Расчёт по дням', ['Дата', 'Учтённые смены', 'Базовая часть', 'Комиссия', 'Командный фонд', 'Товарные корректировки', 'Премия', 'Уменьшение по лимиту', 'Итого', 'Расшифровка'],
+            data.days.map(day => `<tr><td>${escapeHtml(day.localDate)}</td><td data-saved-day-shifts>${escapeHtml(day.shifts)}</td><td>${money(day.basePayCents, data.currency)}</td>
+              <td>${money(day.commissionCents, data.currency)}</td><td data-saved-day-team-fund>${money(day.teamFundCents, data.currency)}</td>
+              <td data-saved-day-item-adjustments>${money(day.itemAdjustmentsCents, data.currency)}</td><td>${money(day.milestoneBonusCents, data.currency)}</td>
               <td>${money(day.capReductionCents, data.currency)}</td><td>${money(day.amountCents, data.currency)}</td>
               <td>${dayDetails(day, data.currency)}<button type="button" class="button small" data-saved-day="${escapeHtml(day.snapshotId)}">Строки продажи</button></td></tr>`).join(''))}
           <div data-saved-lines></div>`;

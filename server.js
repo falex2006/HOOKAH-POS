@@ -7191,7 +7191,7 @@ function staticFile(req, res) {
   if (req.method === 'HEAD') return res.end();
   let content = fs.readFileSync(file);
   if (requestPath === '/finance.html' && !content.includes('/payroll-scheme-ui.js')) {
-    content = Buffer.from(content.toString('utf8').replace('</body>', '<script src="/payroll-scheme-ui.js?rev=1"></script></body>'));
+    content = Buffer.from(content.toString('utf8').replace('</body>', '<script src="/payroll-scheme-ui.js?rev=41"></script></body>'));
   }
   return res.end(content);
 }
