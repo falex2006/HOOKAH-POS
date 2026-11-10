@@ -53,4 +53,52 @@ handlerContext.pending=true;
 await delegated(eventFor(button('[data-scheme-grid-rebuild]')));
 assert.equal(rebuilds,1);assert.equal(refreshes,2);checks++;
 await delegated(eventFor(null));assert.equal(refreshes,2);assert.deepEqual(notifications,[]);checks++;
+// History belongs to its own version row and must leave the editor workspace intact.
+handlerContext.pending = false;
+const rowElement = {nextElementSibling:null, after(node){this.nextElementSibling=node;}};
+const historyButton = Object.assign(button('[data-scheme-revisions]', {schemeRevisions:'v1'}), {
+  isConnected:true, closest:()=>rowElement, setAttribute(key,value){this[key]=value;}
+});
+let historyRequests = 0;
+handlerContext.request = async url => {
+  assert.equal(url,'/api/payroll/versions/v1/revisions');
+  historyRequests++;
+  return {items:[{changeKind:'created',changedAt:'2026-11-01T00:00:00Z',changedByName:'<Owner>'}]};
+};
+handlerContext.escapeHtml = context.escapeHtml;
+handlerContext.document = {createElement:()=>({
+  setAttribute(){}, classList:{contains:key=>key==='payroll-version-history'},
+  remove(){rowElement.nextElementSibling=null;}
+})};
+await delegated(eventFor(historyButton));
+assert.match(rowElement.nextElementSibling.innerHTML,/Создана/);
+assert.match(rowElement.nextElementSibling.innerHTML,/&lt;Owner&gt;/);
+assert.equal(historyButton['aria-expanded'],'true');
+await delegated(eventFor(historyButton));
+assert.equal(historyRequests,1);
+assert.equal(rowElement.nextElementSibling,null);
+assert.equal(historyButton['aria-expanded'],'false');
+assert.deepEqual(workspaces,[{name:'checks',focus:true}]);
+checks++;
+
+const navStart = ui.indexOf('    const syncWorkspaceActions =');
+const navEnd = ui.indexOf('    const selectWorkspace=',navStart);
+assert.ok(navStart>0 && navEnd>navStart);
+const configuration = {}, trial = {};
+const navContext = vm.createContext({
+  list:{querySelectorAll:()=>Array(navContext.count)},
+  workspaceNav:{querySelector:key=>key.includes('configuration') ? configuration : trial}
+});
+vm.runInContext(ui.slice(navStart,navEnd)+';globalThis.update=syncWorkspaceActions;',navContext);
+for (const [kind,selected,count,showConfiguration,showTrial] of [
+  [null,false,0,false,false],['new',false,1,true,false],['edit',true,0,true,true],
+  ['inspect',true,0,true,true],[null,false,2,false,true],[null,false,8,false,true],
+  [null,false,9,false,false]
+]) {
+  Object.assign(navContext,{editorAction:kind ? {kind} : null,selectedVersion:selected,count});
+  navContext.update();
+  assert.equal(configuration.hidden,!showConfiguration);
+  assert.equal(trial.hidden,!showTrial);
+  checks++;
+}
 console.log(`PASS refund-aware sourced comparison UI: ${checks} validation/render cases`);
