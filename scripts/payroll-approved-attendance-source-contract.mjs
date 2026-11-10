@@ -85,6 +85,23 @@ try {
   await insert('staff_schedules', { venue_id: venue.id, user_id: employee.id, function_id: scheduledFunction.id,
     work_date: '2026-10-02', planned_start: '2026-10-02T10:00:00Z', planned_end: '2026-10-02T18:00:00Z' });
   await insert('staff_work_logs', { venue_id: venue.id, user_id: employee.id, started_at: '2026-10-02T10:00:00Z', ended_at: '2026-10-02T12:00:00Z', source: 'manual' });
+  // The recorded worker and the assigned employee must agree before payroll approval.
+  await client.query('SAVEPOINT replacement');
+  const substitute = await insert('users', { venue_id: venue.id, full_name: 'Replacement worker',
+    login: `${schema}-substitute`, role: 'bartender' });
+  await client.query('UPDATE staff_work_logs SET user_id=$1 WHERE venue_id=$2 AND user_id=$3',
+    [substitute.id, venue.id, employee.id]);
+  const mismatch = await service.readCoverageInTransaction(client, principal, period);
+  assert.equal(mismatch.complete, false);
+  await client.query("UPDATE staff_schedules SET user_id=$1 WHERE venue_id=$2 AND user_id=$3 AND work_date='2026-10-02'",
+    [substitute.id, venue.id, employee.id]);
+  const reassigned = await service.readCoverageInTransaction(client, principal, period);
+  assert.equal(reassigned.complete, true);
+  assert.deepEqual(reassigned.shifts.map(row => [row.employeeId, row.workedMinutes, row.scheduledFunctionId]),
+    [[substitute.id, 120, scheduledFunction.id]]);
+  assert.equal(reassigned.shifts[0].sourceIntervals[0].employeeId, substitute.id);
+  await client.query('ROLLBACK TO SAVEPOINT replacement');
+  await client.query('RELEASE SAVEPOINT replacement');
   const manifest = await service.readCoverageInTransaction(client, principal, period);
   assert.equal(manifest.complete, true);
   assert.equal(manifest.shifts[0].scheduledFunctionId, scheduledFunction.id);
