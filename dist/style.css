@@ -6599,3 +6599,24 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   #payroll .payroll-screen-nav { gap: .6rem; margin-bottom: 1rem; }
   #page-content #payroll .payroll-screen-nav [data-payroll-screen-target] { flex: 1; font-size: .9rem; }
 }
+#page-content #payroll .payroll-extra-filters {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+#payroll .payroll-extra-filters > summary {
+  width: fit-content;
+  padding-block: .55rem;
+  cursor: pointer;
+  color: var(--ui-text-secondary);
+}
+#payroll .payroll-extra-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 18rem));
+  gap: .75rem;
+  padding-block: .35rem;
+}
+
+#page-content #payroll [hidden] { display: none !important; }
