@@ -1,17 +1,26 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-safety.mjs';
 import { canTransitionPayroll, calculatePayrollAmount, countInclusiveDays, isValidIsoDate } from '../payroll.js';
 
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
-if (!databaseUrl) throw new Error('Set MIGRATIONS_PG_TEST_DATABASE_URL to an isolated PostgreSQL test database');
-assert.match(new URL(databaseUrl).pathname, /(?:test|qa|scratch)/i,
-  'refusing test writes unless the database name clearly identifies a test/QA/scratch database');
+const target = validateQaDatabaseUrl(databaseUrl);
+const nonce = randomBytes(12).toString('hex');
+const schema = 'payroll_api_' + nonce;
+const appRole = 'payroll_role_' + nonce;
+const password = randomBytes(24).toString('hex');
+const runtimeUrl = new URL(target.url);
+runtimeUrl.username = appRole;
+runtimeUrl.password = password;
+runtimeUrl.searchParams.set('options', '-c search_path=' + schema + ',public');
+let created = false;
 
 const require = createRequire(import.meta.url);
 const { Client, Pool } = require('pg');
 const setup = new Client({ connectionString: databaseUrl });
-const pool = new Pool({ connectionString: databaseUrl, max: 4 });
+const pool = new Pool({ connectionString: runtimeUrl.href, max: 4 });
 const source = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const start = source.indexOf('const payrollEntryPath = pathname.match(');
 const end = source.indexOf("if (pathname === '/api/inventory/auto-orders'", start);
@@ -38,6 +47,29 @@ const callApi = async ({ path = '/api/payroll/entries', method = 'GET', body = {
 
 try {
   await setup.connect();
+  const identity = (await setup.query(`SELECT current_database() AS database, inet_server_addr()::text AS address,
+    inet_server_port() AS port,(SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser`)).rows[0];
+  assertQaDatabaseIdentity(identity, target.database, Number(target.url.port || 5432));
+  // Paid rows are immutable. Remove the isolated fixture schema as a unit.
+  await setup.query('BEGIN');
+  await setup.query(`CREATE SCHEMA ${schema}`);
+  await setup.query(`SET search_path TO ${schema}, public`);
+  await setup.query(fs.readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
+  const dir = new URL('../migrations/', import.meta.url);
+  for (const file of fs.readdirSync(dir).filter(file => file.endsWith('.sql')).sort()) {
+    await setup.query(fs.readFileSync(new URL(file, dir), 'utf8'));
+  }
+  await setup.query(`CREATE ROLE ${appRole} LOGIN PASSWORD '${password}'`);
+  await setup.query(`GRANT USAGE ON SCHEMA ${schema} TO ${appRole}`);
+  await setup.query(`GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO ${appRole}`);
+  await setup.query(`GRANT INSERT, UPDATE ON payroll_entries TO ${appRole}`);
+  await setup.query(`GRANT INSERT ON expenses TO ${appRole}`);
+  await setup.query(`GRANT UPDATE(id) ON finance_accounts, shifts, users TO ${appRole}`);
+  await setup.query('COMMIT');
+  created = true;
+  const runtime = (await pool.query(`SELECT current_user, current_schema(),
+    has_any_column_privilege(current_user,'expenses','UPDATE') AS can_update_expenses`)).rows[0];
+  assert.deepEqual(runtime, {current_user:appRole,current_schema:schema,can_update_expenses:false});
   venueId = (await setup.query("INSERT INTO venues (name,timezone) VALUES ('Isolated payroll API QA','Asia/Yekaterinburg') RETURNING id")).rows[0].id;
   userId = (await setup.query(`INSERT INTO users (venue_id,full_name,login,role)
     VALUES ($1,'Payroll QA','payroll-qa-${process.pid}','bartender') RETURNING id`, [venueId])).rows[0].id;
@@ -78,7 +110,12 @@ try {
   const wrongMethod=await callApi({path:entryPath,method:'PATCH',body:{action:'pay',paymentDate:'2026-09-27',paymentMethod:'cash',paymentAccountId:bankAccountId}});
   assert.equal(wrongMethod.status,400);
   assert.equal(wrongMethod.data.error,'finance_payment_method_account_mismatch');
-  const paid = await callApi({ path: entryPath, method: 'PATCH', body: { action: 'pay', paymentDate: '2026-09-27',paymentAccountId:bankAccountId,paymentMethod:'bank_transfer' } });
+  const payRequest = { path: entryPath, method: 'PATCH', body: {
+    action: 'pay', paymentDate: '2026-09-27', paymentAccountId: bankAccountId, paymentMethod: 'bank_transfer'
+  } };
+  const attempts = await Promise.all([callApi(payRequest), callApi(payRequest)]);
+  assert.deepEqual(attempts.map(item => item.status).sort(), [200, 409], 'only one simultaneous payment succeeds');
+  const paid = attempts.find(item => item.status === 200);
   assert.equal(paid.status, 200);
   assert.equal(paid.data.status, 'paid');
   assert.ok(paid.data.expense_id, 'payment links the payroll entry to its cashflow expense');
@@ -108,15 +145,27 @@ try {
   assert.equal(legacyDraft.status,201);
   const legacyPath=`/api/payroll/entries/${legacyDraft.data.id}`;
   assert.equal((await callApi({path:legacyPath,method:'PATCH',body:{action:'approve'}})).status,200);
-  const legacyExpenseId=(await setup.query(`INSERT INTO expenses(venue_id,category,amount,expense_date,description,source) VALUES($1,'Зарплата',$2,'2026-09-27','Existing unassigned legacy payroll expense','payroll') RETURNING id`,[venueId,legacyDraft.data.amount])).rows[0].id;
-  await setup.query('UPDATE payroll_entries SET expense_id=$1 WHERE venue_id=$2 AND id=$3',[legacyExpenseId,venueId,legacyDraft.data.id]);
-  const legacyConflict=await callApi({path:legacyPath,method:'PATCH',body:{action:'pay',paymentDate:'2026-09-27',paymentAccountId:bankAccountId,paymentMethod:'bank_transfer'}});
-  assert.equal(legacyConflict.status,409);
-  assert.equal(legacyConflict.data.error,'payroll_expense_attribution_conflict');
-  const legacyReadback=await callApi({path:legacyPath,query:'?from=2026-09-01&to=2026-10-31'});
-  assert.equal(legacyReadback.data.status,'approved');
-  assert.equal(legacyReadback.data.accountCoverage,'unknown_legacy');
-  assert.equal((await setup.query('SELECT count(*)::int AS count FROM expenses WHERE venue_id=$1 AND source=\'payroll\'',[venueId])).rows[0].count,2,'legacy attribution conflict does not create another salary expense');
+  const legacyExpenseId = (await setup.query(
+    "INSERT INTO expenses(venue_id,category,amount,expense_date,description,source) VALUES($1,'QA',$2,'2026-09-27','Independent expense','manual') RETURNING id",
+    [venueId, legacyDraft.data.amount])).rows[0].id;
+  await assert.rejects(
+    setup.query('UPDATE payroll_entries SET expense_id=$1 WHERE venue_id=$2 AND id=$3', [legacyExpenseId, venueId, legacyDraft.data.id]),
+    error => error.code === '23514' && error.message.includes('payroll_expense_reconciliation_required'),
+    'an existing cash event cannot be adopted by a new payroll entry');
+  const legacyReadback = await callApi({path:legacyPath,query:'?from=2026-09-01&to=2026-10-31'});
+  assert.equal(legacyReadback.data.status, 'approved');
+  assert.equal((await setup.query('SELECT expense_id FROM payroll_entries WHERE venue_id=$1 AND id=$2',
+    [venueId, legacyDraft.data.id])).rows[0].expense_id, null);
+  assert.deepEqual((await setup.query('SELECT source,description FROM expenses WHERE venue_id=$1 AND id=$2',
+    [venueId, legacyExpenseId])).rows[0], {source:'manual',description:'Independent expense'});
+  const settlement = await setup.query('SELECT payroll_settlement_entry_id FROM expenses WHERE id=$1', [paid.data.expense_id]);
+  assert.equal(settlement.rows[0].payroll_settlement_entry_id, draft.data.id);
+  await assert.rejects(setup.query('UPDATE expenses SET description=$2 WHERE id=$1', [paid.data.expense_id, 'Modified']),
+    error => error.code === '55000', 'a paid expense retains its original description');
+  await assert.rejects(setup.query('UPDATE payroll_entries SET expense_id=NULL WHERE id=$1', [draft.data.id]),
+    error => error.code === '55000', 'a paid payroll entry cannot lose its expense');
+  await assert.rejects(setup.query('DELETE FROM payroll_entries WHERE id=$1', [draft.data.id]),
+    error => error.code === '55000', 'a paid payroll entry remains available for reconciliation');
 
   posUserId=(await setup.query(`INSERT INTO users (venue_id,full_name,login,role) VALUES ($1,'Payroll POS QA','payroll-pos-qa-${process.pid}','bartender') RETURNING id`,[venueId])).rows[0].id;
   await setup.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source) VALUES ($1,$2,'2026-08-21T05:00:00Z','2026-08-21T13:00:00Z','manual')`,[venueId,posUserId]);
@@ -171,22 +220,35 @@ try {
   assert.equal(await expenseCount(),expensesBefore,'NULL-rule pay conflict creates no expense');
   assert.deepEqual((await setup.query('SELECT status,expense_id FROM payroll_entries WHERE id=$1',[loser])).rows[0],{status:'approved',expense_id:null});
 
+  // Legacy fixed monthly pay: settle adjacent halves and reload the two cash events.
+  const monthlyRule = (await setup.query(`INSERT INTO payroll_rules(venue_id,name,rule_type,rate)
+    VALUES ($1,'Half-month kopeck QA','monthly',100.01) RETURNING id`, [venueId])).rows[0].id;
+  const halves = [
+    { from: '2025-02-01', to: '2025-02-14', paymentDate: '2025-02-15', amount: 50.01 },
+    { from: '2025-02-15', to: '2025-02-28', paymentDate: '2025-03-01', amount: 50 }
+  ];
+  for (const half of halves) {
+    const created = await callApi({method:'POST', body:{userId, ruleId:monthlyRule, periodFrom:half.from, periodTo:half.to}});
+    assert.equal(created.status, 201);
+    assert.equal(created.data.amount, half.amount);
+    const path = '/api/payroll/entries/' + created.data.id;
+    assert.equal((await callApi({path,method:'PATCH',body:{action:'approve'}})).status, 200);
+    const body = {action:'pay',paymentDate:half.paymentDate,paymentMethod:'bank_transfer',paymentAccountId:bankAccountId};
+    assert.equal((await callApi({path,method:'PATCH',body})).status, 200);
+    assert.equal((await callApi({path,method:'PATCH',body})).status, 409);
+  }
+  const monthlyCash = await setup.query(`SELECT COUNT(*)::int AS n,SUM(x.amount)::text AS total
+    FROM payroll_entries e JOIN expenses x ON x.id=e.expense_id AND x.venue_id=e.venue_id AND x.payroll_settlement_entry_id=e.id
+    WHERE e.venue_id=$1 AND e.rule_id=$2 AND e.status='paid'`, [venueId, monthlyRule]);
+  assert.deepEqual(monthlyCash.rows[0], { n:2, total:'100.01' });
+
   console.log('PAYROLL POSTGRES API QA: PASS (real work logs → calculated draft → approve → overlap guard → one linked salary expense → cancel/list)');
 } finally {
   await pool.end();
-  if (setup._connected) {
-    if (venueId) {
-      await setup.query('DELETE FROM expenses WHERE venue_id=$1', [venueId]).catch(() => {});
-      await setup.query('DELETE FROM payroll_entries WHERE venue_id=$1', [venueId]).catch(() => {});
-      await setup.query('DELETE FROM staff_work_logs WHERE venue_id=$1', [venueId]).catch(() => {});
-      await setup.query('DELETE FROM payroll_rules WHERE venue_id=$1', [venueId]).catch(() => {});
-      if (posUserId) await setup.query('DELETE FROM users WHERE id=$1', [posUserId]).catch(() => {});
-      if (nullRuleUserId) await setup.query('DELETE FROM users WHERE id=$1', [nullRuleUserId]).catch(() => {});
-      if (legacyUserId) await setup.query('DELETE FROM users WHERE id=$1', [legacyUserId]).catch(() => {});
-      await setup.query('DELETE FROM finance_accounts WHERE venue_id=$1 AND code IN (\'qa_payroll_bank\',\'qa_payroll_inactive\')', [venueId]).catch(() => {});
-      if (userId) await setup.query('DELETE FROM users WHERE id=$1', [userId]).catch(() => {});
-      await setup.query('DELETE FROM venues WHERE id=$1', [venueId]).catch(() => {});
+  try {
+    if (created) {
+      await setup.query(`DROP SCHEMA ${schema} CASCADE`);
+      await setup.query(`DROP ROLE ${appRole}`);
     }
-    await setup.end();
-  }
+  } finally { await setup.end(); }
 }

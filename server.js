@@ -4957,6 +4957,12 @@ if (staffProfile && req.method === 'PATCH') {
         await client.query('ROLLBACK'); return json(res, 409, { error: 'payroll_calculation_entry_owner_transition_required' });
       }
       if (!canTransitionPayroll(before.status, action)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'payroll_transition_not_allowed', status: before.status, action }); }
+      if (action === 'pay' && before.expense_id) {
+        await client.query('ROLLBACK'); return json(res, 409, { error: 'payroll_expense_reconciliation_required' });
+      }
+      if (action === 'pay' && (!Number.isFinite(Number(before.amount)) || Number(before.amount) <= 0)) {
+        await client.query('ROLLBACK'); return json(res, 409, { error: 'payroll_zero_settlement_requires_review' });
+      }
       const findPayrollPeriodOverlap = async () => {
         // Serialize approve/pay transitions for one employee and rule so two
         // overlapping entries cannot be approved or paid at the same time.
@@ -4997,19 +5003,8 @@ if (staffProfile && req.method === 'PATCH') {
           shiftId=openShifts.rows[0].id;
         }
         const description = `Выплата зарплаты за ${before.period_from_label} — ${before.period_to_label}`;
-        let expenseId = before.expense_id;
-        if (expenseId) {
-          const linkedExpense=await client.query('SELECT payment_method,finance_account_id,finance_account_name_snapshot,shift_id FROM expenses WHERE id=$1 AND venue_id=$2 FOR UPDATE',[expenseId,venueDbId]);
-          const linked=linkedExpense.rows[0];
-          if(!linked||String(linked.finance_account_id||'').toLowerCase()!==paymentAccountId||linked.finance_account_name_snapshot!==account.name||linked.payment_method!==paymentMethod||String(linked.shift_id||'').toLowerCase()!==String(shiftId||'').toLowerCase()){
-            await client.query('ROLLBACK');return json(res,409,{error:'payroll_expense_attribution_conflict'});
-          }
-          const { rows } = await client.query("UPDATE expenses SET category=$7,category_id=$8,amount=$1,expense_date=$2,description=$3,source='payroll',created_by=COALESCE($4,created_by) WHERE id=$5 AND venue_id=$6 RETURNING id", [before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,expenseId,venueDbId,before.finance_category_name_snapshot || 'Зарплата',before.finance_category_id]);
-          if (!rows[0]) return await client.query('ROLLBACK').then(() => json(res, 409, { error: 'payroll_expense_link_invalid' }));
-          expenseId = rows[0].id;
-        } else {
-          const { rows } = await client.query("INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,created_by,payment_method,finance_account_id,finance_account_name_snapshot,shift_id) VALUES ($1,$6,$7,$2,$3,$4,'payroll',$5,$8,$9,$10,$11) RETURNING id", [venueDbId,before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,before.finance_category_name_snapshot || 'Зарплата',before.finance_category_id,paymentMethod,paymentAccountId,account.name,shiftId]); expenseId = rows[0].id;
-        }
+        const expenseInsertResult = await client.query("INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,created_by,payment_method,finance_account_id,finance_account_name_snapshot,shift_id,payroll_settlement_entry_id) VALUES ($1,$6,$7,$2,$3,$4,'payroll',$5,$8,$9,$10,$11,$12) RETURNING id", [venueDbId,before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,before.finance_category_name_snapshot || 'Зарплата',before.finance_category_id,paymentMethod,paymentAccountId,account.name,shiftId,id]);
+        const expenseId = expenseInsertResult.rows[0].id;
         const { rows } = await client.query("UPDATE payroll_entries SET status='paid',paid_at=now(),paid_by=$3,payment_date=$4,expense_id=$5 WHERE id=$1 AND venue_id=$2 RETURNING *", [id,venueDbId,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,paymentDate,expenseId]); updated = rows[0];
       }
       await client.query('COMMIT');

@@ -12,7 +12,7 @@ const ruleId = '22222222-2222-4222-8222-222222222222';
 const entryId = '33333333-3333-4333-8333-333333333333';
 const paymentAccountId = '44444444-4444-4444-8444-444444444444';
 
-const makeDb = ({ failExpenseInsert = false } = {}) => {
+const makeDb = ({ failExpenseInsert = false, failPaidEntryUpdate = false } = {}) => {
   const state = {
     entries: [], expenses: [], audits: [],
     user: { id: userId },
@@ -22,8 +22,10 @@ const makeDb = ({ failExpenseInsert = false } = {}) => {
   };
   let nextEntryId = 3;
   let snapshot = null;
+  const trace = [];
   const query = async (inputSql, params = []) => {
     const sql = inputSql.replace(/\s+/g, ' ').trim();
+    trace.push({ sql, params: [...params] });
     if (sql === 'BEGIN') { snapshot = structuredClone(state); return { rows: [] }; }
     if (sql === 'COMMIT') { snapshot = null; return { rows: [] }; }
     if (sql === 'ROLLBACK') { if (snapshot) { Object.assign(state, snapshot); snapshot = null; } return { rows: [] }; }
@@ -53,21 +55,22 @@ const makeDb = ({ failExpenseInsert = false } = {}) => {
       const row = state.entries.find((item) => item.id === params[0] && item.venue_id === params[1]); if (!row) return { rows: [] };
       Object.assign(row, { status: 'cancelled', cancelled_by: params[2], cancellation_reason: params[3], cancelled_at: '2025-09-26T10:00:00.000Z' }); return { rows: [{ ...row }] };
     }
-    if (sql.startsWith("INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,created_by,payment_method,finance_account_id,finance_account_name_snapshot,shift_id)")) {
+    if (sql.startsWith("INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,created_by,payment_method,finance_account_id,finance_account_name_snapshot,shift_id,payroll_settlement_entry_id)")) {
       if (failExpenseInsert) throw new Error('simulated_expense_insert_failure');
-      const row = { id: `expense-${state.expenses.length + 1}`, venue_id: params[0], category: 'Зарплата', amount: params[1], expense_date: params[2], description: params[3], source: 'payroll', payment_method: params[7], finance_account_id: params[8], finance_account_name_snapshot: params[9], shift_id: params[10] }; state.expenses.push(row); return { rows: [{ id: row.id }] };
+      const row = { id: `expense-${state.expenses.length + 1}`, venue_id: params[0], category: 'Зарплата', amount: params[1], expense_date: params[2], description: params[3], source: 'payroll', payment_method: params[7], finance_account_id: params[8], finance_account_name_snapshot: params[9], shift_id: params[10], payroll_settlement_entry_id: params[11] }; state.expenses.push(row); return { rows: [{ id: row.id }] };
     }
     if (sql.startsWith('UPDATE expenses SET category=')) {
       const row = state.expenses.find((item) => item.id === params[4] && item.venue_id === params[5]); if (!row) return { rows: [] };
       Object.assign(row, { category: 'Зарплата', amount: params[0], expense_date: params[1], description: params[2], source: 'payroll' }); return { rows: [{ id: row.id }] };
     }
     if (sql.startsWith("UPDATE payroll_entries SET status='paid'")) {
+      if (failPaidEntryUpdate) throw new Error('simulated_paid_entry_update_failure');
       const row = state.entries.find((item) => item.id === params[0] && item.venue_id === params[1]); if (!row) return { rows: [] };
       Object.assign(row, { status: 'paid', paid_by: params[2], payment_date: params[3], expense_id: params[4], paid_at: '2025-09-26T10:00:00.000Z' }); return { rows: [{ ...row }] };
     }
     throw new Error(`Unexpected payroll SQL: ${sql}`);
   };
-  return { state, pool: { query, connect: async () => ({ query, release() {} }) } };
+  return { state, trace, pool: { query, connect: async () => ({ query, release() {} }) } };
 };
 
 const run = async (db, { path = '/api/payroll/entries', method = 'GET', payload = {}, query = '' } = {}) => {
@@ -99,8 +102,54 @@ assert.equal(db.state.entries[0].status, 'paid');
 assert.equal(db.state.expenses.length, 1, 'payment creates exactly one linked cash expense');
 assert.equal(db.state.entries[0].expense_id, db.state.expenses[0].id);
 assert.equal(db.state.expenses[0].description, 'Выплата зарплаты за 01.09.2025 — 30.09.2025');
+assert.equal(db.state.expenses[0].payroll_settlement_entry_id, firstEntryId, 'fresh expense carries the exact payroll entry witness');
+assert.equal(db.state.expenses[0].payment_method, 'bank_transfer');
+assert.equal(db.state.expenses[0].finance_account_id, paymentAccountId);
+assert.equal(db.state.expenses[0].expense_date, '2025-09-26');
+const freshInsert = db.trace.find((item) => item.sql.startsWith('INSERT INTO expenses'));
+assert.ok(freshInsert?.sql.includes(',shift_id,payroll_settlement_entry_id) VALUES'));
+assert.equal(freshInsert.params[2], '2025-09-26', 'payment date is bound to the fresh expense insert');
+assert.equal(freshInsert.params[7], 'bank_transfer', 'payment method is bound to the fresh expense insert');
+assert.equal(freshInsert.params[8], paymentAccountId, 'payment account is bound to the fresh expense insert');
+assert.equal(freshInsert.params[11], firstEntryId, 'route passes the entry id as the final insert parameter');
+const insertsBeforeRetry = db.trace.filter((item) => item.sql.startsWith('INSERT INTO expenses')).length;
 assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26', paymentAccountId, paymentMethod: 'bank_transfer' } })).status, 409);
+assert.equal(db.trace.filter((item) => item.sql.startsWith('INSERT INTO expenses')).length, insertsBeforeRetry, 'retry issues no second expense insert');
 assert.equal(db.state.expenses.length, 1, 'repeated payment cannot duplicate cash expense');
+const linkedExpenseDb = makeDb();
+const linkedDraft = await run(linkedExpenseDb, { method: 'POST', payload: { userId, ruleId, periodFrom: '2025-09-01', periodTo: '2025-09-30' } });
+const linkedEntryPath = `/api/payroll/entries/${linkedDraft.data.id}`;
+assert.equal((await run(linkedExpenseDb, { path: linkedEntryPath, method: 'PATCH', payload: { action: 'approve' } })).status, 200);
+const linkedEntry = linkedExpenseDb.state.entries[0];
+linkedEntry.expense_id = 'legacy-expense-1';
+linkedExpenseDb.state.expenses.push({ id: 'legacy-expense-1', venue_id: 'venue-test', source: 'payroll', amount: linkedEntry.amount });
+const linkedStateBeforePay = structuredClone({ entries: linkedExpenseDb.state.entries, expenses: linkedExpenseDb.state.expenses });
+const linkedTraceStart = linkedExpenseDb.trace.length;
+const linkedPay = await run(linkedExpenseDb, { path: linkedEntryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26', paymentAccountId, paymentMethod: 'bank_transfer' } });
+assert.equal(linkedPay.status, 409);
+assert.equal(linkedPay.data.error, 'payroll_expense_reconciliation_required');
+const linkedPayQueries = linkedExpenseDb.trace.slice(linkedTraceStart);
+assert.equal(linkedPayQueries.some((item) => /^\s*(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(item.sql)), false, 'linked payout rejection performs no writes');
+assert.equal(linkedPayQueries.some((item) => /\bexpenses\b/i.test(item.sql)), false, 'linked payout rejection happens before any expense SQL');
+assert.deepEqual({ entries: linkedExpenseDb.state.entries, expenses: linkedExpenseDb.state.expenses }, linkedStateBeforePay, 'linked payout rejection preserves both rows');
+
+const zeroDb = makeDb();
+zeroDb.state.rule.rate = '0';
+const zeroDraft = await run(zeroDb, { method: 'POST', payload: { userId, ruleId, periodFrom: '2025-09-01', periodTo: '2025-09-30' } });
+assert.equal(Number(zeroDraft.data.amount), 0);
+const zeroEntryPath = `/api/payroll/entries/${zeroDraft.data.id}`;
+assert.equal((await run(zeroDb, { path: zeroEntryPath, method: 'PATCH', payload: { action: 'approve' } })).status, 200);
+const zeroStateBeforePay = structuredClone({ entries: zeroDb.state.entries, expenses: zeroDb.state.expenses });
+const zeroTraceStart = zeroDb.trace.length;
+const zeroPay = await run(zeroDb, { path: zeroEntryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26', paymentAccountId, paymentMethod: 'bank_transfer' } });
+assert.equal(zeroPay.status, 409);
+assert.equal(zeroPay.data.error, 'payroll_zero_settlement_requires_review');
+const zeroPayQueries = zeroDb.trace.slice(zeroTraceStart);
+assert.equal(zeroPayQueries.some((item) => item.sql.startsWith('SELECT id,name,kind,allowed_payment_methods,active FROM finance_accounts')), false, 'zero payout rejects before account SQL');
+assert.equal(zeroPayQueries.some((item) => /\bexpenses\b/i.test(item.sql)), false, 'zero payout rejects before expense SQL');
+assert.equal(zeroPayQueries.some((item) => /^\s*(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(item.sql)), false, 'zero payout performs no DML');
+assert.deepEqual({ entries: zeroDb.state.entries, expenses: zeroDb.state.expenses }, zeroStateBeforePay, 'zero payout leaves payroll and cash unchanged');
+
 const listed = await run(db, { query: '?from=2025-09-01&to=2025-09-30' });
 assert.equal(listed.status, 200);
 assert.equal(listed.data.items[0].status, 'paid');
@@ -131,12 +180,26 @@ assert.equal((await run(cancelDb, { path: entryPath, method: 'PATCH', payload: {
 assert.equal(cancelDb.state.entries[0].status, 'cancelled');
 assert.equal(cancelDb.state.expenses.length, 0, 'cancellation creates no cash expense');
 
-const rollbackDb = makeDb({ failExpenseInsert: true });
-await run(rollbackDb, { method: 'POST', payload: { userId, ruleId, periodFrom: '2025-11-01', periodTo: '2025-11-30' } });
-await run(rollbackDb, { path: entryPath, method: 'PATCH', payload: { action: 'approve' } });
-const failedPayment = await run(rollbackDb, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-11-30', paymentAccountId, paymentMethod: 'bank_transfer' } });
+const insertFailureDb = makeDb({ failExpenseInsert: true });
+const insertFailureDraft = await run(insertFailureDb, { method: 'POST', payload: { userId, ruleId, periodFrom: '2025-11-01', periodTo: '2025-11-30' } });
+const insertFailureEntryPath = `/api/payroll/entries/${insertFailureDraft.data.id}`;
+await run(insertFailureDb, { path: insertFailureEntryPath, method: 'PATCH', payload: { action: 'approve' } });
+const insertFailure = await run(insertFailureDb, { path: insertFailureEntryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-11-30', paymentAccountId, paymentMethod: 'bank_transfer' } });
+assert.equal(insertFailure.status, 409);
+assert.equal(insertFailureDb.state.entries[0].status, 'approved', 'failed expense insert leaves payroll approved');
+assert.equal(insertFailureDb.state.expenses.length, 0);
+
+const rollbackDb = makeDb({ failPaidEntryUpdate: true });
+const rollbackDraft = await run(rollbackDb, { method: 'POST', payload: { userId, ruleId, periodFrom: '2025-11-01', periodTo: '2025-11-30' } });
+const rollbackEntryPath = `/api/payroll/entries/${rollbackDraft.data.id}`;
+await run(rollbackDb, { path: rollbackEntryPath, method: 'PATCH', payload: { action: 'approve' } });
+const failedPayment = await run(rollbackDb, { path: rollbackEntryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-11-30', paymentAccountId, paymentMethod: 'bank_transfer' } });
 assert.equal(failedPayment.status, 409);
-assert.equal(rollbackDb.state.entries[0].status, 'approved', 'failed cash-expense insert rolls back the payroll status transition');
-assert.equal(rollbackDb.state.expenses.length, 0);
+const insertIndex = rollbackDb.trace.findIndex((item) => item.sql.startsWith('INSERT INTO expenses'));
+const entryUpdateIndex = rollbackDb.trace.findIndex((item) => item.sql.startsWith("UPDATE payroll_entries SET status='paid'"));
+assert.ok(insertIndex >= 0 && entryUpdateIndex > insertIndex, 'failure is injected after expense INSERT and before entry UPDATE');
+assert.equal(rollbackDb.state.entries[0].status, 'approved', 'rollback preserves approved status after post-insert failure');
+assert.equal(rollbackDb.state.entries[0].expense_id, null);
+assert.equal(rollbackDb.state.expenses.length, 0, 'rollback removes the inserted expense from the mock transaction snapshot');
 
 console.log('PAYROLL LIFECYCLE RUNTIME QA: PASS (actual route handlers with transactional PostgreSQL mock; calculation, draft, approve, pay, cancel, idempotence, listing and rollback)');

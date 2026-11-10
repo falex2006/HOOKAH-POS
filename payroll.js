@@ -16,12 +16,22 @@ const countInclusiveDays = (from, to) => {
 const proratedMonthlyPayrollAmount = (monthlyRate, from, to) => {
   const rate = Number(monthlyRate);
   if (!Number.isFinite(rate) || rate < 0 || !isValidIsoDate(from) || !isValidIsoDate(to) || to < from) return null;
-  let amount = 0;
-  for (let day = new Date(`${from}T00:00:00.000Z`); day <= new Date(`${to}T00:00:00.000Z`); day.setUTCDate(day.getUTCDate() + 1)) {
-    const daysInMonth = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0)).getUTCDate();
-    amount += rate / daysInMonth;
+  // The stored monthly rate is numeric(12,2). Allocate cumulative kopecks
+  // so that any adjacent portions add back to the same month's rate.
+  const rateCents = Math.round(rate * 100);
+  const cursor = new Date(from + 'T00:00:00Z');
+  const end = new Date(to + 'T00:00:00Z');
+  let totalCents = 0;
+  while (cursor <= end) {
+    const firstDay = cursor.getUTCDate();
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1, 0);
+    const monthDays = cursor.getUTCDate();
+    const lastDay = cursor <= end ? monthDays : end.getUTCDate();
+    totalCents += Math.round(rateCents * lastDay / monthDays)
+      - Math.round(rateCents * (firstDay - 1) / monthDays);
+    cursor.setUTCDate(monthDays + 1);
   }
-  return Math.round((amount + Number.EPSILON) * 100) / 100;
+  return totalCents / 100;
 };
 
 const calculatePayrollAmount = ({ ruleType, rate, hours = 0, shifts = 0, revenue = 0, periodFrom, periodTo }) => {
