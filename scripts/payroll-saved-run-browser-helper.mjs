@@ -15,6 +15,12 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 // Called only by the guarded, runner-owned historical PostgreSQL fixture.
 export const verifySavedRunBrowser = async ({ pool, target, ids, period, versionId, runId, snapshotId, insertLateRefundFixture, correctionTarget, sourcePolicyVersionId, refundAwareRuns, supersessionSourcePolicies, publicV2Only = false }) => {
   assert.equal(target.database, process.env.LOCAL_FULL_PG_OWNED_DATABASE);
+  let halfMonthFixture;
+  if (publicV2Only && process.env.PAYROLL_HALF_MONTH_BROWSER_QA === '1') {
+    const { seedHalfMonthBrowser } = await import('./payroll-half-month-browser-helper.mjs');
+    halfMonthFixture = await seedHalfMonthBrowser(pool, supersessionSourcePolicies);
+    ids = halfMonthFixture.ids;
+  }
   const password = randomBytes(18).toString('hex'), salt = randomBytes(16).toString('hex');
   const hash = `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
   await pool.query('UPDATE users SET password_hash=$1 WHERE id=ANY($2::uuid[])', [hash, [ids.owner, ids.employee]]);
@@ -65,6 +71,11 @@ export const verifySavedRunBrowser = async ({ pool, target, ids, period, version
     await page.locator('#login-form button[type="submit"]').click();
     await page.waitForURL(url => !url.pathname.includes('/login'));
     const headers = { origin: base };
+    if (halfMonthFixture) {
+      const { verifyHalfMonthBrowser } = await import('./payroll-half-month-browser-helper.mjs');
+      await verifyHalfMonthBrowser({page,base,pool,fixture:halfMonthFixture});
+      return;
+    }
     if(publicV2Only) {
       const {seedUnpaidSupersessionFixture}=await import('./payroll-unpaid-supersession-fixture.mjs');
       const {verifyRefundAwarePublicBrowser}=await import('./payroll-refund-aware-public-browser-helper.mjs');
