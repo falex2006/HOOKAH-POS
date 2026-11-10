@@ -2533,7 +2533,7 @@ function renderScheduleRoute(target) {
     if (!document.querySelector('[data-schedule-css]')) {
       const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/staff-schedule-ui.css?rev=6'; css.dataset.scheduleCss = ''; document.head.append(css);
     }
-    const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=6';
+    const script = document.createElement('script'); script.src = '/staff-schedule-ui.js?rev=7';
     script.onload = () => {
       const personal = document.createElement('script'); personal.src = '/staff-schedule-personal-ui.js?rev=1';
       const permissions = new Set(window.__portalSessionVerified?.permissions || []);

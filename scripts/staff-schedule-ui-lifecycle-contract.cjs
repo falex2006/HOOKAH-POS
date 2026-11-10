@@ -34,6 +34,15 @@ async function check(name, run) {
   await run(); checks++; console.log(`PASS ${name}`);
 }
 async function main() {
+  await check('calendar rows use the enrollment flag without changing the system role', () => {
+    const label = vm.runInNewContext(between(ui,'    const calendarStaffLabel =','    const alive =') + ';calendarStaffLabel',
+      {roleNames:{other_staff:'Другая должность',bartender:'Бармен'}});
+    const worker = {role:'other_staff',substitute:true};
+    assert.equal(label(worker),'Подменный'); assert.equal(worker.role,'other_staff');
+    assert.equal(label({role:'other_staff'}),'Другая должность');
+    assert.equal(label({role:'bartender',substitute:false}),'Бармен');
+    assert.ok(ui.includes('personIdentity(p)}<small>${esc(calendarStaffLabel(p))}'));
+  });
   await check('calendar dialogs generate valid v4 request IDs on HTTP without crypto.randomUUID', () => {
     const source = between(ui, '  const scheduleUuid =', '  const labels =');
     const webcrypto = require('node:crypto').webcrypto;
