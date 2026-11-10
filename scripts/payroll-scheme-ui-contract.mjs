@@ -13,11 +13,11 @@ const sync = fs.readFileSync(path.join(root, 'scripts', 'sync-published-assets.m
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 
 assert.equal(ui, distUi, 'published UI asset matches the source');
-assert.match(finance, /payroll-scheme-ui\.js\?rev=42/, 'finance source loads the current owner payroll UI revision');
-assert.match(distFinance, /payroll-scheme-ui\.js\?rev=42/, 'published finance page loads the current payroll UI revision');
-assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=42/, 'directory alias loads the same payroll UI revision');
-assert.ok(server.includes('/payroll-scheme-ui.js?rev=42"'), 'legacy finance HTML fallback loads the same payroll revision');
-assert.match(sync, /payrollSchemeUiRevision = '42'/, 'asset revision is managed by the publish sync');
+assert.match(finance, /payroll-scheme-ui\.js\?rev=43/, 'finance source loads the current owner payroll UI revision');
+assert.match(distFinance, /payroll-scheme-ui\.js\?rev=43/, 'published finance page loads the current payroll UI revision');
+assert.match(distFinanceAlias, /payroll-scheme-ui\.js\?rev=43/, 'directory alias loads the same payroll UI revision');
+assert.ok(server.includes('/payroll-scheme-ui.js?rev=43"'), 'legacy finance HTML fallback loads the same payroll revision');
+assert.match(sync, /payrollSchemeUiRevision = '43'/, 'asset revision is managed by the publish sync');
 assert.match(ui, /saved:'Сохранённые расчёты'/, 'saved runs remain in the existing payroll workspace');
 assert.match(ui, /sessionStorage\.setItem\(storageKey,\s*input\.idempotencyKey\)/, 'save intent is retained across reload');
 assert.match(ui, /detailToken === detailAtSubmit/, 'save completion preserves a later detail selection');
