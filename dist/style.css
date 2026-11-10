@@ -6791,3 +6791,8 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 #payroll .payroll-source-directories :is([data-eligibility-row],[data-department-row]) { align-items:start; }
 #payroll .payroll-source-directories :is([data-eligibility-row],[data-department-row]) > button { align-self:start; margin-top:24px; }
 @media(max-width:800px) { #payroll .payroll-source-directories :is([data-eligibility-row],[data-department-row]) > button { margin-top:0; } }
+#payroll .payroll-version-history { margin: 4px 0 12px; padding: 12px 16px; background: var(--ui-panel); border-radius: 8px; }
+#payroll .payroll-version-history h4 { margin: 0 0 8px; }
+#payroll .payroll-version-history ol { display:grid; gap:8px; margin:0; padding-inline-start:1.5rem; }
+#payroll .payroll-version-history summary { cursor:pointer; color:var(--ui-text-secondary); font-size:14px; }
+#payroll .payroll-version-history pre { max-height:16rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }

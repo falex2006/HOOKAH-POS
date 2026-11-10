@@ -1954,13 +1954,12 @@
       return result;
     };
     section.innerHTML = `<h3>Расчёт зарплаты за период</h3>
-      <p class="scheme-guidance">Выберите действующую или завершённую версию и прошедший период.
-      Нажмите «Рассчитать и сохранить», откройте результат и проверьте сумму сотрудника перед начислением.</p>
+      <p class="scheme-guidance">Выберите схему и период. После расчёта вы сможете проверить сумму каждого сотрудника.</p>
       <form data-saved-run-form><div class="form-row">
         <label>Версия схемы<select data-saved-run-version required><option value="">Загружаем версии…</option></select></label>
         <label>С даты<input type="date" data-saved-run-from required></label>
         <label>По дату<input type="date" data-saved-run-to required></label>
-      </div><p class="muted">Сейчас период должен начинаться с первого числа и заканчиваться в том же месяце, раньше сегодняшнего дня.</p>
+      </div><p class="muted">Начало — первое число месяца. Окончание — прошедший день того же месяца.</p>
       <div class="toolbar-row"><button class="button primary" type="submit" data-saved-run-create disabled>Рассчитать и сохранить</button>
         <button class="button" type="submit" data-saved-h1-create hidden>Рассчитать первую половину для выплаты</button>
         <button class="button" type="button" data-saved-run-reload>Обновить список</button></div></form>
@@ -2298,7 +2297,7 @@
         ? `Начислено: ${money(entry.grossCents, entry.currency)}<br>Корректировки: ${money(entry.grossCents - entry.amountCents, entry.currency)}<br>К выплате: ${money(entry.amountCents, entry.currency)}`
         : money(entry.amountCents, entry.currency);
       cell.innerHTML = `<strong>${label}</strong>${entry.halfKind === 'h1' ? ' · первая половина месяца' : entry.halfKind === 'h2' ? ' · вторая половина месяца' : ''}<br>${amounts}
-        <br><button type="button" class="button small" data-saved-entry-register="${escapeHtml(entry.id)}" data-entry-employee="${escapeHtml(employeeId)}" data-entry-from="${escapeHtml(entry.periodFrom)}" data-entry-to="${escapeHtml(entry.periodTo)}">Открыть в реестре</button>
+        <br><button type="button" class="button small" data-saved-entry-register="${escapeHtml(entry.id)}" data-entry-employee="${escapeHtml(employeeId)}" data-entry-from="${escapeHtml(entry.periodFrom)}" data-entry-to="${escapeHtml(entry.periodTo)}">Открыть в ведомости</button>
         ${entry.status === 'cancelled' ? '<p class="muted">Повторное начисление из этой связи не создаётся.</p>' : ''}`;
     };
     const loadRunEntries = async runId => {
@@ -2918,7 +2917,7 @@
         }
         .finance-payroll-schemes [data-scheme-pane]{scroll-margin-top:var(--header-height,80px)}
       </style>
-      <div class="panel-head"><div><h2>Настройка зарплатных схем</h2><span class="muted">Сначала настройте схему, затем проверьте данные и выполните пробный расчёт</span></div><div class="toolbar-row"><button type="button" class="button small" data-scheme-reload>Обновить</button><button type="button" class="button small primary" data-scheme-new>Новая схема</button></div></div>
+      <div class="panel-head"><div><h2>Схемы оплаты</h2></div><div class="toolbar-row"><button type="button" class="button small" data-scheme-reload>Обновить</button><button type="button" class="button small primary" data-scheme-new>Новая схема</button></div></div>
       <p class="muted">Черновик можно проверить на примере смены. Когда условия верны, активируйте версию схемы.</p>
       <p class="form-message" data-scheme-message role="status" aria-live="polite"></p>
       <div class="finance-scheme-list" data-scheme-list><div class="empty">Загрузка схем…</div></div>
@@ -3365,7 +3364,6 @@
     const trialHint=document.createElement('p');trialHint.className='scheme-guidance';trialHint.textContent='Введите продажи за одну смену и проверьте, подходит ли сумма сотруднику.';workspacePanes.trial.prepend(trialHint);
     const trialEmpty=document.createElement('p');trialEmpty.className='empty';trialEmpty.textContent='Откройте сохранённую версию в списке схем. Для сравнения отметьте от 2 до 8 версий.';workspacePanes.trial.prepend(trialEmpty);
     const configEmpty=document.createElement('p');configEmpty.className='empty';configEmpty.textContent='Откройте существующую версию или создайте новую схему.';workspacePanes.configuration.prepend(configEmpty);
-    const checksNext=document.createElement('button');checksNext.type='button';checksNext.className='button';checksNext.dataset.schemeWorkspace='trial';checksNext.textContent='Перейти к пробному расчёту';workspacePanes.checks.append(checksNext);
     const registryHint=document.createElement('p');registryHint.className='scheme-guidance';registryHint.textContent='Выберите схему, чтобы изменить условия или проверить их на примере смены.';workspacePanes.list.prepend(registryHint);
     const intro=panel.querySelector(':scope > p.muted');if(intro){const help=disclosure(intro,'Как работают версии и пробные расчёты');workspacePanes.list.append(help);}
     const advanced=panel.querySelector('[data-scheme-advanced]');advanced.classList.add('scheme-group');
@@ -3415,10 +3413,17 @@
     window.addEventListener('hashchange',syncPayrollScreen);
     screens.calculation.querySelector('[data-payroll-open-settings]').addEventListener('click', () => selectWorkspace('list',{focus:true}));
     payrollPanel.addEventListener('payroll-show-register', () => showPayrollScreen('register'));
+    const syncWorkspaceActions = () => {
+      const count = list.querySelectorAll('[data-scheme-compare-version]:checked').length;
+      workspaceNav.querySelector('[data-scheme-workspace="configuration"]').hidden = !editorAction;
+      workspaceNav.querySelector('[data-scheme-workspace="trial"]').hidden =
+        !(selectedVersion && ['inspect','edit'].includes(editorAction?.kind)) && !(count >= 2 && count <= 8);
+    };
     const selectWorkspace=(key,{focus=false,navigate=true}={})=>{
       if (key === 'saved') { showPayrollScreen('calculation',{focus}); return; }
       if (navigate) showPayrollScreen('settings');
       if(!workspacePanes[key])return;
+      syncWorkspaceActions();
       panel.dataset.schemeWorkspace=key;
       for(const [name,node] of Object.entries(workspacePanes))if(name!=='saved')node.hidden=name!==key;
       workspaceNav.querySelectorAll('[data-scheme-workspace]').forEach(button=>{if(button.dataset.schemeWorkspace===key)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');});
@@ -3564,7 +3569,7 @@
     };
     comparisonRun.addEventListener('click',runSourcedComparison);
     comparisonBaseline.addEventListener('change',invalidateSourcedComparison);
-    list.addEventListener('change',event=>{if(event.target.matches('[data-scheme-compare-version]')){invalidateSourcedComparison();refreshReadiness();}});
+    list.addEventListener('change',event=>{if(event.target.matches('[data-scheme-compare-version]')){invalidateSourcedComparison();refreshReadiness();syncWorkspaceActions();}});
     for(const field of [readinessFrom,readinessTo]){field.addEventListener('input',invalidateReadiness);field.addEventListener('change',invalidateReadiness);}
     editor.addEventListener('input',refreshReadiness);editor.addEventListener('change',refreshReadiness);
     const sourcePolicyControls = () => ({ enabled: sourcePolicyEnabled.checked, schemaVersion: sourcePolicyVersion.value, saleCredit: sourcePolicySale.value,
@@ -3850,8 +3855,9 @@
       return editorTransition.isCurrent(token);
     };
     const renderList = () => {
-      if (!schemes.length) { list.innerHTML = '<div class="empty">Схем пока нет. Создайте схему и сохраните первую черновую версию.</div>'; return; }
-      list.innerHTML = schemes.map((scheme) => `<article class="finance-scheme-card"><div class="panel-head"><div><h3>${escapeHtml(scheme.name)}</h3><small class="muted">${escapeHtml(scheme.description || 'Без описания')}</small></div></div><div class="finance-scheme-versions">${sortedVersions(scheme).map((version) => `<div class="payment-row"><label><input type="checkbox" data-scheme-compare-version="${escapeHtml(version.id)}"> Сравнить</label><span>Версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode] || version.mode)} · ${escapeHtml(version.effectiveFrom)}${version.effectiveTo ? ` — ${escapeHtml(version.effectiveTo)}` : ''}<small class="muted">${version.payoutRiskAcknowledgement?.configDigest ? `Риск подтверждён владельцем ${escapeHtml(version.payoutRiskAcknowledgement.acknowledgedAt || '')}` : 'Подтверждение риска не сохранено'}</small></span><span class="badge ${version.status === 'active' ? 'success' : version.status === 'draft' ? 'warning' : ''}">${escapeHtml(editorStatusLabel(version.status))}</span><div class="toolbar-row"><button type="button" class="button small" data-scheme-open-version="${escapeHtml(version.id)}">Открыть</button>${version.status === 'draft' ? `<button type="button" class="button small primary" data-scheme-activate="${escapeHtml(version.id)}">Активировать</button>` : ''}<button type="button" class="button small" data-scheme-revisions="${escapeHtml(version.id)}">История</button></div></div>`).join('') || '<div class="empty">Черновых версий нет</div>'}<div class="toolbar-row"><button type="button" class="button small" data-scheme-new-version="${escapeHtml(scheme.id)}">Создать новую версию</button></div></div></article>`).join('');
+      if (!schemes.length) { list.innerHTML = '<div class="empty">Схем пока нет. Создайте схему и сохраните первую черновую версию.</div>'; syncWorkspaceActions(); return; }
+      list.innerHTML = schemes.map((scheme) => `<article class="finance-scheme-card"><div class="panel-head"><div><h3>${escapeHtml(scheme.name)}</h3>${scheme.description ? `<small class="muted">${escapeHtml(scheme.description)}</small>` : ''}</div></div><div class="finance-scheme-versions">${sortedVersions(scheme).map((version) => `<div class="payment-row"><label><input type="checkbox" data-scheme-compare-version="${escapeHtml(version.id)}"> Сравнить</label><span>Версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode] || version.mode)} · ${escapeHtml(version.effectiveFrom)}${version.effectiveTo ? ` — ${escapeHtml(version.effectiveTo)}` : ''}<small class="muted">${version.payoutRiskAcknowledgement?.configDigest ? `Риск подтверждён владельцем ${escapeHtml(version.payoutRiskAcknowledgement.acknowledgedAt || '')}` : 'Подтверждение риска не сохранено'}</small></span><span class="badge ${version.status === 'active' ? 'success' : version.status === 'draft' ? 'warning' : ''}">${escapeHtml(editorStatusLabel(version.status))}</span><div class="toolbar-row"><button type="button" class="button small" data-scheme-open-version="${escapeHtml(version.id)}">Открыть</button>${version.status === 'draft' ? `<button type="button" class="button small primary" data-scheme-activate="${escapeHtml(version.id)}">Активировать</button>` : ''}<button type="button" class="button small" aria-expanded="false" data-scheme-revisions="${escapeHtml(version.id)}">История</button></div></div>`).join('') || '<div class="empty">Черновых версий нет</div>'}<div class="toolbar-row"><button type="button" class="button small" data-scheme-new-version="${escapeHtml(scheme.id)}">Создать новую версию</button></div></div></article>`).join('');
+      syncWorkspaceActions();
     };
     const load = async ({ force = false } = {}) => {
       if (pending && !force) return;
@@ -4014,8 +4020,34 @@
           notify('Версия активирована.', 'success'); pending = false; await load({ force: true }); return;
         }
         if (button.matches('[data-scheme-revisions]')) {
-          const data = await request(`/api/payroll/versions/${encodeURIComponent(button.dataset.schemeRevisions)}/revisions`);
-          selectWorkspace('trial',{focus:true}); previewBox.hidden = false; trialEmpty.hidden=true; previewResult.hidden = false; previewResult.textContent = JSON.stringify(data.items || [], null, 2); notify('История версий загружена.'); return;
+          const existing = button.closest('.payment-row')?.nextElementSibling;
+          if (existing?.classList.contains('payroll-version-history')) {
+            existing.remove();
+            button.setAttribute('aria-expanded','false');
+            return;
+          }
+          button.disabled = true;
+          let data;
+          try {
+            data = await request(`/api/payroll/versions/${encodeURIComponent(button.dataset.schemeRevisions)}/revisions`);
+          } finally { button.disabled = false; }
+          if (!button.isConnected) return;
+          const row = button.closest('.payment-row');
+          const kinds = {created:'Создана', edited:'Изменены условия', activated:'Активирована'};
+          const history = document.createElement('section');
+          history.className = 'payroll-version-history';
+          history.setAttribute('aria-label','История версии');
+          history.innerHTML = '<h4>История версии</h4>' + (data.items?.length
+            ? '<ol>' + data.items.map(item => {
+              const date = new Date(item.changedAt);
+              const stamp = Number.isFinite(date.getTime()) ? date.toLocaleString('ru-RU', {dateStyle:'short',timeStyle:'short'}) : '';
+              return '<li><strong>' + escapeHtml(kinds[item.changeKind] || item.changeKind) + '</strong> · '
+                + escapeHtml(stamp) + (item.changedByName ? ' · ' + escapeHtml(item.changedByName) : '')
+                + '<details><summary>Подробности записи</summary><pre>' + escapeHtml(JSON.stringify(item,null,2)) + '</pre></details></li>';
+            }).join('') + '</ol>' : '<p>История пока пуста.</p>');
+          row.after(history);
+          button.setAttribute('aria-expanded','true');
+          return;
         }
         if (button.matches('[data-scheme-run-preview]')) {
           selectWorkspace('trial');
