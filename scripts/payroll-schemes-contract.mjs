@@ -445,6 +445,25 @@ assert.equal(finalMonth.monthTurnoverCents, 25000, 'closed-month total uses the 
 assert.equal(finalMonth.daily[0].lines[0].appliedRateBps, 500); // line sum exceeds the threshold but canonical venue total does not
 const provisionalFinalMonth = calculatePayrollScheme({ ...baseInput, scheme: { ...baseInput.scheme, mode: 'final_month_threshold' } });
 assert.ok(provisionalFinalMonth.blockers.includes('closed_month_required'));
+// A default daily scheme can still contain a month-end rate for one role or employee.
+const monthlyBartender = {
+  ...baseInput.scheme.roleParameters,
+  bartender: { ...baseInput.scheme.roleParameters.bartender, mode: 'final_month_threshold' }
+};
+const personalMonthEnd = { employeeId: 'a', path: 'mode', mode: 'override', value: 'final_month_threshold' };
+for (const scheme of [
+  { ...baseInput.scheme, roleParameters: monthlyBartender },
+  { ...baseInput.scheme, employeeOverrides: [personalMonthEnd] }
+]) {
+  const openMonth = calculatePayrollScheme({ ...baseInput, scheme });
+  assert.ok(openMonth.blockers.includes('closed_month_required'), 'effective month-end rate cannot settle provisional commission');
+}
+const futureMonthEnd = calculatePayrollScheme({
+  ...baseInput,
+  scheme: { ...baseInput.scheme, employeeOverrides: [{ ...personalMonthEnd, effectiveFrom: '2026-10-01' }] }
+});
+assert.ok(!futureMonthEnd.blockers.includes('closed_month_required'), 'future employee terms do not defer the current period');
+
 const partialClosedFinalMonth = calculatePayrollScheme({
   ...baseInput,
   coverage: { kind: 'month_closed_complete', from: '2026-09-01', through: '2026-09-30', complete: true, watermark: 'partial-closed-fixture' },
