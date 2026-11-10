@@ -1103,6 +1103,8 @@
   };
   const readinessMoneyMetrics = new Set(['grossCents', 'discountCents', 'merchandiseNetCents', 'minimumAdjustmentCents', 'finalTotalCents']);
   const readinessReasons = {
+    employee_daily_pay_exceeds_personal_revenue:'За один из дней зарплата сотрудника выше его личной выручки. Проверьте, кому записаны продажи за смену, и сумму ставки.',
+    payroll_refund_aware_calculation_unavailable:'Проверьте в настройках оплаты назначения сотрудников, табель и данные продаж за выбранный период.',
     explicit_owner_source_policy_selection_required:'В сохранённой версии не выбраны правила источников.',
     closed_order_date_missing_venue_wide:'В заведении есть закрытые заказы без даты закрытия; их период неизвестен.',
     locked_order_header_missing:'В части заказов отсутствует полный зафиксированный заголовок цены.',
@@ -1953,6 +1955,7 @@
       <div class="toolbar-row"><button class="button primary" type="submit" data-saved-run-create disabled>Рассчитать и сохранить</button>
         <button class="button" type="submit" data-saved-h1-create hidden>Рассчитать первую половину для выплаты</button>
         <button class="button" type="button" data-saved-run-reload>Обновить список</button></div></form>
+      <p data-no-payroll-version hidden>Для расчёта по схеме нужна активированная ставка. <button type="button" class="button small" data-payroll-open-settings>Открыть настройки оплаты</button></p>
       <div data-saved-run-status role="status" aria-live="polite"></div>
       <section data-correction-pending aria-live="polite"></section>
       <section data-supersession-pending aria-live="polite"></section>
@@ -2742,7 +2745,8 @@
           version.dispatchEvent(new Event('change', {bubbles:true}));
         }
         version._customSelectRefresh?.();
-        loaded = true; create.disabled = false;
+        loaded = true; create.disabled = version.options.length < 2;
+        section.querySelector('[data-no-payroll-version]').hidden = !create.disabled;
         await loadList();
       } catch (error) { if (alive()) status.textContent = errorText(error); }
       finally { loading = false; if (revision !== optionsRevision && alive()) void activate(); }
@@ -2800,8 +2804,10 @@
       } catch (error) {
         if (!alive()) return;
         if (error.status === 422 && error.data?.status === 'blocked') {
+          const reasons = error.data.reasons || [];
+          const specific = reasons.filter(reason => reason !== 'payroll_refund_aware_calculation_unavailable');
           status.innerHTML = '<p>Расчёт не сохранён. Требуется проверить данные:</p><ul>'
-            + (error.data.reasons || []).map(reason => `<li>${escapeHtml(readinessReasonLabel(reason))}</li>`).join('') + '</ul>';
+            + (specific.length ? specific : reasons).map(reason => `<li>${escapeHtml(readinessReasonLabel(reason))}</li>`).join('') + '</ul>';
         } else status.textContent = `${errorText(error)} При повторе для этой версии и периода будет использован тот же ключ запроса.`;
       } finally {
         saving = false;
@@ -2849,7 +2855,7 @@
   };
   const mount = () => {
     const payrollPanel = document.querySelector('.finance-payroll-panel');
-    if (!payrollPanel || payrollPanel.dataset.schemeUiMounted) return;
+    if (!payrollPanel?.querySelector('#payroll-register') || payrollPanel.dataset.schemeUiMounted) return;
     payrollPanel.dataset.schemeUiMounted = 'true';
     const panel = document.createElement('section');
     panel.className = 'panel finance-payroll-schemes';
@@ -2986,12 +2992,36 @@
         <label>Основание подтверждения<input type="text" data-attendance-reason minlength="3" maxlength="1000" autocomplete="off" placeholder="Например: табель сверен с ответственными за смены"></label>
         <div data-attendance-result class="finance-scheme-result" aria-live="polite"><p class="empty">Задайте период и проверьте полноту исходного табеля.</p></div>
       </section>`;
-    const settings = document.createElement('details');
-    settings.className = 'finance-secondary-details finance-payroll-settings';
-    const settingsTitle = document.createElement('summary');
-    settingsTitle.textContent = 'Настройки схем и проверка расчётов';
-    settings.append(settingsTitle, panel);
-    payrollPanel.append(settings);
+    const screenLabels = {register:'Ведомость', settings:'Настройки оплаты', calculation:'Расчёт зарплаты'};
+    const screens = {};
+    const screenNav = document.createElement('nav');
+    screenNav.className = 'payroll-screen-nav';
+    screenNav.setAttribute('aria-label', 'Разделы зарплаты');
+    for (const [key,label] of Object.entries(screenLabels)) {
+      const section = document.createElement('section');
+      section.id = 'payroll-screen-' + key;
+      section.className = 'payroll-screen-content';
+      section.dataset.payrollScreenContent = key;
+      section.setAttribute('aria-label', label);
+      section.hidden = key !== 'register';
+      screens[key] = section;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'button small';
+      button.dataset.payrollScreenTarget = key;
+      button.setAttribute('aria-controls',section.id);
+      button.textContent = label;
+      screenNav.append(button);
+    }
+    const registerScreen = screens.register;
+    registerScreen.classList.add('payroll-register-screen');
+    registerScreen.append(...payrollPanel.childNodes);
+    const settings = screens.settings;
+    settings.classList.add('finance-payroll-settings');
+    settings.append(panel);
+    screens.calculation.classList.add('finance-payroll-calculation');
+    payrollPanel.append(screenNav, registerScreen, settings, screens.calculation);
+
     const start = document.createElement('button');
     start.type = 'button'; start.className = 'button primary'; start.dataset.payrollQuickStart = '';
     start.textContent = 'Настроить оплату'; start.hidden = true;
@@ -3015,11 +3045,11 @@
     headerActions.prepend(nextStep, start);
     nextStep.addEventListener('click', async () => {
       if (pending) return;
-      settings.open = true;
       if (nextStep.dataset.destination === 'saved') {
         selectWorkspace('saved', {focus:true});
         return;
       }
+      showPayrollScreen('settings');
       const drafts = schemes.flatMap(scheme => sortedVersions(scheme)).filter(version => version.status === 'draft');
       if (drafts.length === 1) {
         try {
@@ -3028,6 +3058,10 @@
       } else {
         selectWorkspace('list', {focus:true});
       }
+    });
+    payrollPanel.addEventListener('payroll-model-created', () => {
+      hasActiveModel = true;
+      updateGuide();
     });
     const updateGuide = () => {
       const versions = schemes.flatMap(scheme => sortedVersions(scheme));
@@ -3038,22 +3072,26 @@
       nextStep.textContent = canCalculate ? 'Рассчитать зарплату' : drafts.length > 1 ? 'Выбрать черновик' : 'Проверить ставку';
       start.hidden = false;
       start.textContent = versions.length ? 'Новая схема оплаты' : 'Настроить ставку';
-      start.classList.toggle('primary', nextStep.hidden);
+      const useModel = !versions.length && hasActiveModel && modelButton;
+      start.classList.toggle('primary', nextStep.hidden && !useModel);
+      modelButton?.classList.toggle('primary', Boolean(useModel));
       if (!otherActions.isConnected) {
         headerActions.append(otherActions);
-        if (modelButton) otherButtons.append(modelButton);
+
       }
-      if (nextStep.hidden) nextStep.after(start);
+      if (modelButton) (useModel ? headerActions : otherButtons).prepend(modelButton);
+      if (nextStep.hidden && !useModel) nextStep.after(start);
       else otherButtons.prepend(start);
       guide.textContent = canCalculate
         ? 'Выберите период, чтобы узнать сумму к выплате. Уже рассчитанную зарплату можно выплатить из ведомости ниже.'
         : drafts.length > 1 ? 'Выберите черновик и откройте его, чтобы проверить ставку на примере смены.'
         : drafts.length ? 'Ставка сохранена в черновике. Проверьте её на примере смены и активируйте для расчёта.'
+        : useModel ? 'Модель оплаты уже настроена. Выберите сотрудника и период, чтобы создать начисление.'
         : 'Для новой ставки выберите сотрудника, сумму и дату начала. Сохранённые начисления открываются в ведомости.';
     };
     start.addEventListener('click', async () => {
       otherActions.open = false;
-      settings.open = true;
+      showPayrollScreen('settings');
       if (await showEditor({kind:'create', guided:true})) {
         quickEmployee.focus();
         quickEmployee.scrollIntoView({block:'nearest'});
@@ -3066,7 +3104,7 @@
     const directoryTitle = document.createElement('summary');
     directoryTitle.textContent = 'Сотрудники и подразделения для расчёта';
     directories.append(directoryTitle);
-    settings.after(directories);
+    settings.append(directories);
     directories.append(payrollPanel.querySelector('.finance-payroll-eligibility'), payrollPanel.querySelector('.finance-payroll-departments'));
 
     const list = panel.querySelector('[data-scheme-list]');
@@ -3181,6 +3219,7 @@
     const toggleQuick = guided => {
       editor.querySelector('[data-scheme-save]').textContent = guided ? 'Сохранить и проверить ставку' : 'Сохранить черновик';
       quick.hidden = !guided;
+      quick.querySelector('[data-quick-sources]').required = guided;
       panel.querySelector('[data-advanced-pay-fields]').hidden = guided;
       if (guided) {
         quickMethod.value = 'shift'; quick.querySelector('[data-quick-sources]').checked = false; quickRate.value = ''; quickPercent.value = ''; quickFrom.value = venueLocalToday();
@@ -3201,7 +3240,9 @@
     const trialForm = panel.querySelector('[data-trial-shift]');
     trialForm.addEventListener('input', invalidateTrial);
     trialForm.addEventListener('change', invalidateTrial);
-    quick.addEventListener('input', () => { payoutRiskAcknowledgementField.checked = false; });
+    quick.addEventListener('input', event => {
+      if (!event.target.matches('[data-quick-sources]')) payoutRiskAcknowledgementField.checked = false;
+    });
     panel.querySelector('[data-trial-run]').addEventListener('click', async event => {
       const version = selectedVersion, revision = ++trialRevision;
       if (!version || pending) return;
@@ -3221,7 +3262,7 @@
         if (totals && result.result.status === 'ready' && ['draft','active','retired'].includes(version.status)) {
           const proceed = document.createElement('button');
           proceed.className = 'button primary'; proceed.type = 'button'; proceed.dataset.trialOfficial = '';
-          proceed.textContent = version.status === 'draft' ? 'Активировать схему и открыть ведомость' : 'Открыть ведомость';
+          proceed.textContent = version.status === 'draft' ? 'Активировать и перейти к расчёту' : 'Перейти к расчёту';
           proceed.addEventListener('click', async () => {
             if (selectedVersion !== version || pending) return;
             pending = true; proceed.disabled = true;
@@ -3258,6 +3299,7 @@
     const attendanceRefresh = panel.querySelector('[data-attendance-refresh]');
     const attendanceApprove = panel.querySelector('[data-attendance-approve]');
     let schemes = [];
+    let hasActiveModel = false;
     let editorAction = null;
     let selectedVersion = null;
     let editorBaseline = null;
@@ -3265,11 +3307,13 @@
     let pending = false;
     const workspaceNav=document.createElement('nav');workspaceNav.className='scheme-workspace-nav';workspaceNav.setAttribute('aria-label','Этапы настройки зарплаты');
     const workspaceLabels={list:'Схемы',configuration:'Настройка',checks:'Проверка данных',trial:'Пробный расчёт',saved:'Сохранённые расчёты'};
-    workspaceNav.innerHTML=Object.entries(workspaceLabels).map(([key,label])=>`<button type="button" class="button small" data-scheme-workspace="${key}">${label}</button>`).join('');
+    workspaceNav.innerHTML=Object.entries(workspaceLabels).filter(([key])=>key !== 'saved').map(([key,label])=>`<button type="button" class="button small" data-scheme-workspace="${key}">${label}</button>`).join('');
     message.before(workspaceNav);
     const workspacePanes={};
     for(const key of Object.keys(workspaceLabels)){const section=document.createElement('section');section.dataset.schemePane=key;section.hidden=key!=='list';workspacePanes[key]=section;panel.append(section);}
     workspacePanes.list.append(list);workspacePanes.configuration.append(editor);workspacePanes.trial.append(previewBox);
+    screens.calculation.append(workspacePanes.saved);
+    workspacePanes.saved.hidden = false;
     const savedRuns = mountSavedRuns(workspacePanes.saved);
     const disclosure=(node,title)=>{const details=document.createElement('details');details.className='scheme-group';const summary=document.createElement('summary');summary.textContent=title;node.before(details);details.append(summary,node);return details;};
     const attendancePanel=panel.querySelector('[data-attendance-approval]'),readinessPanel=panel.querySelector('[data-source-readiness]'),entryDiagnosticPanel=panel.querySelector('[data-payroll-entry-diagnostic]');
@@ -3280,18 +3324,62 @@
     const trialHint=document.createElement('p');trialHint.className='scheme-guidance';trialHint.textContent='Введите продажи за одну смену и проверьте, подходит ли сумма сотруднику.';workspacePanes.trial.prepend(trialHint);
     const trialEmpty=document.createElement('p');trialEmpty.className='empty';trialEmpty.textContent='Откройте сохранённую версию в списке схем. Для сравнения отметьте от 2 до 8 версий.';workspacePanes.trial.prepend(trialEmpty);
     const configEmpty=document.createElement('p');configEmpty.className='empty';configEmpty.textContent='Откройте существующую версию или создайте новую схему.';workspacePanes.configuration.prepend(configEmpty);
-    const footer=document.createElement('div');footer.className='toolbar-row';footer.innerHTML='<button type="button" class="button" data-scheme-workspace="list">К списку схем</button><button type="button" class="button" data-scheme-workspace="checks">Проверить данные</button><button type="button" class="button" data-scheme-workspace="trial">К пробному расчёту</button>';editor.after(footer);
     const checksNext=document.createElement('button');checksNext.type='button';checksNext.className='button';checksNext.dataset.schemeWorkspace='trial';checksNext.textContent='Перейти к пробному расчёту';workspacePanes.checks.append(checksNext);
-    const registryHint=document.createElement('p');registryHint.className='scheme-guidance';registryHint.textContent='Фактические начисления ведутся в зарплатном реестре выше. Его модели оплаты выбираются отдельно: сохранение или активация этой схемы не создаёт начисление.';workspacePanes.list.prepend(registryHint);
+    const registryHint=document.createElement('p');registryHint.className='scheme-guidance';registryHint.textContent='Выберите схему, чтобы изменить условия или проверить их на примере смены.';workspacePanes.list.prepend(registryHint);
     const intro=panel.querySelector(':scope > p.muted');if(intro){const help=disclosure(intro,'Как работают версии и пробные расчёты');workspacePanes.list.append(help);}
     const advanced=panel.querySelector('[data-scheme-advanced]');advanced.classList.add('scheme-group');
     while(advanced.nextElementSibling?.matches('p.muted'))advanced.append(advanced.nextElementSibling);
     disclosure(panel.querySelector('[data-source-policy-fieldset]'),'Правила источников — расширенная настройка');
     disclosure(previewInput.closest('label'),'Данные пробного сценария — JSON');
-    const selectWorkspace=(key,{focus=false}={})=>{
+    const readPayrollScreen = () => {
+      const key = new URLSearchParams(location.search).get('payrollScreen');
+      return location.hash === '#payroll' && Object.hasOwn(screens,key) ? key : 'register';
+    };
+    const showPayrollScreen = (key, {focus=false, writeHistory=true}={}) => {
+      if (!Object.hasOwn(screens,key)) return;
+      payrollPanel.dataset.payrollScreen = key;
+      for (const [name,section] of Object.entries(screens)) section.hidden = name !== key;
+      for (const button of screenNav.querySelectorAll('[data-payroll-screen-target]')) {
+        if (button.dataset.payrollScreenTarget === key) button.setAttribute('aria-current','page');
+        else button.removeAttribute('aria-current');
+      }
+      if (writeHistory && location.hash === '#payroll' && readPayrollScreen() !== key) {
+        const url = new URL(location.href);
+        if (key === 'register') url.searchParams.delete('payrollScreen');
+        else url.searchParams.set('payrollScreen',key);
+        history.pushState(history.state,'',url);
+      }
+      if (key === 'calculation') void savedRuns.activate();
+      if (focus) {
+        const section = screens[key];
+        section.tabIndex = -1;
+        section.focus({preventScroll:true});
+        screenNav.scrollIntoView({block:'start'});
+      }
+    };
+    screenNav.addEventListener('click', event => {
+      const button = event.target.closest('[data-payroll-screen-target]');
+      if (button) showPayrollScreen(button.dataset.payrollScreenTarget, {focus:true});
+    });
+    const syncPayrollScreen = () => {
+      if (!payrollPanel.isConnected) {
+        window.removeEventListener('popstate',syncPayrollScreen);
+        window.removeEventListener('hashchange',syncPayrollScreen);
+        return;
+      }
+      const key = readPayrollScreen();
+      if (payrollPanel.dataset.payrollScreen !== key) showPayrollScreen(key, {writeHistory:false});
+    };
+    window.addEventListener('popstate',syncPayrollScreen);
+    window.addEventListener('hashchange',syncPayrollScreen);
+    screens.calculation.querySelector('[data-payroll-open-settings]').addEventListener('click', () => selectWorkspace('list',{focus:true}));
+    payrollPanel.addEventListener('payroll-show-register', () => showPayrollScreen('register'));
+    const selectWorkspace=(key,{focus=false,navigate=true}={})=>{
+      if (key === 'saved') { showPayrollScreen('calculation',{focus}); return; }
+      if (navigate) showPayrollScreen('settings');
       if(!workspacePanes[key])return;
       panel.dataset.schemeWorkspace=key;
-      for(const [name,node] of Object.entries(workspacePanes))node.hidden=name!==key;
+      for(const [name,node] of Object.entries(workspacePanes))if(name!=='saved')node.hidden=name!==key;
       workspaceNav.querySelectorAll('[data-scheme-workspace]').forEach(button=>{if(button.dataset.schemeWorkspace===key)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');});
       const activeButton = workspaceNav.querySelector('[aria-current="step"]');
       if (activeButton && workspaceNav.scrollWidth > workspaceNav.clientWidth) {
@@ -3300,18 +3388,23 @@
         if (tab.left < bounds.left) workspaceNav.scrollLeft += tab.left - bounds.left;
         else if (tab.right > bounds.right) workspaceNav.scrollLeft += tab.right - bounds.right;
       }
+      const simpleEntry = key === 'configuration' && editorAction?.guided === true;
+      workspaceNav.hidden = simpleEntry;
+      panel.querySelector(':scope > .panel-head').hidden = simpleEntry;
+      directories.hidden = simpleEntry;
+      editor.querySelector('[data-scheme-editor-cancel]').textContent = simpleEntry ? 'Назад' : 'Закрыть';
       configEmpty.hidden=Boolean(editorAction);
       const savedVersion=Boolean(selectedVersion&&['edit','inspect'].includes(editorAction?.kind));
       const hasComparison=panel.querySelectorAll('[data-scheme-compare-version]:checked').length>=2;
       trialEmpty.hidden=savedVersion||hasComparison;
       if(key==='trial')previewBox.hidden=!savedVersion&&!hasComparison;
-      if(key==='saved')void savedRuns.activate();
       if(focus){const target=workspacePanes[key];target.tabIndex=-1;target.focus({preventScroll:true});target.scrollIntoView({block:'start',behavior:'smooth'});}
     };
     const revealControl=(node)=>{if(!node)return;if(editor.contains(node))selectWorkspace('configuration');else if(previewBox.contains(node))selectWorkspace('trial');let parent=node.parentElement;while(parent&&parent!==panel){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}node.scrollIntoView({block:'center',behavior:'smooth'});node.focus?.({preventScroll:true});};
     editor.addEventListener('invalid',event=>revealControl(event.target),true);
     editor.addEventListener('input',event=>event.target.setCustomValidity?.(''));
-    selectWorkspace('list');
+    selectWorkspace('list',{navigate:false});
+    syncPayrollScreen();
     const grid = panel.querySelector('[data-scheme-grid]');
     const gridFieldset = panel.querySelector('[data-scheme-grid-fieldset]');
     const gridMessage = panel.querySelector('[data-scheme-grid-message]');
@@ -3724,8 +3817,16 @@
       invalidateReadiness();
       notify('Загружаем настройки…');
       list.innerHTML = '<div class="empty">Загрузка схем…</div>';
-      try { const data = await request('/api/payroll/schemes'); schemes = Array.isArray(data.items) ? data.items : []; updateGuide(); renderList(); notify(''); }
-      catch (error) { schemes = []; start.hidden = true; nextStep.hidden = true; guide.textContent = 'Не удалось загрузить ставки. Откройте настройки схем ниже и нажмите «Повторить».'; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
+      try {
+        const data = await request('/api/payroll/schemes');
+        schemes = Array.isArray(data.items) ? data.items : [];
+        renderList(); notify(''); updateGuide();
+        if (!schemes.some(scheme => sortedVersions(scheme).length)) {
+          const models = await request('/api/payroll/rules').catch(() => null);
+          if (models) { hasActiveModel = (models.items || []).some(item => item.active !== false); updateGuide(); }
+        }
+      }
+      catch (error) { schemes = []; start.hidden = true; nextStep.hidden = true; guide.textContent = error.status === 401 ? 'Сеанс завершён. Войдите снова, чтобы открыть ставки.' : 'Не удалось загрузить ставки. Перейдите в «Настройки оплаты» и нажмите «Повторить».'; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.status === 401 ? 'требуется повторный вход' : error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
     };
     const openVersion = async (versionId, transitionToken = null) => {
       const token = transitionToken ?? await beginEditorTransition();
@@ -3787,7 +3888,7 @@
       editorBaseline = editorStateSnapshot();
       refreshReadiness();
       selectWorkspace('configuration',{focus:true});
-      notify('Проверьте период действия, роли, назначения сотрудников и правила до сохранения.');
+      notify(action.guided ? '' : 'Проверьте период действия, роли, назначения сотрудников и правила до сохранения.');
       return true;
     };
 
@@ -3929,7 +4030,7 @@
       catch (error) { notify(`Конфигурация должна быть корректным JSON (${error.message}).`, 'error'); revealControl(definitionField); return; }
       if (!payoutRiskAcknowledgementField.checked) {
         notify('Подтвердите понимание риска. Подтверждение не разрешает проводить выплату сверх личной выручки.', 'error');
-        payoutRiskAcknowledgementField.focus(); return;
+        revealControl(payoutRiskAcknowledgementField); return;
       }
       const payoutRiskAcknowledgement = { confirmed: true, policyCode: PAYOUT_RISK_ACK_POLICY };
       let capIncreases;

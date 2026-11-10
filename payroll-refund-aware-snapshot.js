@@ -22,7 +22,8 @@ const exact = (a, b) => stable(a) === stable(b);
 function buildPayrollRefundAwareSnapshot({ venueId, runId, h1FixedShifts = false, ...sourceArgs } = {}, calculate) {
   const snapshotSchemaVersion = h1FixedShifts ? 4 : 2;
   const blocked = (code, calculation = null) => cloneFreeze({ schemaVersion: snapshotSchemaVersion, status: 'blocked', officialReady: false,
-    payoutEligible: false, sourceAttested: false, persistence: 'none', reasons: [code], verifiedCalculation: calculation,
+    payoutEligible: false, sourceAttested: false, persistence: 'none', reasons: [code, ...(calculation?.reasons?.includes('employee_daily_pay_exceeds_personal_revenue')
+      ? ['employee_daily_pay_exceeds_personal_revenue'] : [])], verifiedCalculation: calculation,
     snapshotInput: null, mappedRows: null, milestoneRows: null, refundQuantityEvidence: null,
     sourceWatermark: null, snapshotInputWatermark: null });
   let calculation;

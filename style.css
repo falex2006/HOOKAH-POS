@@ -6623,3 +6623,13 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 #payroll .payroll-register-screen {
   max-width: none;
 }
+
+@media (min-width: 1101px) {
+  #page-content #payroll[data-payroll-screen] .finance-payroll-filters {
+    grid-template-columns: repeat(2,minmax(10rem,13rem)) minmax(15rem,22rem) max-content;
+  }
+  #page-content #payroll[data-payroll-screen] #payroll-reload {
+    width: auto;
+    padding-inline: 1.25rem;
+  }
+}
