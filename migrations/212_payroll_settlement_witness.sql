@@ -304,7 +304,22 @@ BEGIN
     -- approved -> paid transition. The five settlement fields may change;
     -- every identity, period, amount, category, snapshot and audit field must
     -- remain value-equivalent.
-    IF OLD.calculation_run_id IS NOT NULL OR OLD.status IS DISTINCT FROM 'approved'
+    -- Linked payroll must also have its own payment transition in this
+    -- transaction, bound to the same run, employee, actor and fresh expense.
+    IF OLD.calculation_run_id IS NOT NULL THEN
+      EXECUTE format('SELECT EXISTS(SELECT 1 FROM %1$I.payroll_calculation_entry_transitions t
+        JOIN %1$I.expenses x ON x.venue_id=t.venue_id AND x.id=t.expense_id
+        WHERE t.venue_id=$1 AND t.entry_id=$2 AND t.calculation_run_id=$3 AND t.employee_id=$4
+          AND t.action=''pay'' AND t.from_status=''approved'' AND t.to_status=''paid''
+          AND t.transaction_id=txid_current() AND t.expense_id=$5 AND t.created_by=$6
+          AND x.payroll_calculation_entry_id=$2 AND x.payroll_settlement_entry_id=$2
+          AND x.payroll_settlement_insert_xid=txid_current())',TG_TABLE_SCHEMA)
+        INTO witnessed USING OLD.venue_id,OLD.id,OLD.calculation_run_id,OLD.user_id,NEW.expense_id,NEW.paid_by;
+      IF NOT witnessed THEN
+        RAISE EXCEPTION 'payroll_witnessed_entry_transition_invalid' USING ERRCODE='55000';
+      END IF;
+    END IF;
+    IF OLD.status IS DISTINCT FROM 'approved'
        OR NEW.status IS DISTINCT FROM 'paid' OR OLD.expense_id IS NOT NULL
        OR NEW.expense_id IS NULL
        OR (to_jsonb(NEW)-ARRAY['status','paid_at','paid_by','payment_date','expense_id'])
