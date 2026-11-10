@@ -6529,7 +6529,7 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 }
 
 /* Payroll uses the page canvas for the workspace; borders mark changes of content. */
-#page-content.finance-payroll-workspace #payroll {
+#page-content #payroll[data-payroll-screen] {
   min-width: 0;
   padding: 0;
   border: 0;
@@ -6537,7 +6537,7 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   background: transparent;
   box-shadow: none;
 }
-#page-content.finance-payroll-workspace #payroll .finance-payroll-filters {
+#page-content #payroll[data-payroll-screen] .finance-payroll-filters {
   margin: 0 0 1rem;
   padding: .75rem 0 1rem;
   border: 0;
@@ -6545,20 +6545,20 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   background: transparent;
   border-radius: 0;
 }
-#page-content.finance-payroll-workspace #payroll :is(.finance-payroll-schemes,.product-editor,.finance-scheme-preview) {
+#page-content #payroll[data-payroll-screen] :is(.finance-payroll-schemes,.product-editor,.finance-scheme-preview) {
   box-shadow: none;
   background: transparent;
   border: 0;
   padding-inline: 0;
 }
-#page-content.finance-payroll-workspace #payroll .payroll-list-head {
+#page-content #payroll[data-payroll-screen] .payroll-list-head {
   background: transparent;
   color: var(--ui-text-secondary);
 }
-#page-content.finance-payroll-workspace #payroll .payroll-team-row {
+#page-content #payroll[data-payroll-screen] .payroll-team-row {
   border-color: color-mix(in srgb,var(--ui-border-control) 55%,transparent);
 }
-#page-content.finance-payroll-workspace #payroll :is(button,summary):focus-visible {
+#page-content #payroll[data-payroll-screen] :is(button,summary):focus-visible {
   outline: 2px solid var(--ui-accent, #ff7952);
   outline-offset: 2px;
 }
