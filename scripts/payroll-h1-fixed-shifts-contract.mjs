@@ -52,6 +52,31 @@ const milestone = calculatePayrollH1FixedShifts({...base,scheme:{...scheme,roleP
 }}});
 assert.equal(milestone.status,'ready',JSON.stringify(milestone.blockers));
 assert.equal(pay(milestone,'a'),5001,'crossing the bonus threshold before day 14 does not pay out the monthly bonus early');
+// On September 10 this employee switches from a known 10% rate to a month-end rate.
+const switched = {
+  ...base,
+  scheme: {
+    ...scheme, itemRules: [],
+    roleParameters: { ...scheme.roleParameters, bar: { ...monthly, mode: 'stable_percent', stableRateBps: 1000 } },
+    employeeOverrides: [{ employeeId: 'a', path: 'mode', mode: 'override', value: 'final_month_threshold',
+      effectiveFrom: '2026-09-10', effectiveTo: end }]
+  },
+  sales: [sale('before', 'a', '2026-09-09', 30000), sale('after', 'a', '2026-09-10', 20000)],
+  attendance: ['2026-09-09', '2026-09-10'].map(date => ({
+    id: 'shift-' + date, employeeId: 'a', date, approved: true, workedMinutes: 480, plannedMinutes: 480
+  }))
+};
+const firstAfterSwitch = calculatePayrollH1FixedShifts(switched);
+assert.equal(firstAfterSwitch.status, 'ready', JSON.stringify(firstAfterSwitch.blockers));
+assert.equal(pay(firstAfterSwitch, 'a'), 23002, 'two fixed shifts plus the earned 10% for September 9');
+const monthAfterSwitch = calculatePayrollScheme({
+  ...switched, periodTo: end, monthClosed: true,
+  coverage: { ...switched.coverage, kind: 'month_closed_complete', through: end },
+  attendanceCoverage: { ...switched.attendanceCoverage, through: end }
+});
+assert.equal(monthAfterSwitch.status, 'ready', JSON.stringify(monthAfterSwitch.blockers));
+assert.equal(pay(monthAfterSwitch, 'a') - pay(firstAfterSwitch, 'a'), 3000,
+  'only the deferred 15% on the sale after the switch remains');
 const unsupported = calculatePayrollH1FixedShifts({...base,sales:[]});
 assert.ok(unsupported.criticalErrors.some(e=>e.code==='employee_daily_pay_exceeds_personal_revenue'));
 console.log('PASS H1 shifts, early/late monthly threshold, dated roles, product commission deferral, cap, evidence and closed-month residual');
