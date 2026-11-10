@@ -701,6 +701,8 @@ try {
   };
   if (['h1-only', 'h1-h2-only'].includes(process.env.PAYROLL_QA_SCOPE)) {
     await runH1WriterAcceptance();
+  } else if (process.env.PAYROLL_QA_SCOPE==='h2-correction-only') {
+    await verifyRefundAwarePaidCorrections({pool,sourcePolicies:refundPolicyV2,targetHalfMonth:true});
   } else if(process.env.PAYROLL_QA_SCOPE==='comparison_v2') {
     const comparisonAcceptance = await verifyRefundAwareAllModesSources({ pool, target, sourcePolicies: refundPolicyV2 });
     assert.equal(comparisonAcceptance.runCount, 21);

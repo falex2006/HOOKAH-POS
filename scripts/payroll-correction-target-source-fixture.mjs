@@ -4,21 +4,23 @@ import { randomUUID } from 'node:crypto';
 // Call inside the initial disposable-QA seed transaction, after the original
 // order is closed. The caller owns BEGIN/COMMIT and the session-only clock
 // function. All pricing, recognition and attribution triggers remain enabled.
-export async function seedCorrectionTargetSources(seed, { ids, period, clockSchema }) {
+export async function seedCorrectionTargetSources(seed, { ids, period, clockSchema, targetHalfMonth = false }) {
   assert.match(clockSchema, /^payroll_seed_clock_[a-f0-9]{32}$/);
   assert.match(period.from, /^\d{4}-\d{2}-\d{2}$/);
   const context = (await seed.query(`SELECT current_setting('qa.payroll_seed_clock') AS previous_clock,
     current_schemas(true) AS schemas,
-    (date_trunc('month',$1::date)+interval '1 month')::date::text AS next_day,
+    (date_trunc('month',$1::date)+interval '1 month')::date::text AS next_month_start,
+    (date_trunc('month',$1::date)+interval '1 month'+interval '${targetHalfMonth ? '14' : '0'} days')::date::text AS next_day,
     (date_trunc('month',$1::date)+interval '2 months'-interval '1 day')::date::text AS next_month_end,
     (date_trunc('month',$1::date)+interval '1 month')::date < (pg_catalog.transaction_timestamp() AT TIME ZONE 'UTC')::date AS closed`, [period.from])).rows[0];
   assert.ok(context.schemas.includes(clockSchema), 'the parent historical seed clock is active');
   assert.equal(context.closed, true, 'next-month first day must already be closed on the real UTC clock');
-  const nextPeriod = { from: context.next_day, to: context.next_day };
+  const nextPeriod = { from: targetHalfMonth ? context.next_month_start : context.next_day,
+    to: targetHalfMonth ? context.next_month_end : context.next_day };
   assert.ok(nextPeriod.from > period.to);
   const target = Object.fromEntries(['order', 'item', 'pricing', 'payment'].map(key => [key, randomUUID()]));
   try {
-    await seed.query("SELECT set_config('qa.payroll_seed_clock',$1,true)", [`${nextPeriod.from}T12:00:00Z`]);
+    await seed.query("SELECT set_config('qa.payroll_seed_clock',$1,true)", [`${context.next_day}T12:00:00Z`]);
     assert.equal((await seed.query('SELECT transaction_timestamp() < pg_catalog.transaction_timestamp() AS historical')).rows[0].historical, true);
     await seed.query(`INSERT INTO orders(id,venue_id,opened_by,status,created_at)
       VALUES($1,$2,$3,'open',transaction_timestamp())`, [target.order, ids.venue, ids.owner]);
@@ -48,7 +50,7 @@ export async function seedCorrectionTargetSources(seed, { ids, period, clockSche
     assert.equal(recognized.length, 1);
     assert.equal(recognized[0].coverage_status, 'complete', JSON.stringify(recognized));
     assert.deepEqual(recognized[0].coverage_reasons, []);
-    assert.equal(recognized[0].recognized_local_date, nextPeriod.from);
+    assert.equal(recognized[0].recognized_local_date, context.next_day);
     assert.equal(recognized[0].close_bound, true); assert.equal(recognized[0].line_count, 1);
     assert.equal(recognized[0].seller_id, ids.employee);
   } catch (error) {

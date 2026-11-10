@@ -1177,3 +1177,194 @@ BEGIN
     RAISE EXCEPTION 'payroll_correction_target_net_reconciliation_required' USING ERRCODE='23514'; END IF;
   RETURN NULL;
 END $$;
+
+
+-- Narrow schema5 extension of 208 apply/release validators; candidate only.
+CREATE OR REPLACE FUNCTION payroll_refund_aware_period_validate_batch() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE claim record; original record; target record; assessment record; run_row record; owner_row record; p jsonb; review jsonb;
+  matches integer; n integer; potential numeric; fixed numeric; gross numeric; used numeric; disposed numeric; target_used numeric;
+  expected numeric; allocation jsonb;
+BEGIN
+  IF NEW.operation NOT IN ('apply','waive') OR NEW.cohort_assessment_id IS NULL OR NEW.assessment_id IS NOT NULL THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_source_invalid' USING ERRCODE='23514'; END IF;
+  EXECUTE format('SELECT id,full_name FROM %I.users WHERE venue_id=$1 AND id=$2 AND role=''owner'' AND is_active=true AND deleted_at IS NULL',TG_TABLE_SCHEMA)
+    INTO owner_row USING NEW.venue_id,NEW.created_by;
+  IF owner_row.id IS NULL OR owner_row.full_name IS DISTINCT FROM NEW.created_by_name THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_owner_invalid' USING ERRCODE='23514'; END IF;
+  EXECUTE format('SELECT c.* FROM %I.payroll_correction_claims c WHERE c.venue_id=$1 AND c.original_entry_id=$2 AND c.employee_id=$3 AND c.source_kind=''period_v2'' FOR UPDATE',TG_TABLE_SCHEMA)
+    INTO claim USING NEW.venue_id,NEW.original_entry_id,NEW.employee_id;
+  EXECUTE format('SELECT * FROM %I.payroll_entries WHERE venue_id=$1 AND id=$2 FOR SHARE',TG_TABLE_SCHEMA)
+    INTO original USING NEW.venue_id,NEW.original_entry_id;
+  EXECUTE format('SELECT id FROM %I.payroll_calculation_runs WHERE venue_id=$1 AND id=$2 FOR UPDATE',TG_TABLE_SCHEMA)
+    INTO run_row USING NEW.venue_id,claim.original_run_id;
+  EXECUTE format('SELECT * FROM %I.payroll_refund_aware_paid_assessments WHERE venue_id=$1 AND id=$2 FOR SHARE',TG_TABLE_SCHEMA)
+    INTO assessment USING NEW.venue_id,NEW.cohort_assessment_id;
+  IF claim.id IS NULL OR run_row.id IS NULL OR original.id IS NULL OR original.status<>'paid' OR original.calculation_run_id<>claim.original_run_id
+    OR original.user_id<>NEW.employee_id OR assessment.id IS NULL OR assessment.run_id<>claim.original_run_id
+    OR assessment.assessment_hash<>NEW.assessment_hash OR assessment.source_hash<>NEW.source_hash
+    OR assessment.provenance_sha256<>claim.original_provenance_sha256
+    OR NEW.original_entry_id<>claim.original_entry_id THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_basis_invalid' USING ERRCODE='23514'; END IF;
+  p:=NEW.plan_payload::jsonb;
+  IF p->'schemaVersion' IS DISTINCT FROM '3'::jsonb OR p->>'policyCode' IS DISTINCT FROM 'reviewed_period_variable_pay_only_v1'
+    OR p->>'basisKind' IS DISTINCT FROM 'period_variable' OR p->>'venueId' IS DISTINCT FROM NEW.venue_id::text
+    OR p->>'employeeId' IS DISTINCT FROM NEW.employee_id::text OR p->>'currency' IS DISTINCT FROM NEW.currency
+    OR p->>'originalEntryId' IS DISTINCT FROM claim.original_entry_id::text OR p->>'originalRunId' IS DISTINCT FROM claim.original_run_id::text
+    OR p->>'originalProvenanceSha256' IS DISTINCT FROM claim.original_provenance_sha256::text
+    OR p->'originalPaidCents' IS DISTINCT FROM to_jsonb((original.amount*100)::bigint)
+    OR p->'originalExpenseId' IS DISTINCT FROM COALESCE(to_jsonb(original.expense_id),'null'::jsonb)
+    OR p->>'assessmentHash' IS DISTINCT FROM assessment.assessment_hash::text OR p->>'sourceHash' IS DISTINCT FROM assessment.source_hash::text
+    OR p->>'ledgerHash' IS DISTINCT FROM NEW.ledger_hash::text OR p->'officialReady' IS DISTINCT FROM 'false'::jsonb
+    OR p->'payoutEligible' IS DISTINCT FROM 'false'::jsonb OR p->'sourceAttested' IS DISTINCT FROM 'false'::jsonb
+    OR p->'deltaApplicationEligible' IS DISTINCT FROM 'false'::jsonb OR p->>'financialAction' IS DISTINCT FROM 'none'
+    OR p->>'persistence' IS DISTINCT FROM 'none' OR p->>'positiveEntitlementAction' IS DISTINCT FROM 'none' OR p ? 'planHash'
+    OR jsonb_typeof(p->'allocations') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_plan_invalid' USING ERRCODE='23514'; END IF;
+  IF jsonb_array_length(p->'allocations')<>1 THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_allocation_invalid' USING ERRCODE='23514'; END IF;
+  IF NEW.event_count<>1 OR NEW.total_cents<1 THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_event_count_invalid' USING ERRCODE='23514'; END IF;
+  SELECT count(*),(jsonb_agg(value)->0),max((value->>'potentialReductionReviewCents')::numeric) INTO matches,review,potential
+    FROM jsonb_array_elements(assessment.payload::jsonb->'paidReviews') value
+    WHERE value->>'entryId'=claim.original_entry_id::text AND value->>'employeeId'=claim.employee_id::text;
+  IF matches<>1 OR p->>'currentPotentialCents' IS DISTINCT FROM potential::text
+    OR p->>'firstAssessedCents' IS DISTINCT FROM claim.assessed_cents::text THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_potential_invalid' USING ERRCODE='23514'; END IF;
+  SELECT count(*),(jsonb_agg(value)->0) INTO matches,allocation FROM jsonb_array_elements(p->'allocations') value
+    WHERE value->>'basisKind'='period_variable'
+      AND (value->'claimId' IS NOT DISTINCT FROM to_jsonb(claim.id) OR value->'claimId'='null'::jsonb)
+      AND value->>'firstAssessedCents'=claim.assessed_cents::text
+      AND value->>'assessedCents'=potential::text;
+  IF matches<>1 THEN RAISE EXCEPTION 'payroll_refund_aware_batch_allocation_invalid' USING ERRCODE='23514'; END IF;
+  EXECUTE format('SELECT COALESCE(sum(CASE WHEN kind=''release'' THEN -amount_cents ELSE amount_cents END),0) FROM %I.payroll_correction_events WHERE venue_id=$1 AND claim_id=$2',TG_TABLE_SCHEMA)
+    INTO used USING NEW.venue_id,claim.id;
+  disposed:=used;
+  IF (allocation->>'alreadyDisposedCents')::numeric IS DISTINCT FROM disposed
+    OR p->>'alreadyDisposedCents' IS DISTINCT FROM disposed::text THEN
+    RAISE EXCEPTION 'payroll_refund_aware_batch_ledger_stale' USING ERRCODE='23514'; END IF;
+  IF NEW.operation='waive' THEN
+    expected:=GREATEST(0,potential-disposed);
+    IF expected<=0 OR NEW.target_entry_id IS NOT NULL OR NEW.target_sequence_no IS NOT NULL OR NEW.total_cents<>expected
+      OR p->>'operation' IS DISTINCT FROM 'waive'
+      OR allocation->'waiveCents' IS DISTINCT FROM to_jsonb(expected::bigint)
+      OR p->'waiveCents' IS DISTINCT FROM to_jsonb(expected::bigint) THEN
+      RAISE EXCEPTION 'payroll_refund_aware_waiver_invalid' USING ERRCODE='23514'; END IF;
+    RETURN NEW;
+  END IF;
+  EXECUTE format('SELECT * FROM %I.payroll_entries WHERE venue_id=$1 AND id=$2 FOR UPDATE',TG_TABLE_SCHEMA)
+    INTO target USING NEW.venue_id,NEW.target_entry_id;
+  IF target.id IS NULL OR target.user_id<>NEW.employee_id OR target.calculation_run_id IS NULL
+    OR target.period_from<=original.period_to OR target.calculation_run_id=original.calculation_run_id OR target.status<>'draft' THEN
+    RAISE EXCEPTION 'payroll_refund_aware_target_invalid' USING ERRCODE='23514'; END IF;
+  IF target.payroll_half_kind='h2' THEN
+    EXECUTE format('SELECT protected_fixed,gross_amount FROM %I.payroll_h2_correction_basis($1,$2,$3,$4)',TG_TABLE_SCHEMA)
+      INTO fixed,gross USING NEW.venue_id,target.id,NEW.employee_id,TG_TABLE_SCHEMA;
+  ELSE
+    EXECUTE format('SELECT COALESCE(sum(LEAST(base_pay,final_amount)*100),0),COALESCE(sum(final_amount*100),0) FROM %I.payroll_daily_snapshots WHERE venue_id=$1 AND run_id=$2 AND employee_id=$3',TG_TABLE_SCHEMA)
+      INTO fixed,gross USING NEW.venue_id,target.calculation_run_id,NEW.employee_id;
+  END IF;
+  EXECUTE format('SELECT COALESCE(sum(CASE WHEN kind=''apply'' THEN amount_cents WHEN kind=''release'' THEN -amount_cents ELSE 0 END),0) FROM %I.payroll_correction_events WHERE venue_id=$1 AND target_entry_id=$2',TG_TABLE_SCHEMA)
+    INTO target_used USING NEW.venue_id,target.id;
+  EXECUTE format('SELECT COALESCE(max(target_sequence_no),0) FROM %I.payroll_correction_batches WHERE venue_id=$1 AND target_entry_id=$2',TG_TABLE_SCHEMA)
+    INTO n USING NEW.venue_id,target.id;
+  expected:=LEAST(GREATEST(0,potential-disposed),GREATEST(0,gross-target_used-fixed));
+  IF expected<=0 OR p->>'operation' IS DISTINCT FROM 'apply' OR NEW.target_sequence_no<>n+1 OR gross<>target.calculation_gross_cents OR fixed<>NEW.protected_fixed_cents
+    OR NEW.target_before_cents<>gross-target_used OR NEW.total_cents<>expected
+    OR NEW.target_after_cents<>gross-target_used-expected OR NEW.target_after_cents<fixed
+    OR p->'applyCents' IS DISTINCT FROM to_jsonb(expected::bigint)
+    OR p->>'targetEntryId' IS DISTINCT FROM target.id::text OR p->>'targetRunId' IS DISTINCT FROM target.calculation_run_id::text
+    OR p->>'targetProvenanceSha256' IS DISTINCT FROM target.calculation_provenance_sha256::text
+    OR p->'targetBeforeCents' IS DISTINCT FROM to_jsonb(NEW.target_before_cents)
+    OR p->'targetAfterCents' IS DISTINCT FROM to_jsonb(NEW.target_after_cents)
+    OR p->'protectedFixedCents' IS DISTINCT FROM to_jsonb(NEW.protected_fixed_cents)
+    OR allocation->'applyCents' IS DISTINCT FROM to_jsonb(expected::bigint)
+    OR p->'availableReviewCents' IS DISTINCT FROM to_jsonb(GREATEST(0,potential-disposed)::bigint)
+    OR p->'residualReviewCents' IS DISTINCT FROM to_jsonb(GREATEST(0,potential-disposed-expected)::bigint) THEN
+    RAISE EXCEPTION 'payroll_refund_aware_target_capacity_invalid' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION payroll_refund_aware_release_batch_validate() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE actor record; target record; p jsonb; row_json jsonb; parent record; claim record; parent_batch record;
+  amount numeric; total numeric:=0; n integer:=0; actual_count integer; actual_total numeric; matches integer;
+  fixed numeric; gross numeric; net numeric; used numeric; previous_seq integer; context_count integer; conflict boolean;
+BEGIN
+  IF NEW.operation<>'release' OR NEW.assessment_id IS NOT NULL OR NEW.cohort_assessment_id IS NOT NULL
+    OR NEW.original_entry_id IS NOT NULL OR NEW.target_entry_id IS NULL THEN
+    RAISE EXCEPTION 'payroll_correction_release_batch_context_invalid' USING ERRCODE='23514'; END IF;
+  EXECUTE format('SELECT id,full_name FROM %I.users WHERE venue_id=$1 AND id=$2 AND role=''owner'' AND is_active=true AND deleted_at IS NULL',TG_TABLE_SCHEMA)
+    INTO actor USING NEW.venue_id,NEW.created_by;
+  IF actor.id IS NULL OR actor.full_name IS DISTINCT FROM NEW.created_by_name THEN
+    RAISE EXCEPTION 'payroll_correction_release_owner_invalid' USING ERRCODE='23514'; END IF;
+  EXECUTE format('SELECT * FROM %I.payroll_entries WHERE venue_id=$1 AND id=$2 FOR UPDATE',TG_TABLE_SCHEMA)
+    INTO target USING NEW.venue_id,NEW.target_entry_id;
+  IF target.id IS NULL OR target.status NOT IN ('draft','approved','cancelled') OR target.user_id<>NEW.employee_id
+    OR NEW.target_after_cents IS DISTINCT FROM NEW.target_before_cents THEN
+    RAISE EXCEPTION 'payroll_correction_release_target_invalid' USING ERRCODE='23514'; END IF;
+  IF target.payroll_half_kind='h2' THEN
+    EXECUTE format('SELECT protected_fixed,gross_amount FROM %I.payroll_h2_correction_basis($1,$2,$3,$4)',TG_TABLE_SCHEMA)
+      INTO fixed,gross USING NEW.venue_id,target.id,NEW.employee_id,TG_TABLE_SCHEMA;
+  ELSE
+    EXECUTE format('SELECT COALESCE(sum(LEAST(base_pay,final_amount)*100),0),COALESCE(sum(final_amount*100),0) FROM %I.payroll_daily_snapshots WHERE venue_id=$1 AND run_id=$2 AND employee_id=$3',TG_TABLE_SCHEMA)
+      INTO fixed,gross USING NEW.venue_id,target.calculation_run_id,NEW.employee_id;
+  END IF;
+  IF gross<>target.calculation_gross_cents OR fixed<>NEW.protected_fixed_cents
+    OR NEW.target_before_cents::numeric IS DISTINCT FROM target.amount*100 THEN
+    RAISE EXCEPTION 'payroll_correction_release_target_basis_invalid' USING ERRCODE='23514'; END IF;
+  EXECUTE format('SELECT COALESCE(max(target_sequence_no),0) FROM %I.payroll_correction_batches WHERE venue_id=$1 AND target_entry_id=$2',TG_TABLE_SCHEMA)
+    INTO previous_seq USING NEW.venue_id,target.id;
+  IF NEW.target_sequence_no<>previous_seq+1 THEN RAISE EXCEPTION 'payroll_correction_target_sequence_conflict' USING ERRCODE='23514'; END IF;
+  p:=NEW.plan_payload::jsonb;
+  IF p->'schemaVersion' IS DISTINCT FROM '1'::jsonb OR p->>'operation' IS DISTINCT FROM 'release'
+    OR p->>'policyVersion' IS DISTINCT FROM 'owner-reviewed-variable-correction-v1'
+    OR p->>'venueId' IS DISTINCT FROM NEW.venue_id::text OR p->>'employeeId' IS DISTINCT FROM NEW.employee_id::text
+    OR p->>'targetEntryId' IS DISTINCT FROM target.id::text OR p->>'targetRunId' IS DISTINCT FROM target.calculation_run_id::text
+    OR p->>'targetProvenanceSha256' IS DISTINCT FROM target.calculation_provenance_sha256::text
+    OR p->'officialReady' IS DISTINCT FROM 'false'::jsonb OR p->'payoutEligible' IS DISTINCT FROM 'false'::jsonb
+    OR p->>'persistence' IS DISTINCT FROM 'none' OR jsonb_typeof(p->'releases') IS DISTINCT FROM 'array'
+    OR p->'releaseCents' IS DISTINCT FROM to_jsonb(NEW.total_cents)
+    OR p->'targetBeforeCents' IS DISTINCT FROM to_jsonb(NEW.target_before_cents)
+    OR p->'cancelledHistoricalCents' IS DISTINCT FROM to_jsonb(NEW.target_after_cents)
+    OR p->'protectedFixedCents' IS DISTINCT FROM to_jsonb(NEW.protected_fixed_cents)
+    OR NEW.plan_hash IS NULL OR encode(sha256(convert_to(NEW.plan_payload,'UTF8')),'hex')<>NEW.plan_hash THEN
+    RAISE EXCEPTION 'payroll_correction_release_plan_invalid' USING ERRCODE='23514'; END IF;
+  FOR row_json IN SELECT value FROM jsonb_array_elements(p->'releases') LOOP
+    SELECT count(*) INTO matches FROM jsonb_array_elements(p->'releases') value
+      WHERE value->>'reversesEventId' IS NOT DISTINCT FROM row_json->>'reversesEventId';
+    IF matches<>1 THEN RAISE EXCEPTION 'payroll_correction_release_parent_invalid' USING ERRCODE='23514'; END IF;
+    EXECUTE format('SELECT * FROM %I.payroll_correction_events WHERE venue_id=$1 AND id=$2',TG_TABLE_SCHEMA)
+      INTO parent USING NEW.venue_id,(row_json->>'reversesEventId')::uuid;
+    EXECUTE format('SELECT EXISTS(SELECT 1 FROM %I.payroll_correction_events x WHERE x.venue_id=$1 AND x.reverses_event_id=$2)',TG_TABLE_SCHEMA)
+      INTO conflict USING NEW.venue_id,parent.id;
+    IF parent.id IS NULL OR parent.kind<>'apply' OR parent.target_entry_id<>target.id OR conflict THEN
+      RAISE EXCEPTION 'payroll_correction_release_parent_invalid' USING ERRCODE='23514'; END IF;
+    EXECUTE format('SELECT * FROM %I.payroll_correction_claims WHERE venue_id=$1 AND id=$2',TG_TABLE_SCHEMA)
+      INTO claim USING NEW.venue_id,parent.claim_id;
+    EXECUTE format('SELECT * FROM %I.payroll_correction_batches WHERE venue_id=$1 AND id=$2',TG_TABLE_SCHEMA)
+      INTO parent_batch USING NEW.venue_id,parent.batch_id;
+    IF claim.id IS NULL OR claim.employee_id<>NEW.employee_id OR parent_batch.employee_id<>NEW.employee_id
+      OR parent_batch.operation<>'apply' OR parent_batch.target_entry_id<>target.id
+      OR row_json->>'originalEntryId' IS DISTINCT FROM claim.original_entry_id::text
+      OR row_json->'amountCents' IS DISTINCT FROM to_jsonb(parent.amount_cents) THEN
+      RAISE EXCEPTION 'payroll_correction_release_source_invalid' USING ERRCODE='23514'; END IF;
+    IF claim.source_kind='period_v2' THEN
+      IF row_json->>'sourceKind' IS DISTINCT FROM 'period_v2' OR row_json->>'cohortClaimId' IS DISTINCT FROM claim.id::text
+        OR row_json->>'cohortAssessmentId' IS DISTINCT FROM parent_batch.cohort_assessment_id::text
+        OR parent_batch.cohort_assessment_id IS NULL OR row_json->'refundLineEventId' IS DISTINCT FROM 'null'::jsonb THEN
+        RAISE EXCEPTION 'payroll_refund_aware_release_source_invalid' USING ERRCODE='23514'; END IF;
+    ELSE
+      IF row_json ? 'sourceKind' OR row_json->>'refundLineEventId' IS DISTINCT FROM claim.refund_line_event_id::text
+        OR parent_batch.assessment_id IS NULL THEN
+        RAISE EXCEPTION 'payroll_correction_release_legacy_source_invalid' USING ERRCODE='23514'; END IF;
+    END IF;
+    total:=total+parent.amount_cents; n:=n+1;
+  END LOOP;
+  EXECUTE format('SELECT count(*),COALESCE(sum(a.amount_cents),0) FROM %I.payroll_correction_events a WHERE a.venue_id=$1 AND a.target_entry_id=$2 AND a.kind=''apply'' AND NOT EXISTS(SELECT 1 FROM %I.payroll_correction_events r WHERE r.venue_id=a.venue_id AND r.reverses_event_id=a.id)',TG_TABLE_SCHEMA,TG_TABLE_SCHEMA)
+    INTO actual_count,actual_total USING NEW.venue_id,target.id;
+  EXECUTE format('SELECT COALESCE(sum(CASE WHEN kind=''apply'' THEN amount_cents WHEN kind=''release'' THEN -amount_cents ELSE 0 END),0) FROM %I.payroll_correction_events WHERE venue_id=$1 AND target_entry_id=$2',TG_TABLE_SCHEMA)
+    INTO used USING NEW.venue_id,target.id;
+  IF n<>NEW.event_count OR total<>NEW.total_cents OR n<>actual_count OR total<>actual_total
+    OR gross-used IS DISTINCT FROM NEW.target_before_cents::numeric OR p->>'ledgerHash' IS DISTINCT FROM NEW.ledger_hash::text THEN
+    RAISE EXCEPTION 'payroll_correction_release_coverage_invalid' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+END $$;

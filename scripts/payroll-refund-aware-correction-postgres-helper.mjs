@@ -8,10 +8,10 @@ const { makeService } = require('../payroll-scheme-service');
 
 // Only the guarded parent supplies this disposable database. All settlements
 // use normal owner services and real immutable source/expense/receipt guards.
-export async function verifyRefundAwarePaidCorrections({ pool, sourcePolicies }) {
+export async function verifyRefundAwarePaidCorrections({ pool, sourcePolicies, targetHalfMonth = false }) {
   const period = (await pool.query(`SELECT (date_trunc('month',CURRENT_DATE)-interval '2 months')::date::text AS "from",
     (date_trunc('month',CURRENT_DATE)-interval '1 month'-interval '1 day')::date::text AS "to"`)).rows[0];
-  const f = await seedUnpaidSupersessionFixture({ pool, period, sourcePolicies, withTarget: true });
+  const f = await seedUnpaidSupersessionFixture({ pool, period, sourcePolicies, withTarget: true, targetHalfMonth });
   const { ids, owner, service, run, refund, targetSource } = f;
   const materialize = async (runId, employeeId) => (await service.materializeCalculationEntry(owner, runId,
     { employeeId, financeCategoryId: null, idempotencyKey: `period-entry:${randomUUID()}` })).entry;
@@ -45,7 +45,15 @@ export async function verifyRefundAwarePaidCorrections({ pool, sourcePolicies })
   let targetRun = await service.createRefundAwareRun(owner, { schemeVersionId: targetVersion.versionId,
     periodFrom: targetPeriod.from, periodTo: targetPeriod.to, idempotencyKey: 'period-target-run' });
   assert.equal(targetRun.amountCents, 500);
-  let target = await materialize(targetRun.runId, ids.employee);
+  const materializeTarget = async (runId,key) => {
+    if (!targetHalfMonth) return materialize(runId,ids.employee);
+    const result = await service.materializeSecondHalfCalculationEntry(owner,runId,
+      {employeeId:ids.employee,financeCategoryId:null,idempotencyKey:key});
+    assert.equal(result.currentEntry.halfKind,'h2');
+    assert.ok(result.currentEntry.grossCents>0);
+    return result.currentEntry;
+  };
+  let target = await materializeTarget(targetRun.runId,'period-target-h2-initial');
   const previewFor = () => service.previewRefundAwareCorrection(owner,
     { operation: 'apply', originalEntryId: original.id, targetEntryId: target.id });
   const preview = await previewFor();
@@ -95,7 +103,7 @@ export async function verifyRefundAwarePaidCorrections({ pool, sourcePolicies })
   assert.deepEqual(historical, { amount: '0.00', status: 'cancelled' });
   targetRun = await service.createRefundAwareRun(owner, { schemeVersionId: targetVersion.versionId,
     periodFrom: targetPeriod.from, periodTo: targetPeriod.to, idempotencyKey: 'period-target-after-cancellation' });
-  target = await materialize(targetRun.runId, ids.employee);
+  target = await materializeTarget(targetRun.runId,'period-target-h2-replacement');
   const second = await previewFor();
   await service.applyRefundAwareCorrection(owner, { ...command, targetEntryId: target.id,
     expectedPlanHash: second.planHash, idempotencyKey: 'period-second-apply' });

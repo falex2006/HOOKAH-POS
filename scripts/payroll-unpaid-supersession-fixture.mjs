@@ -8,7 +8,7 @@ const { beginPayrollSourceProducerTransaction } = require('../payroll-source-fen
 // Called only after the parent validates its owned disposable PostgreSQL DB.
 // Seed uses real producer triggers with a session-local historical clock.
 export async function seedUnpaidSupersessionFixture({ pool, period, sourcePolicies, withTarget = false, withCostEvidence = false,
-  withSecondPositiveSale = false }) {
+  withSecondPositiveSale = false, targetHalfMonth = false }) {
   const dbName = (await pool.query('SELECT current_database() AS name')).rows[0].name;
   assert.match(dbName, /^orders_qa_[a-f0-9]{16}$/);
   assert.equal(dbName, process.env.LOCAL_FULL_PG_OWNED_DATABASE);
@@ -111,7 +111,7 @@ export async function seedUnpaidSupersessionFixture({ pool, period, sourcePolici
 
     if (withTarget) {
       const { seedCorrectionTargetSources } = await import('./payroll-correction-target-source-fixture.mjs');
-      targetSource = await seedCorrectionTargetSources(seed, { ids, period, clockSchema });
+      targetSource = await seedCorrectionTargetSources(seed, { ids, period, clockSchema, targetHalfMonth });
     }
     if (costClock) {
       await seed.query(costClock.guard);
