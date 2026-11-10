@@ -92,7 +92,7 @@ try {
   for (const [key, role] of [['owner', 'owner'], ['employee', 'bartender']]) await insert(pool, 'users', { id: ids[key], venue_id: ids.venue, organization_id: ids.org, full_name: key, login: `correction-${ids[key]}`, role });
   const realDraft = randomUUID();
   await insert(pool, 'payroll_entries', { id: realDraft, venue_id: ids.venue, user_id: ids.employee, period_from: '2026-01-01', period_to: '2026-01-31', amount: '1.00', status: 'draft' });
-  await fail(insert(pool, 'payroll_correction_claims', claimRow({ original_entry_id: realDraft })), 'original_paid_basis_required'); checks++;
+  await fail(insert(pool, 'payroll_correction_claims', claimRow({ original_entry_id: realDraft })), 'original_run_mismatch'); checks++;
   assert.equal((await pool.query('SELECT count(*)::int n FROM payroll_correction_claims')).rows[0].n, 0); checks++;
   assert.equal((await pool.query("SELECT count(*)::int n FROM pg_trigger WHERE tgrelid='public.payroll_entries'::regclass AND tgname='payroll_calculation_entry_guard' AND tgenabled='O'")).rows[0].n, 1); checks++;
   // Synthetic source fixture, deliberately separate schema. These minimal
