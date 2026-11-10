@@ -108,14 +108,31 @@ try {
   assert.equal(drafted.length, 1);
   assert.equal(drafted[0].status, 'draft');
   assert.equal(Number(drafted[0].amount), 4000);
+  const checkFinance = async (accruedCents, paidCents) => {
+    const response = await page.request.get(base + '/api/analytics?days=90');
+    assert.equal(response.status(), 200);
+    const report = await response.json();
+    for (const field of ['totalPayroll', 'totalExpenses', 'totalCashOutflow']) assert.equal(typeof report[field], 'number', field);
+    assert.equal(Math.round(report.totalPayroll * 100), accruedCents);
+    assert.equal(Math.round(report.totalExpenses * 100), accruedCents);
+    assert.equal(Math.round(report.totalCashOutflow * 100), paidCents);
+    const periodDays = report.days.filter(day => day.date >= periodFrom && day.date <= periodTo);
+    assert.equal(periodDays.reduce((sum, day) => sum + Math.round(day.payroll * 100), 0), accruedCents);
+    if (paidCents) {
+      assert.equal(Math.round(periodDays.find(day => day.date === periodTo).cashOutflow * 100), paidCents);
+    }
+  };
+  await checkFinance(0, 0);
   await page.locator('[data-payroll-action="approve"]').click();
   await page.waitForFunction(() => document.querySelector('[data-payroll-action="pay"]') !== null);
   assert.equal((await db.query('SELECT status FROM payroll_entries WHERE id=$1', [drafted[0].id])).rows[0].status, 'approved');
+  await checkFinance(400000, 0);
   await page.locator(`[data-payroll-payment-account="${drafted[0].id}"]`).selectOption(bank);
   await page.locator(`[data-payroll-payment-date="${drafted[0].id}"]`).fill(periodTo);
   await page.locator('[data-payroll-action="pay"]').click();
   await page.waitForFunction((id) => document.querySelector(`[data-entry="${id}"]`) === null && document.querySelector('#payroll-register .badge')?.textContent?.includes('Выплачено'), drafted[0].id);
   const saved = (await db.query("SELECT pe.status,pe.expense_id,e.amount,e.source,to_char(e.expense_date,'YYYY-MM-DD') AS expense_date FROM payroll_entries pe JOIN expenses e ON e.id=pe.expense_id WHERE pe.id=$1", [drafted[0].id])).rows;
+  await checkFinance(400000, 400000);
   assert.equal(saved.length, 1);
   assert.equal(saved[0].status, 'paid');
   assert.equal(Number(saved[0].amount), 4000);
