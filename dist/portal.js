@@ -7336,12 +7336,12 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
           : item.status === 'draft' ? 'Утвердите начисление'
           : netCents === 0 && linkedRun ? 'Подтвердите завершение' : !availablePayoutAccounts().length ? 'Требуется активный счёт выплаты' : 'Проведите выплату';
         const amountValues = [gross,withheld,actualPaid,outstanding];
-        const rowStart = grouped ? `<article class="payroll-team-row" data-payroll-entry="${esc(item.id)}"><details data-payroll-expand="${esc(item.id)}" ${expandedPayrollEntries.has(item.id) ? 'open' : ''}>
+        const rowStart = grouped ? `<article class="payroll-team-row" data-payroll-entry="${esc(item.id)}" data-payroll-status="${esc(item.status)}"><details data-payroll-expand="${esc(item.id)}" ${expandedPayrollEntries.has(item.id) ? 'open' : ''}>
           <summary><span class="payroll-team-person"><b>${esc(displayName(item.employeeName || item.userName || 'Сотрудник не указан'))}</b><small>${esc([halfLabel,period].filter(Boolean).join(' · '))}</small></span>
           <span class="payroll-team-status"><span class="badge ${statusStyle}">${esc(statusLabel)}</span>${linkedPending || paymentPending || linkedState?.sourceStatus === 'blocked' || (item.status === 'paid' && (actualPaid == null || actualPaid !== netCents)) ? `<small>${esc(nextAction)}</small>` : ''}</span>
           ${amountValues.map((v,i)=>`<span class="payroll-team-amount"><span>${amountLabels[i]}</span><b>${asMoney(v)}</b></span>`).join('')}
           <span class="payroll-team-chevron" aria-hidden="true"></span></summary><div class="payroll-entry-row payroll-team-body">` :
-          `<article class="payment-row payroll-entry-row" data-payroll-entry="${esc(item.id)}">
+          `<article class="payment-row payroll-entry-row" data-payroll-entry="${esc(item.id)}" data-payroll-status="${esc(item.status)}">
           <div class="payroll-entry-person"><b>${esc(displayName(item.employeeName || item.userName || 'Сотрудник не указан'))}</b><small>${esc([halfLabel,period].filter(Boolean).join(' · '))}</small><span class="badge ${statusStyle}">${esc(statusLabel)}</span></div>
           <dl class="payroll-register-amounts"><div><dt>Начислено</dt><dd>${asMoney(gross)}</dd></div><div><dt>Удержано</dt><dd>${asMoney(withheld)}</dd></div><div><dt>Выплачено</dt><dd>${asMoney(actualPaid)}</dd></div><div><dt>Остаток</dt><dd>${asMoney(outstanding)}</dd></div></dl>
           `;

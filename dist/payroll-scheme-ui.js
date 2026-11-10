@@ -3043,8 +3043,21 @@
     otherActions.append(otherTitle, otherButtons);
     const modelButton = payrollPanel.querySelector('#payroll-create-toggle');
     headerActions.prepend(nextStep, start);
+    const register = payrollPanel.querySelector('#payroll-register');
+    const nextRegisterEntry = () => register.querySelector('[data-payroll-status="approved"]') || register.querySelector('[data-payroll-status="draft"]');
     nextStep.addEventListener('click', async () => {
       if (pending) return;
+      if (nextStep.dataset.destination === 'entry') {
+        const row = nextRegisterEntry();
+        if (!row) { updateGuide(); return; }
+        const details = row.querySelector(':scope > details[data-payroll-expand]');
+        if (details) details.open = true;
+        const target = details?.querySelector('summary') || row;
+        if (!details) target.tabIndex = -1;
+        target.focus({preventScroll:true});
+        target.scrollIntoView({block:'center'});
+        return;
+      }
       if (nextStep.dataset.destination === 'saved') {
         selectWorkspace('saved', {focus:true});
         return;
@@ -3067,12 +3080,14 @@
       const versions = schemes.flatMap(scheme => sortedVersions(scheme));
       const canCalculate = versions.some(version => ['active','retired'].includes(version.status));
       const drafts = versions.filter(version => version.status === 'draft');
-      nextStep.hidden = !canCalculate && !drafts.length;
-      nextStep.dataset.destination = canCalculate ? 'saved' : 'trial';
-      nextStep.textContent = canCalculate ? 'Рассчитать зарплату' : drafts.length > 1 ? 'Выбрать черновик' : 'Проверить ставку';
+      const entry = nextRegisterEntry();
+      const approved = entry?.dataset.payrollStatus === 'approved';
+      nextStep.hidden = !entry && !canCalculate && !drafts.length;
+      nextStep.dataset.destination = entry ? 'entry' : canCalculate ? 'saved' : 'trial';
+      nextStep.textContent = entry ? (approved ? 'Перейти к выплате' : 'Проверить начисление') : canCalculate ? 'Рассчитать зарплату' : drafts.length > 1 ? 'Выбрать черновик' : 'Проверить ставку';
       start.hidden = false;
       start.textContent = versions.length ? 'Новая схема оплаты' : 'Настроить ставку';
-      const useModel = !versions.length && hasActiveModel && modelButton;
+      const useModel = !entry && !versions.length && hasActiveModel && modelButton;
       start.classList.toggle('primary', nextStep.hidden && !useModel);
       modelButton?.classList.toggle('primary', Boolean(useModel));
       if (!otherActions.isConnected) {
@@ -3082,13 +3097,18 @@
       if (modelButton) (useModel ? headerActions : otherButtons).prepend(modelButton);
       if (nextStep.hidden && !useModel) nextStep.after(start);
       else otherButtons.prepend(start);
-      guide.textContent = canCalculate
+      guide.textContent = entry ? (approved ? 'Есть утверждённое начисление. Откройте его, чтобы проверить сумму и оформить выплату.' : 'Откройте черновик, проверьте сумму и утвердите начисление.') : canCalculate
         ? 'Выберите период, чтобы узнать сумму к выплате. Уже рассчитанную зарплату можно выплатить из ведомости ниже.'
         : drafts.length > 1 ? 'Выберите черновик и откройте его, чтобы проверить ставку на примере смены.'
         : drafts.length ? 'Ставка сохранена в черновике. Проверьте её на примере смены и активируйте для расчёта.'
         : useModel ? 'Модель оплаты уже настроена. Выберите сотрудника и период, чтобы создать начисление.'
         : 'Для новой ставки выберите сотрудника, сумму и дату начала. Сохранённые начисления открываются в ведомости.';
     };
+    const registerObserver = new MutationObserver(() => {
+      if (schemesLoaded || nextRegisterEntry()) updateGuide();
+      else if (nextStep.dataset.destination === 'entry') nextStep.hidden = true;
+    });
+    registerObserver.observe(register, {childList:true});
     start.addEventListener('click', async () => {
       otherActions.open = false;
       showPayrollScreen('settings');
@@ -3299,6 +3319,7 @@
     const attendanceRefresh = panel.querySelector('[data-attendance-refresh]');
     const attendanceApprove = panel.querySelector('[data-attendance-approve]');
     let schemes = [];
+    let schemesLoaded = false;
     let hasActiveModel = false;
     let editorAction = null;
     let selectedVersion = null;
@@ -3820,13 +3841,14 @@
       try {
         const data = await request('/api/payroll/schemes');
         schemes = Array.isArray(data.items) ? data.items : [];
+        schemesLoaded = true;
         renderList(); notify(''); updateGuide();
         if (!schemes.some(scheme => sortedVersions(scheme).length)) {
           const models = await request('/api/payroll/rules').catch(() => null);
           if (models) { hasActiveModel = (models.items || []).some(item => item.active !== false); updateGuide(); }
         }
       }
-      catch (error) { schemes = []; start.hidden = true; nextStep.hidden = true; guide.textContent = error.status === 401 ? 'Сеанс завершён. Войдите снова, чтобы открыть ставки.' : 'Не удалось загрузить ставки. Перейдите в «Настройки оплаты» и нажмите «Повторить».'; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.status === 401 ? 'требуется повторный вход' : error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
+      catch (error) { schemesLoaded = false; schemes = []; start.hidden = true; nextStep.hidden = true; guide.textContent = error.status === 401 ? 'Сеанс завершён. Войдите снова, чтобы открыть ставки.' : 'Не удалось загрузить ставки. Перейдите в «Настройки оплаты» и нажмите «Повторить».'; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.status === 401 ? 'требуется повторный вход' : error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
     };
     const openVersion = async (versionId, transitionToken = null) => {
       const token = transitionToken ?? await beginEditorTransition();
