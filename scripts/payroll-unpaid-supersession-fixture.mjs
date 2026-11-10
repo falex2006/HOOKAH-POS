@@ -8,11 +8,13 @@ const { beginPayrollSourceProducerTransaction } = require('../payroll-source-fen
 // Called only after the parent validates its owned disposable PostgreSQL DB.
 // Seed uses real producer triggers with a session-local historical clock.
 export async function seedUnpaidSupersessionFixture({ pool, period, sourcePolicies, withTarget = false, withCostEvidence = false,
-  withSecondPositiveSale = false, targetHalfMonth = false }) {
+  withSecondPositiveSale = false, targetHalfMonth = false, sourcesOnly = false }) {
   const dbName = (await pool.query('SELECT current_database() AS name')).rows[0].name;
   assert.match(dbName, /^orders_qa_[a-f0-9]{16}$/);
   assert.equal(dbName, process.env.LOCAL_FULL_PG_OWNED_DATABASE);
   const ids = Object.fromEntries(['org','venue','owner','employee','zeroEmployee','product','order','item','zeroItem','pricing','payment','account'].map(k => [k, randomUUID()]));
+  const demoNames = {owner:'Владелец демозала',employee:'Анна Смирнова',zeroEmployee:'Иван Соколов'};
+  const secondSeller = sourcesOnly ? ids.employee : ids.zeroEmployee;
   const secondPrice = withSecondPositiveSale ? 100 : 0, totalPrice = 100 + secondPrice;
   const clockSchema = 'payroll_seed_clock_' + randomUUID().replaceAll('-', '');
   const seed = await pool.connect();
@@ -53,7 +55,7 @@ export async function seedUnpaidSupersessionFixture({ pool, period, sourcePolici
   await seed.query("INSERT INTO venues(id,organization_id,name,timezone) VALUES($1,$2,'Verified run QA','UTC')", [ids.venue, ids.org]);
   for (const role of ['owner', 'employee', 'zeroEmployee']) {
     await seed.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,role)
-      VALUES($1,$2,$3,$4,$5,$6)`, [ids[role], ids.venue, ids.org, `Verified ${role}`, `verified-${ids[role]}`, role === 'owner' ? 'owner' : 'bartender']);
+      VALUES($1,$2,$3,$4,$5,$6)`, [ids[role], ids.venue, ids.org, sourcesOnly ? demoNames[role] : `Verified ${role}`, `verified-${ids[role]}`, role === 'owner' ? 'owner' : 'bartender']);
     await seed.query(`INSERT INTO organization_memberships(organization_id,user_id,membership_role,status)
       VALUES($1,$2,$3,'active')`, [ids.org, ids[role], role === 'owner' ? 'owner' : 'member']);
   }
@@ -64,7 +66,7 @@ export async function seedUnpaidSupersessionFixture({ pool, period, sourcePolici
   await seed.query(`INSERT INTO order_items(id,order_id,product_id,quantity,unit_price,station,sales_employee_id,sold_at)
     VALUES($1,$2,$3,1,100,'bar',$4,transaction_timestamp())`, [ids.item, ids.order, ids.product, ids.employee]);
   await seed.query(`INSERT INTO order_items(id,order_id,product_id,quantity,unit_price,station,sales_employee_id,sold_at)
-    VALUES($1,$2,$3,1,$5,'bar',$4,transaction_timestamp())`, [ids.zeroItem, ids.order, ids.product, ids.zeroEmployee,secondPrice]);
+    VALUES($1,$2,$3,1,$5,'bar',$4,transaction_timestamp())`, [ids.zeroItem, ids.order, ids.product, secondSeller,secondPrice]);
   await seed.query(`INSERT INTO pos_order_pricing_snapshots(id,venue_id,order_id,sold_at,transaction_at,
     subtotal_minor,discount_minor,minimum_adjustment_minor,final_total_minor,discount_source,winner_source_ids,
     eligible_item_ids,winner_terms,frozen_terms)
@@ -79,7 +81,7 @@ export async function seedUnpaidSupersessionFixture({ pool, period, sourcePolici
   await seed.query(`INSERT INTO pos_order_pricing_snapshot_lines(venue_id,snapshot_id,order_id,order_item_id,seller_id,
     sold_at,quantity,unit_price,gross_minor,discount_minor,net_minor,eligible,product_facts)
     VALUES($1,$2,$3,$4,$5,transaction_timestamp(),1,$7,$8,0,$8,false,$6)`,
-  [ids.venue, ids.pricing, ids.order, ids.zeroItem, ids.zeroEmployee,
+  [ids.venue, ids.pricing, ids.order, ids.zeroItem, secondSeller,
     JSON.stringify({ productId: ids.product, productName: 'Historical tea', category: 'bar', station: 'bar', productActive: true }),secondPrice,secondPrice*100]);
   await seed.query(`INSERT INTO finance_accounts(id,venue_id,code,name,kind,allowed_payment_methods,created_by)
     VALUES($1,$2,'freshness_bank','Freshness QA bank','bank',ARRAY['card']::text[],$3)`, [ids.account, ids.venue, ids.owner]);
@@ -125,7 +127,8 @@ export async function seedUnpaidSupersessionFixture({ pool, period, sourcePolici
   const owner = { venueId: ids.venue, userId: ids.owner }, service = makeService(pool);
   await service.createEmploymentEligibilityRevision(owner, { expectedRevisionId: null,
     reason: 'Owner confirms historical unpaid cohort', idempotencyKey: 'supersession-eligible',
-    periods: [ids.employee,ids.zeroEmployee].map(employeeId => ({ employeeId, effectiveFrom: period.from, effectiveTo: targetSource?.eligibilityTo || period.to })) });
+    periods: (sourcesOnly ? [ids.employee] : [ids.employee,ids.zeroEmployee]).map(employeeId => ({ employeeId, effectiveFrom: period.from, effectiveTo: targetSource?.eligibilityTo || period.to })) });
+  if (sourcesOnly) return { ids, owner, service };
   const version = (await service.createScheme(owner, { name: 'Unpaid refund-aware whole cohort',
     payoutRiskAcknowledgement: { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' },
     definition: { mode:'percent_only', currency:'RUB', effectiveFrom:period.from, effectiveTo:period.to, applyMilestones:false,
