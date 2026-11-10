@@ -7,11 +7,12 @@ const { createHash } = require('node:crypto');
 const { payrollCorrectionLedgerEventFromRow, samePayrollCorrectionSource } = require('./payroll-correction-ledger-source');
 const { hasPayrollVerifiedWriteSnapshot } = require('./payroll-source-fence');
 const { loadSavedRunEvidenceInTransaction } = require('./payroll-saved-run-reader');
-const { executeCalculatorReplay } = require('./payroll-calculator-replay');
+const { executeCalculatorReplay, executePayrollH1FixedShiftsReplay } = require('./payroll-calculator-replay');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA = /^[a-f0-9]{64}$/;
 const MAX_ENTRY_CENTS = 999999999999n; // numeric(12,2)
+const H1_CAPABILITY = 'employee_attributed_h1_fixed_shifts_v1';
 const PURPOSES = new Set(['current_transition', 'historical_paid']);
 const fail = suffix => { throw Object.assign(new Error(`payroll_entry_evidence_${suffix}`), {
   code: `payroll_entry_evidence_${suffix}`, status: 409
@@ -151,7 +152,7 @@ const verifyZeroSettlement = async (db, identity, current, totals, capabilityVer
       || settled.corrections.ledgerHash !== receipt.ledger_hash || !Array.isArray(settled.corrections.activeApplicationIds)) fail('zero_settlement_invalid');
   const { correctionEvidenceHash, ...correctionBody } = settled.corrections;
   if (typeof correctionEvidenceHash !== 'string' || hash(correctionBody) !== correctionEvidenceHash) fail('zero_settlement_invalid');
-  const captured = capabilityVersion === 'employee_attributed_remaining_net_refund_v2';
+  const captured = ['employee_attributed_remaining_net_refund_v2','employee_attributed_h1_fixed_shifts_v1'].includes(capabilityVersion);
   const allEvents = (await db.query(`SELECT e.id,e.sequence_no::text,e.venue_id,e.employee_id,e.claim_id,e.kind,
       e.amount_cents::text,e.target_entry_id,e.reverses_event_id,c.original_entry_id,c.refund_line_event_id,c.currency,
       to_jsonb(c)->>'source_kind' AS source_kind,
@@ -235,6 +236,7 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
       pe.status,pe.calculation_run_id::text AS calculation_run_id,pe.calculation_provenance_sha256,
       pe.calculation_gross_cents::text AS calculation_gross_cents,pe.amount::text AS amount,pe.period_from::text AS period_from,
       pe.period_to::text AS period_to,pe.paid_at::text AS paid_at,pe.payment_date::text AS payment_date,pe.paid_by::text AS paid_by,pe.expense_id::text AS expense_id,
+      to_jsonb(pe)->>'payroll_half_kind' AS payroll_half_kind,
       e.id::text AS linked_expense_id,e.venue_id::text AS expense_venue_id,e.source AS expense_source,e.amount::text AS expense_amount
     FROM payroll_entries pe LEFT JOIN expenses e ON e.venue_id=pe.venue_id AND e.id=pe.expense_id
     WHERE pe.venue_id=$1 AND pe.id=$2 AND pe.calculation_run_id IS NOT NULL FOR SHARE OF pe`, [venueId, expected.id])).rows[0];
@@ -266,8 +268,11 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
       || evidence.period?.to !== expected.periodTo || !evidence.calculatorReplay
       || hash(evidence) !== expected.provenanceSha256) fail('run_provenance_or_context_mismatch');
 
+  const h1FixedShifts = header.capabilityVersion === H1_CAPABILITY;
+  if (h1FixedShifts !== (current.payroll_half_kind === 'h1')) fail('h1_marker_mismatch');
   let replay;
-  try { replay = executeCalculatorReplay(evidence.calculatorReplay); }
+  try { replay = h1FixedShifts ? executePayrollH1FixedShiftsReplay(evidence.calculatorReplay)
+    : executeCalculatorReplay(evidence.calculatorReplay); }
   catch (_) { fail('calculator_replay_invalid'); }
   if (!replay.matched || !replay.replayVerified || replay.status !== 'matched' || !replay.result) fail('calculator_replay_unverified');
   const totals = await verifyDailySnapshots(db, { ...expected, venueId }, replay.result);
@@ -290,7 +295,7 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
   const sourceEvidence = evidence.sourceEvidence;
   const proof = {
     schemaVersion: 1,
-    ...(evidence.capabilityVersion === 'employee_attributed_remaining_net_refund_v2'
+    ...(evidence.capabilityVersion === 'employee_attributed_remaining_net_refund_v2' || h1FixedShifts
       ? { capabilityVersion: evidence.capabilityVersion } : {}),
     proofKind: purpose,
     venueId,

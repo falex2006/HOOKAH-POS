@@ -6,6 +6,7 @@
 const { loadSavedRunEvidenceInTransaction } = require('./payroll-saved-run-reader');
 const { buildPayrollVerifiedCalculation } = require('./payroll-verified-calculation');
 const { buildPayrollRefundAwareCalculation, PAYROLL_REFUND_AWARE_CAPABILITY } = require('./payroll-refund-aware-calculation');
+const { CAPABILITY_VERSION: H1_FIXED_SHIFTS_CAPABILITY } = require('./payroll-h1-fixed-shifts-provenance');
 const { isDeepStrictEqual } = require('node:util');
 const SHA = /^[a-f0-9]{64}$/;
 const safeReasons = reasons => [...new Set((Array.isArray(reasons) ? reasons : [])
@@ -16,15 +17,22 @@ const checkPayrollRunSourceFreshnessInTransaction = async (db, actor, runId, col
   // The historical scheme is part of the saved calculation. A current scheme
   // name/status change must not silently replace it while checking its sources.
   const scheme = structuredClone(evidence.schemeSnapshot), period = { ...evidence.period };
-  if (evidence.schemaVersion === 2 && evidence.capabilityVersion === PAYROLL_REFUND_AWARE_CAPABILITY) {
+  const h1FixedShifts = evidence.schemaVersion === 4 && evidence.capabilityVersion === H1_FIXED_SHIFTS_CAPABILITY;
+  if ((evidence.schemaVersion === 2 && evidence.capabilityVersion === PAYROLL_REFUND_AWARE_CAPABILITY) || h1FixedShifts) {
     if (typeof collectRefundContext !== 'function') throw Object.assign(new Error('payroll_saved_run_source_collector_required'),
       { code: 'payroll_saved_run_source_collector_required', status: 409 });
-    const context = await collectRefundContext(db, actor, scheme, period);
-    const current = context.status === 'source_arguments_collected' ? buildPayrollRefundAwareCalculation(context.sourceArgs) : context;
+    const context = await collectRefundContext(db, actor, scheme, period, { h1FixedShifts });
+    const current = context.status === 'source_arguments_collected'
+      ? buildPayrollRefundAwareCalculation({ ...context.sourceArgs, h1FixedShifts }) : context;
     const closure = context.sourceArgs?.periodClosure;
-    const verified = current.status === 'refund_aware_calculated' && current.capabilityVersion === evidence.capabilityVersion
+    const verified = current.status === 'refund_aware_calculated'
+      && (h1FixedShifts ? evidence.capabilityVersion === H1_FIXED_SHIFTS_CAPABILITY
+        && evidence.calculatorReplay?.algorithm === 'h1_fixed_shifts_v1'
+        : current.capabilityVersion === evidence.capabilityVersion)
       && current.venueId === actor.venueId && current.schemeVersionId === evidence.schemeVersionId && current.currency === evidence.currency
       && current.period?.from === period.from && current.period?.to === period.to && SHA.test(current.inputWatermark || '');
+    // The transaction timestamp in the closure intentionally changes on every
+    // fresh read. Source freshness binds economic input, not that timestamp.
     const sourceChanged = verified ? current.inputWatermark !== evidence.inputWatermark : null;
     const timezoneChanged = closure ? closure.timezone !== evidence.venueTimezone : false;
     const reasons = safeReasons(current.reasons);

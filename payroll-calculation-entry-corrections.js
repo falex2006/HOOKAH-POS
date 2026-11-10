@@ -87,9 +87,45 @@ async function verifyPayrollEntryCorrections(db, actor, proof) {
   const result = { schemaVersion: 1, entryId: proof.entryId, venueId: proof.venueId, employeeId: proof.employeeId,
     netCents: proof.netCents, protectedFixedCents: proof.protectedFixedCents, appliedCents: Number(used),
     ledgerHash: hash([...ledger].sort((a, b) => a.id.localeCompare(b.id))),
-    ...(proof.capabilityVersion === 'employee_attributed_remaining_net_refund_v2'
+    ...(['employee_attributed_remaining_net_refund_v2','employee_attributed_h1_fixed_shifts_v1'].includes(proof.capabilityVersion)
       ? { ledgerCaptureSchemaVersion: 1, ledgerEventIds: ledger.map(event => event.id).sort() } : {}),
     activeApplicationIds: [...active.keys()].sort(), sources };
   return freeze({ ...result, correctionEvidenceHash: hash(result) });
 }
-module.exports = { verifyPayrollEntryCorrections };
+// Verify the ledger captured by the immutable approval/payment receipt. Later
+// journal events for another entry can legitimately exist for the employee.
+async function verifyCapturedH1Corrections(db, actor, proof, capture) {
+  if (!hasPayrollVerifiedWriteSnapshot(db, actor.venueId) || proof.venueId !== actor.venueId
+      || capture?.ledgerCaptureSchemaVersion !== 1 || capture.entryId !== proof.entryId
+      || capture.employeeId !== proof.employeeId || capture.venueId !== proof.venueId
+      || capture.netCents !== proof.netCents || capture.protectedFixedCents !== proof.protectedFixedCents
+      || !Array.isArray(capture.ledgerEventIds) || !Array.isArray(capture.activeApplicationIds)) fail('capture_invalid');
+  const {correctionEvidenceHash, ...basis} = capture;
+  if (hash(basis) !== correctionEvidenceHash) fail('capture_invalid');
+  const ids = new Set(capture.ledgerEventIds);
+  if (ids.size !== capture.ledgerEventIds.length) fail('capture_invalid');
+  const history = await readReviewedCorrectionLedger(db, actor, proof.employeeId);
+  const frozen = history.filter(event => ids.has(event.id));
+  if (ids.size !== frozen.length || hash([...frozen].sort((a,b) => a.id.localeCompare(b.id))) !== capture.ledgerHash
+      || history.some(event => event.targetEntryId === proof.entryId && !ids.has(event.id))) fail('capture_invalid');
+  const applications = new Map();
+  let applied = 0;
+  for (const event of frozen.filter(row => row.targetEntryId === proof.entryId)) {
+    if (!Number.isSafeInteger(event.amountCents) || event.amountCents <= 0) fail('capture_invalid');
+    if (event.kind === 'apply' && !applications.has(event.id)) {
+      applications.set(event.id, event);
+      applied += event.amountCents;
+    } else if (event.kind === 'release') {
+      const original = applications.get(event.reversesEventId);
+      if (!original || original.amountCents !== event.amountCents || original.originalEntryId !== event.originalEntryId
+          || !samePayrollCorrectionSource(original, event)) fail('capture_invalid');
+      applications.delete(original.id);
+      applied -= event.amountCents;
+    } else fail('capture_invalid');
+    if (applied < 0 || applied > proof.eligibleVariableCents) fail('capture_invalid');
+  }
+  if (hash([...applications.keys()].sort()) !== hash(capture.activeApplicationIds)
+      || applied !== capture.appliedCents || proof.grossCents - applied !== proof.netCents) fail('capture_invalid');
+  return capture;
+}
+module.exports = { verifyPayrollEntryCorrections, verifyCapturedH1Corrections };

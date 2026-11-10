@@ -63,7 +63,16 @@ const service = {
   getProductDepartmentRevision: async (principal, target) => { calls.push(['getProductDepartmentRevision', principal, target]); return { id: target }; },
   writeProductDepartmentRevision: async (principal, input, retroactive) => {
     calls.push(['writeProductDepartmentRevision', principal, input, retroactive]); return { revisionNo: 1, replayed: false };
-  }
+  },
+  listCalculationEntries: async (principal, runId) => { calls.push(['listCalculationEntries', principal, runId]); return { items: [] }; },
+  materializeCalculationEntry: async (principal, runId, input) => {
+    calls.push(['materializeCalculationEntry', principal, runId, input]); return { replayed: false, existing: false, entry: { id } };
+  },
+  materializeH1Entry: async (principal, runId, input) => {
+    calls.push(['materializeH1Entry', principal, runId, input]); return { replayed: false, currentEntry: { id, halfKind: 'h1' } };
+  },
+  createH1CalculationRun: async (principal, input) => { calls.push(['createH1CalculationRun', principal, input]);
+    return { status: 'ready', runId: testRunId, capabilityVersion: 'employee_attributed_h1_fixed_shifts_v1', replayed: false }; }
 };
 const dispatch = async (req, { selectedService = service, body = bodyReader } = {}) => {
   const { response, json } = responseFor();
@@ -76,6 +85,34 @@ assert.equal(result.handled, true);
 assert.equal(result.status, 200);
 assert.deepEqual(result.body.items, [scheme]);
 assert.deepEqual(calls.at(-1), ['listSchemes', { userId: id, venueId }]);
+
+const testRunId = '00000000-0000-4000-8000-000000000004';
+const materialization = { employeeId: id, financeCategoryId: null, idempotencyKey: 'h1-route-test-key' };
+const h1RunInput = { schemeVersionId: versionId, periodFrom: '2026-10-01', periodTo: '2026-10-14', idempotencyKey: 'h1-run-route-test' };
+result = await dispatch({ ...requestFor('POST', '/api/payroll/h1-calculation-runs'), body: h1RunInput });
+assert.equal(result.status, 201); assert.equal(result.body.capabilityVersion, 'employee_attributed_h1_fixed_shifts_v1');
+assert.deepEqual(calls.at(-1), ['createH1CalculationRun', { userId: id, venueId }, h1RunInput]);
+const h1RunCallsBeforeInvalid = calls.length;
+result = await dispatch({ ...requestFor('POST', '/api/payroll/h1-calculation-runs'), body: { ...h1RunInput, amountCents: 999999 } });
+assert.equal(result.status, 400); assert.equal(calls.length, h1RunCallsBeforeInvalid, 'client cannot supply H1 output or flags');
+result = await dispatch({ ...requestFor('POST', '/api/payroll/h1-calculation-runs'), user: { id, venueId, role: 'manager' }, body: h1RunInput });
+assert.equal(result.status, 403); assert.equal(calls.length, h1RunCallsBeforeInvalid, 'non-owner cannot invoke H1 calculation');
+result = await dispatch({ ...requestFor('POST', '/api/payroll/h1-calculation-runs'),
+  headers: { host: 'crm.example.test', origin: 'https://attacker.example.test', 'content-type': 'application/json' }, body: h1RunInput });
+assert.equal(result.status, 403); assert.equal(calls.length, h1RunCallsBeforeInvalid, 'H1 run writes require same-origin protection');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/calculation-runs/${testRunId}/h1-entries`), body: materialization });
+assert.equal(result.status, 201); assert.equal(result.body.currentEntry.halfKind, 'h1');
+assert.deepEqual(calls.at(-1), ['materializeH1Entry', { userId: id, venueId }, testRunId, materialization]);
+const h1CallsBeforeInvalid = calls.length;
+result = await dispatch({ ...requestFor('POST', `/api/payroll/calculation-runs/${testRunId}/h1-entries`), body: { ...materialization, periodFrom: '2026-10-01' } });
+assert.equal(result.status, 400); assert.equal(calls.length, h1CallsBeforeInvalid, 'client cannot provide H1 dates');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/calculation-runs/${testRunId}/h1-entries?venueId=foreign`), body: materialization });
+assert.equal(result.status, 400); assert.equal(calls.length, h1CallsBeforeInvalid, 'tenant scope cannot be selected by query');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/calculation-runs/${testRunId}/h1-entries`, { body: materialization }),
+  body: materialization, user: { id, venueId, role: 'manager' } });
+assert.equal(result.status, 403); assert.equal(calls.length, h1CallsBeforeInvalid, 'non-owner cannot invoke H1 writer');
+result = await dispatch({ ...requestFor('POST', `/api/payroll/calculation-runs/${testRunId}/entries`), body: materialization });
+assert.equal(result.status, 201); assert.equal(calls.at(-1)[0], 'materializeCalculationEntry', 'legacy entry API remains intact');
 
 result = await dispatch(requestFor('GET', '/api/payroll/attendance/approvals?from=2026-10-01&to=2026-10-31'));
 assert.equal(result.status, 200);

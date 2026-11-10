@@ -29,11 +29,14 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
   const versionActionPath = pathname.match(/^\/api\/payroll\/versions\/([^/]+)(?:\/(revisions|activate|preview|preview\/approved-attendance|preview\/venue-turnover|preview\/sourced|source-readiness))?$/);
   const isCollection = pathname === '/api/payroll/schemes';
   const isRunCollection = pathname === '/api/payroll/calculation-runs';
+  const isH1RunCollection = pathname === '/api/payroll/h1-calculation-runs';
   const isRefundAwareRunCollection = pathname === '/api/payroll/refund-aware-calculation-runs';
   const replayPath = pathname.match(/^\/api\/payroll\/calculation-runs\/([^/]+)\/replay$/);
   const freshnessPath = pathname.match(/^\/api\/payroll\/calculation-runs\/([^/]+)\/freshness$/);
   const supersessionPath = pathname.match(/^\/api\/payroll\/calculation-runs\/([^/]+)\/supersession(\/preview)?$/);
   const calculationEntriesPath = pathname.match(/^\/api\/payroll\/calculation-runs\/([^/]+)\/entries$/);
+  const calculationH1EntriesPath = pathname.match(/^\/api\/payroll\/calculation-runs\/([^/]+)\/h1-entries$/);
+  const h2CalculationEntriesPath = pathname.match(/^\/api\/payroll\/calculation-runs\/([^/]+)\/h2-entries$/);
   const calculationEntryStatePath = pathname.match(/^\/api\/payroll\/calculation-entries\/([^/]+)\/state$/);
   const calculationEntryTransitionPath = pathname.match(/^\/api\/payroll\/calculation-entries\/([^/]+)\/transition$/);
   const reviewedCorrectionContextPath = pathname.match(/^\/api\/payroll\/calculation-entries\/([^/]+)\/(corrections|refund-aware-corrections)$/);
@@ -58,7 +61,7 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
   const productDepartmentRevisionPath = pathname.match(/^\/api\/payroll\/product-department-mappings\/revisions\/([^/]+)$/);
   const productDepartmentNormalWrite = pathname === '/api/payroll/product-department-mappings/revisions';
   const productDepartmentRetroWrite = pathname === '/api/payroll/product-department-mappings/retroactive-revisions';
-  if (!isCollection && !isRunCollection && !isRefundAwareRunCollection && !isRunPath && !replayPath && !freshnessPath && !supersessionPath && !calculationEntriesPath && !calculationEntryStatePath && !calculationEntryTransitionPath && !isReviewedCorrection && !createRefundReviewPath && !isRefundReviews && !refundReviewPath && !schemeIdPath && !versionActionPath && !isCompare && !isSourcedCompare && !isEntryOverlapDiagnostic && !isAttendanceCollection
+  if (!isCollection && !isRunCollection && !isH1RunCollection && !isRefundAwareRunCollection && !isRunPath && !replayPath && !freshnessPath && !supersessionPath && !calculationEntriesPath && !calculationH1EntriesPath && !h2CalculationEntriesPath && !calculationEntryStatePath && !calculationEntryTransitionPath && !isReviewedCorrection && !createRefundReviewPath && !isRefundReviews && !refundReviewPath && !schemeIdPath && !versionActionPath && !isCompare && !isSourcedCompare && !isEntryOverlapDiagnostic && !isAttendanceCollection
       && !isEmploymentEligibilityCollection && !isEmploymentEligibilityEmployees && !productDepartmentCollection
       && !productDepartmentRevisionPath && !productDepartmentNormalWrite && !productDepartmentRetroWrite) return false;
 
@@ -76,6 +79,12 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
   if (calculationEntriesPath && !['GET', 'POST'].includes(req.method)) {
     res.setHeader?.('Allow', 'GET, POST'); json(res, 405, { error: 'method_not_allowed' }); return true;
   }
+  if (calculationH1EntriesPath && req.method !== 'POST') {
+    res.setHeader?.('Allow', 'POST'); json(res, 405, { error: 'method_not_allowed' }); return true;
+  }
+  if (h2CalculationEntriesPath && req.method !== 'POST') {
+    res.setHeader?.('Allow', 'POST'); json(res, 405, { error: 'method_not_allowed' }); return true;
+  }
   if ((calculationEntryStatePath && req.method !== 'GET') || (calculationEntryTransitionPath && req.method !== 'POST')) {
     const allow = calculationEntryStatePath ? 'GET' : 'POST';
     res.setHeader?.('Allow', allow); json(res, 405, { error: 'method_not_allowed' }); return true;
@@ -88,8 +97,8 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
     const allow = createRefundReviewPath || refundReviewPath?.[2] ? 'POST' : 'GET';
     if (req.method !== allow) { res.setHeader?.('Allow', allow); json(res, 405, { error: 'method_not_allowed' }); return true; }
   }
-  if ((isRunCollection && !['GET', 'POST'].includes(req.method)) || (isRunPath && req.method !== 'GET')) {
-    res.setHeader?.('Allow', isRunCollection ? 'GET, POST' : 'GET');
+  if ((isRunCollection && !['GET', 'POST'].includes(req.method)) || (isH1RunCollection && req.method !== 'POST') || (isRunPath && req.method !== 'GET')) {
+    res.setHeader?.('Allow', isRunCollection ? 'GET, POST' : isH1RunCollection ? 'POST' : 'GET');
     json(res, 405, { error: 'method_not_allowed' }); return true;
   }
   if (isEmploymentEligibilityEmployees && req.method !== 'GET') {
@@ -130,6 +139,33 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
   };
 
   try {
+    if (h2CalculationEntriesPath) {
+      const monthlyRunId = decodeId(h2CalculationEntriesPath[1]);
+      if (!UUID.test(monthlyRunId) || url.searchParams.size) {
+        json(res,400,{error:'payroll_half_month_request_invalid'}); return true;
+      }
+      const input = await inputForWrite();
+      const keys = ['employeeId','financeCategoryId','idempotencyKey'];
+      if (Object.getPrototypeOf(input) !== Object.prototype || Reflect.ownKeys(input).length !== keys.length
+          || keys.some(key => !Object.hasOwn(input,key))
+          || Object.values(Object.getOwnPropertyDescriptors(input)).some(d => !Object.hasOwn(d,'value'))) {
+        json(res,400,{error:'payroll_half_month_request_invalid'}); return true;
+      }
+      const result = await service.materializeSecondHalfCalculationEntry(principal,monthlyRunId.toLowerCase(),input);
+      json(res,result.status === 'blocked' ? 422 : result.replayed ? 200 : 201,result); return true;
+    }
+    if (isH1RunCollection) {
+      if (url.searchParams.size) { json(res, 400, { error: 'payroll_h1_request_invalid' }); return true; }
+      const input = await inputForWrite();
+      const keys = ['schemeVersionId', 'periodFrom', 'periodTo', 'idempotencyKey'];
+      if (Object.getPrototypeOf(input) !== Object.prototype || Reflect.ownKeys(input).length !== keys.length
+          || keys.some(key => !Object.hasOwn(input, key))
+          || Object.values(Object.getOwnPropertyDescriptors(input)).some(d => !Object.hasOwn(d, 'value'))) {
+        json(res, 400, { error: 'payroll_h1_request_invalid' }); return true;
+      }
+      const result = await service.createH1CalculationRun(principal, input);
+      json(res, result.status !== 'ready' ? 422 : result.replayed ? 200 : 201, result); return true;
+    }
     if (isRefundAwareRunCollection) {
       if (url.searchParams.size) { json(res, 400, { error: 'payroll_refund_aware_request_invalid' }); return true; }
       const input = await inputForWrite();
@@ -205,6 +241,21 @@ const handlePayrollSchemeRoute = async ({ req, res, url, service, readBody, json
       }
       const result = await service.materializeCalculationEntry(principal, runId, input);
       json(res, result.replayed || result.existing ? 200 : 201, result); return true;
+    }
+    if (calculationH1EntriesPath) {
+      const runId = decodeId(calculationH1EntriesPath[1]);
+      if (!UUID.test(runId) || url.searchParams.size) {
+        json(res, 400, { error: 'invalid_payroll_entry_materialization_request' }); return true;
+      }
+      const input = await inputForWrite();
+      const keys = ['employeeId', 'financeCategoryId', 'idempotencyKey'];
+      if (Object.getPrototypeOf(input) !== Object.prototype || Reflect.ownKeys(input).length !== keys.length
+          || keys.some(key => !Object.hasOwn(input, key))
+          || Object.values(Object.getOwnPropertyDescriptors(input)).some(descriptor => !Object.hasOwn(descriptor, 'value'))) {
+        json(res, 400, { error: 'invalid_payroll_entry_materialization_request' }); return true;
+      }
+      const result = await service.materializeH1Entry(principal, runId, input);
+      json(res, result.replayed ? 200 : 201, result); return true;
     }
     if (createRefundReviewPath || isRefundReviews || refundReviewPath) {
       const reviewId = createRefundReviewPath ? decodeId(createRefundReviewPath[1]) : refundReviewPath ? decodeId(refundReviewPath[1]) : null;

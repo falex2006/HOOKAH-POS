@@ -4,14 +4,16 @@
 // Reads persisted explanations. Explicit replay uses only saved engine inputs;
 // neither reading nor replaying revisits current sources or posts money.
 const { createHash } = require('node:crypto');
-const { validateCalculatorReplay, executeCalculatorReplay } = require('./payroll-calculator-replay');
+const { validateCalculatorReplay, executeCalculatorReplay, executePayrollH1FixedShiftsReplay } = require('./payroll-calculator-replay');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA = /^[0-9a-f]{64}$/;
 const ENGINE = 'payroll-verified-no-refund-v1';
 const CAPABILITY = 'employee_attributed_merchandise_net_no_refund_v1';
 const REFUND_ENGINE = 'payroll-verified-remaining-net-v2';
 const REFUND_CAPABILITY = 'employee_attributed_remaining_net_refund_v2';
-const ENGINES = Object.freeze([ENGINE, REFUND_ENGINE]);
+const H1_ENGINE = 'h1_fixed_shifts_v1';
+const H1_CAPABILITY = 'employee_attributed_h1_fixed_shifts_v1';
+const ENGINES = Object.freeze([ENGINE, REFUND_ENGINE, H1_ENGINE]);
 const MAX = BigInt(Number.MAX_SAFE_INTEGER);
 class PayrollSavedRunReadError extends Error {
   constructor(code, status = 400) { super(code); this.name = 'PayrollSavedRunReadError'; this.code = code; this.status = status; }
@@ -75,8 +77,10 @@ const HEADER = `SELECT r.id,r.venue_id,r.scheme_version_id,r.period_from::text,r
     WHERE l.venue_id=r.venue_id AND l.run_id=r.id) AS snapshot_line_count
   FROM payroll_calculation_runs r LEFT JOIN payroll_run_provenance p ON p.venue_id=r.venue_id AND p.run_id=r.id`;
 const verifiedHeader = (row, venueId) => {
-  const refundAware = row.engine_version === REFUND_ENGINE;
-  const schemaVersion = refundAware ? 2 : 1, capability = refundAware ? REFUND_CAPABILITY : CAPABILITY;
+  const h1FixedShifts = row.engine_version === H1_ENGINE;
+  const refundAware = row.engine_version === REFUND_ENGINE || h1FixedShifts;
+  const schemaVersion = h1FixedShifts ? 4 : refundAware ? 2 : 1;
+  const capability = h1FixedShifts ? H1_CAPABILITY : refundAware ? REFUND_CAPABILITY : CAPABILITY;
   if (row.venue_id !== venueId || row.status !== 'ready' || !ENGINES.includes(row.engine_version)
       || row.source_coverage !== 'complete' || row.commission_basis !== 'net_after_discounts_refunds'
       || row.unattributed_line_count !== 0 || row.missing_net_line_count !== 0 || row.blocked_reason !== null
@@ -102,17 +106,23 @@ const verifiedHeader = (row, venueId) => {
   let replay;
   try {
     if (Object.hasOwn(evidence, 'calculatorReplay') && !evidence.calculatorReplay) integrity();
-    replay = validateCalculatorReplay(evidence.calculatorReplay, { schemeSnapshot: evidence.schemeSnapshot,
-      sourceEvidence: evidence.sourceEvidence, period: evidence.period, currency: evidence.currency });
+    replay = h1FixedShifts ? executePayrollH1FixedShiftsReplay(evidence.calculatorReplay)
+      : validateCalculatorReplay(evidence.calculatorReplay, { schemeSnapshot: evidence.schemeSnapshot,
+        sourceEvidence: evidence.sourceEvidence, period: evidence.period, currency: evidence.currency });
     if (replay.saved) {
       const amounts = evidence.calculatorReplay.result.employees.map(employee => integer(employee.amountCents));
       if (amounts.reduce((sum, amount) => sum + BigInt(amount), 0n) !== BigInt(total)) integrity();
     }
+    if (h1FixedShifts && (!replay.matched || !replay.replayVerified
+        || evidence.calculatorReplay.result.employees.some(employee => employee.milestoneBonusCents !== 0)
+        || evidence.calculatorReplay.result.employees.reduce((sum, employee) => sum + BigInt(integer(employee.amountCents)), 0n) !== BigInt(total))) integrity();
     if (refundAware) {
       // Version2 sources and typed quantity sidecars must reconstruct exactly.
       // This remains a read-only integrity check, never source/payout authority.
       const { rebuildPayrollRefundAwareRunProvenance } = require('./payroll-refund-aware-provenance');
-      const rebuilt = rebuildPayrollRefundAwareRunProvenance(evidence);
+      const rebuilt = h1FixedShifts
+        ? require('./payroll-h1-fixed-shifts-provenance').rebuildPayrollH1FixedShiftsRunProvenance(evidence)
+        : rebuildPayrollRefundAwareRunProvenance(evidence);
       if (rebuilt.provenance.evidence_payload !== row.evidence_payload
           || rebuilt.provenance.evidence_sha256 !== row.evidence_sha256) integrity();
     }
@@ -161,7 +171,17 @@ const getSavedRun = async (db, venueId, runId, query = {}) => {
   const employees = page(rows, limit, scope, row => [row.employee_id], row => ({
     employeeId: row.employee_id, employeeName: row.employee_name, amountCents: cents(row.amount), dayCount: integer(row.day_count)
   }));
-  return { ...header, schemeSnapshot: copyObject(evidence.schemeSnapshot), employees: employees.items, nextCursor: employees.nextCursor };
+  const from = header.period.from, to = header.period.to;
+  const h1From = typeof from === 'string' && /^\d{4}-\d{2}-01$/.test(from);
+  const expectedH1To = h1From ? new Date(Date.parse(`${from}T00:00:00.000Z`) + 13 * 86400000).toISOString().slice(0, 10) : null;
+  const closureDate = evidence.periodClosure?.venueLocalDate;
+  const h1EvidenceEligible = header.capabilityVersion === H1_CAPABILITY && h1From && to === expectedH1To
+    && evidence.period?.from === from && evidence.period?.to === to
+    && evidence.periodClosure?.timezone === header.venueTimezone
+    && typeof closureDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(closureDate) && closureDate > to;
+  const h1SchemaAvailable = h1EvidenceEligible && (await db.query("SELECT to_regclass('payroll_half_month_claims') IS NOT NULL AS available")).rows[0]?.available === true;
+  return { ...header, h1EntryAvailable: h1EvidenceEligible && h1SchemaAvailable,
+    schemeSnapshot: copyObject(evidence.schemeSnapshot), employees: employees.items, nextCursor: employees.nextCursor };
 };
 const dayDto = row => {
   const money = { venueTurnoverCents: 'venue_turnover', cumulativeVenueTurnoverCents: 'cumulative_venue_turnover',
@@ -223,7 +243,8 @@ const replaySavedRun = async (db, venueId, runId) => {
   venueId = client(db, venueId); runId = id(runId);
   const { header, evidence } = await load(db, venueId, runId);
   let result;
-  try { result = executeCalculatorReplay(evidence.calculatorReplay); }
+  try { result = header.capabilityVersion === H1_CAPABILITY
+    ? executePayrollH1FixedShiftsReplay(evidence.calculatorReplay) : executeCalculatorReplay(evidence.calculatorReplay); }
   catch (_) { integrity(); }
   // Return verification metadata, never the complete employee/source payload.
   const { result: ignored, ...verification } = result;

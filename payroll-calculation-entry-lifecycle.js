@@ -4,6 +4,9 @@
 // fresh source-fenced write transaction; all effects commit or roll back once.
 const { createHash, randomUUID } = require('node:crypto');
 const { hasPayrollVerifiedWriteSnapshot } = require('./payroll-source-fence');
+const { loadSavedRunEvidenceInTransaction } = require('./payroll-saved-run-reader');
+const { executeCalculatorReplay } = require('./payroll-calculator-replay');
+const { calculatePayrollH1FixedShifts } = require('./payroll-schemes');
 const { verifyPayrollCalculationEntryEvidence } = require('./payroll-calculation-entry-evidence');
 const { verifyPayrollEntryCorrections } = require('./payroll-calculation-entry-corrections');
 const { readReviewedCorrectionLedger, previewReviewedCorrectionCancellation, cancelReviewedCorrectionTarget } = require('./payroll-reviewed-correction-store');
@@ -18,6 +21,30 @@ const integer = value => {
   if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value) || BigInt(value) > 999999999999n) fail('amount_invalid');
   return Number(value);
 };
+const H1_CAPABILITY = 'employee_attributed_h1_fixed_shifts_v1';
+const isFirstHalf = entry => /^\d{4}-\d{2}-01$/.test(entry.periodFrom || '')
+  && entry.periodTo === new Date(Date.parse(`${entry.periodFrom}T00:00:00.000Z`) + 13 * 86400000).toISOString().slice(0, 10);
+async function deferredH1Component(db, actor, row, entry) {
+  if (!isFirstHalf(entry) || row.status === 'paid' || row.payroll_half_kind === 'h1') return false;
+  let saved;
+  try { saved = await loadSavedRunEvidenceInTransaction(db, actor.venueId, entry.runId); }
+  catch (_) { return true; }
+  if (saved.header.capabilityVersion === H1_CAPABILITY) return true;
+  let ordinary, firstHalf;
+  try {
+    ordinary = executeCalculatorReplay(saved.evidence.calculatorReplay);
+    if (!ordinary.matched || !ordinary.result) return true;
+    firstHalf = calculatePayrollH1FixedShifts(ordinary.replay.input);
+  } catch (_) { return true; }
+  if (firstHalf.status !== 'ready' || firstHalf.blockers?.length || firstHalf.criticalErrors?.length) return true;
+  const normalEmployee = ordinary.result.employees.filter(employee => employee.employeeId === entry.employeeId);
+  const h1Employee = firstHalf.employees.filter(employee => employee.employeeId === entry.employeeId);
+  const monthThresholdMode = ordinary.result.daily.some(day => (day.employees || []).some(employee => employee.employeeId === entry.employeeId
+    && employee.mode === 'final_month_threshold'));
+  return normalEmployee.length !== 1 || h1Employee.length !== 1 || monthThresholdMode
+    || normalEmployee[0].milestoneBonusCents > 0 || h1Employee[0].milestoneBonusCents !== 0
+    || normalEmployee[0].amountCents !== h1Employee[0].amountCents;
+}
 async function owner(db, actor) {
   if (!actor || typeof actor.venueId !== 'string' || !UUID.test(actor.venueId)
       || typeof actor.userId !== 'string' || !UUID.test(actor.userId)
@@ -40,12 +67,16 @@ const normalized = row => ({ id: row.id, venueId: row.venue_id, employeeId: row.
   origin: 'calculation_run', currency: 'RUB', provenanceSha256: row.calculation_provenance_sha256,
   periodFrom: row.period_from, periodTo: row.period_to, status: row.status,
   grossCents: integer(row.calculation_gross_cents), netCents: integer(row.net_cents) });
-const dto = row => ({ id: row.id, userId: row.user_id, status: row.status, calculationRunId: row.calculation_run_id,
+const dto = row => {
+  const result = { id: row.id, userId: row.user_id, status: row.status, calculationRunId: row.calculation_run_id,
   provenanceSha256: row.calculation_provenance_sha256,
   grossCents: integer(row.calculation_gross_cents), amountCents: integer(row.net_cents), currency: 'RUB',
   periodFrom: row.period_from, periodTo: row.period_to, expenseId: row.expense_id || null,
   employeeName: row.employee_name_snapshot, schemeName: row.calculation_scheme_name_snapshot,
-  financeCategoryId: row.finance_category_id, paymentDate: row.payment_date instanceof Date ? row.payment_date.toISOString().slice(0, 10) : row.payment_date || null });
+  financeCategoryId: row.finance_category_id, paymentDate: row.payment_date instanceof Date ? row.payment_date.toISOString().slice(0, 10) : row.payment_date || null };
+  if (row.payroll_half_kind === 'h1') result.halfKind = 'h1';
+  return result;
+};
 async function freshProof(db, actor, row, checkFreshness, expectedLedgerHash) {
   const proof = await verifyPayrollCalculationEntryEvidence(db, actor, row, { purpose: 'current_transition', checkFreshness });
   const corrections = await verifyPayrollEntryCorrections(db, actor, proof);
@@ -59,7 +90,10 @@ async function getPayrollCalculationEntryState(db, actor, entryId, checkFreshnes
   const state = buildPayrollEntryTransitionState(entry, ledger);
   let allowedActions = [...state.allowedActions], sourceStatus = 'not_required', blockedReason = null;
   if (allowedActions.some(action => action === 'approve' || action === 'pay')) {
-    try { await freshProof(db, actor, row, checkFreshness, state.ledgerHash); sourceStatus = 'current'; }
+    try {
+      if (await deferredH1Component(db, actor, row, entry)) fail('h1_deferred_month_component');
+      await freshProof(db, actor, row, checkFreshness, state.ledgerHash); sourceStatus = 'current';
+    }
     catch (error) {
       if (typeof error?.code !== 'string' || !/^payroll_[a-z0-9_]+$/.test(error.code)) throw error;
       sourceStatus = 'blocked'; blockedReason = error.code; allowedActions = allowedActions.filter(action => action === 'cancel');
@@ -111,6 +145,7 @@ async function transitionPayrollCalculationEntry(db, actor, entryId, input, chec
     return { ...response, replayed: true, currentEntry: dto(await readEntry(db, actor, entryId, false)) };
   }
   const row = await readEntry(db, actor, entryId), entry = normalized(row);
+  if (command.action !== 'cancel' && await deferredH1Component(db, actor, row, entry)) fail('h1_deferred_month_component');
   const ledger = await readReviewedCorrectionLedger(db, actor, entry.employeeId);
   const prepared = buildPayrollEntryTransitionCommand(actor, entryId, input, entry, ledger);
   let proof = null, fixed = null, settlement = null;

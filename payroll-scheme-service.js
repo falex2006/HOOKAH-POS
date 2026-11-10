@@ -11,6 +11,8 @@ const { collectPayrollRefundAwareCalculationInTransaction, readPayrollRefundAwar
   collectPayrollRefundAwareComparisonInTransaction } = require('./payroll-refund-aware-source');
 const { buildPayrollRefundAwareRunProvenance, rebuildPayrollRefundAwareRunProvenance,
   ENGINE_VERSION: REFUND_RUN_ENGINE } = require('./payroll-refund-aware-provenance');
+const { buildPayrollH1FixedShiftsRunProvenance,
+  ENGINE_VERSION: H1_RUN_ENGINE, CAPABILITY_VERSION: H1_RUN_CAPABILITY } = require('./payroll-h1-fixed-shifts-provenance');
 const { calculatePayrollScheme, validateScheme, validatePersonalThresholdAssignments, validatePersonalScalarAssignments } = require('./payroll-schemes');
 const { makePayrollVenueTurnoverSource } = require('./payroll-venue-turnover-source');
 const { makePayrollAttendanceManifestService } = require('./payroll-attendance-manifest');
@@ -1498,7 +1500,19 @@ const makeService = (pool) => {
   };
   const lifecycleFreshness = (db, actor, runId) =>
     checkPayrollRunSourceFreshnessInTransaction(db, actor, runId, collectSourcedPayrollContext,
-      (client, owner, scheme, period) => readPayrollRefundAwareSourceArgsInTransaction(client, owner, scheme, period, attendanceManifest));
+      (client, owner, scheme, period, options) => readPayrollRefundAwareSourceArgsInTransaction(client, owner, scheme, period, attendanceManifest, options));
+  const h1RunEligible = (header, evidence) => {
+    const from = header?.period?.from, to = header?.period?.to;
+    if (typeof from !== 'string' || !/^\d{4}-\d{2}-01$/.test(from)) return false;
+    const expectedTo = new Date(Date.parse(`${from}T00:00:00.000Z`) + 13 * 86400000).toISOString().slice(0, 10);
+    const closureDate = evidence?.periodClosure?.venueLocalDate;
+    return to === expectedTo && evidence?.period?.from === from && evidence?.period?.to === to
+      && header.capabilityVersion === H1_RUN_CAPABILITY && evidence.schemaVersion === 4
+      && evidence.calculatorReplay?.algorithm === 'h1_fixed_shifts_v1'
+      && evidence.calculatorReplay?.result?.employees?.every(employee => employee?.milestoneBonusCents === 0)
+      && evidence?.periodClosure?.timezone === header.venueTimezone
+      && typeof closureDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(closureDate) && closureDate > to;
+  };
   const getCalculationEntryState = async (principal, entryId) => {
     try {
       return await withOwnerSourceWrite(pool, principal, (db, actor) =>
@@ -1604,6 +1618,53 @@ const makeService = (pool) => {
         capabilityVersion: evidence.provenance.capability_version, replayed: false, officialReady: false, payoutEligible: false, persistence: 'snapshots' };
     }, 'payroll_refund_aware');
   };
+  const createH1CalculationRun = async (principal, input) => {
+    if (!input || Object.getPrototypeOf(input) !== Object.prototype
+        || Reflect.ownKeys(input).length !== 4 || Object.keys(input).sort().join(',') !== 'idempotencyKey,periodFrom,periodTo,schemeVersionId'
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(d => !Object.hasOwn(d, 'value'))
+        || !UUID.test(input.schemeVersionId || '') || typeof input.idempotencyKey !== 'string'
+        || !/^[\x21-\x7e]{8,120}$/.test(input.idempotencyKey)) fail('payroll_h1_request_invalid', 400);
+    const versionId = input.schemeVersionId.toLowerCase(), period = parsePayrollReadinessPeriod({ from: input.periodFrom, to: input.periodTo });
+    const expectedTo = /^\d{4}-\d{2}-01$/.test(period.from)
+      ? new Date(Date.parse(`${period.from}T00:00:00.000Z`) + 13 * 86400000).toISOString().slice(0, 10) : null;
+    if (!expectedTo || period.to !== expectedTo) fail('payroll_h1_period_required', 409);
+    return withOwnerSourceWrite(pool, principal, async (db, actor) => {
+      const venue = (await db.query('SELECT timezone FROM venues WHERE id=$1 FOR SHARE', [actor.venueId])).rows[0];
+      const version = (await db.query(`SELECT status,effective_from::text,effective_to::text FROM payroll_scheme_versions
+        WHERE venue_id=$1 AND id=$2 FOR SHARE`, [actor.venueId, versionId])).rows[0];
+      if (!venue || !version || !['active','retired'].includes(version.status)) fail('payroll_run_version_not_available', 409);
+      if (period.from < version.effective_from || (version.effective_to && period.to > version.effective_to)) fail('payroll_run_outside_scheme_version', 409);
+      const prior = (await db.query(`SELECT r.id,r.scheme_version_id,r.period_from::text,r.period_to::text,r.status,r.engine_version,
+        r.input_checksum,p.evidence_sha256 FROM payroll_calculation_runs r LEFT JOIN payroll_run_provenance p
+        ON p.venue_id=r.venue_id AND p.run_id=r.id WHERE r.venue_id=$1 AND r.idempotency_key=$2 FOR UPDATE OF r`,
+      [actor.venueId, input.idempotencyKey])).rows[0];
+      if (prior) {
+        if (prior.engine_version !== H1_RUN_ENGINE || prior.status !== 'ready' || prior.scheme_version_id !== versionId
+            || prior.period_from !== period.from || prior.period_to !== period.to) fail('payroll_h1_idempotency_conflict', 409);
+        const saved = await savedRunReader.loadSavedRunEvidenceInTransaction(db, actor.venueId, prior.id);
+        if (saved.header.capabilityVersion !== H1_RUN_CAPABILITY || prior.input_checksum !== prior.evidence_sha256) fail('payroll_h1_evidence_invalid', 409);
+        return { status: 'ready', runId: prior.id, amountCents: saved.header.amountCents, capabilityVersion: H1_RUN_CAPABILITY,
+          replayed: true, officialReady: false, payoutEligible: false, persistence: 'snapshots' };
+      }
+      const scheme = await loadVersion(db, actor.venueId, versionId);
+      const collected = await readPayrollRefundAwareSourceArgsInTransaction(db, actor, scheme, period, attendanceManifest,
+        { h1FixedShifts: true });
+      if (collected.status !== 'source_arguments_collected') return collected;
+      if (collected.sourceArgs.periodClosure.timezone !== venue.timezone) fail('payroll_run_timezone_mismatch', 409);
+      const runId = randomUUID(), evidence = buildPayrollH1FixedShiftsRunProvenance({ ...collected.sourceArgs, runId });
+      if (evidence.status !== 'verified_h1_fixed_shifts_evidence') return evidence;
+      const run = { id: runId, venue_id: actor.venueId, scheme_version_id: versionId, period_from: period.from, period_to: period.to,
+        status: 'ready', source_coverage: 'complete', commission_basis: 'net_after_discounts_refunds',
+        eligible_line_count: evidence.prepared.mappedRows.snapshotLines.length, unattributed_line_count: 0, missing_net_line_count: 0,
+        input_watermark: evidence.prepared.sourceWatermark, input_checksum: evidence.provenance.evidence_sha256,
+        engine_version: H1_RUN_ENGINE, blocked_reason: null, idempotency_key: input.idempotencyKey,
+        created_by: actor.userId, created_by_name: actor.name, venue_timezone: venue.timezone, currency: scheme.currency };
+      await persistPayrollSnapshotBundleInTransaction(db, { run, input: evidence.prepared.snapshotInput, provenance: evidence.provenance });
+      return { status: 'ready', runId, amountCents: evidence.provenance.total_amount_cents,
+        capabilityVersion: H1_RUN_CAPABILITY, replayed: false, officialReady: false, payoutEligible: false, persistence: 'snapshots' };
+    }, 'payroll_entry_materialization');
+  };
+
   const supersessionCallbacks = {
     checkFreshness: lifecycleFreshness,
     buildReplacement: async (db, actor, saved, runId) => {
@@ -1647,7 +1708,7 @@ const makeService = (pool) => {
     getRefundAwareCorrectionContext, previewRefundAwareCorrection, applyRefundAwareCorrection,
     prepareRefundAwareCalculation,
     prepareRefundAwareRunEvidence,
-    createRefundAwareRun,
+    createRefundAwareRun, createH1CalculationRun,
     createRefundReview, decideRefundReview,
     getReviewedCorrectionContext, previewReviewedCorrection, applyReviewedCorrection,
     getCalculationEntryState, transitionCalculationEntry,
@@ -1655,6 +1716,17 @@ const makeService = (pool) => {
       const request = calculationEntryBridge.normalizeEntryMaterialization(runId, input);
       return withOwnerSourceWrite(pool, principal, (db, actor) => calculationEntryBridge.materializeCalculationEntry(db, actor, request,
         lifecycleFreshness), 'payroll_entry_materialization');
+    },
+    materializeH1Entry: (principal, runId, input) => {
+      const request = calculationEntryBridge.normalizeEntryMaterialization(runId, input);
+      return withOwnerSourceWrite(pool, principal, async (db, actor) => {
+        const saved = await savedRunReader.loadSavedRunEvidenceInTransaction(db, actor.venueId, request.runId);
+        const { header, evidence } = saved;
+        const from = header.period.from, to = header.period.to;
+        if (!h1RunEligible(header, evidence)) fail('payroll_h1_verified_run_required', 409);
+        return calculationEntryBridge.materializeH1Entry(db, actor,
+          { ...request, h1MonthFrom: from, h1PeriodTo: to }, lifecycleFreshness);
+      }, 'payroll_entry_materialization');
     },
     listCalculationEntries: (principal, runId) => withOwnerRead(pool, principal,
       (db, actor) => calculationEntryBridge.listCalculationEntries(db, actor, runId)),
@@ -1664,7 +1736,8 @@ const makeService = (pool) => {
     replaySavedRun: (principal, runId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.replaySavedRun(db, actor.venueId, runId)),
     checkSavedRunFreshness: (principal, runId) => withOwnerRead(pool, principal,
       (db, actor) => lifecycleFreshness(db, actor, runId), { sourceSnapshot: true }),
-    getSavedRun: (principal, runId, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRun(db, actor.venueId, runId, query)),
+    getSavedRun: (principal, runId, query) => withOwnerRead(pool, principal,
+      (db, actor) => savedRunReader.getSavedRun(db, actor.venueId, runId, query)),
     getSavedRunEmployee: (principal, runId, employeeId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunEmployee(db, actor.venueId, runId, employeeId)),
     getSavedRunLines: (principal, runId, snapshotId, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunLines(db, actor.venueId, runId, snapshotId, query)),
     listEmploymentEligibilityEmployees,

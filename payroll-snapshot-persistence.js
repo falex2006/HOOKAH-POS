@@ -6,7 +6,7 @@
 const { randomUUID, createHash } = require('node:crypto');
 const { mapPayrollTypedSnapshotRows } = require('./payroll-typed-snapshot-serializer');
 const { mapPayrollMilestoneStorageRows } = require('./payroll-milestone-storage-serializer');
-const { validateCalculatorReplay } = require('./payroll-calculator-replay');
+const { validateCalculatorReplay, executePayrollH1FixedShiftsReplay } = require('./payroll-calculator-replay');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const fail = suffix => { const code = `payroll_snapshot_persistence_${suffix}`; throw Object.assign(new TypeError(code), { code }); };
 const plain = value => {
@@ -41,6 +41,7 @@ const CONSTRAINTS = Object.freeze([
 ]);
 const PROVENANCE_ENGINE = 'payroll-verified-no-refund-v1';
 const REFUND_PROVENANCE_ENGINE = 'payroll-verified-remaining-net-v2';
+const H1_PROVENANCE_ENGINE = 'h1_fixed_shifts_v1';
 const PROVENANCE_CONSTRAINTS = Object.freeze(['payroll_calculation_runs', 'payroll_run_provenance', 'payroll_daily_snapshots']
   .map(table => [table, `${table}_provenance_commit`]));
 const quoteIdentifier = value => `"${String(value).replaceAll('"', '""')}"`;
@@ -74,10 +75,12 @@ const prepare = ({ run, input, provenance }) => {
   const header = { ...run, blocked_reason: null, milestone_evidence_version: milestones.milestoneEvidenceVersion };
   const rows = Object.fromEntries(Object.keys(COLUMNS).map(table => [table, []]));
   rows.payroll_calculation_runs.push(header);
-  if ([PROVENANCE_ENGINE, REFUND_PROVENANCE_ENGINE].includes(run.engine_version)) {
-    const refundAware = run.engine_version === REFUND_PROVENANCE_ENGINE;
-    const schemaVersion = refundAware ? 2 : 1;
-    const capabilityVersion = refundAware ? 'employee_attributed_remaining_net_refund_v2' : 'employee_attributed_merchandise_net_no_refund_v1';
+  if ([PROVENANCE_ENGINE, REFUND_PROVENANCE_ENGINE, H1_PROVENANCE_ENGINE].includes(run.engine_version)) {
+    const h1FixedShifts = run.engine_version === H1_PROVENANCE_ENGINE;
+    const refundAware = run.engine_version === REFUND_PROVENANCE_ENGINE || h1FixedShifts;
+    const schemaVersion = h1FixedShifts ? 4 : refundAware ? 2 : 1;
+    const capabilityVersion = h1FixedShifts ? 'employee_attributed_h1_fixed_shifts_v1'
+      : refundAware ? 'employee_attributed_remaining_net_refund_v2' : 'employee_attributed_merchandise_net_no_refund_v1';
     if (!provenance) fail('provenance_required');
     plain(provenance);
     if (Object.keys(provenance).length !== COLUMNS.payroll_run_provenance.length
@@ -102,10 +105,18 @@ const prepare = ({ run, input, provenance }) => {
     // the exact result being mapped, never a second caller-provided calculation.
     if (Object.hasOwn(evidence, 'calculatorReplay')) {
       if (!evidence.calculatorReplay) fail('provenance_replay_invalid');
-      validateCalculatorReplay(evidence.calculatorReplay, { schemeSnapshot: evidence.schemeSnapshot,
+      if (h1FixedShifts) {
+        const replay = executePayrollH1FixedShiftsReplay(evidence.calculatorReplay);
+        if (!replay.matched || canonical(replay.result) !== canonical(input.result)) fail('provenance_replay_invalid');
+      } else validateCalculatorReplay(evidence.calculatorReplay, { schemeSnapshot: evidence.schemeSnapshot,
         sourceEvidence: evidence.sourceEvidence, period: evidence.period, currency: evidence.currency, result: input.result });
     }
-    if (refundAware) {
+    if (h1FixedShifts) {
+      const { rebuildPayrollH1FixedShiftsRunProvenance } = require('./payroll-h1-fixed-shifts-provenance');
+      const rebuilt = rebuildPayrollH1FixedShiftsRunProvenance(evidence);
+      if (rebuilt.provenance.evidence_payload !== provenance.evidence_payload
+          || canonical(rebuilt.prepared.snapshotInput) !== canonical(input)) fail('provenance_h1_source_mismatch');
+    } else if (refundAware) {
       // Rebuild original sources, versioned economics, the engine and typed rows;
       // accepting a self-consistent browser-shaped hash is insufficient.
       const { rebuildPayrollRefundAwareRunProvenance } = require('./payroll-refund-aware-provenance');

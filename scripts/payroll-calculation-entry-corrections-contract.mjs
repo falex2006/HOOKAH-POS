@@ -240,4 +240,19 @@ for (const patch of [{ freshness: { status: 'stale' } }, { freshness: null }, { 
   const { correctionEvidenceHash, ...body } = captured;
   assert.equal(correctionEvidenceHash, digest(body), 'capture IDs are inside immutable correction evidence hash');
 }
+{
+  const events = [app(), release()];
+  const target = proof({capabilityVersion:'employee_attributed_h1_fixed_shifts_v1'});
+  const f = fixture({ledger:events});
+  const capture = await withFence(f, () => f.module.verifyPayrollEntryCorrections(f.db, actor, target));
+  const historic = {...target, proofKind:'historical_paid', entryStatus:'paid'};
+  const verify = (context, receipt) => withFence(context, () =>
+    context.module.verifyCapturedH1Corrections(context.db,actor,historic,receipt));
+  assert.deepEqual(await verify(f,capture),capture);
+  const later = {...app(),id:ids.appB,targetEntryId:ids.originalB};
+  assert.deepEqual(await verify(fixture({ledger:[...events,later]}),capture),capture);
+  await assert.rejects(verify(fixture({ledger:[...events,{...later,targetEntryId:ids.target}]}),capture),err('capture_invalid'));
+  await assert.rejects(verify(fixture({ledger:[events[0]]}),capture),err('capture_invalid'));
+  await assert.rejects(verify(f,{...capture,appliedCents:1}),err('capture_invalid'));
+}
 console.log('PASS payroll calculation entry corrections contract: current source proof, active ledger replay, paid-source and fresh-assessment revalidation, captured v2 ledger IDs and no automatic disposition');

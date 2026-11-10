@@ -18,11 +18,56 @@ const BEGIN = 'BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE';
 const sha = text => createHash('sha256').update(text).digest('hex');
 const clone = value => structuredClone(value);
 const error = (code, status = 409) => Object.assign(new Error(code), { code, status });
-function isolated(path, seams) {
+function isolated(path, seams, append = '') {
   const filename = require.resolve(path), localRequire = createRequire(filename), module = { exports: {} };
-  runInThisContext(`(function(require,module,exports,__filename,__dirname){\n${readFileSync(filename, 'utf8')}\n})`, { filename })(
+  runInThisContext(`(function(require,module,exports,__filename,__dirname){\n${readFileSync(filename, 'utf8')}\n${append}\n})`, { filename })(
     name => Object.hasOwn(seams, name) ? seams[name] : localRequire(name), module, module.exports, filename, dirname(filename));
   return module.exports;
+}
+
+// Verify the legacy V1/V2 first-half safety gate without exposing its internal
+// helper as a production API. The calculator/replay seams here cover only the
+// gate decisions; PostgreSQL and source freshness remain covered elsewhere.
+{
+  let replayState = { matched: true, replayVerified: true, replay: { input: {} }, result: { employees: [
+    { employeeId, amountCents: 125, milestoneBonusCents: 0 }
+  ], daily: [{ employees: [{ employeeId, mode: 'progressive_daily' }] }] } };
+  let h1State = { status: 'ready', blockers: [], criticalErrors: [], employees: [
+    { employeeId, amountCents: 125, milestoneBonusCents: 0 }
+  ] };
+  const bridge = isolated('../payroll-calculation-entry-bridge', {
+    './payroll-calculator-replay': { executeCalculatorReplay: () => replayState },
+    './payroll-schemes': { calculatePayrollH1FixedShifts: () => h1State }
+  }, 'module.exports.__assertGenericH1Safe = assertGenericH1Safe;');
+  const evidence = { calculatorReplay: { token: 'frozen' } };
+  for (const capabilityVersion of [
+    'employee_attributed_merchandise_net_no_refund_v1',
+    'employee_attributed_remaining_net_refund_v2'
+  ]) {
+    assert.doesNotThrow(() => bridge.__assertGenericH1Safe({
+      capabilityVersion, period: { from: '2026-09-01', to: '2026-09-14' }
+    }, evidence, employeeId), `${capabilityVersion} daily-rate first half remains supported`);
+  }
+  assert.throws(() => bridge.__assertGenericH1Safe({ capabilityVersion: 'employee_attributed_h1_fixed_shifts_v1',
+    period: { from: '2026-09-01', to: '2026-09-14' } }, evidence, employeeId),
+  { code: 'payroll_h1_run_route_required' }, 'H1-specific capability cannot use generic materialization');
+  replayState = { ...replayState, result: { ...replayState.result,
+    daily: [{ employees: [{ employeeId, mode: 'final_month_threshold' }] }] } };
+  assert.throws(() => bridge.__assertGenericH1Safe({ capabilityVersion: 'employee_attributed_merchandise_net_no_refund_v1',
+    period: { from: '2026-09-01', to: '2026-09-14' } }, evidence, employeeId),
+  { code: 'payroll_h1_deferred_month_component_required' }, 'monthly-threshold V1 fails closed');
+  replayState = { ...replayState, result: { ...replayState.result,
+    employees: [{ employeeId, amountCents: 875, milestoneBonusCents: 750 }],
+    daily: [{ employees: [{ employeeId, mode: 'progressive_daily' }] }] } };
+  assert.throws(() => bridge.__assertGenericH1Safe({ capabilityVersion: 'employee_attributed_remaining_net_refund_v2',
+    period: { from: '2026-09-01', to: '2026-09-14' } }, evidence, employeeId),
+  { code: 'payroll_h1_deferred_month_component_required' }, 'an actually paid monthly bonus fails closed');
+  replayState = { matched: true, replayVerified: false, replay: { input: {} }, result: { employees: [
+    { employeeId, amountCents: 125, milestoneBonusCents: 0 }
+  ], daily: [{ employees: [{ employeeId, mode: 'progressive_daily' }] }] } };
+  assert.throws(() => bridge.__assertGenericH1Safe({ capabilityVersion: 'employee_attributed_merchandise_net_no_refund_v1',
+    period: { from: '2026-09-01', to: '2026-09-14' } }, evidence, employeeId),
+  { code: 'payroll_h1_component_check_unavailable' }, 'an unverified replay fails closed');
 }
 
 // Behavioral integration of the actual bridge, service wrapper, and source fence.
@@ -55,6 +100,7 @@ function fixture(options = {}) {
         if (fence.hasPayrollVerifiedWriteSnapshot(client, venueId)) assert.match(text, /FOR SHARE$/);
         return { rows: settings.authorized ? [{ id: userId, name: actor.name }] : [] };
       }
+      if (text.startsWith("SELECT to_regclass('payroll_half_month_settlement_slots')")) return {rows:[{has_h2_slots:settings.h2Schema === true}]};
       assert.equal(values[0], venueId, 'every entry/request query must use authenticated tenant');
       if (text.startsWith('SELECT request_hash')) {
         step('requestReplay'); return { rows: requests.filter(r => r.key === values[1]) };
@@ -167,7 +213,7 @@ for (const status of ['draft', 'approved', 'paid', 'cancelled']) {
   assert.equal(result.currentEntry.expenseId, paid ? id(55) : null);
   assert.equal(result.currentEntry.paymentDate, paid ? '2026-10-01' : null);
   assert.equal(Object.hasOwn(JSON.parse(f.requests[0].response_payload), 'currentEntry'), false);
-  assert.deepEqual(f.calls.slice(3), ['requestReplay', 'existingEntry', 'saveRequest', 'COMMIT', UNLOCK]); cleanup(f);
+  assert.deepEqual(f.calls.slice(3), ['requestReplay', 'existingEntry', 'savedEvidence', 'saveRequest', 'COMMIT', UNLOCK]); cleanup(f);
   const saved = clone(f.requests[0]); f.calls.length = 0; f.releases.length = 0;
   const repeated = await invoke(f);
   assert.deepEqual(repeated.entry, result.entry); assert.deepEqual(repeated.currentEntry, result.currentEntry);

@@ -72,7 +72,7 @@ const line = () => ({
   const result = await getSavedRun(db, venue, run);
   assert.equal(result.runId, run); assert.equal(result.schemeSnapshot.name, 'Frozen scheme');
   assert.deepEqual(result.employees, [{ employeeId: employee, employeeName: 'Frozen employee', amountCents: 123, dayCount: 1 }]);
-  assert.deepEqual(db.calls[0].values, [venue, run, ['payroll-verified-no-refund-v1', 'payroll-verified-remaining-net-v2']]);
+  assert.deepEqual(db.calls[0].values, [venue, run, ['payroll-verified-no-refund-v1', 'payroll-verified-remaining-net-v2', 'h1_fixed_shifts_v1']]);
   assert.match(db.calls[1].sql, /WHERE venue_id=\$1 AND run_id=\$2/);
   db.done();
 }
@@ -240,10 +240,10 @@ for (const mode of payrollRefundAwareModes) for (const opts of [{}, { fullReturn
   const db = dbWith([f.row], []); await getSavedRun(db, v, r);
   assert.match(db.calls[0].sql, /WHERE r.venue_id=\$1 AND r.id=\$2/);
   assert.match(db.calls[0].sql, /r.engine_version=ANY\(\$3::text\[\]\)/);
-  assert.deepEqual(db.calls[0].values, [v, r, ['payroll-verified-no-refund-v1', 'payroll-verified-remaining-net-v2']]);
+  assert.deepEqual(db.calls[0].values, [v, r, ['payroll-verified-no-refund-v1', 'payroll-verified-remaining-net-v2', 'h1_fixed_shifts_v1']]);
   const listing = dbWith([f.row]); await listSavedRuns(listing, v);
   assert.match(listing.calls[0].sql, /WHERE r.venue_id=\$1.*r.engine_version=ANY\(\$2::text\[\]\)/);
-  assert.deepEqual(listing.calls[0].values.slice(0, 2), [v, ['payroll-verified-no-refund-v1', 'payroll-verified-remaining-net-v2']]);
+  assert.deepEqual(listing.calls[0].values.slice(0, 2), [v, ['payroll-verified-no-refund-v1', 'payroll-verified-remaining-net-v2', 'h1_fixed_shifts_v1']]);
   await rejects(getSavedRun(dbWith([f.row]), id(999), r), 'evidence_invalid', 409);
   await rejects(getSavedRunEmployee(dbWith([f.row], [{ ...f.days[0], venue_id: id(999) }]), v, r, f.days[0].employee_id), 'evidence_invalid', 409);
   await rejects(getSavedRunLines(dbWith([f.row], [f.days[0]], [{ ...f.lines[0], venue_id: id(999) }]), v, r, f.days[0].id), 'evidence_invalid', 409);

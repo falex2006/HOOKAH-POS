@@ -84,6 +84,14 @@ try {
   await insert(pool, 'payroll_scheme_versions', { id: ids.version, venue_id: ids.venue, scheme_id: ids.scheme, version_no: 1, mode: 'percent_only', effective_from: '2026-10-01', effective_to: '2026-10-31', created_by: ids.owner, created_by_name: 'Owner' });
   await pool.query("UPDATE payroll_scheme_versions SET status='active',status_changed_by=$1,status_changed_by_name='Owner',status_changed_at=now() WHERE id=$2", [ids.owner, ids.version]);
   const f = await fixture();
+  const originalEvidence = (await pool.query('SELECT * FROM payroll_run_provenance WHERE venue_id=$1 AND run_id=$2', [ids.venue,f.runId])).rows[0];
+  await fail(insert(pool,'payroll_run_provenance',{...originalEvidence,schema_version:4,
+    capability_version:'employee_attributed_h1_fixed_shifts_v1'}), '23514', 'payroll provenance payload context invalid');
+  checks++;
+  const {listCalculationEntries} = require('../payroll-calculation-entry-bridge');
+  const listEntries = () => listCalculationEntries(pool, {venueId:ids.venue, userId:ids.owner}, f.runId);
+  assert.deepEqual((await listEntries()).items, [], 'saved run opens on the installed settlement schema');
+  checks++;
   await pool.query('UPDATE users SET is_active=false WHERE id=$1', [ids.owner]);
   await fail(insert(pool, 'payroll_entries', linkedRow(f)), '23514', 'owner_invalid'); checks++;
   await pool.query('UPDATE users SET is_active=true WHERE id=$1', [ids.owner]);
@@ -95,6 +103,11 @@ try {
   }
   for (const status of ['approved', 'paid']) { await fail(insert(pool, 'payroll_entries', { ...good, status, id: randomUUID() }), '23514', 'payroll_run_payout_not_enabled'); checks++; }
   const entry = (await insert(pool, 'payroll_entries', good)).rows[0]; checks++;
+  const savedEntry = (await listEntries()).items[0];
+  assert.equal(savedEntry.id, entry.id);
+  assert.equal(savedEntry.grossCents, 1000);
+  assert.equal(savedEntry.halfKind, undefined, 'existing ordinary entry retains its original type');
+  checks++;
   await fail(insert(pool, 'payroll_entries', { ...good, id: randomUUID() }), '23505'); checks++;
   for (const field of ['amount=11', 'calculation_run_id=NULL', 'calculation_gross_cents=1100', "employee_name_snapshot='Changed'", "period_to='2026-10-02'", 'materialized_by=NULL']) {
     await fail(pool.query(`UPDATE payroll_entries SET ${field} WHERE id=$1`, [entry.id]), '55000'); checks++;
