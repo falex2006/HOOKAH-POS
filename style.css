@@ -6713,3 +6713,61 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   height: 44px;
   min-height: 44px;
 }
+
+/* Align the version picker and the date range as one calculation form. */
+#payroll-screen-calculation [data-scheme-pane="saved"] > h3 { margin: 0; font-size: 20px; }
+#payroll-screen-calculation .scheme-guidance { color: var(--ui-text-secondary); margin: 6px 0 16px; }
+#payroll-screen-calculation [data-saved-run-form] {
+  padding: 16px;
+  background: var(--ui-raised);
+  border-radius: 12px;
+}
+#page-content #payroll [data-saved-run-form] > .form-row {
+  display: grid;
+  grid-template-columns: minmax(16rem,2fr) repeat(2,minmax(10rem,1fr));
+  align-items: end;
+  gap: 12px;
+}
+#payroll [data-saved-run-form] .form-row > label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ui-text-secondary);
+}
+#page-content #payroll [data-saved-run-form] :is(input,.custom-select,.custom-select-trigger) { width:100%; min-width:0; box-sizing:border-box; }
+#page-content #payroll [data-saved-run-form] :is(input,.custom-select-trigger,.button) { min-height:44px; }
+#payroll [data-saved-run-form] > .muted { margin: 12px 0; }
+#payroll-screen-calculation [data-saved-run-list]:not(:empty) { margin-top: 16px; }
+#page-content #payroll-screen-settings .finance-scheme-card {
+  padding: 16px;
+  background: var(--ui-raised);
+  border: 0;
+  border-radius: 12px;
+}
+#payroll-screen-settings .finance-scheme-card > .panel-head h3 { margin: 0; }
+#payroll-screen-settings .finance-scheme-versions .payment-row > span > small { display:block; margin-top:4px; }
+#page-content #payroll-screen-settings .finance-scheme-versions .payment-row {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto auto;
+  gap:12px;
+  align-items:center;
+  background:transparent;
+  padding:12px 0;
+}
+#payroll-screen-settings .finance-scheme-versions .toolbar-row { gap:8px; }
+#payroll-screen-settings .finance-scheme-versions > .toolbar-row { margin-top:8px; }
+#payroll-screen-settings :is(.finance-scheme-card,.panel-head) .button { min-height:44px; }
+@media(max-width:900px) {
+  #page-content #payroll [data-saved-run-form] > .form-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #payroll [data-saved-run-form] .form-row > label:first-child { grid-column:1/-1; }
+  #page-content #payroll-screen-settings .finance-scheme-versions .payment-row { grid-template-columns:minmax(0,1fr) auto; }
+  #payroll-screen-settings .finance-scheme-versions .payment-row > label,
+  #payroll-screen-settings .finance-scheme-versions .payment-row > .toolbar-row { grid-column:1/-1; }
+}
+@media(max-width:480px) {
+  #page-content #payroll [data-saved-run-form] > .form-row { grid-template-columns:minmax(0,1fr); }
+}
+#page-content #payroll [data-saved-run-form] :is(input[type=date],.custom-select-trigger) { height:44px; }
+#page-content #payroll-screen-settings .finance-payroll-schemes { padding-block-start:0; margin-top:0; }
+#page-content #payroll-screen-settings .finance-payroll-schemes > .panel-head h2 { margin-block-start:0; }
