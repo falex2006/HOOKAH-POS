@@ -6527,3 +6527,75 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   #payroll-register .payroll-team-status { grid-column:1 / -1; }
   #payroll-register .payroll-team-chevron { grid-area:1 / 2; }
 }
+
+/* Payroll uses the page canvas for the workspace; borders mark changes of content. */
+#page-content.finance-payroll-workspace #payroll {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#page-content.finance-payroll-workspace #payroll .finance-payroll-filters {
+  margin: 0 0 1rem;
+  padding: .75rem 0 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border-control);
+  background: transparent;
+  border-radius: 0;
+}
+#page-content.finance-payroll-workspace #payroll :is(.finance-payroll-schemes,.product-editor,.finance-scheme-preview) {
+  box-shadow: none;
+  background: transparent;
+  border: 0;
+  padding-inline: 0;
+}
+#page-content.finance-payroll-workspace #payroll .payroll-list-head {
+  background: transparent;
+  color: var(--ui-text-secondary);
+}
+#page-content.finance-payroll-workspace #payroll .payroll-team-row {
+  border-color: color-mix(in srgb,var(--ui-border-control) 55%,transparent);
+}
+#page-content.finance-payroll-workspace #payroll :is(button,summary):focus-visible {
+  outline: 2px solid var(--ui-accent, #ff7952);
+  outline-offset: 2px;
+}
+#payroll .payroll-screen-nav {
+  display: flex;
+  gap: clamp(.85rem, 2vw, 2rem);
+  margin-block: 0 1.5rem;
+  border-bottom: 1px solid var(--ui-border-control);
+}
+#page-content #payroll .payroll-screen-nav [data-payroll-screen-target] {
+  appearance: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: .65rem .15rem;
+  margin: 0 0 -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  box-shadow: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+#page-content #payroll .payroll-screen-nav [aria-current="page"] {
+  border-bottom-color: var(--ui-accent, #ff7952);
+  color: var(--ui-text-primary);
+}
+#payroll .payroll-screen-content {
+  max-width: 72rem;
+  margin-inline: 0 auto;
+  min-width: 0;
+}
+#payroll :is(.payroll-register-screen,.payroll-screen-content)[hidden] { display: none; }
+@media (max-width: 600px) {
+  #payroll .payroll-screen-nav { gap: .6rem; margin-bottom: 1rem; }
+  #page-content #payroll .payroll-screen-nav [data-payroll-screen-target] { flex: 1; font-size: .9rem; }
+}
