@@ -47,10 +47,21 @@ try {
   await db.query(readFileSync(path.join(root, 'schema.sql'), 'utf8'));
   let organizationId = null;
   let venueId = null;
-  for (const name of readdirSync(path.join(root, 'migrations')).filter((name) => /^\d{3}.*\.sql$/.test(name)).sort()) {
+  const migrations = readdirSync(path.join(root, 'migrations')).filter(name => /^\d{3}.*\.sql$/.test(name)).sort();
+  // Seed the existing journal before installing the settlement witness.
+  for (const name of migrations.filter(name => Number(name.slice(0, 3)) < 212)) {
     if (name === '144_pos_payroll_recognition.sql') {
       organizationId = (await db.query("INSERT INTO organizations(name,slug) VALUES('Payroll editor QA',$1) RETURNING id", [schema])).rows[0].id;
       venueId = (await db.query("INSERT INTO venues(name,timezone,organization_id) VALUES('Payroll editor QA','Asia/Yekaterinburg',$1) RETURNING id", [organizationId])).rows[0].id;
+      // Restore a synthetic already-activated venue before migration 144 installs its
+      // immutable triggers. The scenario covers November 2026 with a separate pre-activation control in 2020.
+      const migration = readFileSync(path.join(root, 'migrations', name), 'utf8');
+      const epochTable = migration.match(/CREATE TABLE IF NOT EXISTS pos_payroll_recognition_epochs \([\s\S]*?\r?\n\);/);
+      assert.ok(epochTable, 'fixture uses the production epoch table definition');
+      await db.query(epochTable[0]);
+      await db.query(`INSERT INTO pos_payroll_recognition_epochs
+        (venue_id,activated_at,activation_scope,timezone_snapshot,activated_local_date)
+        VALUES($1,'2026-10-01 12:00:00+05','existing_at_install','Asia/Yekaterinburg','2026-10-01')`, [venueId]);
     }
     await db.query(readFileSync(path.join(root, 'migrations', name), 'utf8'));
   }
@@ -75,6 +86,9 @@ try {
   await db.query("INSERT INTO payroll_entries(venue_id,user_id,period_from,period_to,amount,expense_id,status,payment_date) VALUES($1,$2,'2026-10-14','2026-10-14',101,$3,'paid','2026-10-15')",[venueId,employeeId,linkedPayrollExpenseId]);
   const foreignEmployeeId=(await db.query("INSERT INTO users(venue_id,full_name,login,password_hash,role) VALUES($1,'Foreign employee',$2,$3,'bartender') RETURNING id",[foreignVenueId,`${login}-foreign-staff`,hash])).rows[0].id;
   await db.query("INSERT INTO payroll_entries(venue_id,user_id,period_from,period_to,amount,status) VALUES($1,$2,'2026-10-01','2026-10-31',777,'paid')",[foreignVenueId,foreignEmployeeId]);
+  for (const name of migrations.filter(name => Number(name.slice(0, 3)) >= 212)) {
+    await db.query(readFileSync(path.join(root, 'migrations', name), 'utf8'));
+  }
   const counts = async () => (await db.query('SELECT (SELECT count(*)::int FROM payroll_entries) AS entries,(SELECT count(*)::int FROM expenses) AS expenses,(SELECT count(*)::int FROM payroll_calculation_runs) AS runs')).rows[0];
   const before = await counts();
   child = spawn(process.execPath, ['server.js'], { cwd: root, windowsHide: true,
