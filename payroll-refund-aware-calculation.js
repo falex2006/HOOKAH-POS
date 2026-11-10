@@ -4,7 +4,7 @@
 // Pure validation is not DB authority or permission to post/pay a result.
 const { createHash } = require('node:crypto');
 const { normalizePayrollSourcePolicies } = require('./payroll-source-policies');
-const { calculatePayrollScheme, employeeActiveOn } = require('./payroll-schemes');
+const { calculatePayrollScheme, calculatePayrollH1FixedShifts, employeeActiveOn } = require('./payroll-schemes');
 const { buildPayrollModeAvailability } = require('./payroll-mode-availability');
 const { buildEligibleEmployees } = require('./payroll-employment-eligibility');
 const { buildPayrollEmployeeRoleCoverage } = require('./payroll-employee-role-coverage');
@@ -34,7 +34,8 @@ const datesFor = period => {
 };
 
 function buildPayrollRefundAwareCalculation({ venueId, scheme, period, periodClosure, recognitionEvidence,
-  employmentEligibility, approvedAttendanceSource = null, departmentMapping = null, costEvidenceByOrder = null } = {}, calculate = calculatePayrollScheme) {
+  employmentEligibility, approvedAttendanceSource = null, departmentMapping = null, costEvidenceByOrder = null,
+  h1FixedShifts = false } = {}, calculate = calculatePayrollScheme) {
   const reasons = new Set();
   const blocked = () => frozen({ schemaVersion: 2, capabilityVersion: CAPABILITY, status: 'blocked',
     officialReady: false, payoutEligible: false, sourceAttested: false, persistence: 'none',
@@ -54,7 +55,8 @@ function buildPayrollRefundAwareCalculation({ venueId, scheme, period, periodClo
   if (!mode || mode.configurationStatus !== 'available') {
     (mode?.configurationReasons || ['payroll_refund_aware_mode_invalid']).forEach(add); return blocked();
   }
-  const required = mode.requiredFacts, timezone = periodClosure?.timezone;
+  const required = h1FixedShifts ? mode.requiredFacts.filter(fact => fact !== 'closedMonthCoverage') : mode.requiredFacts;
+  const timezone = periodClosure?.timezone;
   let closed = false;
   try {
     const closureDate = new Intl.DateTimeFormat('en-CA', { timeZone: timezone,
@@ -180,7 +182,8 @@ function buildPayrollRefundAwareCalculation({ venueId, scheme, period, periodClo
     team: team ? { departmentShiftAllocation: team.departmentShiftAllocation.sourceWatermark,
       teamMembershipAndWeights: team.teamMembershipAndWeights.sourceWatermark } : null };
   let result;
-  try { result = calculate(input); } catch (_) { add('payroll_refund_aware_engine_error'); return blocked(); }
+  try { result = h1FixedShifts ? calculatePayrollH1FixedShifts(input) : calculate(input); }
+  catch (_) { add('payroll_refund_aware_engine_error'); return blocked(); }
   if (result.status !== 'ready' || result.blockers?.length || result.criticalErrors?.length) {
     (result.blockers || []).forEach(add); (result.criticalErrors || []).forEach(row => add(row.code));
     add('payroll_refund_aware_engine_not_ready'); return blocked();

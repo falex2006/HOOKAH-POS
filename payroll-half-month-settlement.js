@@ -76,7 +76,9 @@ function reconcilePayrollHalfMonthSettlement(input) {
     if (![state.grossAccruedMinor, state.netDueMinor, state.paidMinor, state.appliedCorrectionMinor].every(safeMinor)
         || !Number.isSafeInteger(state.netDueMinor + state.appliedCorrectionMinor)
         || state.netDueMinor + state.appliedCorrectionMinor !== state.grossAccruedMinor
-        || state.paidMinor > state.netDueMinor) reasons.push('payroll_half_month_h1_ledger_mismatch');
+        || state.paidMinor > state.netDueMinor
+        || (state.status === 'approved' && state.paidMinor !== 0)
+        || (state.status === 'paid' && state.paidMinor !== state.netDueMinor)) reasons.push('payroll_half_month_h1_ledger_mismatch');
     h1.set(state.employeeId, state);
   }
   if (h1.size !== monthly.size || [...monthly.keys()].some(id => !h1.has(id))

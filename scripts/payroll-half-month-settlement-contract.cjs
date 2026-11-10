@@ -78,4 +78,9 @@ const rejected = (input, code) => {
   rejected(input, 'payroll_half_month_h1_ledger_mismatch');
 }
 
+for (const inconsistent of [{status:'paid',paidMinor:0},{status:'approved',paidMinor:100}]) {
+  const input = base();
+  Object.assign(input.h1States[0],inconsistent);
+  rejected(input,'payroll_half_month_h1_ledger_mismatch');
+}
 console.log(`payroll-half-month-settlement-contract: ok (${checks} checks; no DB/API authority)`);

@@ -17,7 +17,7 @@ const fail = suffix => { const code = `payroll_refund_aware_${suffix}`; throw Ob
 const blocked = reasons => ({ schemaVersion: 2, status: 'blocked', officialReady: false, payoutEligible: false,
   sourceAttested: false, persistence: 'none', reasons, input: null, engineResult: null, amountCents: null });
 
-async function readPayrollRefundAwareSourceArgsInTransaction(db, actor, scheme, period, attendanceManifest) {
+async function readPayrollRefundAwareSourceArgsInTransaction(db, actor, scheme, period, attendanceManifest, { h1FixedShifts = false } = {}) {
   if (!hasPayrollVerifiedSourceSnapshot(db, actor?.venueId)) fail('verified_write_snapshot_required');
   const owner = (await db.query(`SELECT u.id FROM users u WHERE u.venue_id=$1 AND u.id=$2 AND u.role='owner'
     AND u.is_active=true AND u.deleted_at IS NULL`, [actor.venueId, actor.userId])).rows[0];
@@ -25,12 +25,21 @@ async function readPayrollRefundAwareSourceArgsInTransaction(db, actor, scheme, 
   let policy;
   try { policy = normalizePayrollSourcePolicies(scheme?.sourcePolicies); } catch (_) { /* blocked below */ }
   if (policy?.schemaVersion !== 2) return blocked(['payroll_refund_aware_explicit_policy_required']);
-  const required = buildPayrollModeAvailability({}, {}, scheme, period)[scheme.mode]?.requiredFacts;
+  let required = buildPayrollModeAvailability({}, {}, scheme, period)[scheme.mode]?.requiredFacts;
+  if (h1FixedShifts) {
+    const expectedTo = /^\d{4}-\d{2}-01$/.test(period?.from || '')
+      ? new Date(Date.parse(`${period.from}T00:00:00.000Z`) + 13 * 86400000).toISOString().slice(0, 10) : null;
+    if (!expectedTo || period.to !== expectedTo) return blocked(['payroll_h1_period_required']);
+    // The H1 calculator intentionally replaces only the month-end closure
+    // requirement. Every other configured source dependency remains required.
+    required = required?.filter(fact => fact !== 'closedMonthCoverage');
+  }
   if (!required) return blocked(['payroll_refund_aware_mode_invalid']);
   const closure = (await db.query(`SELECT transaction_timestamp()::text AS "transactionTimestamp",
     (transaction_timestamp() AT TIME ZONE timezone)::date::text AS "venueLocalDate",timezone
     FROM venues WHERE id=$1`, [actor.venueId])).rows[0];
   if (!closure) fail('venue_missing');
+  if (h1FixedShifts && closure.venueLocalDate <= period.to) return blocked(['payroll_h1_period_still_open']);
   const recognitionEvidence = await readPayrollRecognitionEvidenceInTransaction(db,
     { venueId: actor.venueId, currency: scheme.currency, from: period.from, to: period.to });
   let economics;

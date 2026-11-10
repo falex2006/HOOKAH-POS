@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import payroll from '../payroll-schemes.js';
+import { randomUUID } from 'node:crypto';
+import { buildPayrollH1FixedShiftsRunProvenance } from '../payroll-h1-fixed-shifts-provenance.js';
+import { buildPayrollRecognitionManifest } from '../payroll-recognition-manifest.js';
+import { makePayrollRefundAwareFixture } from './payroll-refund-aware-calculation-contract.mjs';
+import { payrollRefundEconomicFixtureOptions } from './payroll-refund-economic-source-contract.mjs';
 
 const {calculatePayrollScheme, calculatePayrollH1FixedShifts} = payroll;
 const from = '2026-09-01', to = '2026-09-14', end = '2026-09-30';
@@ -95,4 +100,22 @@ assert.equal(pay(monthAfterSwitch, 'a') - pay(firstAfterSwitch, 'a'), 3000,
   'only the deferred 15% on the sale after the switch remains');
 const unsupported = calculatePayrollH1FixedShifts({...base,sales:[]});
 assert.ok(unsupported.criticalErrors.some(e=>e.code==='employee_daily_pay_exceeds_personal_revenue'));
+// In Yekaterinburg, the 15th begins at 19:00 UTC on the 14th.
+const midMonth = makePayrollRefundAwareFixture('final_month_threshold', { noRefunds: true });
+midMonth.runId = randomUUID();
+midMonth.scheme.roleParameters.bar.perShiftCents = 1000;
+midMonth.period.to = '2026-10-14';
+midMonth.periodClosure.period = { ...midMonth.period };
+midMonth.approvedAttendanceSource.attendanceCoverage.through = midMonth.period.to;
+Object.assign(midMonth.approvedAttendanceSource.sourceAttendanceApproval, {
+  periodTo: midMonth.period.to, approvedAt: '2026-10-14T18:59:00.000Z'
+});
+midMonth.recognitionEvidence.manifest = buildPayrollRecognitionManifest(midMonth.recognitionEvidence.facts,
+  { ...payrollRefundEconomicFixtureOptions, to: midMonth.period.to });
+Object.assign(midMonth.periodClosure, { transactionTimestamp: '2026-10-14T18:59:59Z', venueLocalDate: '2026-10-14' });
+assert.equal(buildPayrollH1FixedShiftsRunProvenance(midMonth).status, 'blocked');
+Object.assign(midMonth.periodClosure, { transactionTimestamp: '2026-10-14T19:00:00Z', venueLocalDate: '2026-10-15' });
+const availableOnFifteenth = buildPayrollH1FixedShiftsRunProvenance(midMonth);
+assert.equal(availableOnFifteenth.status, 'verified_h1_fixed_shifts_evidence');
+assert.equal(availableOnFifteenth.provenance.total_amount_cents, 1000);
 console.log('PASS H1 shifts, early/late monthly threshold, dated roles, product commission deferral, cap, evidence and closed-month residual');

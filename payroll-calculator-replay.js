@@ -5,7 +5,7 @@
 const { createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
-const { calculatePayrollScheme } = require('./payroll-schemes');
+const { calculatePayrollScheme, calculatePayrollH1FixedShifts } = require('./payroll-schemes');
 const ENCODING = 'canonical-json-safe-integers-v1';
 const MAX_BYTES = 16 * 1024 * 1024;
 const HASH = /^[a-f0-9]{64}$/;
@@ -161,5 +161,48 @@ const executeCalculatorReplay = value => {
 // H1 replay is a separate algorithm over the same immutable V2 input. It is
 // deliberately tagged and versioned so a normal V2 replay cannot be relabeled
 // as a first-half fixed-shift result.
+const H1_ALGORITHM = 'h1_fixed_shifts_v1';
+const h1InputBounds = input => {
+  inputBounds(input);
+  const expectedTo = dateValid(input.periodFrom) && /^\d{4}-\d{2}-01$/.test(input.periodFrom)
+    ? new Date(Date.parse(`${input.periodFrom}T00:00:00.000Z`) + 13 * 86400000).toISOString().slice(0, 10) : null;
+  if (!expectedTo || input.periodTo !== expectedTo || input.coverage?.kind !== 'month_to_date_complete'
+      || input.coverage?.from !== input.periodFrom || input.coverage?.through !== input.periodTo
+      || input.coverage?.complete !== true || input.monthClosed === true) fail('h1_input_invalid');
+};
+const buildPayrollH1FixedShiftsReplay = (input, result) => {
+  const normalizedInput = normalize(input), normalizedResult = normalize(result);
+  h1InputBounds(normalizedInput.value); resultValid(normalizedInput.value, normalizedResult.value);
+  const repeated = normalize(calculatePayrollH1FixedShifts(normalizedInput.value));
+  if (repeated.text !== normalizedResult.text) fail('h1_result_mismatch');
+  if (normalizedResult.value.employees.some(employee => employee.milestoneBonusCents !== 0)) fail('h1_monthly_milestone_not_deferred');
+  const replay = { schemaVersion: 1, encoding: ENCODING, algorithm: H1_ALGORITHM, engineRevision: ENGINE_REVISION,
+    input: normalizedInput.value, result: normalizedResult.value,
+    inputSha256: hash(normalizedInput.text), resultSha256: hash(normalizedResult.text) };
+  normalize(replay);
+  return freeze(replay);
+};
+const executePayrollH1FixedShiftsReplay = value => {
+  let replay;
+  try { replay = normalize(value).value; } catch (_) { fail('h1_payload_invalid'); }
+  const keys = ['algorithm','encoding','engineRevision','input','inputSha256','result','resultSha256','schemaVersion'];
+  if (!plain(replay) || Object.keys(replay).sort().join(',') !== keys.join(',') || replay.schemaVersion !== 1
+      || replay.encoding !== ENCODING || replay.algorithm !== H1_ALGORITHM || !HASH.test(replay.engineRevision || '')
+      || !HASH.test(replay.inputSha256 || '') || !HASH.test(replay.resultSha256 || '')) fail('h1_payload_invalid');
+  if (hash(normalize(replay.input).text) !== replay.inputSha256 || hash(normalize(replay.result).text) !== replay.resultSha256) {
+    fail('h1_checksum_mismatch');
+  }
+  h1InputBounds(replay.input); resultValid(replay.input, replay.result);
+  const metadata = { schemaVersion: replay.schemaVersion, encoding: replay.encoding, algorithm: replay.algorithm,
+    engineRevision: replay.engineRevision, inputSha256: replay.inputSha256, resultSha256: replay.resultSha256 };
+  if (replay.engineRevision !== ENGINE_REVISION) return freeze({ ...metadata, status: 'engine_unavailable', compatible: false, matched: false,
+    replayVerified: false, result: null });
+  let result;
+  try { result = normalize(calculatePayrollH1FixedShifts(replay.input)); } catch (_) { fail('h1_execution_failed'); }
+  const matched = result.text === normalize(replay.result).text;
+  if (matched && result.value.employees.some(employee => employee.milestoneBonusCents !== 0)) fail('h1_monthly_milestone_not_deferred');
+  return freeze({ ...metadata, status: matched ? 'matched' : 'mismatch', compatible: true, matched, replayVerified: matched,
+    result: result.value, expectedResultSha256: replay.resultSha256, resultSha256: hash(result.text) });
+};
 module.exports = { PayrollCalculatorReplayError, buildCalculatorReplay, validateCalculatorReplay, executeCalculatorReplay,
-  getCalculatorReplayEngineManifest };
+  buildPayrollH1FixedShiftsReplay, executePayrollH1FixedShiftsReplay, getCalculatorReplayEngineManifest };

@@ -19,13 +19,14 @@ const freeze = value => { if (value && typeof value === 'object' && !Object.isFr
 const cloneFreeze = value => freeze(structuredClone(value));
 const exact = (a, b) => stable(a) === stable(b);
 
-function buildPayrollRefundAwareSnapshot({ venueId, runId, ...sourceArgs } = {}, calculate) {
-  const blocked = (code, calculation = null) => cloneFreeze({ schemaVersion: 2, status: 'blocked', officialReady: false,
+function buildPayrollRefundAwareSnapshot({ venueId, runId, h1FixedShifts = false, ...sourceArgs } = {}, calculate) {
+  const snapshotSchemaVersion = h1FixedShifts ? 4 : 2;
+  const blocked = (code, calculation = null) => cloneFreeze({ schemaVersion: snapshotSchemaVersion, status: 'blocked', officialReady: false,
     payoutEligible: false, sourceAttested: false, persistence: 'none', reasons: [code], verifiedCalculation: calculation,
     snapshotInput: null, mappedRows: null, milestoneRows: null, refundQuantityEvidence: null,
     sourceWatermark: null, snapshotInputWatermark: null });
   let calculation;
-  try { calculation = buildPayrollRefundAwareCalculation({ venueId, ...sourceArgs }, calculate); }
+  try { calculation = buildPayrollRefundAwareCalculation({ venueId, ...sourceArgs, h1FixedShifts }, calculate); }
   catch (error) { return blocked(error?.code || 'payroll_refund_aware_calculation_unavailable'); }
   if (calculation?.status !== 'refund_aware_calculated' || calculation.officialReady !== false
       || calculation.payoutEligible !== false || calculation.sourceAttested !== false || calculation.persistence !== 'none') {
@@ -131,9 +132,9 @@ function buildPayrollRefundAwareSnapshot({ venueId, runId, ...sourceArgs } = {},
       producerWatermarks: [...new Set(returnEvidence.map(row => row.producerWatermark).filter(Boolean))].sort(),
       lines: returnEvidence };
     const sourceWatermark = calculation.inputWatermark;
-    const snapshotInputWatermark = digest({ schemaVersion: 2, sourceWatermark,
+    const snapshotInputWatermark = digest({ schemaVersion: snapshotSchemaVersion, sourceWatermark,
       calculationWatermark: calculation.calculationWatermark, snapshotInput, mappedRows, milestoneRows, refundQuantityEvidence });
-    return cloneFreeze({ schemaVersion: 2, status: 'refund_aware_snapshot_input', officialReady: false,
+    return cloneFreeze({ schemaVersion: snapshotSchemaVersion, status: h1FixedShifts ? 'h1_fixed_shifts_snapshot_input' : 'refund_aware_snapshot_input', officialReady: false,
       payoutEligible: false, sourceAttested: false, persistence: 'none', reasons: [], sourceWatermark,
       calculationWatermark: calculation.calculationWatermark, snapshotInputWatermark,
       verifiedCalculation: calculation, snapshotInput, mappedRows, milestoneRows, refundQuantityEvidence });
