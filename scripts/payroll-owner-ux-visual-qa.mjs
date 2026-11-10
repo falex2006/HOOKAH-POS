@@ -119,10 +119,20 @@ try {
    try {
     const result=await pool.query("SELECT (amount*100)::int cents FROM expenses WHERE id=$1 AND venue_id=$2 AND source='payroll'",[paid.expenseId,fixture.ids.venue]);
     assert.deepEqual(result.rows,[{cents:entry.amountCents}]);
+    const payrollExpenses = () => pool.query("SELECT id FROM expenses WHERE venue_id=$1 AND source='payroll' ORDER BY id", [fixture.ids.venue]);
+    const beforeRetry = await payrollExpenses();
+    const retry = await page.request.post(reply.url(), { headers: {origin:base}, data:reply.request().postDataJSON() });
+    assert.ok(retry.ok(), 'repeat the confirmed payout: '+retry.status());
+    const repeatedEntry = (await retry.json()).entry;
+    assert.equal(repeatedEntry.expenseId, paid.expenseId);
+    assert.deepEqual((await payrollExpenses()).rows, beforeRetry.rows);
+    const detail=registry.locator('.payroll-entry-breakdown');
+    await detail.locator('summary').click();
+    await capture('04-paid', detail);
    } finally {await pool.end();}
   }
  }
- console.log('PASS: payroll owner 3 stages × 4 sizes: '+output);
+ console.log('PASS: payroll owner 4 stages × 4 sizes: '+output);
 } finally {
  if(browser) await browser.close();
  if(server && server.exitCode===null && !server.signalCode){const exited=once(server,'exit');server.kill();await exited;}
