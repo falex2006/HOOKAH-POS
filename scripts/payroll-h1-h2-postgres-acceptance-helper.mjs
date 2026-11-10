@@ -15,6 +15,73 @@ const linkedExpenses = async (pool, venueId, entryIds) => (await pool.query(`SEL
     count(*)::int AS count FROM expenses WHERE venue_id=$1 AND payroll_calculation_entry_id=ANY($2::uuid[])
     GROUP BY payroll_calculation_entry_id ORDER BY payroll_calculation_entry_id`, [venueId, entryIds])).rows;
 
+// Exercise the same unlinked INSERT used by the manual payroll register. Its
+// transaction does not participate in the source fence of the calculation API.
+async function raceManualAdvanceWithZeroH2(pool, owner, monthlyRunId, employeeId, from) {
+  const request = {employeeId,financeCategoryId:null,idempotencyKey:'h2-b-zero-h1-materialize'};
+  const manual = await pool.connect();
+  const insertAdvance = () => manual.query(`INSERT INTO payroll_entries
+    (venue_id,user_id,period_from,period_to,amount,status) VALUES($1,$2,$3::date,$3::date+13,1,'draft') RETURNING id`,
+    [owner.venueId,employeeId,from]);
+  async function waitUntilBlocked(observer,waitingPid,blockingPid) {
+    const deadline = Date.now()+8000;
+    while (Date.now()<deadline) {
+      const check = await observer.query('SELECT $2::integer=ANY(pg_blocking_pids($1)) AS blocked',[waitingPid,blockingPid]);
+      if (check.rows[0].blocked) return;
+      await new Promise(resolve=>setTimeout(resolve,20));
+    }
+    assert.fail('Expected actual PostgreSQL wait on competing payroll transaction');
+  }
+  const createWithHook = hook => makeService({query:(...args)=>pool.query(...args),connect:async()=>{
+    const client = await pool.connect();
+    return {release:error=>client.release(error),query:(sql,params)=>hook(client,sql,params)};
+  }}).materializeSecondHalfCalculationEntry(owner,monthlyRunId,request);
+  try {
+    await manual.query('BEGIN');
+    const first = (await insertAdvance()).rows[0];
+    const h2AfterManual = createWithHook(async (client,sql,params)=>{
+      if (!String(sql).includes('SELECT payroll_half_month_serialized_key')) return client.query(sql,params);
+      // Manual transaction holds the month row while H2 already has its RR snapshot.
+      const waiting = client.query(sql,params);
+      const outcome = waiting.then(value=>({value}),error=>({error}));
+      await waitUntilBlocked(manual,client.processID,manual.processID);
+      await manual.query('COMMIT');
+      const result = await outcome;
+      if (result.error) throw result.error;
+      return result.value;
+    });
+    await assert.rejects(h2AfterManual,error=>error.code==='payroll_half_month_entry_materialization_retry_required');
+    const ordinary = makeService(pool);
+    await assert.rejects(ordinary.materializeSecondHalfCalculationEntry(owner,monthlyRunId,request),
+      error=>error.code==='payroll_half_month_h1_zero_base_requires_review');
+    await manual.query("UPDATE payroll_entries SET status='cancelled',cancelled_at=now(),cancelled_by=$2,cancellation_reason='Remove manual QA advance' WHERE id=$1",[first.id,owner.userId]);
+
+    // Reverse the order. The manual writer has an older RR snapshot and waits
+    // for the H2 claim to commit before trying to record its first-half amount.
+    await manual.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    await manual.query('SELECT txid_current_snapshot()');
+    let manualResult;
+    const h2 = await createWithHook(async(client,sql,params)=>{
+      const result=await client.query(sql,params);
+      if (String(sql).includes('INSERT INTO payroll_h2_requests')) {
+        manualResult=insertAdvance().then(value=>({value}),error=>({error}));
+        await waitUntilBlocked(client,manual.processID,client.processID);
+      }
+      return result;
+    });
+    assert.equal((await manualResult).error?.code,'40001');
+    await manual.query('ROLLBACK');
+    await assert.rejects(insertAdvance(),error=>error.code==='23514' && error.message.includes('zero_base_source_reserved'));
+    const active = await manual.query("SELECT id FROM payroll_entries WHERE venue_id=$1 AND user_id=$2 AND status IN ('draft','approved','paid') AND period_from=$3::date",
+      [owner.venueId,employeeId,from]);
+    assert.equal(active.rowCount,0);
+    return h2;
+  } finally {
+    await manual.query('ROLLBACK').catch(()=>{});
+    manual.release();
+  }
+}
+
 // Real-source fixture callback inserts a partial return against a day-15 sale
 // after the first H2 candidate has been persisted. It returns the resulting
 // recognized refund event for the caller to verify independently.
@@ -52,7 +119,7 @@ export async function verifyH1H2PostgresAcceptance({ service, pool, owner, ids, 
     WHERE venue_id=$1 AND user_id=$2 AND period_from=$3::date AND period_to=$4::date AND payroll_half_kind='h1'`,
   [ids.venue, h2OnlyEmployeeId, period.from, `${month}-14`])).rows[0];
   assert.equal(noH1Entry.count, 0);
-  const h2BResult = await materialize(h2OnlyEmployeeId, 'h2-b-zero-h1-materialize');
+  const h2BResult = await raceManualAdvanceWithZeroH2(pool,owner,monthlyRunId,h2OnlyEmployeeId,period.from);
   const h2B = h2BResult.currentEntry || h2BResult.entry;
   assert.equal(h2B.halfKind, 'h2'); assert.equal(h2B.monthlyRunId, monthlyRunId);
   assert.ok(h2B.grossCents > 0, 'case B earns only in H2');

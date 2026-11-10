@@ -459,11 +459,37 @@ CREATE TABLE IF NOT EXISTS payroll_h2_requests (
 -- NB: Must be backed by trigger checks on actor, exact request/response and
 -- same source-fenced transaction. This table alone grants no authority.
 
+-- Candidate RR fence: scoped physical row revision forces SSI conflict when
+-- a transaction took its snapshot before a competing origin committed.
+CREATE TABLE IF NOT EXISTS payroll_half_month_serialization (
+ venue_id uuid NOT NULL, employee_id uuid NOT NULL, month_from date NOT NULL,
+ revision bigint NOT NULL CHECK(revision>0), PRIMARY KEY(venue_id,employee_id,month_from),
+ CHECK(isfinite(month_from) AND extract(day from month_from)=1),
+ FOREIGN KEY(venue_id,employee_id) REFERENCES users(venue_id,id) ON DELETE RESTRICT
+);
+CREATE OR REPLACE FUNCTION payroll_half_month_serialization_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP IN ('DELETE','TRUNCATE') THEN RAISE EXCEPTION 'payroll_half_month_serialization_immutable' USING ERRCODE='55000'; END IF;
+ IF TG_OP='INSERT' AND NEW.revision<>1 THEN RAISE EXCEPTION 'payroll_half_month_serialization_revision_invalid' USING ERRCODE='23514'; END IF;
+ IF TG_OP='UPDATE' AND (ROW(NEW.venue_id,NEW.employee_id,NEW.month_from) IS DISTINCT FROM ROW(OLD.venue_id,OLD.employee_id,OLD.month_from)
+    OR NEW.revision IS DISTINCT FROM OLD.revision+1) THEN RAISE EXCEPTION 'payroll_half_month_serialization_revision_invalid' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS payroll_half_month_serialization_guard ON payroll_half_month_serialization;
+CREATE TRIGGER payroll_half_month_serialization_guard BEFORE INSERT OR UPDATE OR DELETE ON payroll_half_month_serialization FOR EACH ROW EXECUTE FUNCTION payroll_half_month_serialization_guard();
+DROP TRIGGER IF EXISTS payroll_half_month_serialization_truncate ON payroll_half_month_serialization;
+CREATE TRIGGER payroll_half_month_serialization_truncate BEFORE TRUNCATE ON payroll_half_month_serialization FOR EACH STATEMENT EXECUTE FUNCTION payroll_half_month_serialization_guard();
+CREATE OR REPLACE FUNCTION payroll_half_month_serialized_key_scoped(v uuid,e uuid,m date,schema_name text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+ IF v IS NULL OR e IS NULL OR m IS NULL OR NOT isfinite(m) OR extract(day from m)<>1 OR schema_name IS NULL THEN
+  RAISE EXCEPTION 'payroll_half_month_lock_invalid' USING ERRCODE='23514'; END IF;
+ EXECUTE format('INSERT INTO %I.payroll_half_month_serialization AS s (venue_id,employee_id,month_from,revision) VALUES($1,$2,$3,1) ON CONFLICT (venue_id,employee_id,month_from) DO UPDATE SET revision=s.revision+1',schema_name) USING v,e,m;
+END $$;
+-- The public service already runs in the expected application schema. All
+-- trigger paths pass TG_TABLE_SCHEMA to scoped variant explicitly.
 CREATE OR REPLACE FUNCTION payroll_half_month_serialized_key(v uuid,e uuid,m date) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
- IF v IS NULL OR e IS NULL OR m IS NULL OR NOT isfinite(m) OR extract(day from m)<>1 THEN
-  RAISE EXCEPTION 'payroll_half_month_lock_invalid' USING ERRCODE='23514'; END IF;
- PERFORM pg_advisory_xact_lock(hashtextextended(v::text||':'||e::text||':'||to_char(m,'YYYY-MM-DD'),413832541));
+ PERFORM payroll_half_month_serialized_key_scoped(v,e,m,current_schema());
 END $$;
 -- REQUIRED: all h1 claim / active legacy or full-month entry / h2 claim paths
 -- take this exact key before reading or writing slots. A partial rollout is unsafe.
@@ -472,7 +498,7 @@ DECLARE entry record; run record; proof record; parent record; h1 record; slot r
  snapshot_count bigint; snapshot_sum numeric; conflicts bigint; owner_ok boolean; h1_receipt_ok boolean; evidence jsonb;
 BEGIN
  IF NEW.claim_insert_xid IS NOT NULL THEN RAISE EXCEPTION 'payroll_h2_claim_xid_db_owned' USING ERRCODE='23514'; END IF;
- EXECUTE format('SELECT %I.payroll_half_month_serialized_key($1,$2,$3)',TG_TABLE_SCHEMA) USING NEW.venue_id,NEW.employee_id,NEW.month_from;
+ EXECUTE format('SELECT %I.payroll_half_month_serialized_key_scoped($1,$2,$3,$4)',TG_TABLE_SCHEMA) USING NEW.venue_id,NEW.employee_id,NEW.month_from,TG_TABLE_SCHEMA;
  EXECUTE format('SELECT * FROM %I.payroll_entries WHERE venue_id=$1 AND id=$2',TG_TABLE_SCHEMA) INTO entry USING NEW.venue_id,NEW.h2_entry_id;
  EXECUTE format('SELECT * FROM %I.payroll_calculation_runs WHERE venue_id=$1 AND id=$2',TG_TABLE_SCHEMA) INTO run USING NEW.venue_id,NEW.h2_run_id;
  EXECUTE format('SELECT * FROM %I.payroll_run_provenance WHERE venue_id=$1 AND run_id=$2',TG_TABLE_SCHEMA) INTO proof USING NEW.venue_id,NEW.h2_run_id;
@@ -533,7 +559,7 @@ BEGIN
  IF TG_OP='UPDATE' AND NEW.status='cancelled' AND OLD.payroll_half_kind='h1' THEN
   EXECUTE format('SELECT * FROM %I.payroll_half_month_claims WHERE venue_id=$1 AND entry_id=$2',TG_TABLE_SCHEMA) INTO claim_row USING OLD.venue_id,OLD.id;
   IF claim_row.id IS NULL THEN RAISE EXCEPTION 'payroll_h2_h1_claim_missing' USING ERRCODE='23514'; END IF;
-  EXECUTE format('SELECT %I.payroll_half_month_serialized_key($1,$2,$3)',TG_TABLE_SCHEMA) USING OLD.venue_id,OLD.user_id,claim_row.month_from;
+  EXECUTE format('SELECT %I.payroll_half_month_serialized_key_scoped($1,$2,$3,$4)',TG_TABLE_SCHEMA) USING OLD.venue_id,OLD.user_id,claim_row.month_from,TG_TABLE_SCHEMA;
   EXECUTE format('SELECT count(*) FROM %I.payroll_h2_claim_slots s JOIN %I.payroll_h2_settlement_claims c ON c.venue_id=s.venue_id AND c.id=s.claim_id WHERE s.venue_id=$1 AND s.employee_id=$2 AND s.month_from=$3 AND c.h1_claim_id=$4',TG_TABLE_SCHEMA,TG_TABLE_SCHEMA)
    INTO h2_count USING OLD.venue_id,OLD.user_id,claim_row.month_from,claim_row.id;
   IF h2_count>0 THEN RAISE EXCEPTION 'payroll_h1_cancel_h2_active' USING ERRCODE='23514'; END IF;
@@ -544,7 +570,7 @@ BEGIN
   OR NEW.period_to>NEW.period_from+interval '10 years' THEN RAISE EXCEPTION 'payroll_h2_entry_period_invalid' USING ERRCODE='23514'; END IF;
  FOR m IN SELECT generate_series(date_trunc('month',NEW.period_from)::date,date_trunc('month',NEW.period_to)::date,interval '1 month')::date LOOP
   IF NEW.period_from>m+13 THEN CONTINUE; END IF;
-  EXECUTE format('SELECT %I.payroll_half_month_serialized_key($1,$2,$3)',TG_TABLE_SCHEMA) USING NEW.venue_id,NEW.user_id,m;
+  EXECUTE format('SELECT %I.payroll_half_month_serialized_key_scoped($1,$2,$3,$4)',TG_TABLE_SCHEMA) USING NEW.venue_id,NEW.user_id,m,TG_TABLE_SCHEMA;
   EXECUTE format('SELECT count(*) FROM %I.payroll_h2_claim_slots s JOIN %I.payroll_h2_settlement_claims c ON c.venue_id=s.venue_id AND c.id=s.claim_id WHERE s.venue_id=$1 AND s.employee_id=$2 AND s.month_from=$3 AND c.h1_origin=''verified_zero_base''',TG_TABLE_SCHEMA,TG_TABLE_SCHEMA)
    INTO overlap_count USING NEW.venue_id,NEW.user_id,m;
   IF overlap_count>0 THEN RAISE EXCEPTION 'payroll_h2_zero_base_source_reserved' USING ERRCODE='23514'; END IF;
@@ -973,7 +999,7 @@ CREATE TRIGGER payroll_h2_auto_void AFTER UPDATE OF status ON payroll_entries FO
 DROP TRIGGER IF EXISTS payroll_h2_void_commit_check ON payroll_h2_claim_voids;
 CREATE CONSTRAINT TRIGGER payroll_h2_void_commit_check AFTER INSERT ON payroll_h2_claim_voids DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payroll_h2_void_commit_check();
 DROP TRIGGER IF EXISTS payroll_h2_source_conflict_guard ON payroll_entries;
-CREATE TRIGGER payroll_h2_source_conflict_guard BEFORE INSERT OR UPDATE OF status ON payroll_entries FOR EACH ROW EXECUTE FUNCTION payroll_h2_source_conflict_guard();
+CREATE TRIGGER payroll_h2_source_conflict_guard BEFORE INSERT OR UPDATE OF status,period_from,period_to,user_id,venue_id ON payroll_entries FOR EACH ROW EXECUTE FUNCTION payroll_h2_source_conflict_guard();
 DROP TRIGGER IF EXISTS payroll_h2_entry_commit_check ON payroll_entries;
 CREATE CONSTRAINT TRIGGER payroll_h2_entry_commit_check AFTER INSERT OR UPDATE ON payroll_entries DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payroll_h2_entry_commit_check();
 DROP TRIGGER IF EXISTS payroll_h2_request_validate ON payroll_h2_requests;
