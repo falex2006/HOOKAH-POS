@@ -1,11 +1,27 @@
 -- Add an explicit second source capability without changing immutable v1 data.
 -- 204 is payroll-reserved; 205 lifecycle still controls monetary transitions.
-ALTER TABLE payroll_run_provenance DROP CONSTRAINT IF EXISTS payroll_run_provenance_schema_version_check;
-ALTER TABLE payroll_run_provenance DROP CONSTRAINT IF EXISTS payroll_run_provenance_capability_version_check;
-ALTER TABLE payroll_run_provenance DROP CONSTRAINT IF EXISTS payroll_run_provenance_capability_pair_check;
-ALTER TABLE payroll_run_provenance ADD CONSTRAINT payroll_run_provenance_capability_pair_check CHECK (
-  (schema_version=1 AND capability_version='employee_attributed_merchandise_net_no_refund_v1')
-  OR (schema_version=2 AND capability_version='employee_attributed_remaining_net_refund_v2'));
+-- The migration runner replays the entire directory. Once a later payroll
+-- migration installed the extended capability check, retain it on replay so
+-- existing H1/H2 evidence is still valid before 213/215 execute again.
+DO $payroll_204$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'payroll_run_provenance'::regclass
+       AND conname = 'payroll_run_provenance_capability_pair_check'
+       AND contype = 'c' AND convalidated
+       AND (strpos(pg_get_constraintdef(oid), 'employee_attributed_h1_fixed_shifts_v1') > 0
+         OR strpos(pg_get_constraintdef(oid), 'refund-aware-half-month-evidence-v3') > 0)
+  ) THEN
+    ALTER TABLE payroll_run_provenance DROP CONSTRAINT IF EXISTS payroll_run_provenance_schema_version_check;
+    ALTER TABLE payroll_run_provenance DROP CONSTRAINT IF EXISTS payroll_run_provenance_capability_version_check;
+    ALTER TABLE payroll_run_provenance DROP CONSTRAINT IF EXISTS payroll_run_provenance_capability_pair_check;
+    ALTER TABLE payroll_run_provenance ADD CONSTRAINT payroll_run_provenance_capability_pair_check CHECK (
+      (schema_version=1 AND capability_version='employee_attributed_merchandise_net_no_refund_v1')
+      OR (schema_version=2 AND capability_version='employee_attributed_remaining_net_refund_v2'));
+  END IF;
+END
+$payroll_204$;
 
 CREATE OR REPLACE FUNCTION payroll_validate_run_provenance() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE run record; payload jsonb; p jsonb; closure jsonb; scheme jsonb; source_period_from date; source_period_to date;
