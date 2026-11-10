@@ -6796,3 +6796,21 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 #payroll .payroll-version-history ol { display:grid; gap:8px; margin:0; padding-inline-start:1.5rem; }
 #payroll .payroll-version-history summary { cursor:pointer; color:var(--ui-text-secondary); font-size:14px; }
 #payroll .payroll-version-history pre { max-height:16rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+
+/* Align the owner forms and keep secondary checks below the employee totals. */
+#payroll [data-scheme-editor]:has([data-quick-pay]:not([hidden])),
+#payroll [data-saved-run-form] { max-inline-size: 68rem; }
+#payroll [data-quick-pay] { margin: 0; padding: 0; border: 0; min-inline-size: 0; }
+#payroll [data-quick-pay] legend { margin-bottom: 12px; font-weight: 650; }
+#payroll [data-quick-team] { margin-block: 16px 12px; }
+#payroll [data-quick-pay] .form-row { align-items: start; }
+#payroll .payroll-review-tools { padding-block: 14px; border-block-start: 1px solid var(--ui-border-subtle); }
+#payroll .payroll-review-tools summary { width: fit-content; cursor: pointer; font-weight: 600; }
+#payroll [data-saved-entry-category] { max-inline-size: 30rem; }
+#payroll .payroll-entry-actions:empty { display: none; }
+#payroll .payroll-register-amounts dd,
+#payroll .payroll-team-amount b { font-variant-numeric: tabular-nums; }
+#payroll [data-saved-run-table] caption { text-align: start; padding-block: 12px 8px; font-weight: 650; }
+#payroll [data-saved-run-table] td { vertical-align: middle; }
+#payroll [data-saved-run-detail] > section { margin-block: 18px; }
+#payroll [data-saved-run-detail] > section > h4 { margin-block: 0 8px; }

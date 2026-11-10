@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyCalculationEntryLifecycle, verifyPaidCorrectionWaiver } from './payroll-calculation-entry-source-browser-helper.mjs';
-import { verifyRefundAwareSavedRunBrowser } from './payroll-refund-aware-browser-helper.mjs';
+import { openSavedRunReviewTools, verifyRefundAwareSavedRunBrowser } from './payroll-refund-aware-browser-helper.mjs';
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -171,6 +171,7 @@ export const verifySavedRunBrowser = async ({ pool, target, ids, period, version
     await page.locator(`[data-saved-run-open="${runId}"]`).click();
     const checkFreshness = async (id, expected, text) => {
       const response = page.waitForResponse(r => r.url() === `${base}/api/payroll/calculation-runs/${id}/freshness`);
+      await openSavedRunReviewTools(page);
       await page.locator('[data-saved-run-freshness]').click();
       const received = await response;
       assert.equal(received.status(), 200);
@@ -189,6 +190,7 @@ export const verifySavedRunBrowser = async ({ pool, target, ids, period, version
     });
     assert.equal(forgedFreshness.status(), 400);
     const checkResponse = page.waitForResponse(response => response.url() === `${base}/api/payroll/calculation-runs/${runId}/replay`);
+    await openSavedRunReviewTools(page);
     await page.locator('[data-saved-run-replay]').click();
     assert.equal((await checkResponse).status(), 200);
     await page.locator('[data-saved-replay-status]').filter({ hasText: 'Повторный расчёт совпал' }).waitFor();
@@ -241,6 +243,7 @@ export const verifySavedRunBrowser = async ({ pool, target, ids, period, version
     });
     try {
       const delayedResponse = page.waitForResponse(response => response.url() === delayedUrl);
+      await openSavedRunReviewTools(page);
       await page.locator('[data-saved-run-freshness]').click();
       let inspectionTimeout;
       try {
@@ -445,6 +448,7 @@ export const verifySavedRunBrowser = async ({ pool, target, ids, period, version
       assert.ok(dimensions.left >= 0 && dimensions.right <= dimensions.viewport + 1, `saved pane stays in viewport ${width}`);
       await page.locator('[data-scheme-pane="saved"]').evaluate(node => node.scrollIntoView({ block: 'start', behavior: 'instant' }));
       await page.screenshot({ path: path.join(artifacts, `saved-${width}.png`) });
+      await openSavedRunReviewTools(page);
       await page.locator('[data-saved-run-freshness]').evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
       const freshnessDimensions = await page.locator('[data-saved-run-freshness]').evaluate(node => {
         const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, viewport: innerWidth };

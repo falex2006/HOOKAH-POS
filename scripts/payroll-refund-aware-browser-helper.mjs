@@ -3,6 +3,12 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export async function openSavedRunReviewTools(scope) {
+  const tools = scope.locator('details.payroll-review-tools');
+  await tools.waitFor({state:'visible'});
+  if (!await tools.evaluate(node => node.open)) await tools.locator('summary').first().click();
+}
+
 const CAPABILITY = 'employee_attributed_remaining_net_refund_v2';
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const statusText = {
@@ -97,6 +103,7 @@ export async function verifyRefundAwareSavedRunBrowser({ page, base, api = page?
     const detail = page.locator('[data-saved-run-detail]');
     await noActions(detail);
     const freshnessResponse = page.waitForResponse(r => r.url() === `${url}/freshness` && r.request().method() === 'POST');
+    await openSavedRunReviewTools(detail);
     await detail.locator('[data-saved-run-freshness]').click();
     const freshnessHttp = await freshnessResponse;
     assert.equal(freshnessHttp.status(), 200, await freshnessHttp.text());
@@ -109,6 +116,7 @@ export async function verifyRefundAwareSavedRunBrowser({ page, base, api = page?
     await detail.locator('[data-saved-freshness-status]').filter({ hasText: statusText[expectedFreshness] }).waitFor();
     await noActions(detail);
     const replayResponse = page.waitForResponse(r => r.url() === `${url}/replay` && r.request().method() === 'POST');
+    await openSavedRunReviewTools(detail);
     await detail.locator('[data-saved-run-replay]').click();
     const replayHttp = await replayResponse;
     assert.equal(replayHttp.status(), 200, await replayHttp.text());

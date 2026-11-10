@@ -7,7 +7,7 @@ const extract = (start, end) => {
   const first = source.indexOf(start), last = source.indexOf(end, first);
   assert.ok(first >= 0 && last > first); return source.slice(first, last);
 };
-const gate = extract('    const savedRunLifecycleAllowed =', '    const renderSavedEntry =');
+const gate = extract('    const halfMonthBreakdown =', '    const renderSavedEntry =');
 const supersessionGate = extract('    const supersessionAllowed =', '    const supersessionError =');
 const open = extract('    const openRun =', '    const replayRun =');
 const v1 = 'employee_attributed_merchandise_net_no_refund_v1';

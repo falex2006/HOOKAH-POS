@@ -404,6 +404,14 @@
       saleCredit: policy?.saleCredit?.kind || '', discountAllocation: policy?.discountAllocation?.kind || '',
       refunds: policy?.refunds?.recognition || '', selectionReason: policy?.selectionReason || '' };
   };
+  const savedAtLabel = value => {
+    if (!value) return '—';
+    try {
+      return new Intl.DateTimeFormat('ru-RU', {
+        timeZone: venueTimezone || 'UTC', dateStyle: 'short', timeStyle: 'short'
+      }).format(new Date(value));
+    } catch { return value; }
+  };
   const venueLocalToday = () => {
     try { return new Intl.DateTimeFormat('en-CA', { timeZone: venueTimezone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
     catch (_) { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
@@ -2442,7 +2450,7 @@
         list.innerHTML = data.items.length ? table('Сохранённые расчёты', ['Период', 'Схема', 'Сумма', 'Сохранил', 'Действие'],
           data.items.map(row => `<tr><td>${escapeHtml(row.period.from)} — ${escapeHtml(row.period.to)}</td>
           <td>${escapeHtml(row.scheme.name)} · версия ${escapeHtml(row.scheme.versionNo)}</td>
-          <td>${money(row.amountCents, row.currency)}</td><td>${escapeHtml(row.createdByName)}<br>${escapeHtml(row.createdAt)}</td>
+          <td>${money(row.amountCents, row.currency)}</td><td>${escapeHtml(row.createdByName)}<br>${escapeHtml(savedAtLabel(row.createdAt))}</td>
           <td><button type="button" class="button small" data-saved-run-open="${escapeHtml(row.runId)}">Открыть</button></td></tr>`).join(''))
           : '<p class="empty">Сохранённых расчётов пока нет.</p>';
         more.hidden = !listCursor;
@@ -2469,16 +2477,8 @@
           <p>${escapeHtml(data.period.from)} — ${escapeHtml(data.period.to)} · ${escapeHtml(data.venueTimezone)}</p>
           <p><strong>Итого: ${money(data.amountCents, data.currency)}</strong></p>
           ${data.capabilityVersion === 'employee_attributed_h1_fixed_shifts_v1' ? '<p>За 1–14 число учитываются подтверждённые смены и дневные проценты по условиям сотрудника. Если схема предусматривает месячную премию или процент по итогу месяца, они войдут в расчёт после закрытия месяца.</p>' : ''}
-          ${lifecycleAllowed ? '<p>Расчёт сохранён. Для каждого сотрудника можно создать черновик начисления по сохранённой сумме.</p><p class="scheme-guidance">Откройте начисление в реестре: владелец может проверить источники, утвердить сумму и зарегистрировать выплату. Перед каждым действием источники проверяются заново.</p>'
+          ${lifecycleAllowed ? '<p>Расчёт сохранён. Для каждого сотрудника можно создать черновик начисления по сохранённой сумме.</p><p class="scheme-guidance">После создания черновика откройте его в ведомости, чтобы утвердить сумму и оформить выплату.</p>'
             : '<p class="scheme-guidance" data-saved-run-read-only>Этот расчёт доступен для просмотра и проверки. Создание начислений, выплаты и финансовые корректировки для него пока недоступны.</p>'}
-          <p>${data.replayAvailable === true
-            ? '<button type="button" class="button" data-saved-run-replay>Проверить воспроизводимость</button>'
-            : data.replay?.state === 'engine_unavailable' ? 'Для проверки нужна версия расчётного движка, использованная при сохранении.'
-              : 'Этот расчёт сохранён без полного набора данных для повторного вычисления.'}</p>
-          <p data-saved-replay-status role="status"></p>
-          <p><button type="button" class="button" data-saved-run-freshness>Проверить актуальность данных</button></p>
-          <div data-saved-freshness-status role="status">Актуальность исходных данных ещё не проверена.</div>
-          <p class="muted">Проверка учитывает изменения после сохранения расчёта. Совпадение данных на момент проверки само по себе не разрешает выплату.</p>
           ${lifecycleAllowed ? `<section aria-label="Черновики начислений"><h4>Создать начисления</h4>
           <label>Статья расхода для новых черновиков<select data-saved-entry-category disabled><option value="">Без статьи</option></select></label>
           <p class="muted" data-saved-entry-category-hint>Загружаем статьи. По умолчанию черновик создаётся без статьи.</p>
@@ -2492,6 +2492,16 @@
           </section>
           ${pageButton('data-saved-employees-next', data.nextCursor, 'Следующие сотрудники')}
           <div data-saved-employee-detail></div>
+          <details class="payroll-review-tools"><summary>Проверка исходных данных</summary>
+          <p>${data.replayAvailable === true
+            ? '<button type="button" class="button" data-saved-run-replay>Проверить воспроизводимость</button>'
+            : data.replay?.state === 'engine_unavailable' ? 'Для проверки нужна версия расчётного движка, использованная при сохранении.'
+              : 'Этот расчёт сохранён без полного набора данных для повторного вычисления.'}</p>
+          <p data-saved-replay-status role="status"></p>
+          <p><button type="button" class="button" data-saved-run-freshness>Проверить актуальность данных</button></p>
+          <div data-saved-freshness-status role="status">Актуальность исходных данных ещё не проверена.</div>
+          <p class="muted">Проверка учитывает изменения после сохранения расчёта. Совпадение данных на момент проверки само по себе не разрешает выплату.</p>
+          </details>
           ${supersessionAllowed(runId) ? `<section aria-label="Пересчёт неоплаченной ведомости"><h4>Пересчёт неоплаченной ведомости</h4>
             <p>Проверим полный состав и покажем новые суммы. Нужны начисления для всех сотрудников: только черновики или уже отменённые строки. Утверждённые и выплаченные ведомости здесь не заменяются.</p>
             <button type="button" class="button" data-supersession-preview>Пересчитать неоплаченную ведомость</button><div data-supersession-content role="status"></div></section>` : ''}
@@ -2922,7 +2932,7 @@
         }
         .finance-payroll-schemes [data-scheme-pane]{scroll-margin-top:var(--header-height,80px)}
       </style>
-      <div class="panel-head"><div><h2>Схемы оплаты</h2></div><div class="toolbar-row"><button type="button" class="button small" data-scheme-reload>Обновить</button><button type="button" class="button small primary" data-scheme-new>Новая схема</button></div></div>
+      <div class="panel-head"><div><h2>Схемы оплаты</h2></div><div class="toolbar-row"><button type="button" class="button small" data-scheme-reload>Обновить</button><button type="button" class="button small" data-scheme-new>Расширенная схема</button><button type="button" class="button small primary" data-scheme-new-guided>Настроить ставку</button></div></div>
       <p class="muted">Черновик можно проверить на примере смены. Когда условия верны, активируйте версию схемы.</p>
       <p class="form-message" data-scheme-message role="status" aria-live="polite"></p>
       <div class="finance-scheme-list" data-scheme-list><div class="empty">Загрузка схем…</div></div>
@@ -3861,7 +3871,7 @@
     };
     const renderList = () => {
       if (!schemes.length) { list.innerHTML = '<div class="empty">Схем пока нет. Создайте схему и сохраните первую черновую версию.</div>'; syncWorkspaceActions(); return; }
-      list.innerHTML = schemes.map((scheme) => `<article class="finance-scheme-card"><div class="panel-head"><div><h3>${escapeHtml(scheme.name)}</h3>${scheme.description ? `<small class="muted">${escapeHtml(scheme.description)}</small>` : ''}</div></div><div class="finance-scheme-versions">${sortedVersions(scheme).map((version) => `<div class="payment-row"><label><input type="checkbox" data-scheme-compare-version="${escapeHtml(version.id)}"> Сравнить</label><span>Версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode] || version.mode)} · ${escapeHtml(version.effectiveFrom)}${version.effectiveTo ? ` — ${escapeHtml(version.effectiveTo)}` : ''}<small class="muted">${version.payoutRiskAcknowledgement?.configDigest ? `Риск подтверждён владельцем ${escapeHtml(version.payoutRiskAcknowledgement.acknowledgedAt || '')}` : 'Подтверждение риска не сохранено'}</small></span><span class="badge ${version.status === 'active' ? 'success' : version.status === 'draft' ? 'warning' : ''}">${escapeHtml(editorStatusLabel(version.status))}</span><div class="toolbar-row"><button type="button" class="button small" data-scheme-open-version="${escapeHtml(version.id)}">Открыть</button>${version.status === 'draft' ? `<button type="button" class="button small primary" data-scheme-activate="${escapeHtml(version.id)}">Активировать</button>` : ''}<button type="button" class="button small" aria-expanded="false" data-scheme-revisions="${escapeHtml(version.id)}">История</button></div></div>`).join('') || '<div class="empty">Черновых версий нет</div>'}<div class="toolbar-row"><button type="button" class="button small" data-scheme-new-version="${escapeHtml(scheme.id)}">Создать новую версию</button></div></div></article>`).join('');
+      list.innerHTML = schemes.map((scheme) => `<article class="finance-scheme-card"><div class="panel-head"><div><h3>${escapeHtml(scheme.name)}</h3>${scheme.description ? `<small class="muted">${escapeHtml(scheme.description)}</small>` : ''}</div></div><div class="finance-scheme-versions">${sortedVersions(scheme).map((version) => `<div class="payment-row"><label><input type="checkbox" data-scheme-compare-version="${escapeHtml(version.id)}"> Сравнить</label><span>Версия ${escapeHtml(version.versionNo)} · ${escapeHtml(EDITOR_CHOICE_LABELS[version.mode] || version.mode)} · ${escapeHtml(version.effectiveFrom)}${version.effectiveTo ? ` — ${escapeHtml(version.effectiveTo)}` : ''}<small class="muted">${version.payoutRiskAcknowledgement?.configDigest ? `Риск подтверждён владельцем ${escapeHtml(savedAtLabel(version.payoutRiskAcknowledgement.acknowledgedAt))}` : 'Подтверждение риска не сохранено'}</small></span><span class="badge ${version.status === 'active' ? 'success' : version.status === 'draft' ? 'warning' : ''}">${escapeHtml(editorStatusLabel(version.status))}</span><div class="toolbar-row"><button type="button" class="button small" data-scheme-open-version="${escapeHtml(version.id)}">Открыть</button>${version.status === 'draft' ? `<button type="button" class="button small primary" data-scheme-activate="${escapeHtml(version.id)}">Активировать</button>` : ''}<button type="button" class="button small" aria-expanded="false" data-scheme-revisions="${escapeHtml(version.id)}">История</button></div></div>`).join('') || '<div class="empty">Черновых версий нет</div>'}<div class="toolbar-row"><button type="button" class="button small" data-scheme-new-version="${escapeHtml(scheme.id)}">Создать новую версию</button></div></div></article>`).join('');
       syncWorkspaceActions();
     };
     const load = async ({ force = false } = {}) => {
@@ -3948,7 +3958,7 @@
     panel.addEventListener('click', async (event) => {
       const button = event.target.closest('button');
       // Only scheme actions may refresh the editor; custom-select buttons own their focus.
-      if (!button || pending || !button.matches('[data-scheme-workspace], [data-scheme-grid-rebuild], [data-source-policy-apply], [data-scheme-grid-apply], [data-grid-add-override], [data-grid-inherit], [data-grid-add-milestone-threshold], [data-grid-add-threshold], [data-attendance-page], [data-attendance-refresh], [data-attendance-approve], [data-scheme-reload], [data-scheme-retry], [data-scheme-new], [data-scheme-editor-cancel], [data-scheme-open-version], [data-scheme-new-version], [data-scheme-activate], [data-scheme-revisions], [data-scheme-run-preview], [data-scheme-run-approved-attendance], [data-scheme-run-venue-preview], [data-scheme-compare]')) return;
+      if (!button || pending || !button.matches('[data-scheme-workspace], [data-scheme-grid-rebuild], [data-source-policy-apply], [data-scheme-grid-apply], [data-grid-add-override], [data-grid-inherit], [data-grid-add-milestone-threshold], [data-grid-add-threshold], [data-attendance-page], [data-attendance-refresh], [data-attendance-approve], [data-scheme-reload], [data-scheme-retry], [data-scheme-new], [data-scheme-new-guided], [data-scheme-editor-cancel], [data-scheme-open-version], [data-scheme-new-version], [data-scheme-activate], [data-scheme-revisions], [data-scheme-run-preview], [data-scheme-run-approved-attendance], [data-scheme-run-venue-preview], [data-scheme-compare]')) return;
       try {
         if(button.matches('[data-scheme-workspace]')){selectWorkspace(button.dataset.schemeWorkspace,{focus:true});return;}
         if (button.matches('[data-scheme-grid-rebuild]')) { rebuildGrid(); return; }
@@ -4000,6 +4010,7 @@
           return;
         }
         if (button.matches('[data-scheme-reload], [data-scheme-retry]')) return await load();
+        if (button.matches('[data-scheme-new-guided]')) return start.click();
         if (button.matches('[data-scheme-new]')) return await showEditor({ kind: 'create' });
         if (button.matches('[data-scheme-editor-cancel]')) { editorTransition.invalidate(); editorBaseline = null; editor.hidden = true; editorAction = null; selectedVersion = null; invalidateReadiness(); selectWorkspace('list',{focus:true}); return; }
         if (button.matches('[data-scheme-open-version]')) return await openVersion(button.dataset.schemeOpenVersion);
