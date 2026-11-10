@@ -6407,3 +6407,46 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
     overflow-wrap: anywhere;
   }
 }
+
+#page-content #payroll > .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+}
+#page-content #payroll .payroll-register-heading {
+  display: block;
+  margin: 0;
+  font-size: var(--ui-font-section, 1.2rem);
+  line-height: 1.35;
+}
+#payroll .payroll-header-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+#payroll #payroll-message:empty { display: none; }
+#page-content #payroll > details.finance-secondary-details > summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .75rem;
+}
+#page-content #payroll > details.finance-secondary-details > summary::-webkit-details-marker { display: none; }
+#page-content #payroll > details.finance-secondary-details > summary::after {
+  content: '';
+  width: .55rem;
+  height: .55rem;
+  flex: none;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+#page-content #payroll > details.finance-secondary-details[open] > summary::after { transform: rotate(225deg); }
+@media (min-width: 1200px) {
+  #page-content #payroll .finance-payroll-filters {
+    grid-template-columns: repeat(3,minmax(8rem,1fr)) repeat(2,minmax(10rem,1.4fr)) auto;
+  }
+}
+@media (max-width: 620px) {
+  #payroll .payroll-header-actions { width: 100%; }
+  #payroll .payroll-header-actions .button { flex: 1 1 9rem; }
+}

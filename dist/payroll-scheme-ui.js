@@ -2974,7 +2974,7 @@
     const start = document.createElement('button');
     start.type = 'button'; start.className = 'button primary'; start.dataset.payrollQuickStart = '';
     start.textContent = 'Настроить оплату'; start.hidden = true;
-    payrollPanel.querySelector('.panel-head')?.append(start);
+    (payrollPanel.querySelector('.payroll-header-actions') || payrollPanel.querySelector('.panel-head'))?.append(start);
     start.addEventListener('click', async () => {
       settings.open = true;
       if (await showEditor({kind:'create', guided:true})) {
@@ -3640,7 +3640,7 @@
       invalidateReadiness();
       notify('Загружаем настройки…');
       list.innerHTML = '<div class="empty">Загрузка схем…</div>';
-      try { const data = await request('/api/payroll/schemes'); schemes = Array.isArray(data.items) ? data.items : []; start.hidden = false; renderList(); notify(schemes.length ? '' : ''); }
+      try { const data = await request('/api/payroll/schemes'); schemes = Array.isArray(data.items) ? data.items : []; start.hidden = false; start.textContent = schemes.length ? 'Создать схему оплаты' : 'Настроить оплату'; start.classList.toggle('primary', !schemes.length); renderList(); notify(''); }
       catch (error) { schemes = []; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
     };
     const openVersion = async (versionId, transitionToken = null) => {
