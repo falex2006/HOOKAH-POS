@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const portal = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
+assert.equal(fs.readFileSync(path.join(root, 'dist/portal.js'), 'utf8'), portal, 'published portal matches source');
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 const start = portal.indexOf('className = \'panel finance-payroll-panel\'');
 const end = portal.indexOf('const optionMap = { revenue:', start);
@@ -34,6 +35,12 @@ assert.match(ui, /data-payroll-cancel-editor[\s\S]*?data-payroll-cancel-reason/,
 assert.match(ui, /textarea[^>]*minlength="3" maxlength="500"[^>]*required/, 'reason editor enforces backend-compatible length limits');
 assert.match(ui, /reason\.length < 3 \|\| reason\.length > 500/, 'client rejects cancellation reasons outside 3–500 characters');
 assert.doesNotMatch(ui, /window\.prompt/, 'cancellation does not rely on a native browser prompt');
+
+assert.ok(ui.includes('payroll_expense_reconciliation_required:'), 'linked expense conflict has a user-facing message');
+assert.ok(ui.includes('payroll_zero_settlement_requires_review:'), 'zero settlement rejection has a user-facing message');
+assert.ok(ui.includes('Нулевое начисление требует отдельной проверки. Выплата не проведена, расход не создан.'), 'zero settlement explains that no cash expense was created');
+assert.ok(ui.includes('Расход не изменён, выплата не проведена.'), 'conflict explains that no payout or expense mutation occurred');
+assert.ok(ui.includes('второй расход вручную не создавайте.'), 'conflict discourages a duplicate expense');
 
 // Treat these as required backend contracts: this test must fail until the API
 // work is present, instead of allowing a UI-only change to appear complete.

@@ -4884,10 +4884,14 @@ if (staffProfile && req.method === 'PATCH') {
     return json(res, 503, { error: 'finance_accounts_require_database' });
   }
   if (pathname === '/api/payroll/rules' && req.method === 'POST') {
-    if (denyUnless(req, res, 'finance')) return;
-    const input = await body(req); const name = String(input.name || '').trim(); const ruleType = String(input.ruleType || 'hourly'); const rate = Number(input.rate);
-    if (!name || !['hourly','monthly','percent_revenue','per_shift'].includes(ruleType) || !Number.isFinite(rate) || rate < 0) return json(res, 400, { error: 'invalid_payroll_rule' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO payroll_rules (venue_id,name,rule_type,rate) VALUES ($1,$2,$3,$4) RETURNING *', [venueDbId,name,ruleType,rate]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'payroll_rule_save_failed', detail: error.message }); } }
+    if (req.user?.role !== 'owner' || req.user.venueId !== venueDbId) return json(res, 403, { error: 'payroll_scheme_owner_only' });
+    if (!payrollSchemeService) return json(res, 503, { error: 'payroll_requires_database' });
+    try {
+      const rule = await payrollSchemeService.createRegisterRule({ userId: req.user.id, venueId: venueDbId }, await body(req));
+      return json(res, 201, rule);
+    } catch (error) {
+      return json(res, error.status || 409, { error: error.status ? error.code : 'payroll_rule_save_failed' });
+    }
   }
   const payrollEntryPath = pathname.match(/^\/api\/payroll\/entries\/([^/]+)$/);
   if ((pathname === '/api/payroll/entries' && req.method === 'GET') || (payrollEntryPath && req.method === 'GET')) {

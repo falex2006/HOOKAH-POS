@@ -3,13 +3,17 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, readdir } from 'node:fs/promises';
+import { randomBytes, scryptSync } from 'node:crypto';
 import path from 'node:path';
 import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-safety.mjs';
 
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 const target = validateQaDatabaseUrl(databaseUrl, 'MIGRATIONS_PG_TEST_DATABASE_URL');
-assert.equal(target.database, 'territory_qa');
+const schema = 'payroll_browser_' + randomBytes(12).toString('hex');
+const scopedUrl = new URL(target.url);
+scopedUrl.searchParams.set('options', '-c search_path=' + schema + ',public');
+let schemaCreated = false;
 const playwrightPath = process.env.PLAYWRIGHT_PACKAGE_PATH;
 if (!playwrightPath) throw new Error('Set PLAYWRIGHT_PACKAGE_PATH');
 const require = createRequire(import.meta.url);
@@ -28,13 +32,34 @@ try {
   await db.connect();
   const identity = (await db.query('SELECT current_database() AS database, inet_server_addr() AS address, inet_server_port() AS port, (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser')).rows[0];
   assertQaDatabaseIdentity(identity, target.database, Number(target.url.port), 'Payroll browser QA database');
-  venueId = (await db.query("INSERT INTO venues (name,timezone) VALUES ('Isolated payroll browser QA','Asia/Yekaterinburg') RETURNING id")).rows[0].id;
+  await db.query(`CREATE SCHEMA ${schema}`);
+  schemaCreated = true;
+  await db.query(`SET search_path TO ${schema}, public`);
+  await db.query(await readFile(new URL('../schema.sql', import.meta.url), 'utf8'));
+  const migrationDir = new URL('../migrations/', import.meta.url);
+  for (const file of (await readdir(migrationDir)).filter(name => name.endsWith('.sql')).sort()) {
+    await db.query(await readFile(new URL(file, migrationDir), 'utf8'));
+  }
+  const orgId = (await db.query("INSERT INTO organizations(name,slug) VALUES ('Payroll Browser QA',$1) RETURNING id", [schema])).rows[0].id;
+  venueId = (await db.query("INSERT INTO venues (name,timezone,organization_id) VALUES ('Isolated payroll browser QA','Asia/Yekaterinburg',$1) RETURNING id", [orgId])).rows[0].id;
+  await db.query("INSERT INTO organization_subscriptions(organization_id,status) VALUES($1,'active')", [orgId]);
+  const login = schema + '-owner';
+  const password = randomBytes(16).toString('hex');
+  const salt = randomBytes(16).toString('hex');
+  const hash = 'scrypt$' + salt + '$' + scryptSync(password, salt, 64).toString('hex');
+  const owner = (await db.query(`INSERT INTO users(venue_id,organization_id,full_name,login,password_hash,role)
+    VALUES($1,$2,'Payroll QA owner',$3,$4,'owner') RETURNING id`, [venueId, orgId, login, hash])).rows[0].id;
+  await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role) VALUES($1,$2,'owner')", [orgId,owner]);
+  const bank = (await db.query(`INSERT INTO finance_accounts(venue_id,code,name,kind,allowed_payment_methods)
+    VALUES($1,'qa_bank','QA bank','bank',ARRAY['bank_transfer']::text[]) RETURNING id`, [venueId])).rows[0].id;
   const employeeId = (await db.query(`INSERT INTO users (venue_id,full_name,login,role) VALUES ($1,'Payroll browser employee',$2,'bartender') RETURNING id`, [venueId, `payroll-browser-${process.pid}`])).rows[0].id;
-  const ruleId = (await db.query("INSERT INTO payroll_rules (venue_id,name,rule_type,rate) VALUES ($1,'QA hourly browser','hourly',500) RETURNING id", [venueId])).rows[0].id;
+  const admin = (await db.query(`INSERT INTO users(venue_id,organization_id,full_name,login,password_hash,role)
+    VALUES($1,$2,'Payroll QA admin',$3,$4,'admin') RETURNING id`, [venueId, orgId, login+'-admin', hash])).rows[0].id;
+  await db.query("INSERT INTO organization_memberships(organization_id,user_id,membership_role) VALUES($1,$2,'member')", [orgId,admin]);
   await db.query("INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source) VALUES ($1,$2,$3,$4,'manual')", [venueId, employeeId, `${workDate}T05:00:00Z`, `${workDate}T13:00:00Z`]);
   child = spawn(process.execPath, ['server.js'], {
     cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true,
-    env: { ...process.env, DATABASE_URL: databaseUrl, VENUE_ID: venueId, AUTH_REQUIRED: 'false', DEMO_MODE: 'false', NODE_ENV: 'test', HOST: '127.0.0.1', PORT: '0' },
+    env: { ...process.env, DATABASE_URL: scopedUrl.href, VENUE_ID: venueId, AUTH_REQUIRED: 'true', DEMO_MODE: 'false', NODE_ENV: 'test', HOST: '127.0.0.1', PORT: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -52,11 +77,25 @@ try {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
-  await page.locator('#login-username').fill('admin');
-  await page.locator('#login-password').fill('admin');
+  await page.locator('#login-username').fill(login);
+  await page.locator('#login-password').fill(password);
   await page.locator('#login-form button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.includes('/login'));
-  await page.goto(`${base}/finance`, { waitUntil: 'networkidle' });
+  const ruleBody = {name:'QA hourly browser', ruleType:'hourly', rate:500};
+  const adminContext = await browser.newContext();
+  try {
+    const session = await adminContext.request.post(base+'/api/login', {data:{username:login+'-admin',password}});
+    assert.equal(session.status(), 200);
+    const forbidden = await adminContext.request.post(base+'/api/payroll/rules', {headers:{origin:base}, data:ruleBody});
+    assert.equal(forbidden.status(), 403);
+    assert.equal((await forbidden.json()).error, 'payroll_scheme_owner_only');
+  } finally { await adminContext.close(); }
+  const createdRule = await page.request.post(base+'/api/payroll/rules', {headers:{origin:base}, data:ruleBody});
+  assert.equal(createdRule.status(), 201);
+  const ruleId = (await createdRule.json()).id;
+  assert.deepEqual((await db.query(`SELECT actor_id FROM audit_events WHERE venue_id=$1 AND entity_id=$2 AND action='payroll.rule_created'`,
+    [venueId, ruleId])).rows, [{actor_id:owner}]);
+  await page.goto(`${base}/finance#payroll`, { waitUntil: 'networkidle' });
   await page.locator('#payroll-create-toggle').click();
   await page.locator('#payroll-create-user').selectOption(employeeId);
   await page.locator('#payroll-create-rule').selectOption(ruleId);
@@ -72,6 +111,7 @@ try {
   await page.locator('[data-payroll-action="approve"]').click();
   await page.waitForFunction(() => document.querySelector('[data-payroll-action="pay"]') !== null);
   assert.equal((await db.query('SELECT status FROM payroll_entries WHERE id=$1', [drafted[0].id])).rows[0].status, 'approved');
+  await page.locator(`[data-payroll-payment-account="${drafted[0].id}"]`).selectOption(bank);
   await page.locator(`[data-payroll-payment-date="${drafted[0].id}"]`).fill(periodTo);
   await page.locator('[data-payroll-action="pay"]').click();
   await page.waitForFunction((id) => document.querySelector(`[data-entry="${id}"]`) === null && document.querySelector('#payroll-register .badge')?.textContent?.includes('Выплачено'), drafted[0].id);
@@ -92,7 +132,7 @@ try {
     assert.equal(overflow, false, `payroll horizontal overflow at ${width}px`);
     assert.match(await page.locator('#payroll-register').textContent(), /Выплачено/);
     if ([320, 768, 1440].includes(width)) {
-      const outputDir = path.resolve('docs/ai-team/responsive-emulator');
+      const outputDir = path.resolve('tmp/payroll-register-browser-qa');
       await mkdir(outputDir, { recursive: true });
       await page.locator('.finance-payroll-panel').screenshot({ path: path.join(outputDir, `payroll-paid-${width}.png`) });
     }
@@ -117,7 +157,8 @@ try {
   await page.locator(`[data-payroll-cancel-open="${cancelDraft.id}"]`).click();
   await page.locator(`[data-payroll-cancel-editor="${cancelDraft.id}"] textarea`).fill('ab');
   await page.locator(`[data-payroll-cancel-editor="${cancelDraft.id}"] button[type="submit"]`).click();
-  assert.match(await page.locator(`[data-payroll-cancel-editor="${cancelDraft.id}"]`).textContent(), /от 3 до 500 символов/);
+  assert.equal(await page.locator(`[data-payroll-cancel-editor="${cancelDraft.id}"] textarea`)
+    .evaluate(field => field.validity.tooShort && !field.checkValidity()), true, 'browser refuses the short cancellation reason');
   assert.equal((await db.query('SELECT status FROM payroll_entries WHERE id=$1', [cancelDraft.id])).rows[0].status, 'draft');
   await page.locator(`[data-payroll-cancel-editor="${cancelDraft.id}"] textarea`).fill('QA browser cancellation');
   let releaseFailedPatch;
@@ -183,28 +224,13 @@ try {
     return !sidebar.classList.contains('is-expanded') && sidebar.getBoundingClientRect().right <= 1 && !main.inert;
   });
   assert.equal(await page.locator('.finance-payroll-panel').evaluate((panel) => panel.scrollWidth > panel.clientWidth + 1), false, 'cancelled payroll row fits 320px');
-  await page.locator('.finance-payroll-panel').screenshot({ path: path.resolve('docs/ai-team/responsive-emulator/payroll-cancelled-320.png') });
+  await page.locator('.finance-payroll-panel').screenshot({ path: path.resolve('tmp/payroll-register-browser-qa/payroll-cancelled-320.png') });
   assert.deepEqual(errors.filter((message) => !message.includes('ViewTransition opt-in disabled')), [], 'no application page errors');
   console.log('PAYROLL BROWSER POSTGRES QA: PASS (create → approve → pay/cancel draft/cancel approved, failed PATCH retry, SQL reread, 5 widths)');
 } finally {
   await browser?.close();
   if (child) { child.kill(); if (child.exitCode === null) await Promise.race([once(child, 'exit'), new Promise((resolve) => setTimeout(resolve, 3000))]); }
-  if (db._connected) {
-    const cleanupErrors = [];
-    try {
-      if (venueId) {
-        for (const table of ['expenses', 'payroll_entries', 'staff_work_logs', 'payroll_rules', 'audit_events', 'users']) {
-          try { await db.query(`DELETE FROM ${table} WHERE venue_id=$1`, [venueId]); }
-          catch (error) { cleanupErrors.push(new Error(`${table}: ${error.message}`)); }
-        }
-        try { await db.query("DELETE FROM venues WHERE id=$1 AND name='Isolated payroll browser QA'", [venueId]); }
-        catch (error) { cleanupErrors.push(new Error(`venues: ${error.message}`)); }
-        const remaining = await db.query('SELECT 1 FROM venues WHERE id=$1', [venueId]);
-        if (remaining.rows.length) cleanupErrors.push(new Error(`QA venue ${venueId} was not removed`));
-      }
-    } finally {
-      await db.end();
-    }
-    if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'Payroll browser QA cleanup failed');
-  }
+  try {
+    if (schemaCreated) await db.query(`DROP SCHEMA ${schema} CASCADE`);
+  } finally { await db.end(); }
 }

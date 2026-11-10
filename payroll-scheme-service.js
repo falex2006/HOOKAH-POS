@@ -1251,6 +1251,21 @@ const makeService = (pool) => {
     return scheme;
   };
 
+  const createRegisterRule = (principal, input) => withOwnerTransaction(pool, principal, async (db, actor) => {
+    const name = typeof input?.name === 'string' ? input.name.trim() : '';
+    const ruleType = input?.ruleType || 'hourly';
+    const rate = typeof input?.rate === 'number' || (typeof input?.rate === 'string' && input.rate.trim())
+      ? Number(input.rate) : NaN;
+    if (!name || !['hourly','monthly','percent_revenue','per_shift'].includes(ruleType)
+        || !Number.isFinite(rate) || rate < 0) fail('invalid_payroll_rule', 400);
+    const rule = (await db.query(`INSERT INTO payroll_rules(venue_id,name,rule_type,rate)
+      VALUES ($1,$2,$3,$4) RETURNING *`, [actor.venueId, name, ruleType, rate])).rows[0];
+    await db.query(`INSERT INTO audit_events(venue_id,actor_id,action,entity_type,entity_id,after_data)
+      VALUES ($1,$2,'payroll.rule_created','payroll_rule',$3,$4)`, [actor.venueId, actor.userId, rule.id,
+      {name:rule.name,ruleType:rule.rule_type,rate:rule.rate}]);
+    return rule;
+  });
+
   const createScheme = async (principal, input = {}) => withOwnerTransaction(pool, principal, async (db, actor) => {
     const name = cleanText(input.name, 120, 'invalid_scheme_name');
     const description = input.description === undefined ? '' : String(input.description).trim();
@@ -1496,7 +1511,7 @@ const makeService = (pool) => {
     return withReviewedCorrection(principal, (db, actor) =>
       require('./payroll-refund-aware-correction-store').applyRefundAwareCorrection(db, actor, request, lifecycleFreshness));
   };
-  return { listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion,
+  return { createRegisterRule, listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion,
     previewUnpaidRunSupersession, commitUnpaidRunSupersession,
     getRefundAwareCorrectionContext, previewRefundAwareCorrection, applyRefundAwareCorrection,
     prepareRefundAwareCalculation,

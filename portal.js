@@ -7449,7 +7449,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       } catch (error) {
         const code = String(error.payload?.error || error.message || '');
         registerMessage.className = 'form-message error-message';
-        const messages={finance_payment_account_required:'Выберите счёт выплаты.',invalid_payroll_payment_method:'Выберите допустимый способ выплаты.',finance_account_not_found:'Счёт не найден в этом заведении. Обновите список.',finance_account_inactive:'Счёт архивирован. Выберите активный счёт.',finance_payment_method_account_mismatch:'Выбранный способ не разрешён для этого счёта.',finance_pos_cash_payment_date_must_be_today:'Выплата из кассы смены фиксируется сегодняшней датой заведения.',finance_payment_open_shift_required:'Для выплаты из кассы смены нужна одна открытая смена.',payroll_expense_attribution_conflict:'У начисления уже есть расход с другой или неизвестной финансовой атрибуцией. Сверьте его отдельно; второй расход не создан.',payroll_period_overlap:'У сотрудника уже есть начисление за пересекающиеся даты. Проверьте период в реестре.'};
+        const messages={finance_payment_account_required:'Выберите счёт выплаты.',invalid_payroll_payment_method:'Выберите допустимый способ выплаты.',finance_account_not_found:'Счёт не найден в этом заведении. Обновите список.',finance_account_inactive:'Счёт архивирован. Выберите активный счёт.',finance_payment_method_account_mismatch:'Выбранный способ не разрешён для этого счёта.',finance_pos_cash_payment_date_must_be_today:'Выплата из кассы смены фиксируется сегодняшней датой заведения.',finance_payment_open_shift_required:'Для выплаты из кассы смены нужна одна открытая смена.',payroll_expense_reconciliation_required:'Требуется разбор привязанного расхода. Расход не изменён, выплата не проведена. До сверки обратитесь к владельцу или ответственному за финансы; второй расход вручную не создавайте.',payroll_zero_settlement_requires_review:'Нулевое начисление требует отдельной проверки. Выплата не проведена, расход не создан.',payroll_expense_attribution_conflict:'У начисления уже есть расход с другой или неизвестной финансовой атрибуцией. Сверьте его отдельно; второй расход не создан.',payroll_period_overlap:'У сотрудника уже есть начисление за пересекающиеся даты. Проверьте период в реестре.'};
         registerMessage.textContent = messages[code] || (code.includes('404') ? 'Сервис изменения статуса недоступен. Изменение не сохранено.' : code.includes('payroll_transition') ? 'Это изменение недоступно для текущего статуса начисления.' : code.includes('payment_date') ? 'Проверьте дату выплаты.' : code.includes('reason') ? 'Укажите причину отмены.' : `Не удалось изменить начисление${code ? ` (${code})` : ''}. Изменение не сохранено.`);
       } finally {
         payrollPendingEntries.delete(entryId);
@@ -7527,7 +7527,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
         creationOptionsLoaded = true;
         showRuleHelp();
         createMessage.className = 'form-message';
-        createMessage.textContent = !staffItems.length ? 'Нет доступных сотрудников для начисления.' : !rules.length ? 'Добавьте модель оплаты кнопкой выше, затем выберите её для сотрудника.' : categoryLoadFailed ? 'Статьи расходов недоступны. Можно обновить списки или продолжить без изменения статьи.' : '';
+        createMessage.textContent = !staffItems.length ? 'Нет доступных сотрудников для начисления.' : !rules.length ? (linkedPayrollAlive() ? 'Добавьте модель оплаты кнопкой выше, затем выберите её для сотрудника.' : 'Владелец ещё не добавил модель оплаты.') : categoryLoadFailed ? 'Статьи расходов недоступны. Можно обновить списки или продолжить без изменения статьи.' : '';
         return !preferredRuleId || ruleSelect.value === preferredRuleId;
       } catch (error) {
         if (requestId !== creationOptionsRequestId) return false;
@@ -7551,10 +7551,12 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       payrollSection.querySelector('#payroll-rule-form-help').textContent = ruleDescriptions[ruleType.value];
     };
     ruleType.addEventListener('change', updateRuleForm); updateRuleForm();
-    payrollSection.querySelector('#payroll-rule-new').addEventListener('click', () => { if (creationPending) return; ruleForm.hidden = false; ruleForm.scrollIntoView({block:'start'}); payrollSection.querySelector('#payroll-rule-name').focus(); });
+    const newRuleButton = payrollSection.querySelector('#payroll-rule-new');
+    newRuleButton.hidden = !linkedPayrollOwner;
+    newRuleButton.addEventListener('click', () => { if (creationPending || !linkedPayrollAlive()) return; ruleForm.hidden = false; ruleForm.scrollIntoView({block:'start'}); payrollSection.querySelector('#payroll-rule-name').focus(); });
     payrollSection.querySelector('#payroll-rule-cancel').addEventListener('click', () => { if (ruleSavePending) return; ruleForm.hidden = true; createForm.hidden = false; ruleSelect.focus(); });
     ruleForm.addEventListener('submit', async (event) => {
-      event.preventDefault(); if (ruleSavePending || creationPending) return;
+      event.preventDefault(); if (ruleSavePending || creationPending || !linkedPayrollAlive()) return;
       const name = payrollSection.querySelector('#payroll-rule-name').value.trim();
       const rate = Number(ruleRate.value);
       if (!name || ruleRate.value === '' || !Number.isFinite(rate) || rate < 0) { ruleMessage.textContent = 'Укажите название и неотрицательную ставку.'; return; }
