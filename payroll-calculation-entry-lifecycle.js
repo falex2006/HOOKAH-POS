@@ -78,6 +78,16 @@ const dto = row => {
   if (row.payroll_half_kind === 'h1') result.halfKind = 'h1';
   return result;
 };
+async function advanceUsedBySecondHalf(db, actor, row) {
+  if (row.payroll_half_kind !== 'h1' || row.status !== 'approved') return false;
+  const installed = await db.query("SELECT to_regclass('payroll_h2_claim_slots') IS NOT NULL AS available");
+  if (!installed.rows[0].available) return false;
+  const result = await db.query(`SELECT 1 FROM payroll_half_month_claims h1
+    JOIN payroll_h2_settlement_claims h2 ON h2.venue_id=h1.venue_id AND h2.h1_claim_id=h1.id
+    JOIN payroll_h2_claim_slots slot ON slot.venue_id=h2.venue_id AND slot.claim_id=h2.id
+    WHERE h1.venue_id=$1 AND h1.entry_id=$2 LIMIT 1`,[actor.venueId,row.id]);
+  return result.rowCount > 0;
+}
 async function freshProof(db, actor, row, checkFreshness, expectedLedgerHash) {
   const proof = await verifyPayrollCalculationEntryEvidence(db, actor, row, { purpose: 'current_transition', checkFreshness });
   const corrections = await verifyPayrollEntryCorrections(db, actor, proof);
@@ -99,6 +109,9 @@ async function getPayrollCalculationEntryState(db, actor, entryId, checkFreshnes
       if (typeof error?.code !== 'string' || !/^payroll_[a-z0-9_]+$/.test(error.code)) throw error;
       sourceStatus = 'blocked'; blockedReason = error.code; allowedActions = allowedActions.filter(action => action === 'cancel');
     }
+  }
+  if (allowedActions.includes('cancel') && await advanceUsedBySecondHalf(db,actor,row)) {
+    allowedActions = allowedActions.filter(action => action !== 'cancel');
   }
   return { schemaVersion: 1, entry: dto(row), stateHash: state.stateHash, ledgerHash: state.ledgerHash,
     allowedActions, sourceStatus, blockedReason, validity: 'rechecked_on_transition' };
@@ -146,6 +159,7 @@ async function transitionPayrollCalculationEntry(db, actor, entryId, input, chec
     return { ...response, replayed: true, currentEntry: dto(await readEntry(db, actor, entryId, false)) };
   }
   const row = await readEntry(db, actor, entryId), entry = normalized(row);
+  if (command.action === 'cancel' && await advanceUsedBySecondHalf(db,actor,row)) fail('h2_uses_first_half');
   if (command.action !== 'cancel' && await deferredH1Component(db, actor, row, entry)) fail('h1_deferred_month_component');
   const ledger = await readReviewedCorrectionLedger(db, actor, entry.employeeId);
   const prepared = buildPayrollEntryTransitionCommand(actor, entryId, input, entry, ledger);

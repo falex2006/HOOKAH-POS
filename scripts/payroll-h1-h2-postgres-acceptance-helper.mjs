@@ -71,6 +71,12 @@ export async function verifyH1H2PostgresAcceptance({ service, pool, owner, ids, 
   const afterMigration=await service.listCalculationEntries(owner,monthlyRunId);
   assert.deepEqual(afterMigration.items,listed.items,'populated migration replay preserves both original H2 claims');
   const h1State = await service.getCalculationEntryState(owner, h1EntryId);
+  assert.ok(!h1State.allowedActions.includes('cancel'));
+  await assert.rejects(service.transitionCalculationEntry(owner,h1EntryId,
+    {...cancelInput('cancel-h1-while-h2-active','Cannot invalidate an active second half'),expectedStateHash:h1State.stateHash}),
+    error=>error.code==='payroll_entry_lifecycle_h2_uses_first_half');
+  await assert.rejects(materialize(h1EmployeeId,'h2-a-other-request-key'),
+    error=>error.status===409);
   const h1Paid = await service.transitionCalculationEntry(owner, h1EntryId,
     { ...payInput('h2-a-pay-h1', paymentAccountId), expectedStateHash: h1State.stateHash });
   assert.equal(h1Paid.entry.status, 'paid');
