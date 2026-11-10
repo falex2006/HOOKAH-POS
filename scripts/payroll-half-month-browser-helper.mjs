@@ -13,15 +13,17 @@ export async function seedHalfMonthBrowser(pool, sourcePolicies) {
     (date_trunc('month', CURRENT_DATE)-interval '2 months')::date::text AS "from",
     (date_trunc('month', CURRENT_DATE)-interval '1 month 1 day')::date::text AS "to"`)).rows[0];
   const firstEnd = period.from.slice(0, 8) + '14';
-  const fixture = await seedUnpaidSupersessionFixture({pool, period, sourcePolicies});
+  const fixture = await seedUnpaidSupersessionFixture({pool, period, sourcePolicies, withSecondPositiveSale:true});
   const {ids, owner, service} = fixture;
   const schedule = require('../staff-schedule-service');
   const attendance = require('../payroll-attendance-manifest').makePayrollAttendanceManifestService(pool);
   const workDate = period.from;
-  await schedule.save(pool, owner, {userId:ids.employee, kind:'shift', workDate, breakMinutes:0,
-    plannedStart:workDate+'T10:00:00Z', plannedEnd:workDate+'T18:00:00Z', requestKey:randomUUID(), reason:'Browser payroll QA'});
-  await pool.query(`INSERT INTO staff_work_logs(venue_id,user_id,started_at,ended_at,source)
-    VALUES($1,$2,$3,$4,'manual')`, [ids.venue,ids.employee,workDate+'T10:00:00Z',workDate+'T18:00:00Z']);
+  for (const employeeId of [ids.employee, ids.zeroEmployee]) {
+    await schedule.save(pool, owner, {userId:employeeId, kind:'shift', workDate, breakMinutes:0,
+      plannedStart:workDate+'T10:00:00Z', plannedEnd:workDate+'T18:00:00Z', requestKey:randomUUID(), reason:'Browser payroll QA'});
+    await pool.query(`INSERT INTO staff_work_logs(venue_id,user_id,started_at,ended_at,source)
+      VALUES($1,$2,$3,$4,'manual')`, [ids.venue,employeeId,workDate+'T10:00:00Z',workDate+'T18:00:00Z']);
+  }
   for (const end of [firstEnd,period.to]) {
     const range = {periodFrom:period.from,periodTo:end};
     const evidence = await attendance.readCoverage(owner,range);
@@ -63,6 +65,11 @@ export async function verifyHalfMonthBrowser({page,base,pool,fixture}) {
     FROM expenses WHERE venue_id=$1 AND source='payroll' ORDER BY id`,[ids.venue])).rows;
   assert.deepEqual(await payoutRows(),[]);
   const expenseIds=[];
+  const colleagueId=ids.zeroEmployee;
+  let colleagueDraft;
+  const readColleagueEntries=async()=> (await pool.query(
+    'SELECT id,status,payroll_half_kind AS half,expense_id FROM payroll_entries WHERE venue_id=$1 AND user_id=$2 ORDER BY id',
+    [ids.venue,colleagueId])).rows;
   for (const first of [true,false]) {
     await workspace();
     await page.locator('[data-saved-run-from]').fill(period.from);
@@ -73,6 +80,18 @@ export async function verifyHalfMonthBrowser({page,base,pool,fixture}) {
     await page.locator('[data-saved-run-open="'+run.runId+'"]').click();
     const cell=page.locator('[data-saved-entry-employee="'+ids.employee+'"]');
     const path='/api/payroll/calculation-runs/'+run.runId+'/'+(first?'h1-entries':'h2-entries');
+    const colleague=page.locator('[data-saved-entry-employee="'+colleagueId+'"]');
+    if (first) {
+      const {body}=await post(path,()=>colleague.getByRole('button',{name:/черновик за 1–14 число/i}).click());
+      const draft=Object.hasOwn(body,'currentEntry') ? body.currentEntry : body.entry;
+      assert.equal(draft.userId,colleagueId);
+      assert.equal(draft.amountCents,1000,'colleague has positive earned pay');
+      assert.equal(draft.status,'draft');
+      colleagueDraft=[{id:draft.id,status:'draft',half:'h1',expense_id:null}];
+    } else {
+      await colleague.locator('text=/утвердите начисление за 1–14 число/i').waitFor();
+      assert.equal(await colleague.getByRole('button',{name:/за вторую половину/i}).count(),0);
+    }
     const {body:materialized}=await post(path,()=>cell.getByRole('button',{name:first?/С‡РµСЂРЅРѕРІРёРє Р·Р° 1вЂ“14 С‡РёСЃР»Рѕ/i:/Р·Р° РІС‚РѕСЂСѓСЋ РїРѕР»РѕРІРёРЅСѓ/i}).click());
     const entry=Object.hasOwn(materialized,'currentEntry') ? materialized.currentEntry : materialized.entry;
     assert.equal(entry.halfKind,first ? 'h1' : 'h2');
@@ -104,10 +123,11 @@ export async function verifyHalfMonthBrowser({page,base,pool,fixture}) {
     assert.deepEqual(retry.request,command);
     assert.equal(retry.body.replayed,true);
     assert.equal(retry.body.entry.expenseId,firstPayment.entry.expenseId);
+    assert.deepEqual(await readColleagueEntries(),colleagueDraft,'payment and retry of A preserve B draft without expense or H2');
     const expenses=await payoutRows();
     assert.deepEqual(expenses.map(x=>x.id),[...expenseIds].sort());
     assert.deepEqual(expenses.map(x=>x.cents),expenseIds.map(()=>'1000'));
   }
   assert.equal(new Set(expenseIds).size,2);
-  console.log('PASS real browser H1 10 в‚Ѕ + H2 10 в‚Ѕ, exact pay retries, two linked PostgreSQL expenses');
+  console.log('PASS real browser H1 10 в‚Ѕ + H2 10 в‚Ѕ, exact pay retries, two linked PostgreSQL expenses; positive H1 of colleague remains a draft');
 }
