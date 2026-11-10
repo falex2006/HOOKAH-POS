@@ -94,7 +94,7 @@ check('multiple queries restore original expansion; next search takes a fresh sn
 });
 check('real guide has discoverable core scenarios', () => {
   const m = model();
-  for (const query of ['2/2', 'больничный', 'свободная смена', 'публикации', 'перерыв', 'конфликт', 'копировать неделю']) {
+  for (const query of ['2/2', 'больничный', 'свободная смена', 'публикации', 'перерыв', 'конфликт', 'копировать неделю', 'подменного ставку']) {
     m.inputValue(query);
     assert.ok(m.topics.some(t => !t.hidden), `Missing searchable scenario: ${query}`);
   }
