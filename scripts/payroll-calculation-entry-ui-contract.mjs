@@ -8,6 +8,24 @@ const start = ui.indexOf('    const savedEntryValid =');
 const end = ui.indexOf('    const incentiveDetails =', start);
 assert.ok(start > 0 && end > start);
 const source = ui.slice(start, end);
+// Use the same selection handler as the transition from trial to official payroll.
+const selectionStart = ui.indexOf('    let requestedVersion =');
+const selectionEnd = ui.indexOf('    const activate = async', selectionStart);
+assert.ok(selectionStart > 0 && selectionEnd > selectionStart);
+function selectedPeriod(exampleDate, today) {
+  const from = {value:''};
+  const to = {value:'',dispatchEvent(){}};
+  const context = {from,to,create:{},loaded:true,Event,today,venueLocalToday:()=>today,
+    quickDate:value=>/^\d{4}-\d{2}-\d{2}$/.test(value)};
+  const select = vm.runInNewContext(ui.slice(selectionStart,selectionEnd)+'; prepareSelection',context);
+  select('test-version',exampleDate);
+  return [from.value,to.value];
+}
+assert.deepEqual(selectedPeriod('2026-10-01','2026-11-10'),['2026-10-01','2026-10-31']);
+assert.deepEqual(selectedPeriod('2024-02-05','2026-11-10'),['2024-02-01','2024-02-29']);
+assert.deepEqual(selectedPeriod('2026-11-01','2026-11-10'),['2026-11-01','2026-11-09']);
+assert.deepEqual(selectedPeriod('2026-11-01','2026-11-01'),['2026-11-01','']);
+assert.deepEqual(selectedPeriod('2027-01-15','2026-11-10'),['2027-01-01','']);
 const entry = { id: 'entry-1', userId: 'employee-1', origin: 'calculation_run', calculationRunId: 'run-1',
   status: 'draft', amountCents: 12500, currency: 'RUB', periodFrom: '2026-09-01', periodTo: '2026-09-30',
   employeeName: 'Сохранённое имя', schemeName: 'Сохранённая схема', allowedActions: ['cancel'],

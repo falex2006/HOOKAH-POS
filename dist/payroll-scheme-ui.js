@@ -2720,7 +2720,12 @@
       requestedVersion = {id};
       if (quickDate(exampleDate)) {
         from.value = exampleDate.slice(0,8) + '01';
-        to.value = exampleDate;
+        const monthEnd = new Date(exampleDate + 'T12:00:00Z');
+        monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1, 0);
+        const yesterday = new Date(venueLocalToday() + 'T12:00:00Z');
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        const lastClosedDay = new Date(Math.min(monthEnd, yesterday)).toISOString().slice(0, 10);
+        to.value = lastClosedDay >= from.value ? lastClosedDay : '';
         to.dispatchEvent(new Event('change', {bubbles:true}));
       }
       create.disabled = true;
