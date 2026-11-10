@@ -6464,3 +6464,26 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 @media (max-width: 620px) {
   #payroll .payroll-header-actions > .payroll-other-actions { width: 100%; }
 }
+#payroll .payroll-trial-answer {
+  border-inline-start: 3px solid var(--ui-accent, #ff7952);
+  padding: .45rem 1rem;
+  margin-block: .75rem;
+}
+#payroll .payroll-trial-answer :is(h3,p) { margin: .25rem 0; }
+#payroll .payroll-trial-equation { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+#payroll [data-scheme-preview-result] > .button { margin: .75rem .5rem 0 0; }
+#payroll .payroll-payout-review {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: .8rem;
+  border: 1px solid var(--ui-border-control);
+  border-radius: .75rem;
+}
+#payroll .payroll-payout-review legend { max-width: 100%; padding: 0 .35rem; overflow-wrap: anywhere; font-weight: 600; }
+#payroll .payroll-payout-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,10rem),1fr)); align-items: end; gap: .65rem; }
+#payroll .payroll-payout-fields > * { min-width: 0; max-width: 100%; }
+#page-content #payroll .finance-scheme-preview { padding: clamp(.75rem, 1.25vw, 1.25rem); }
+#page-content #payroll :is([data-trial-shift],[data-quick-pay]) { border: 0; padding: .65rem 0; margin: 0; min-width: 0; }
+#page-content #payroll [data-trial-advanced] > summary { cursor: pointer; padding-block: .7rem; color: var(--ui-text-secondary); }
+#page-content #payroll .scheme-workspace-nav .button[aria-current="step"] { border-color: var(--ui-accent, #ff7952); font-weight: 700; }

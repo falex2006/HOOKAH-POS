@@ -783,6 +783,25 @@
       discountAllocation:'immutable_line_snapshot', refunds:'recognized_event_date',
       selectionReason:'Владелец выбрал учёт личных продаж по продавцу в строке чека, с учётом скидок и возвратов.'});
   };
+  const trialPayBreakdown = (totals, response, scenario, employeeName, currency) => {
+    const format = cents => money(cents, currency);
+    const lines = (response.result.daily || []).flatMap(day => day.lines || [])
+      .filter(line => line.employeeId === totals.employeeId);
+    const sale = lines.length === 1 ? lines[0] : null;
+    const showsRate = sale && Number.isSafeInteger(sale.appliedRateBps)
+      && Number.isSafeInteger(sale.commissionBaseCents) && sale.commissionCents === totals.commissionCents
+      && Math.round(sale.commissionBaseCents * sale.appliedRateBps / 10000) === sale.commissionCents;
+    const commission = showsRate
+      ? `${(sale.appliedRateBps / 100).toLocaleString('ru-RU')}% от ${format(sale.commissionBaseCents)}`
+      : `${format(totals.commissionCents)} с продаж`;
+    const formula = totals.basePayCents + totals.commissionCents === totals.amountCents
+      ? `${format(totals.basePayCents)} за смену + ${commission} = <strong>${format(totals.amountCents)}</strong>`
+      : `Итого с учётом правил схемы: <strong>${format(totals.amountCents)}</strong>`;
+    return `<section class="payroll-trial-answer"><h3>Пример за смену · ${escapeHtml(employeeName)}</h3>
+      <p>${escapeHtml(scenario.periodFrom.split('-').reverse().join('.'))} · Без начисления</p>
+      <p class="payroll-trial-equation">${formula}</p></section>
+      <details><summary>Подробный расчёт</summary>${renderPreview(response, scenario)}</details>`;
+  };
   const shiftScenario = (version, staff, date, salesText) => {
     if (!quickDate(date)) throw new Error('Выберите дату смены.');
     const assignment = version.roleAssignments?.find(row => row.employeeId === staff?.id && row.effectiveFrom <= date
@@ -2449,15 +2468,6 @@
           <p><button type="button" class="button" data-saved-run-freshness>Проверить актуальность данных</button></p>
           <div data-saved-freshness-status role="status">Актуальность исходных данных ещё не проверена.</div>
           <p class="muted">Проверка учитывает изменения после сохранения расчёта. Совпадение данных на момент проверки само по себе не разрешает выплату.</p>
-          ${supersessionAllowed(runId) ? `<section aria-label="Пересчёт неоплаченной ведомости"><h4>Пересчёт неоплаченной ведомости</h4>
-            <p>Проверим полный состав и покажем новые суммы. Нужны начисления для всех сотрудников: только черновики или уже отменённые строки. Утверждённые и выплаченные ведомости здесь не заменяются.</p>
-            <button type="button" class="button" data-supersession-preview>Пересчитать неоплаченную ведомость</button><div data-supersession-content role="status"></div></section>` : ''}
-          ${legacyReviewAllowed ? `<section data-refund-review-panel><h4>Возвраты после расчёта</h4>
-            <p>Проверьте влияние возвратов на сохранённый расчёт и запишите решение.</p>
-            <button type="button" class="button" data-refund-review-check>Проверить возвраты</button>
-            <div data-refund-review-content role="status">Загружаем историю проверок…</div>
-          </section>` : ''}
-          ${(legacyReviewAllowed || detail.dataset.savedRunCapability === 'employee_attributed_remaining_net_refund_v2') ? `<section aria-label="Финансовые корректировки"><h4>Корректировка следующего начисления</h4><p>${legacyReviewAllowed?'Применение удержания и отказ от него записываются отдельно от решений по проверке возвратов выше.':'После выплаты можно оценить изменение премии за весь период, выбрать будущий черновик или отказаться от удержания. Автоматического долга или доплаты нет.'}</p><div data-correction-content>Загружаем выплаченные начисления…</div></section>` : ''}
           ${lifecycleAllowed ? `<section aria-label="Черновики начислений"><h4>Создать начисления</h4>
           <label>Статья расхода для новых черновиков<select data-saved-entry-category disabled><option value="">Без статьи</option></select></label>
           <p class="muted" data-saved-entry-category-hint>Загружаем статьи. По умолчанию черновик создаётся без статьи.</p>
@@ -2470,7 +2480,16 @@
             ${lifecycleAllowed ? `<td data-saved-entry-employee="${escapeHtml(row.employeeId)}" data-h2-block-reason="${escapeHtml(row.h2EntryBlockReason || '')}" data-h2-required="${row.h2Required === true}" data-h2-entry-available="${row.h2EntryAvailable === true}">Проверяем начисления…</td>` : ''}</tr>`).join(''))}
           </section>
           ${pageButton('data-saved-employees-next', data.nextCursor, 'Следующие сотрудники')}
-          <div data-saved-employee-detail></div>`;
+          <div data-saved-employee-detail></div>
+          ${supersessionAllowed(runId) ? `<section aria-label="Пересчёт неоплаченной ведомости"><h4>Пересчёт неоплаченной ведомости</h4>
+            <p>Проверим полный состав и покажем новые суммы. Нужны начисления для всех сотрудников: только черновики или уже отменённые строки. Утверждённые и выплаченные ведомости здесь не заменяются.</p>
+            <button type="button" class="button" data-supersession-preview>Пересчитать неоплаченную ведомость</button><div data-supersession-content role="status"></div></section>` : ''}
+          ${legacyReviewAllowed ? `<section data-refund-review-panel><h4>Возвраты после расчёта</h4>
+            <p>Проверьте влияние возвратов на сохранённый расчёт и запишите решение.</p>
+            <button type="button" class="button" data-refund-review-check>Проверить возвраты</button>
+            <div data-refund-review-content role="status">Загружаем историю проверок…</div>
+          </section>` : ''}
+          ${(legacyReviewAllowed || detail.dataset.savedRunCapability === 'employee_attributed_remaining_net_refund_v2') ? `<section aria-label="Финансовые корректировки"><h4>Корректировка следующего начисления</h4><p>${legacyReviewAllowed?'Применение удержания и отказ от него записываются отдельно от решений по проверке возвратов выше.':'После выплаты можно оценить изменение премии за весь период, выбрать будущий черновик или отказаться от удержания. Автоматического долга или доплаты нет.'}</p><div data-correction-content>Загружаем выплаченные начисления…</div></section>` : ''}`;
         if (lifecycleAllowed) {
           if (legacyReviewAllowed) void loadRefundReview(runId);
           void loadRunEntries(runId);
@@ -2890,7 +2909,6 @@
       <div class="finance-scheme-list" data-scheme-list><div class="empty">Загрузка схем…</div></div>
       <form class="stack-form" data-scheme-editor hidden>
         <div class="panel-head"><div><h3 data-scheme-editor-title>Новая схема</h3><span class="muted">Схема определяет, с какой даты и по каким правилам начислять зарплату.</span></div></div>
-        <div class="form-row"><label>Название схемы<input data-scheme-name maxlength="120" required></label><label>Описание<textarea data-scheme-description rows="2" maxlength="2000"></textarea></label></div>
         <fieldset data-quick-pay hidden><legend>Оплата сотрудника</legend>
           <div class="form-row"><label>Сотрудник<select data-quick-employee></select></label><label>Способ оплаты<select data-quick-method>
             <option value="shift">За смену</option><option value="percent">Процент с продаж</option><option value="combined">Смена + процент</option>
@@ -2901,6 +2919,7 @@
           <details data-quick-team><summary>Назначить эти условия ещё сотрудникам</summary><div data-quick-additional></div></details>
           <label><input type="checkbox" data-quick-sources> Учитывать продажи по продавцу каждой позиции чека после скидки. При возврате пересчитывать процент за день продажи.</label>
         </fieldset>
+        <div class="form-row"><label>Название схемы<input data-scheme-name maxlength="120" required></label><label>Описание · необязательно<textarea data-scheme-description rows="2" maxlength="2000"></textarea></label></div>
         <div data-advanced-pay-fields>
           <details class="scheme-group" data-payroll-assignments><summary>Назначения сотрудников</summary>
             <div data-assignment-list></div><fieldset data-assignment-edit><legend>Добавить назначение</legend>
@@ -2932,14 +2951,14 @@
         <section data-personal-cap-confirmation hidden><div data-personal-cap-exceptions></div><label><input type="checkbox" data-personal-cap-acknowledged> Я отдельно подтверждаю повышение личного процента лимита выше процента роли для указанных сотрудников и периодов. Это не разрешает выплату сверх полной личной выручки.</label></section>
       </form>
       <div class="finance-scheme-preview" data-scheme-preview hidden>
-        <div class="panel-head"><div><h3>Пробный расчёт</h3><span class="muted" data-scheme-selected-label></span></div><div class="toolbar-row"><button type="button" class="button small primary" data-scheme-run-preview>Рассчитать сценарий</button><button type="button" class="button small" data-scheme-run-approved-attendance>Сценарий с утверждённым табелем</button><button type="button" class="button small" data-scheme-run-venue-preview>Сценарий с оборотом чеков</button><button type="button" class="button small" data-scheme-compare>Сравнить сценарии (JSON)</button></div></div>
+        <div class="panel-head"><div><h3>Пробный расчёт</h3><span class="muted" data-scheme-selected-label></span></div></div>
         <fieldset data-trial-shift><legend>Пример одной смены</legend>
           <div class="form-row"><label>Сотрудник<select data-trial-employee></select></label><label>Дата смены<input type="date" data-trial-date></label>
             <label>Личные продажи, ₽<input inputmode="decimal" value="0" data-trial-sales></label></div>
           <button type="button" class="button primary" data-trial-run>Посчитать смену</button>
           <p class="muted">Пример для одной полной смены. В ведомость ничего не записывается.</p>
         </fieldset>
-        <details data-trial-advanced><summary>Расширенный сценарий</summary><label>Нормализованные входные данные сценария<textarea data-scheme-preview-input rows="12" spellcheck="false"></textarea></label></details>
+        <details data-trial-advanced><summary>Расширенный сценарий</summary><div class="toolbar-row"><button type="button" class="button small primary" data-scheme-run-preview>Рассчитать сценарий</button><button type="button" class="button small" data-scheme-run-approved-attendance>Сценарий с утверждённым табелем</button><button type="button" class="button small" data-scheme-run-venue-preview>Сценарий с оборотом чеков</button><button type="button" class="button small" data-scheme-compare>Сравнить сценарии (JSON)</button></div><label>Нормализованные входные данные сценария<textarea data-scheme-preview-input rows="12" spellcheck="false"></textarea></label></details>
         <div data-scheme-preview-result class="finance-scheme-result" hidden></div>
       </div>
       <section class="finance-scheme-preview" data-source-readiness>
@@ -3195,11 +3214,9 @@
           method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({previewInput:scenario})});
         if (selectedVersion !== version || revision !== trialRevision) return;
         const totals = result.result?.employees?.find(row => row.employeeId === id);
-        const breakdown = totals && result.result.status === 'ready' ? `
-          <h3>За смену · ${escapeHtml(staff.name || staff.login || editorEmployeeLabel(id))}</h3>
-          <p><strong>${money(totals.amountCents, version.currency)}</strong> · ${escapeHtml(scenario.periodFrom.split('-').reverse().join('.'))}</p>
-          <p>Ставка за смену · ${money(totals.basePayCents, version.currency)}<br>Процент с продаж · ${money(totals.commissionCents, version.currency)}</p>
-          <details><summary>Подробный расчёт</summary>${renderPreview(result, scenario)}</details>` : renderPreview(result, scenario);
+        const breakdown = totals && result.result.status === 'ready'
+          ? trialPayBreakdown(totals, result, scenario, staff.name || staff.login || editorEmployeeLabel(id), version.currency)
+          : renderPreview(result, scenario);
         previewResult.hidden = false; previewResult.innerHTML = breakdown;
         if (totals && result.result.status === 'ready' && ['draft','active','retired'].includes(version.status)) {
           const proceed = document.createElement('button');
@@ -3220,6 +3237,14 @@
             finally { pending = false; proceed.disabled = false; }
           });
           previewResult.append(proceed);
+          if (version.status === 'draft') {
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'button';
+            edit.textContent = 'Изменить условия';
+            edit.addEventListener('click', () => selectWorkspace('configuration', {focus:true}));
+            previewResult.append(edit);
+          }
         }
         notify('Пробный расчёт готов.', 'success');
       } catch (error) { if (selectedVersion === version && revision === trialRevision) notify(error.message,'error'); }
@@ -3252,7 +3277,7 @@
     const attendanceDetails=disclosure(attendancePanel,'Табель: проверить время и утвердить снимок');attendanceDetails.open=true;
     disclosure(readinessPanel,'Источники: проверить сохранённую версию схемы');
     const checksHint=document.createElement('p');checksHint.className='scheme-guidance';checksHint.textContent='Табель и источники проверяются независимо. Утверждение табеля не означает готовность официального расчёта.';workspacePanes.checks.prepend(checksHint);
-    const trialHint=document.createElement('p');trialHint.className='scheme-guidance';trialHint.textContent='Пробный расчёт не создаёт начисления или выплаты. Он использует сохранённую версию; несохранённые правки в него не входят.';workspacePanes.trial.prepend(trialHint);
+    const trialHint=document.createElement('p');trialHint.className='scheme-guidance';trialHint.textContent='Введите продажи за одну смену и проверьте, подходит ли сумма сотруднику.';workspacePanes.trial.prepend(trialHint);
     const trialEmpty=document.createElement('p');trialEmpty.className='empty';trialEmpty.textContent='Откройте сохранённую версию в списке схем. Для сравнения отметьте от 2 до 8 версий.';workspacePanes.trial.prepend(trialEmpty);
     const configEmpty=document.createElement('p');configEmpty.className='empty';configEmpty.textContent='Откройте существующую версию или создайте новую схему.';workspacePanes.configuration.prepend(configEmpty);
     const footer=document.createElement('div');footer.className='toolbar-row';footer.innerHTML='<button type="button" class="button" data-scheme-workspace="list">К списку схем</button><button type="button" class="button" data-scheme-workspace="checks">Проверить данные</button><button type="button" class="button" data-scheme-workspace="trial">К пробному расчёту</button>';editor.after(footer);

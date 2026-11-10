@@ -78,7 +78,7 @@ try {
  await page.locator('[data-quick-rate]').fill('10');
  await page.locator('[data-quick-percent]').fill('10');
  await page.locator('[data-quick-from]').fill(fixture.period.from);
- await page.locator('[data-scheme-name]').fill('Учебная зарплата '+Date.now());
+ await page.locator('[data-scheme-name]').fill('Бармен · смена и процент с продаж');
  await page.locator('[data-quick-sources]').check();
  const ack=page.locator('[data-scheme-risk-acknowledged]');
  if(await ack.isVisible()) await ack.check();
