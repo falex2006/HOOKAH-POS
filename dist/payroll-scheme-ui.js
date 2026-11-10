@@ -2693,6 +2693,7 @@
         to.value = exampleDate;
         to.dispatchEvent(new Event('change', {bubbles:true}));
       }
+      create.disabled = true;
       optionsRevision++;
       loaded = false;
     };
@@ -2715,6 +2716,7 @@
           (scheme.versions || []).filter(v => ['active', 'retired'].includes(v.status)).map(v =>
             `<option value="${escapeHtml(v.id)}">${escapeHtml(scheme.name)} · версия ${escapeHtml(v.versionNo)} (${escapeHtml(v.effectiveFrom)} — ${escapeHtml(v.effectiveTo || 'без окончания')})</option>`)).join('');
         if (revision !== optionsRevision) return;
+        if (!requestedVersion && version.options.length === 2) requestedVersion = {id:version.options[1].value};
         if (requestedVersion) {
           version.value = requestedVersion.id;
           requestedVersion = null;
@@ -2790,7 +2792,7 @@
     section.addEventListener('click', event => {
       const button = event.target.closest('button');
       if (!button || !alive()) return;
-      if (button.hasAttribute('data-saved-run-reload')) { loaded = false; void activate(); }
+      if (button.hasAttribute('data-saved-run-reload')) { loaded = false; create.disabled = true; void activate(); }
       else if (button.hasAttribute('data-saved-run-more')) void loadList(listCursor);
       else if (button.dataset.savedRunOpen) void openRun(button.dataset.savedRunOpen);
       else if (button.hasAttribute('data-saved-run-replay')) void replayRun(button);
@@ -2983,7 +2985,15 @@
     nextStep.type = 'button';
     nextStep.className = 'button primary';
     nextStep.hidden = true;
-    start.parentElement.prepend(nextStep, start);
+    const headerActions = start.parentElement;
+    const otherActions = document.createElement('details');
+    otherActions.className = 'payroll-other-actions';
+    const otherTitle = document.createElement('summary');
+    otherTitle.textContent = 'Другие действия';
+    const otherButtons = document.createElement('div');
+    otherActions.append(otherTitle, otherButtons);
+    const modelButton = payrollPanel.querySelector('#payroll-create-toggle');
+    headerActions.prepend(nextStep, start);
     nextStep.addEventListener('click', async () => {
       if (pending) return;
       settings.open = true;
@@ -2994,7 +3004,7 @@
       const drafts = schemes.flatMap(scheme => sortedVersions(scheme)).filter(version => version.status === 'draft');
       if (drafts.length === 1) {
         try {
-          if (await openVersion(drafts[0].id)) selectWorkspace('trial', {focus:true});
+          if ((selectedVersion?.versionId === drafts[0].id && !editorHasUnsavedChanges()) || await openVersion(drafts[0].id)) selectWorkspace('trial', {focus:true});
         } catch (error) { notify(error.message, 'error'); }
       } else {
         selectWorkspace('list', {focus:true});
@@ -3006,17 +3016,24 @@
       const drafts = versions.filter(version => version.status === 'draft');
       nextStep.hidden = !canCalculate && !drafts.length;
       nextStep.dataset.destination = canCalculate ? 'saved' : 'trial';
-      nextStep.textContent = canCalculate ? 'Рассчитать по схеме' : drafts.length > 1 ? 'Выбрать черновик' : 'Проверить ставку';
+      nextStep.textContent = canCalculate ? 'Рассчитать зарплату' : drafts.length > 1 ? 'Выбрать черновик' : 'Проверить ставку';
       start.hidden = false;
       start.textContent = versions.length ? 'Новая схема оплаты' : 'Настроить первую ставку';
       start.classList.toggle('primary', nextStep.hidden);
+      if (!otherActions.isConnected) {
+        headerActions.append(otherActions);
+        if (modelButton) otherButtons.append(modelButton);
+      }
+      if (nextStep.hidden) nextStep.after(start);
+      else otherButtons.prepend(start);
       guide.textContent = canCalculate
-        ? 'Для нового расчёта выберите схему и период. Для выплаты откройте начисление ниже.'
+        ? 'Выберите период, чтобы узнать сумму к выплате. Уже рассчитанную зарплату можно выплатить из ведомости ниже.'
         : drafts.length > 1 ? 'Выберите черновик и откройте его, чтобы проверить ставку на примере смены.'
         : drafts.length ? 'Ставка сохранена в черновике. Проверьте её на примере смены и активируйте для расчёта.'
         : 'Начните с первой ставки. Выберите сотрудника, укажите, сколько ему платить и с какой даты.';
     };
     start.addEventListener('click', async () => {
+      otherActions.open = false;
       settings.open = true;
       if (await showEditor({kind:'create', guided:true})) {
         quickEmployee.focus();

@@ -6450,3 +6450,17 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   #payroll .payroll-header-actions { width: 100%; }
   #payroll .payroll-header-actions .button { flex: 1 1 9rem; }
 }
+#payroll .payroll-other-actions > summary {
+  display: list-item;
+  min-height: 44px;
+  padding: .65rem .85rem;
+  box-sizing: border-box;
+  cursor: pointer;
+  color: var(--ui-text-secondary);
+  align-content: center;
+}
+#payroll .payroll-other-actions > div { display: grid; gap: .4rem; margin-top: .4rem; }
+#payroll .payroll-header-actions { align-items: start; }
+@media (max-width: 620px) {
+  #payroll .payroll-header-actions > .payroll-other-actions { width: 100%; }
+}
