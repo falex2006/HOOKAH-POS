@@ -68,3 +68,5 @@ ode scripts/local-full-pg-regression.cjs — PASS; локальная disposable
 - Sidebar summary now rounds closed corners and expanded upper corners; no navigation, role, route, DOM or header changes.
 - Independent code-health and system-architecture reviews completed. Syntax, diff whitespace and source/dist parity passed. Local browser component sample rendered using real style.css; screenshot: tmp/range-qa/range-menu.png. This is component visual evidence, not live floor or production acceptance.
 - Cache revisions synchronized. No database, API, GitHub publication or production deployment in this follow-up.
+
+2026-11-10 — Зарплата. Компактные строки ведомости с раскрытием подробностей. Локально проверены 5 и 10 сотрудников в Full HD, длинные имена, суммы и переключение моделей.

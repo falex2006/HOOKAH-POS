@@ -63,7 +63,7 @@ try {
  const summary=page.getByText('Настройки схем и проверка расчётов',{exact:true});
  if(await summary.isVisible() && !(await summary.locator('..').evaluate(n=>n.open))) await summary.click();
  const start=page.locator('[data-payroll-quick-start]');
- await page.getByRole('button',{name:'Настроить первую ставку',exact:true}).waitFor({state:'visible'});
+ await page.getByRole('button',{name:'Настроить ставку',exact:true}).waitFor({state:'visible'});
  const secondary = page.locator('.payroll-other-actions');
  const modelAction = page.locator('#payroll-create-toggle');
  assert.equal(await modelAction.isVisible(),false);

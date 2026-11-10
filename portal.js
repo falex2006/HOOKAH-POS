@@ -7161,6 +7161,14 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
     }
     const entryStatuses = { draft: ['Черновик', 'warning'], approved: ['Утверждено', 'success'], paid: ['Выплачено', 'success'], cancelled: ['Отменено', 'danger'] };
     let payrollItems = [];
+    const expandedPayrollEntries = new Set();
+    const rememberExpandedEntries = () => {
+      for (const detail of register.querySelectorAll('details[data-payroll-expand]')) {
+        const id = detail.dataset.payrollExpand;
+        if (detail.open) expandedPayrollEntries.add(id);
+        else expandedPayrollEntries.delete(id);
+      }
+    };
     let payrollReady = false;
     let payrollRequestId = 0;
     const payrollPendingEntries = new Set();
@@ -7252,6 +7260,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
     };
     const drawPayroll = () => {
       if (!payrollReady) return;
+      rememberExpandedEntries();
       const userId = payrollSection.querySelector('#payroll-filter-user').value;
       const ruleId = payrollSection.querySelector('#payroll-filter-rule').value;
       const half = payrollSection.querySelector('#payroll-filter-half').value;
@@ -7263,7 +7272,10 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       };
       const rows = payrollItems.filter((item) => (!userId || String(item.userId) === userId) && (!ruleId || String(item.ruleId) === ruleId) && matchesHalf(item));
       if (!rows.length) { register.innerHTML = linkedPayrollRecovery() + (payrollItems.length ? '<div class="empty">Нет начислений по выбранным фильтрам. Измените фильтры, чтобы увидеть другие начисления.</div>' : '<div class="empty">За выбранный период начислений нет. Выберите другой период или создайте начисление.</div>'); return; }
-      register.innerHTML = rows.map((item) => {
+      const grouped = rows.length > 1;
+      const amountLabels = ['Начислено', 'Удержано', 'Выплачено', 'Остаток'];
+      const listHead = grouped ? `<div class="payroll-list-head" aria-hidden="true"><span>Сотрудник и период</span><span>Статус</span>${amountLabels.map(label => `<span>${label}</span>`).join('')}<span></span></div>` : '';
+      register.innerHTML = listHead + rows.map((item) => {
         const [statusLabel, statusStyle] = item.settlementKind === 'zero' && item.status === 'paid' ? ['Завершено без выплаты', 'success'] : entryStatuses[item.status] || [String(item.status || 'Неизвестно'), 'warning'];
         const period = `${formatRuDate(item.periodFrom)} — ${formatRuDate(item.periodTo)}`;
         const payout = item.settlementKind === 'zero' ? `Завершено без денежной выплаты${item.paymentDate ? ` · ${formatRuDate(item.paymentDate)}` : ''}` : item.paymentDate ? `Дата выплаты: ${formatRuDate(item.paymentDate)}${item.paymentAccountNameSnapshot ? ` · ${esc(item.paymentAccountNameSnapshot)} · ${{cash:'Наличные',card:'Карта',bank_transfer:'Банковский перевод',other:'Другое'}[item.paymentMethod]||'способ не указан'}${item.shiftId?' · кассовая смена':''}` : item.accountCoverage==='unknown_legacy'?' · счёт не указан':''}` : 'Дата выплаты не указана';
@@ -7317,14 +7329,21 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
           : linkedRun && !linkedState.allowedActions.includes(item.status === 'draft' ? 'approve' : 'pay') ? 'Требуется проверка начисления'
           : item.status === 'draft' ? 'Утвердите начисление'
           : netCents === 0 && linkedRun ? 'Подтвердите завершение' : !availablePayoutAccounts().length ? 'Требуется активный счёт выплаты' : 'Проведите выплату';
-        return `<article class="payment-row payroll-entry-row" data-payroll-entry="${esc(item.id)}">
+        const amountValues = [gross,withheld,actualPaid,outstanding];
+        const rowStart = grouped ? `<article class="payroll-team-row" data-payroll-entry="${esc(item.id)}"><details data-payroll-expand="${esc(item.id)}" ${expandedPayrollEntries.has(item.id) ? 'open' : ''}>
+          <summary><span class="payroll-team-person"><b>${esc(displayName(item.employeeName || item.userName || 'Сотрудник не указан'))}</b><small>${esc([halfLabel,period].filter(Boolean).join(' · '))}</small></span>
+          <span class="payroll-team-status"><span class="badge ${statusStyle}">${esc(statusLabel)}</span>${linkedPending || paymentPending || linkedState?.sourceStatus === 'blocked' || (item.status === 'paid' && (actualPaid == null || actualPaid !== netCents)) ? `<small>${esc(nextAction)}</small>` : ''}</span>
+          ${amountValues.map((v,i)=>`<span class="payroll-team-amount"><span>${amountLabels[i]}</span><b>${asMoney(v)}</b></span>`).join('')}
+          <span class="payroll-team-chevron" aria-hidden="true"></span></summary><div class="payroll-entry-row payroll-team-body">` :
+          `<article class="payment-row payroll-entry-row" data-payroll-entry="${esc(item.id)}">
           <div class="payroll-entry-person"><b>${esc(displayName(item.employeeName || item.userName || 'Сотрудник не указан'))}</b><small>${esc([halfLabel,period].filter(Boolean).join(' · '))}</small><span class="badge ${statusStyle}">${esc(statusLabel)}</span></div>
           <dl class="payroll-register-amounts"><div><dt>Начислено</dt><dd>${asMoney(gross)}</dd></div><div><dt>Удержано</dt><dd>${asMoney(withheld)}</dd></div><div><dt>Выплачено</dt><dd>${asMoney(actualPaid)}</dd></div><div><dt>Остаток</dt><dd>${asMoney(outstanding)}</dd></div></dl>
-          <div class="payroll-entry-next">${esc(nextAction)}</div><div class="toolbar-row payroll-entry-actions">${actions}</div>${cancelEditor}
+          `;
+        return `${rowStart}<div class="payroll-entry-next">${esc(nextAction)}</div><div class="toolbar-row payroll-entry-actions">${actions}</div>${cancelEditor}
           <details class="payroll-entry-breakdown"><summary>Расшифровка начисления</summary><div><small>${esc(displayName(item.schemeName || item.ruleName || 'Модель не указана'))} · ${esc(workedLabel)}</small>
           <small>${payout} · Статья: ${esc(item.financeCategoryNameSnapshot || item.financeCategoryName || 'не указана')}</small>
           ${reconciliation ? `<p data-payroll-reconciliation>${esc(reconciliation)}</p>` : ''}${linkedTotals}${!linkedRun ? '<small>Для этой модели отдельный учёт удержаний не ведётся.</small>' : ''}
-          ${item.status === 'draft' ? '<small>Остаток к выплате появится после утверждения.</small>' : ''}</div></details>${linkedNotice}</article>`;
+          ${item.status === 'draft' ? '<small>Остаток к выплате появится после утверждения.</small>' : ''}</div></details>${linkedNotice}${grouped ? '</div></details>' : ''}</article>`;
       }).join('');
       register.insertAdjacentHTML('afterbegin', linkedPayrollRecovery());
       register.querySelectorAll('[data-payroll-entry]').forEach((row) => {
@@ -7332,6 +7351,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       });
     };
     loadPayroll = async () => {
+      rememberExpandedEntries();
       const requestId = ++payrollRequestId;
       linkedPayrollStates.clear();
       payrollReady = false;
@@ -7423,7 +7443,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       if (!state || !state.allowedActions.includes(action)) {
         registerMessage.className = 'form-message error-message'; registerMessage.textContent = 'Сначала проверьте начисление и доступные действия.'; return;
       }
-      const row = button.closest('.payroll-entry-row');
+      const row = button.closest('[data-payroll-entry]');
       const payload = { action, expectedStateHash: state.stateHash, paymentDate: null, paymentAccountId: null, paymentMethod: null, reason: null };
       if (action === 'pay') {
         payload.paymentDate = row.querySelector('[data-payroll-payment-date]')?.value || '';
@@ -7462,8 +7482,15 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
         drawPayroll();
       }
       const row = [...register.querySelectorAll('[data-payroll-entry]')].find(item => item.dataset.payrollEntry === entryId);
-      const target = row || register;
-      target.tabIndex = -1; target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.focus({ preventScroll: true });
+      const disclosure = row?.querySelector(':scope > details[data-payroll-expand]');
+      if (disclosure) {
+        disclosure.open = true;
+        expandedPayrollEntries.add(entryId);
+      }
+      const target = disclosure?.querySelector(':scope > summary') || row || register;
+      if (target.tagName !== 'SUMMARY') target.tabIndex = -1;
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      target.focus({ preventScroll: true });
       if (payrollReady && !row) registerMessage.textContent = 'Начисление не найдено в текущем реестре. Обновите статусы в сохранённом расчёте.';
     });
     for (const selector of ['#payroll-filter-user', '#payroll-filter-rule', '#payroll-filter-half']) payrollSection.querySelector(selector).addEventListener('change', drawPayroll);
@@ -7491,9 +7518,9 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       const linkedRetry = event.target.closest('[data-payroll-linked-retry]');
       if (linkedRetry) { if (!linkedRetry.disabled) await sendLinkedPayroll(linkedRetry.dataset.payrollLinkedRetry); return; }
       const cancelOpen = event.target.closest('[data-payroll-cancel-open]');
-      if (cancelOpen) { const row = cancelOpen.closest('.payroll-entry-row'); if (payrollPendingEntries.has(cancelOpen.dataset.payrollCancelOpen)) return; const editor = row?.querySelector('[data-payroll-cancel-editor]'); if (editor) { editor.hidden = false; cancelOpen.hidden = true; editor.querySelector('textarea')?.focus(); } return; }
+      if (cancelOpen) { const row = cancelOpen.closest('[data-payroll-entry]'); if (payrollPendingEntries.has(cancelOpen.dataset.payrollCancelOpen)) return; const editor = row?.querySelector('[data-payroll-cancel-editor]'); if (editor) { editor.hidden = false; cancelOpen.hidden = true; editor.querySelector('textarea')?.focus(); } return; }
       const cancelClose = event.target.closest('[data-payroll-cancel-close]');
-      if (cancelClose) { if (payrollPendingEntries.has(cancelClose.dataset.payrollCancelClose)) return; const row = cancelClose.closest('.payroll-entry-row'); const editor = row?.querySelector('[data-payroll-cancel-editor]'); if (editor) { editor.hidden = true; editor.reset(); const opener = row.querySelector('[data-payroll-cancel-open]'); if (opener) opener.hidden = false; } return; }
+      if (cancelClose) { if (payrollPendingEntries.has(cancelClose.dataset.payrollCancelClose)) return; const row = cancelClose.closest('[data-payroll-entry]'); const editor = row?.querySelector('[data-payroll-cancel-editor]'); if (editor) { editor.hidden = true; editor.reset(); const opener = row.querySelector('[data-payroll-cancel-open]'); if (opener) opener.hidden = false; } return; }
       const button = event.type === 'submit' ? event.submitter || event.target.querySelector('[data-payroll-action]') : event.target.closest('[data-payroll-action]'); if (!button || button.disabled) return;
       if (event.type === 'click' && button.type === 'submit') return;
       if (button.type === 'submit') event.preventDefault();
@@ -7519,7 +7546,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
         payload.reason = reason.trim();
       }
       payrollPendingEntries.add(entryId);
-      const originalRow = button.closest('.payroll-entry-row');
+      const originalRow = button.closest('[data-payroll-entry]');
       const actionControls = [...originalRow.querySelectorAll('input,select,textarea,button')].map((field) => ({field, disabled:field.disabled}));
       actionControls.forEach(({field}) => { field.disabled = true; field._customSelectRefresh?.(); });
       registerMessage.className = 'form-message'; registerMessage.textContent = 'Сохраняем изменение…';

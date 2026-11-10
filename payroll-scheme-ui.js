@@ -3037,7 +3037,7 @@
       nextStep.dataset.destination = canCalculate ? 'saved' : 'trial';
       nextStep.textContent = canCalculate ? 'Рассчитать зарплату' : drafts.length > 1 ? 'Выбрать черновик' : 'Проверить ставку';
       start.hidden = false;
-      start.textContent = versions.length ? 'Новая схема оплаты' : 'Настроить первую ставку';
+      start.textContent = versions.length ? 'Новая схема оплаты' : 'Настроить ставку';
       start.classList.toggle('primary', nextStep.hidden);
       if (!otherActions.isConnected) {
         headerActions.append(otherActions);
@@ -3049,7 +3049,7 @@
         ? 'Выберите период, чтобы узнать сумму к выплате. Уже рассчитанную зарплату можно выплатить из ведомости ниже.'
         : drafts.length > 1 ? 'Выберите черновик и откройте его, чтобы проверить ставку на примере смены.'
         : drafts.length ? 'Ставка сохранена в черновике. Проверьте её на примере смены и активируйте для расчёта.'
-        : 'Начните с первой ставки. Выберите сотрудника, укажите, сколько ему платить и с какой даты.';
+        : 'Для новой ставки выберите сотрудника, сумму и дату начала. Сохранённые начисления открываются в ведомости.';
     };
     start.addEventListener('click', async () => {
       otherActions.open = false;

@@ -6487,3 +6487,43 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 #page-content #payroll :is([data-trial-shift],[data-quick-pay]) { border: 0; padding: .65rem 0; margin: 0; min-width: 0; }
 #page-content #payroll [data-trial-advanced] > summary { cursor: pointer; padding-block: .7rem; color: var(--ui-text-secondary); }
 #page-content #payroll .scheme-workspace-nav .button[aria-current="step"] { border-color: var(--ui-accent, #ff7952); font-weight: 700; }
+
+/* One shared column grid keeps multi-employee amounts comparable. */
+#payroll-register:has(.payroll-team-row) { gap: 0; }
+#payroll-register .payroll-list-head,
+#payroll-register .payroll-team-row > details > summary {
+  display: grid;
+  grid-template-columns: minmax(12rem,2fr) minmax(8rem,1fr) repeat(4,minmax(5.75rem,.8fr)) 1rem;
+  gap: 1rem;
+  align-items: center;
+  padding: .75rem 1rem;
+}
+#payroll-register .payroll-list-head { color: var(--ui-text-secondary); font-size: .85rem; background: var(--ui-panel); }
+#payroll-register .payroll-list-head > :nth-child(n+3) { text-align: right; }
+#payroll-register .payroll-team-row { border-block-start: 1px solid var(--ui-border-control); min-width: 0; }
+#payroll-register .payroll-team-row > details > summary { cursor: pointer; list-style: none; }
+#payroll-register .payroll-team-row > details > summary::-webkit-details-marker { display:none; }
+#payroll-register .payroll-team-row > details > summary:is(:hover,:focus-visible),
+#payroll-register .payroll-team-row > details[open] { background: var(--ui-raised); }
+#payroll-register .payroll-team-person, #payroll-register .payroll-team-status { display: grid; justify-items: start; gap: .2rem; min-width: 0; overflow-wrap: anywhere; }
+#payroll-register .payroll-team-person small { color: var(--ui-text-secondary); }
+#payroll-register .payroll-team-amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#payroll-register .payroll-team-amount > span { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+#payroll-register .payroll-team-chevron { width:.5rem; height:.5rem; justify-self:center; border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); }
+#payroll-register .payroll-team-row > details[open] > summary .payroll-team-chevron { transform:rotate(225deg); }
+#page-content #payroll-register .payroll-team-body { padding: .75rem 1rem 1rem; }
+@media(max-width:1200px) {
+  #payroll-register .payroll-list-head { display:none; }
+  #payroll-register .payroll-team-row > details > summary { grid-template-columns:repeat(4,minmax(0,1fr)); gap:.5rem; }
+  #payroll-register .payroll-team-person { grid-column:1 / 3; }
+  #payroll-register .payroll-team-status { grid-column:3; }
+  #payroll-register .payroll-team-chevron { grid-area:1 / 4; justify-self:end; }
+  #payroll-register .payroll-team-amount { text-align:start; }
+  #payroll-register .payroll-team-amount > span { position:static; display:block; clip-path:none; width:auto; height:auto; color:var(--ui-text-secondary); font-size:.8rem; }
+}
+@media(max-width:600px) {
+  #payroll-register .payroll-team-row > details > summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #payroll-register .payroll-team-person { grid-column:1 / -1; padding-inline-end:1.25rem; }
+  #payroll-register .payroll-team-status { grid-column:1 / -1; }
+  #payroll-register .payroll-team-chevron { grid-area:1 / 2; }
+}
