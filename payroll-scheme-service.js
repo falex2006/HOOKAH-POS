@@ -1736,8 +1736,16 @@ const makeService = (pool) => {
     replaySavedRun: (principal, runId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.replaySavedRun(db, actor.venueId, runId)),
     checkSavedRunFreshness: (principal, runId) => withOwnerRead(pool, principal,
       (db, actor) => lifecycleFreshness(db, actor, runId), { sourceSnapshot: true }),
-    getSavedRun: (principal, runId, query) => withOwnerRead(pool, principal,
-      (db, actor) => savedRunReader.getSavedRun(db, actor.venueId, runId, query)),
+    getSavedRun: (principal, runId, query) => withOwnerSourceWrite(pool, principal, async (db, actor) => {
+      const detail = await savedRunReader.getSavedRun(db, actor.venueId, runId, query);
+      const { explainMonthlyEntries } = require('./payroll-monthly-entry-options');
+      return explainMonthlyEntries(db, actor, runId, detail, {
+        loadEvidence: () => savedRunReader.loadSavedRunEvidenceInTransaction(db, actor.venueId, runId),
+        checkFreshness: () => lifecycleFreshness(db, actor, runId),
+        readH1: (month, evidence, employee) =>
+          readH1StatesOrVerifiedZero(db, actor, runId, month, evidence, [employee])
+      });
+    }, 'payroll_entry_materialization'),
     getSavedRunEmployee: (principal, runId, employeeId) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunEmployee(db, actor.venueId, runId, employeeId)),
     getSavedRunLines: (principal, runId, snapshotId, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.getSavedRunLines(db, actor.venueId, runId, snapshotId, query)),
     listEmploymentEligibilityEmployees,
