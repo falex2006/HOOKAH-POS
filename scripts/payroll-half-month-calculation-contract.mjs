@@ -144,6 +144,26 @@ for (const mode of payrollRefundAwareModes) {
   const newClaim = settle(args,[{...advance,claimId:ids[0]}],employeeId);
   check(newClaim.economicEvidenceSha256 !== result.economicEvidenceSha256,'replaced H1 invalidates prior economic proof');
   check(settle(args,[{...advance,ledgerHash:'e'.repeat(64)}],employeeId).economicEvidenceSha256 !== result.economicEvidenceSha256);
+  const {buildPayrollDeferredMonthEvidence: buildEvidence,verifyPayrollDeferredMonthEvidence: verifyEvidence}
+    = require('../payroll-deferred-month-evidence');
+  const monthlyRunId = '00000000-0000-4000-8000-000000000010';
+  const h2RunId = '00000000-0000-4000-8000-000000000011';
+  const monthRun = require('../payroll-refund-aware-provenance').buildPayrollRefundAwareRunProvenance({...args,runId:monthlyRunId});
+  const monthly = JSON.parse(monthRun.provenance.evidence_payload);
+  const fixedPaid = {...advance,protectedFixedMinor:100,netDueMinor:100,paidMinor:100,appliedCorrectionMinor:0};
+  const fixedApproved = {...fixedPaid,status:'approved',paidMinor:0};
+  const context = {venueId:args.venueId,employeeId,month,monthlyRunId,h2RunId,h1State:fixedApproved};
+  const document = buildEvidence(monthly,settle(args,[fixedApproved],employeeId),context);
+  eq([document.monthlyProtectedFixedMinor, document.h1ProtectedFixedMinor, document.h2ProtectedFixedMinor,
+    document.h2EligibleVariableMinor], [100,100,0,2000]);
+  eq(document.monthlyEvidenceSha256, monthRun.provenance.evidence_sha256);
+  eq(document.h2GrossAccruedMinor, 2000);
+  eq(verifyEvidence(document.payload,monthly).liveH1Verified,false);
+  eq(verifyEvidence(document.payload,monthly,fixedPaid).valid,true,'approval followed by payment keeps the document valid');
+  eq(verifyEvidence(document.payload,monthly,{...fixedPaid,claimId:ids[0]}).valid,false);
+  eq(verifyEvidence(document.payload,monthly,{...fixedPaid,status:'cancelled'}).valid,false);
+  eq(verifyEvidence(document.payload.replace('"h2GrossAccruedMinor":2000','"h2GrossAccruedMinor":2001'),monthly).valid,false);
+  eq(verifyEvidence(document.payload,{...monthly,venueId:ids[1]}).valid,false);
   const early = clone(args);
   early.scheme.roleParameters.bar.bracketRatesBps = {0: 1000, 9000: 2000};
   const earlyResult = settle(early,[advance],employeeId);

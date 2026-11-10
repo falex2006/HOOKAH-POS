@@ -145,8 +145,7 @@ function payrollMonthHasDeferredPay(result, employeeId = null) {
 // credit against the employee's closed-month entitlement.
 function buildPayrollDeferredMonthSettlement(monthlySourceArgs, h1States, employeeId = null) {
   const monthly = buildPayrollRefundAwareCalculation(monthlySourceArgs);
-  if (monthly.status !== 'refund_aware_calculated' || monthly.periodClosure?.venueLocalDate <= monthly.period.to
-      || !payrollMonthHasDeferredPay(monthly.engineResult, employeeId)) {
+  if (monthly.status !== 'refund_aware_calculated' || monthly.periodClosure?.venueLocalDate <= monthly.period.to) {
     return blocked(['payroll_half_month_closed_threshold_run_required']);
   }
   const month = monthly.period.from.slice(0, 7);
@@ -179,7 +178,7 @@ function buildPayrollDeferredMonthSettlement(monthlySourceArgs, h1States, employ
     h2GrossByEmployee: residuals});
   if (reconciliation.status !== 'h2_reconciled_candidate') return reconciliation;
   const evidence = {schemaVersion: 1, policy: 'closed_month_less_confirmed_h1_gross_v1',
-    monthlyCalculationWatermark: monthly.calculationWatermark, reconciliation,
+    monthlyCalculationWatermark: monthly.calculationWatermark, requiresDeferred:payrollMonthHasDeferredPay(monthly.engineResult, employeeId), reconciliation,
     employees: reconciliation.items.map(row => ({employeeId: row.employeeId, earnedDays: earnedByEmployee.get(row.employeeId),
       h1CreditMinor: row.h1GrossAccruedMinor, h2GrossMinor: row.h2GrossAccruedMinor}))};
   const economicClaims = [];
