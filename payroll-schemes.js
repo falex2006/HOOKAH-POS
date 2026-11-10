@@ -469,7 +469,7 @@ const calculatePayrollScheme = (input) => {
   }
   for (const rule of (Array.isArray(scheme?.itemRules) ? scheme.itemRules : [])) if (rule && typeof rule === 'object' && !Array.isArray(rule) && ((rule.employeeId && !employeeIds.has(rule.employeeId)) || (rule.roleId && !own(scheme.roleParameters || {}, rule.roleId)))) blockers.push('item_rule_scope_unknown');
   for (const employeeId of employeeIds) {
-    const rows = assignments.filter((item) => item.employeeId === employeeId).slice().sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    const rows = assignments.filter((item) => item.employeeId === employeeId && isDate(item.effectiveFrom)).slice().sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
     for (let index = 1; index < rows.length; index += 1) if (!rows[index - 1].effectiveTo || rows[index].effectiveFrom <= rows[index - 1].effectiveTo) blockers.push('overlapping_role_assignments');
     const employee = employees.find((item) => item.id === employeeId);
     for (const interval of employeeActiveIntervals(employee, input?.periodFrom, input?.periodTo)) {
@@ -515,7 +515,7 @@ const calculatePayrollScheme = (input) => {
     if (!line?.id || seenSales.has(line.id) || !isDate(line.date) || line.date < monthStart || line.date > monthEnd || (isDate(coverage?.through) && line.date > coverage.through) || !isDepartmentKey(line.department) || !isNonNegativeInteger(line.turnoverCents) || !isNonNegativeInteger(line.commissionBaseCents)) blockers.push('invalid_sales_line');
     if (line?.id) seenSales.add(line.id);
     if (line?.employeeId && !employeeIds.has(line.employeeId)) blockers.push('unknown_sales_employee');
-    if (!line?.employeeId && isNonNegativeInteger(line?.turnoverCents) && line.turnoverCents > 0 && line.date >= input.periodFrom && line.date <= input.periodTo) blockers.push('unattributed_sales_line');
+    if (!line?.employeeId && ((isNonNegativeInteger(line?.turnoverCents) && line.turnoverCents > 0) || (isNonNegativeInteger(line?.commissionBaseCents) && line.commissionBaseCents > 0)) && line.date >= input.periodFrom && line.date <= input.periodTo) blockers.push('unattributed_sales_line');
     if (line?.employeeId && isDate(line.date) && !resolveRoleAt(assignments, line.employeeId, line.date)) blockers.push('sales_employee_unassigned');
     if (line?.employeeId && isDate(line.date)) {
       const employee = employees.find((item) => item.id === line.employeeId);

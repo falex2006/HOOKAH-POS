@@ -183,6 +183,17 @@ assert.equal(endedEmployee.employees[0].milestoneBonusCents, 0, 'employee inacti
 
 const unattributedTurnover = calculatePayrollScheme({ ...baseInput, sales: [...baseInput.sales, { id: 'unattributed-turnover', date: '2026-09-02', employeeId: null, department: 'bar', turnoverCents: 10000, commissionBaseCents: 0 }] });
 assert.ok(unattributedTurnover.blockers.includes('unattributed_sales_line'), 'positive turnover with zero commission base still needs attribution');
+const unattributedCommission = calculatePayrollScheme({ ...baseInput, sales: [...baseInput.sales, { id: 'unattributed-commission', date: '2026-09-02', employeeId: null, department: 'bar', turnoverCents: 0, commissionBaseCents: 10000 }] });
+assert.equal(unattributedCommission.status, 'blocked');
+assert.ok(unattributedCommission.blockers.includes('unattributed_sales_line'), 'positive commission base with zero turnover still needs attribution');
+const unattributedZero = calculatePayrollScheme({ ...baseInput, sales: [...baseInput.sales, { id: 'unattributed-zero', date: '2026-09-02', employeeId: null, department: 'bar', turnoverCents: 0, commissionBaseCents: 0 }] });
+assert.ok(!unattributedZero.blockers.includes('unattributed_sales_line'), 'zero-value line does not require attribution');
+const attributedCommission = calculatePayrollScheme({ ...baseInput, sales: [...baseInput.sales, { id: 'attributed-commission', date: '2026-09-02', employeeId: 'a', department: 'bar', turnoverCents: 0, commissionBaseCents: 10000 }] });
+assert.ok(!attributedCommission.blockers.includes('unattributed_sales_line'), 'attributed commission base is not rejected as unattributed');
+assert.equal(attributedCommission.daily[1].lines.find((line) => line.lineId === 'attributed-commission').commissionCents, 2500, 'attributed commission base remains calculated');
+const outsidePeriodCommission = calculatePayrollScheme({ ...baseInput, periodFrom: '2026-09-02', sales: [...baseInput.sales, { id: 'outside-period-commission', date: '2026-09-01', employeeId: null, department: 'bar', turnoverCents: 0, commissionBaseCents: 10000 }] });
+assert.equal(outsidePeriodCommission.status, 'ready');
+assert.ok(!outsidePeriodCommission.blockers.includes('unattributed_sales_line'), 'unattributed line outside the requested period does not block it');
 
 assert.ok(validateScheme({ ...baseInput.scheme, itemRules: {} }).includes('invalid_item_rules'));
 assert.ok(validateScheme({ ...baseInput.scheme, employeeOverrides: {} }).includes('invalid_employee_overrides'));
@@ -199,6 +210,11 @@ const malformedCollectionRows = calculatePayrollScheme({
 });
 assert.equal(malformedCollectionRows.status, 'blocked', 'null rows inside scheme collections block safely');
 assert.ok(calculatePayrollScheme({ ...baseInput, roleAssignments: [null] }).blockers.includes('invalid_role_assignment'), 'malformed role assignment rows return a blocker safely');
+for (const effectiveFrom of [null, undefined, 42, '2026-02-31']) {
+  const malformedDate = calculatePayrollScheme({ ...baseInput, roleAssignments: [...baseInput.roleAssignments, { employeeId: 'a', roleId: 'bartender', effectiveFrom }] });
+  assert.equal(malformedDate.status, 'blocked');
+  assert.ok(malformedDate.blockers.includes('invalid_role_assignment'), 'invalid role start date returns a blocker instead of throwing');
+}
 assert.ok(calculatePayrollScheme({ ...baseInput, employees: [null] }).blockers.includes('invalid_employee'), 'malformed employee rows return a blocker safely');
 assert.ok(!validateScheme({ ...baseInput.scheme, employeeOverrides: [
   { employeeId: 'a', path: 'perShiftCents', mode: 'override', value: 100, effectiveFrom: '2026-09-01', effectiveTo: '2026-09-10' },
