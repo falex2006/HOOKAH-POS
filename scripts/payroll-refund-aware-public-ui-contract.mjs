@@ -124,7 +124,7 @@ const creationFixture=(policyVersion=2,saved=new Map())=>{
     crypto:{randomUUID:()=>id(42)},savedRequest:async(...args)=>{calls.push(args);return f.request(...args);},
     loadList:async()=>calls.push(['list']),openRun:async run=>calls.push(['open',run]),errorText:e=>e.message,
     escapeHtml:String,readinessReasonLabel:String});
-  vm.runInContext(submitSource,context);f.context=context;f.submit=()=>handler({preventDefault(){}});return f;
+  vm.runInContext(submitSource,context);f.context=context;f.submit=(h1=false)=>handler({preventDefault(){},submitter:{hasAttribute:()=>h1}});return f;
 };
 for(const version of [0,1,2]){
   const f=creationFixture(version);await f.submit();
@@ -138,6 +138,20 @@ for(const version of [1,2]){
   await f.submit();const first=f.calls[1],key=[...f.saved.keys()][0];
   assert.ok(key.startsWith(version===1?'payroll-saved-intent:v1:owner:venue:':'payroll-saved-intent:refund-aware-v2:owner:venue:'));
   const reloaded=creationFixture(version,f.saved);await reloaded.submit();assert.deepEqual(clone(reloaded.calls[1]),clone(first));assert.equal(f.saved.size,0);
+}
+{
+  const f=creationFixture();
+  f.context.to.value='2026-09-14';
+  await f.submit(true);
+  assert.equal(f.calls[1][0],'/api/payroll/h1-calculation-runs');
+  assert.ok([...f.saved.keys()][0].startsWith('payroll-saved-intent:h1-fixed-shifts-v1:'));
+  const normal=f.request;
+  f.request=async path=>path.startsWith('/api/payroll/versions/')?normal(path):({...await normal(path),capabilityVersion:'employee_attributed_h1_fixed_shifts_v1'});
+  await f.submit(true);
+  assert.deepEqual(JSON.parse(f.calls[1][1].body),JSON.parse(f.calls[3][1].body));
+  assert.equal(f.saved.size,0);assert.equal(f.calls.at(-1)[0],'open');
+  const legacy=creationFixture(1);legacy.context.to.value='2026-09-14';
+  await legacy.submit(true);assert.equal(legacy.calls.length,1,'H1 with legacy source policy cannot post');
 }
 for(const patch of [{runId:'bad'},{capabilityVersion:'employee_attributed_net_v1'},{amountCents:-1},
   {amountCents:1000000000000},{replayed:null},{officialReady:true},{payoutEligible:true}]) {

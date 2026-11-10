@@ -1090,6 +1090,7 @@
     payroll_refund_aware_cost_source_unavailable:'Для маржинальной схемы нужна подтверждённая стоимость товаров на момент продажи.',
     payroll_refund_aware_department_source_unavailable:'Для этой схемы нужно подтвердить распределение проданных товаров по цехам.',
     payroll_refund_aware_explicit_policy_required:'В сохранённой версии не выбрано правило расчёта с учётом возвратов.',
+    payroll_h1_period_still_open:'Расчёт за 1–14 число доступен с 15 числа по местному времени заведения.',
     payroll_legacy_candidate_unavailable:'Исходная схема не может быть рассчитана по данным выбранного периода.',
     payroll_calculator_signed_refund_input_missing:'Этот способ расчёта пока не поддерживает корректировки по возвратам.'
   };
@@ -1891,6 +1892,7 @@
         <label>По дату<input type="date" data-saved-run-to required></label>
       </div><p class="muted">Сейчас период должен начинаться с первого числа и заканчиваться в том же месяце, раньше сегодняшнего дня.</p>
       <div class="toolbar-row"><button class="button primary" type="submit" data-saved-run-create disabled>Рассчитать и сохранить</button>
+        <button class="button" type="submit" data-saved-h1-create hidden>Рассчитать первую половину для выплаты</button>
         <button class="button" type="button" data-saved-run-reload>Обновить список</button></div></form>
       <div data-saved-run-status role="status" aria-live="polite"></div>
       <section data-correction-pending aria-live="polite"></section>
@@ -2143,6 +2145,9 @@
       payroll_run_payout_not_enabled: 'Для начислений из сохранённого расчёта утверждение и выплата пока недоступны.',
       payroll_period_overlap: 'За пересекающийся период уже есть начисление. Проверьте реестр, прежде чем создавать новое.',
       payroll_entry_idempotency_conflict: 'Этот запрос уже связан с другим начислением. Обновите статусы.',
+      payroll_h1_policy_required: 'Для расчёта первой половины выберите версию схемы с учётом возвратов и период с 1 по 14 число.',
+      payroll_h1_verified_run_required: 'Для первой половины нужен сохранённый расчёт за закрытый период с 1 по 14 число.',
+      payroll_h1_existing_entry_unbound: 'У сотрудника уже есть начисление за этот период. Сверьте его в реестре перед повторным расчётом.',
       payroll_entry_existing_category_conflict: 'Начисление уже создано с другой статьёй. Обновите статусы и откройте его в реестре.',
       payroll_entry_calculation_sources_changed: 'Исходные данные изменились или требуют проверки. Проверьте актуальность данных и сохраните новый расчёт перед созданием начисления.',
       payroll_entry_replay_required: 'Не удалось подтвердить повторный расчёт сохранённых сумм. Проверьте воспроизводимость расчёта.',
@@ -2156,7 +2161,11 @@
     const pageButton = (attribute, cursor, label) => cursor
       ? `<button type="button" class="button" ${attribute}="${escapeHtml(cursor)}">${label}</button>` : '';
     const savedEntryValid = (entry, runId) => entry && entry.origin === 'calculation_run'
-      && entry.calculationRunId === runId && typeof entry.id === 'string' && entry.id.length > 0
+      && (entry.halfKind === 'h2'
+        ? entry.monthlyRunId === runId && typeof entry.calculationRunId === 'string'
+          && entry.calculationRunId.length > 0 && entry.calculationRunId !== runId
+        : entry.calculationRunId === runId)
+      && typeof entry.id === 'string' && entry.id.length > 0
       && typeof entry.userId === 'string' && entry.userId.length > 0
       && ['draft', 'approved', 'paid', 'cancelled'].includes(entry.status)
       && Number.isSafeInteger(entry.amountCents) && entry.amountCents >= 0 && entry.amountCents <= 999999999999
@@ -2169,22 +2178,55 @@
           && Array.isArray(entry.allowedActions) && entry.allowedActions.length === 0
           && entry.officialReady !== true && entry.payoutEligible !== true
         : entry.transitionStateRequired === undefined && entry.officialReady === false && entry.payoutEligible === false);
+    const halfMonthBreakdown = (value, currency) => {
+      if (!value || currency !== 'RUB') return '';
+      const {monthlyGrossMinor, h1GrossAccruedMinor, h2GrossAccruedMinor} = value;
+      if (![monthlyGrossMinor, h1GrossAccruedMinor, h2GrossAccruedMinor].every(amount =>
+          Number.isSafeInteger(amount) && amount >= 0 && amount <= 999999999999)
+          || monthlyGrossMinor !== h1GrossAccruedMinor + h2GrossAccruedMinor) return '';
+      return `<small>Начислено за месяц: ${money(monthlyGrossMinor, currency)}<br>Учтено за 1–14 число: ${money(h1GrossAccruedMinor, currency)}<br>Начисление за вторую половину: ${money(h2GrossAccruedMinor, currency)}</small>`;
+    };
     const savedRunLifecycleAllowed = runId => selectedRunId === runId
-      && ['employee_attributed_merchandise_net_no_refund_v1','employee_attributed_remaining_net_refund_v2'].includes(detail.dataset.savedRunCapability);
+      && ['employee_attributed_merchandise_net_no_refund_v1','employee_attributed_remaining_net_refund_v2','employee_attributed_h1_fixed_shifts_v1'].includes(detail.dataset.savedRunCapability);
     const savedRunLegacyReviewAllowed = runId => selectedRunId === runId
       && detail.dataset.savedRunCapability === 'employee_attributed_merchandise_net_no_refund_v1';
+    const savedEntryHalf = cell => detail.dataset.h1EntryAvailable === 'true' ? 'h1'
+      : cell?.dataset.h2Required === 'true' && cell.dataset.h2EntryAvailable === 'true' ? 'h2' : null;
+    const h1CreationBlocked = () => detail.dataset.savedRunCapability === 'employee_attributed_h1_fixed_shifts_v1'
+      && detail.dataset.h1EntryAvailable !== 'true';
+    const h2CreationBlocked = cell => cell?.dataset.h2Required === 'true' && cell.dataset.h2EntryAvailable !== 'true';
     const renderSavedEntry = (cell, entry, runId) => {
       if (!savedRunLifecycleAllowed(runId)) { cell.textContent = 'Начисления для этого расчёта пока недоступны.'; return; }
       const employeeId = cell.dataset.savedEntryEmployee;
       if (!entry) {
-        cell.innerHTML = `<button type="button" class="button small" data-saved-entry-create="${escapeHtml(employeeId)}" ${pendingEntries.has(`${runId}:${employeeId}`) ? 'disabled' : ''}>Создать черновик начисления</button>`;
+        if (h1CreationBlocked()) {
+          cell.textContent = 'Начисление за 1–14 число недоступно. Проверьте сохранённый расчёт и актуальность исходных данных.';
+          return;
+        }
+        if (h2CreationBlocked(cell)) {
+          const reason = {
+            payroll_half_month_h1_not_finalized: 'Утвердите начисление за 1–14 число.',
+            payroll_half_month_negative_residual_requires_review: 'За первую половину начислено больше, чем за закрытый месяц. Проверьте возвраты и корректировки.',
+            payroll_half_month_h2_calculation_mismatch: 'Остаток за месяц расходится с расчётом за вторую половину. Сверьте начисления и корректировки.',
+            payroll_half_month_month_context_unverified: 'Проверьте закрытие месяца и актуальность исходных данных.'
+          }[cell.dataset.h2BlockReason];
+          cell.textContent = 'Начисление за вторую половину недоступно. ' + (typeof reason === 'string' ? reason : 'Проверьте начисление за 1–14 число и данные закрытого месяца.');
+          return;
+        }
+        const half = savedEntryHalf(cell);
+        const actionLabel = half === 'h1' ? 'Создать черновик за 1–14 число'
+          : half === 'h2' ? 'Создать черновик за вторую половину' : 'Создать черновик начисления';
+        const disabled = pendingEntries.has(`${runId}:${employeeId}`) ? 'disabled' : '';
+        const optionalH2 = !half && cell.dataset.h2EntryAvailable === 'true' && cell.dataset.h2Required !== 'true';
+        cell.innerHTML = `<button type="button" class="button small" data-saved-entry-create="${escapeHtml(employeeId)}" ${disabled}>${optionalH2 ? 'Начислить за весь месяц' : actionLabel}</button>`;
+        if (optionalH2) cell.innerHTML += ` <button type="button" class="button small" data-saved-entry-create="${escapeHtml(employeeId)}" data-saved-entry-half="h2" ${disabled}>Начислить за вторую половину</button>`;
         return;
       }
       const label = { draft: 'Черновик создан', approved: 'Утверждено', paid: 'Выплачено', cancelled: 'Черновик отменён' }[entry.status];
       const amounts = Number.isSafeInteger(entry.grossCents)
         ? `Начислено: ${money(entry.grossCents, entry.currency)}<br>Корректировки: ${money(entry.grossCents - entry.amountCents, entry.currency)}<br>К выплате: ${money(entry.amountCents, entry.currency)}`
         : money(entry.amountCents, entry.currency);
-      cell.innerHTML = `<strong>${label}</strong><br>${amounts}
+      cell.innerHTML = `<strong>${label}</strong>${entry.halfKind === 'h1' ? ' · первая половина месяца' : entry.halfKind === 'h2' ? ' · вторая половина месяца' : ''}<br>${amounts}
         <br><button type="button" class="button small" data-saved-entry-register="${escapeHtml(entry.id)}" data-entry-from="${escapeHtml(entry.periodFrom)}" data-entry-to="${escapeHtml(entry.periodTo)}">Открыть в реестре</button>
         ${entry.status === 'cancelled' ? '<p class="muted">Повторное начисление из этой связи не создаётся.</p>' : ''}`;
     };
@@ -2237,7 +2279,13 @@
       const pendingKey = `${runId}:${employeeId}`;
       if (!alive() || button.disabled || !target || !runId || pendingEntries.has(pendingKey)) return;
       const financeCategoryId = detail.querySelector('[data-saved-entry-category]')?.value || null;
-      const storageKey = `payroll-run-entry:v1:${identity}:${runId}:${employeeId}:${financeCategoryId || ''}`;
+      const employeeCell = button.closest('[data-saved-entry-employee]');
+      if (!employeeCell || h1CreationBlocked() || h2CreationBlocked(employeeCell)) return;
+      const optionalH2 = button.dataset.savedEntryHalf === 'h2';
+      if (optionalH2 && employeeCell.dataset.h2EntryAvailable !== 'true') return;
+      const half = optionalH2 ? 'h2' : savedEntryHalf(employeeCell);
+      const endpoint = half ? half + '-entries' : 'entries';
+      const storageKey = `payroll-run-entry:v1:${identity}:${runId}:${employeeId}:${financeCategoryId || ''}${half ? ':' + half : ''}`;
       pendingEntries.add(pendingKey); button.disabled = true;
       target.textContent = 'Создаём черновик по сохранённой сумме…';
       try {
@@ -2247,12 +2295,13 @@
           sessionStorage.setItem(storageKey, idempotencyKey);
           if (sessionStorage.getItem(storageKey) !== idempotencyKey) throw new Error('storage_write_failed');
         } catch (_) { throw new Error('payroll_entry_retry_storage_unavailable'); }
-        const data = await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(runId)}/entries`, {
+        const data = await savedRequest(`/api/payroll/calculation-runs/${encodeURIComponent(runId)}/${endpoint}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ employeeId, financeCategoryId, idempotencyKey })
         });
         const entry = Object.prototype.hasOwnProperty.call(data, 'currentEntry') ? data.currentEntry : data.entry;
-        if (data.schemaVersion !== 1 || !savedEntryValid(entry, runId) || entry.userId !== employeeId) throw new Error('invalid_payroll_entry_response');
+        if (data.schemaVersion !== 1 || !savedEntryValid(entry, runId) || entry.userId !== employeeId
+            || (half && entry.halfKind !== half)) throw new Error('invalid_payroll_entry_response');
         try { sessionStorage.removeItem(storageKey); } catch (_) {}
         if (!alive() || selectedRunId !== runId || !target.isConnected) return;
         // An earlier GET must not replace the just-committed entry with its
@@ -2343,11 +2392,13 @@
         if (!alive() || token !== detailToken) return;
         if (data.runId !== runId) throw new Error('invalid_saved_run_response');
         detail.dataset.savedRunCapability = data.capabilityVersion || '';
+        detail.dataset.h1EntryAvailable = String(data.h1EntryAvailable === true);
         const lifecycleAllowed = savedRunLifecycleAllowed(runId);
         const legacyReviewAllowed = savedRunLegacyReviewAllowed(runId);
         detail.innerHTML = `<h4>${escapeHtml(data.scheme.name)} · версия ${escapeHtml(data.scheme.versionNo)}</h4>
           <p>${escapeHtml(data.period.from)} — ${escapeHtml(data.period.to)} · ${escapeHtml(data.venueTimezone)}</p>
           <p><strong>Итого: ${money(data.amountCents, data.currency)}</strong></p>
+          ${data.capabilityVersion === 'employee_attributed_h1_fixed_shifts_v1' ? '<p>За 1–14 число учитываются подтверждённые смены и дневные проценты по условиям сотрудника. Если схема предусматривает месячную премию или процент по итогу месяца, они войдут в расчёт после закрытия месяца.</p>' : ''}
           ${lifecycleAllowed ? '<p>Расчёт сохранён. Для каждого сотрудника можно создать черновик начисления по сохранённой сумме.</p><p class="scheme-guidance">Откройте начисление в реестре: владелец может проверить источники, утвердить сумму и зарегистрировать выплату. Перед каждым действием источники проверяются заново.</p>'
             : '<p class="scheme-guidance" data-saved-run-read-only>Этот расчёт доступен для просмотра и проверки. Создание начислений, выплаты и финансовые корректировки для него пока недоступны.</p>'}
           <p>${data.replayAvailable === true
@@ -2366,17 +2417,17 @@
             <button type="button" class="button" data-refund-review-check>Проверить возвраты</button>
             <div data-refund-review-content role="status">Загружаем историю проверок…</div>
           </section>` : ''}
-          ${lifecycleAllowed ? `<section aria-label="Финансовые корректировки"><h4>Корректировка следующего начисления</h4><p>${legacyReviewAllowed?'Применение удержания и отказ от него записываются отдельно от решений по проверке возвратов выше.':'После выплаты можно оценить изменение премии за весь период, выбрать будущий черновик или отказаться от удержания. Автоматического долга или доплаты нет.'}</p><div data-correction-content>Загружаем выплаченные начисления…</div></section>
-          <section aria-label="Черновики начислений"><h4>Создать начисления</h4>
+          ${(legacyReviewAllowed || detail.dataset.savedRunCapability === 'employee_attributed_remaining_net_refund_v2') ? `<section aria-label="Финансовые корректировки"><h4>Корректировка следующего начисления</h4><p>${legacyReviewAllowed?'Применение удержания и отказ от него записываются отдельно от решений по проверке возвратов выше.':'После выплаты можно оценить изменение премии за весь период, выбрать будущий черновик или отказаться от удержания. Автоматического долга или доплаты нет.'}</p><div data-correction-content>Загружаем выплаченные начисления…</div></section>` : ''}
+          ${lifecycleAllowed ? `<section aria-label="Черновики начислений"><h4>Создать начисления</h4>
           <label>Статья расхода для новых черновиков<select data-saved-entry-category disabled><option value="">Без статьи</option></select></label>
           <p class="muted" data-saved-entry-category-hint>Загружаем статьи. По умолчанию черновик создаётся без статьи.</p>
           <div class="toolbar-row"><button type="button" class="button" data-saved-entry-reload>Обновить статусы начислений</button>
           <button type="button" class="button" data-saved-entry-categories-reload>Обновить статьи</button></div>
           <p data-saved-entry-status role="status">Загружаем статусы начислений…</p>` : '<section aria-label="Сотрудники расчёта"><h4>Сотрудники</h4>'}
           ${table('Сотрудники', ['Сотрудник', 'Сумма', 'Дней', 'Расшифровка', ...(lifecycleAllowed ? ['Начисление'] : [])], data.employees.map(row => `<tr>
-            <td>${escapeHtml(row.employeeName)}</td><td>${money(row.amountCents, data.currency)}</td><td>${escapeHtml(row.dayCount)}</td>
+            <td>${escapeHtml(row.employeeName)}</td><td>${halfMonthBreakdown(row.h2Reconciliation, data.currency) || money(row.amountCents, data.currency)}</td><td>${escapeHtml(row.dayCount)}</td>
             <td><button type="button" class="button small" data-saved-employee="${escapeHtml(row.employeeId)}">По дням</button></td>
-            ${lifecycleAllowed ? `<td data-saved-entry-employee="${escapeHtml(row.employeeId)}">Проверяем начисления…</td>` : ''}</tr>`).join(''))}
+            ${lifecycleAllowed ? `<td data-saved-entry-employee="${escapeHtml(row.employeeId)}" data-h2-block-reason="${escapeHtml(row.h2EntryBlockReason || '')}" data-h2-required="${row.h2Required === true}" data-h2-entry-available="${row.h2EntryAvailable === true}">Проверяем начисления…</td>` : ''}</tr>`).join(''))}
           </section>
           ${pageButton('data-saved-employees-next', data.nextCursor, 'Следующие сотрудники')}
           <div data-saved-employee-detail></div>`;
@@ -2617,6 +2668,13 @@
       } catch (error) { if (alive()) status.textContent = errorText(error); }
       finally { loading = false; }
     };
+    const h1Create = form.querySelector('[data-saved-h1-create]');
+    const updateHalfAction = () => {
+      h1Create.hidden = !(version.value && from.value.endsWith('-01') && to.value === from.value.slice(0, 7) + '-14'
+        && to.value < venueLocalToday());
+    };
+    form.addEventListener('input', updateHalfAction);
+    form.addEventListener('change', updateHalfAction);
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (!alive() || saving || !loaded) return;
@@ -2633,10 +2691,14 @@
         const savedVersion=await savedRequest(`/api/payroll/versions/${encodeURIComponent(input.schemeVersionId)}`);
         if (!alive()) return;
         if (savedVersion.versionId!==input.schemeVersionId || !['active','retired'].includes(savedVersion.status)) throw new Error('payroll_run_source_policy_unsupported');
-        const endpoint=savedRunCreationEndpoint(savedVersion);
+        const policyEndpoint=savedRunCreationEndpoint(savedVersion);
+        const h1Requested = event.submitter?.hasAttribute('data-saved-h1-create') === true;
+        if (h1Requested && (policyEndpoint !== '/api/payroll/refund-aware-calculation-runs'
+            || input.periodTo !== input.periodFrom.slice(0, 7) + '-14')) throw new Error('payroll_h1_policy_required');
+        const endpoint = h1Requested ? '/api/payroll/h1-calculation-runs' : policyEndpoint;
         // Immutable version policy selects both endpoint and retry namespace.
         // Existing v1 keys and request bytes remain unchanged across reloads.
-        const storageKey=(endpoint==='/api/payroll/calculation-runs'?storagePrefix:`payroll-saved-intent:refund-aware-v2:${identity}:`)+JSON.stringify(input);
+        const storageKey=(h1Requested ? `payroll-saved-intent:h1-fixed-shifts-v1:${identity}:` : endpoint==='/api/payroll/calculation-runs'?storagePrefix:`payroll-saved-intent:refund-aware-v2:${identity}:`)+JSON.stringify(input);
         try {
           input.idempotencyKey=sessionStorage.getItem(storageKey)||crypto.randomUUID();
           sessionStorage.setItem(storageKey,input.idempotencyKey);
@@ -2647,9 +2709,9 @@
         });
         if (!alive()) return;
         if (result.status !== 'ready' || !result.runId || result.persistence !== 'snapshots') throw new Error('invalid_response');
-        if (endpoint === '/api/payroll/refund-aware-calculation-runs'
+        if (policyEndpoint === '/api/payroll/refund-aware-calculation-runs'
             && (!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(result.runId)
-              || result.capabilityVersion !== 'employee_attributed_remaining_net_refund_v2'
+              || result.capabilityVersion !== (h1Requested ? 'employee_attributed_h1_fixed_shifts_v1' : 'employee_attributed_remaining_net_refund_v2')
               || !Number.isSafeInteger(result.amountCents) || result.amountCents < 0 || result.amountCents > 999999999999
               || typeof result.replayed !== 'boolean' || result.officialReady !== false || result.payoutEligible !== false)) throw new Error('invalid_response');
         sessionStorage.removeItem(storageKey);

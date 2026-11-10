@@ -32,12 +32,16 @@ const fixture = () => {
     sessionStorage: { getItem: key => store.get(key) || null, setItem: (key, value) => store.set(key, value), removeItem: key => store.delete(key) },
     CustomEvent: class { constructor(type) { this.type = type; } }, document: { dispatchEvent: event => events.push(event.type) },
     savedRequest: async (path, options) => { calls.push({ path, options }); return { schemaVersion: 1, entry }; } };
-  const api = vm.runInNewContext(`${source}; ({ savedEntryValid, renderSavedEntry, loadRunEntries, createRunEntry })`, context);
+  const api = vm.runInNewContext(`${source}; ({ savedEntryValid, halfMonthBreakdown, renderSavedEntry, loadRunEntries, createRunEntry })`, context);
   return { api, context, store, calls, events, status, cell, button, category, detail };
 };
 
 {
   const f = fixture();
+  const totals = {monthlyGrossMinor:30000,h1GrossAccruedMinor:10000,h2GrossAccruedMinor:20000};
+  assert.match(f.api.halfMonthBreakdown(totals, 'RUB'), /за месяц: 30000 RUB.*за 1–14 число: 10000 RUB.*вторую половину: 20000 RUB/s);
+  assert.equal(f.api.halfMonthBreakdown({...totals,h1GrossAccruedMinor:8000},'RUB'), '');
+  assert.equal(f.api.halfMonthBreakdown(null, 'RUB'), '');
   assert.equal(f.api.savedEntryValid(entry, 'run-1'), true);
   for (const change of [{ calculationRunId: 'other' }, { officialReady: true }, { payoutEligible: true }, { amountCents: 1.2 }, { amountCents: -1 }, { currency: 'USD' }]) {
     assert.equal(f.api.savedEntryValid({ ...entry, ...change }, 'run-1'), false);
@@ -120,6 +124,72 @@ const fixture = () => {
   await f.api.loadRunEntries('run-1');
   assert.equal(f.detail.dataset.entriesLoaded, 'false');
   assert.equal(f.button.disabled, true, 'ambiguous lookup keeps creation disabled');
+}
+
+{
+  const f = fixture();
+  f.detail.dataset.savedRunCapability = 'employee_attributed_h1_fixed_shifts_v1';
+  f.api.renderSavedEntry(f.cell, null, 'run-1');
+  assert.match(f.cell.textContent, /за 1–14 число недоступно/);
+  await f.api.createRunEntry(f.button);
+  assert.equal(f.calls.length, 0, 'a blocked fixed-shift run cannot use the generic entry endpoint');
+  f.detail.dataset.h1EntryAvailable = 'true';
+  f.api.renderSavedEntry(f.cell, null, 'run-1');
+  assert.match(f.cell.innerHTML, /Создать черновик за 1–14 число/);
+  await f.api.createRunEntry(f.button);
+  assert.equal(f.calls[0].path, '/api/payroll/calculation-runs/run-1/h1-entries');
+  assert.deepEqual(Object.keys(JSON.parse(f.calls[0].options.body)).sort(), ['employeeId', 'financeCategoryId', 'idempotencyKey']);
+  assert.match(f.status.textContent, /invalid_payroll_entry_response/, 'an unmarked response cannot confirm first-half materialization');
+  assert.ok([...f.store.keys()][0].endsWith(':h1'), 'H1 retains a separate retry key');
+  f.context.savedRequest = async () => ({schemaVersion: 1, currentEntry: {...liveEntry, halfKind: 'h1'}});
+  await f.api.createRunEntry(f.button);
+  assert.equal(f.store.size, 0);
+  assert.match(f.cell.innerHTML, /первая половина месяца/);
+}
+
+{
+  const f = fixture();
+  f.cell.dataset.h2Required = 'true';
+  f.api.renderSavedEntry(f.cell, null, 'run-1');
+  assert.match(f.cell.textContent, /вторую половину недоступно/);
+  f.cell.dataset.h2BlockReason = 'payroll_half_month_negative_residual_requires_review';
+  f.api.renderSavedEntry(f.cell, null, 'run-1');
+  assert.match(f.cell.textContent, /Проверьте возвраты и корректировки/);
+  await f.api.createRunEntry(f.button);
+  assert.equal(f.calls.length, 0);
+  f.cell.dataset.h2EntryAvailable = 'true';
+  f.api.renderSavedEntry(f.cell, null, 'run-1');
+  assert.match(f.cell.innerHTML, /за вторую половину/);
+  f.context.savedRequest = async (path, options) => {
+    f.calls.push({path, options});
+    return {schemaVersion:1, currentEntry:{...liveEntry, halfKind:'h2', calculationRunId:'h2-run', monthlyRunId:'run-1'}};
+  };
+  await f.api.createRunEntry(f.button);
+  assert.equal(f.calls[0].path, '/api/payroll/calculation-runs/run-1/h2-entries');
+  assert.deepEqual(Object.keys(JSON.parse(f.calls[0].options.body)).sort(), ['employeeId', 'financeCategoryId', 'idempotencyKey']);
+  assert.match(f.cell.innerHTML, /вторая половина месяца/);
+  const paidHalf = {...liveEntry, halfKind:'h2', calculationRunId:'h2-run', monthlyRunId:'run-1', status:'paid'};
+  assert.equal(f.api.savedEntryValid({...paidHalf,monthlyRunId:'unrelated'}, 'run-1'), false);
+  f.context.savedRequest = async () => ({items:[paidHalf]});
+  await f.api.loadRunEntries('run-1');
+  assert.match(f.cell.innerHTML, /Выплачено.*вторая половина месяца/);
+}
+
+{
+  const f = fixture();
+  f.cell.dataset.h2Required = 'false';
+  f.cell.dataset.h2EntryAvailable = 'true';
+  f.api.renderSavedEntry(f.cell, null, 'run-1');
+  assert.match(f.cell.innerHTML, /за весь месяц/);
+  assert.match(f.cell.innerHTML, /за вторую половину/);
+  await f.api.createRunEntry(f.button);
+  assert.equal(f.calls[0].path, '/api/payroll/calculation-runs/run-1/entries');
+  const other = fixture();
+  other.cell.dataset.h2Required = 'false';
+  other.cell.dataset.h2EntryAvailable = 'true';
+  other.button.dataset.savedEntryHalf = 'h2';
+  await other.api.createRunEntry(other.button);
+  assert.equal(other.calls[0].path, '/api/payroll/calculation-runs/run-1/h2-entries');
 }
 
 const renderStart = portal.indexOf('      register.innerHTML = rows.map((item) => {');
