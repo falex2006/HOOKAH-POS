@@ -6620,3 +6620,6 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 }
 
 #page-content #payroll [hidden] { display: none !important; }
+#payroll .payroll-register-screen {
+  max-width: none;
+}
