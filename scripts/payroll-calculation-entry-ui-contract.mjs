@@ -196,16 +196,16 @@ const renderStart = portal.indexOf('      register.innerHTML = rows.map((item) =
 const renderEnd = portal.indexOf("      }).join('');", renderStart);
 assert.ok(renderStart >= 0 && renderEnd > renderStart);
 const renderer = portal.slice(renderStart, renderEnd + "      }).join('');".length);
-const renderRegister = (item, { owner = true, state = null, pending = null } = {}) => {
+const renderRegister = (item, { owner = true, state = null, pending = null, busy = false, accounts } = {}) => {
   const register = {};
   const context = { register, rows: [item], entryStatuses: { draft: ['Черновик', 'warning'], approved: ['Утверждено', 'success'], cancelled: ['Отменено', 'muted'] },
     formatRuDate: value => value, esc: value => String(value ?? ''), displayName: value => value, money: value => value,
-    financeAccountItems: [{ id: 'bank', name: 'Банк', kind: 'bank', allowedPaymentMethods: ['bank_transfer'] }],
+    financeAccountItems: accounts || [{ id: 'bank', name: 'Банк', kind: 'bank', allowedPaymentMethods: ['bank_transfer'] }],
     linkedPayrollStates: new Map(state ? [[item.id, state]] : []), linkedPayrollPending: () => pending,
     linkedPayrollMessages: new Map(), linkedPayrollAlive: () => owner,
     linkedPayrollActionNames: { approve: 'Утверждение', pay: 'Выплата', cancel: 'Отмена' },
-    payrollPendingEntries: new Set(), todayDate: '2026-10-23' };
-  const actionsStart = portal.indexOf('    const renderLinkedPayrollActions =');
+    payrollPendingEntries: new Set(busy ? [item.id] : []), todayDate: '2026-10-23' };
+  const actionsStart = portal.indexOf('    const payrollMethodLabel =');
   const actionsEnd = portal.indexOf('    const filterOptions =', actionsStart);
   assert.ok(actionsStart > 0 && actionsEnd > actionsStart);
   vm.runInNewContext(portal.slice(actionsStart, actionsEnd) + '\n' + renderer, context);
@@ -246,6 +246,20 @@ const zeroState = linkedState('approved'); zeroState.entry.amountCents = 0;
 const zeroHtml = renderRegister({ ...linkedEntry, status: 'approved', amount: 0 }, { state: zeroState });
 assert.match(zeroHtml, /data-payroll-payment-date/);
 assert.match(zeroHtml, /Завершить без выплаты/);
+assert.match(zeroHtml, /<legend>Сохранённое имя · 0<\/legend>/);
+const approved = {...linkedEntry, status:'approved'};
+const review = renderRegister(approved, { state:linkedState('approved') });
+assert.match(review, /<fieldset class="payroll-payout-review"><legend>Сохранённое имя · 120<\/legend>[\s\S]*?Дата выплаты[\s\S]*?Банк[\s\S]*?Подтвердить выплату[\s\S]*?<\/fieldset>/);
+const noAccount = renderRegister(approved, {state:linkedState('approved'), accounts:[{id:'empty',active:true,allowedPaymentMethods:[]}]});
+assert.match(noAccount, /активный финансовый счёт[\s\S]*?data-payroll-action="pay"[^>]*?disabled/);
+for (const status of ['paid','cancelled']) {
+  const terminal = renderRegister({id:'legacy', status, amount:125});
+  assert.doesNotMatch(terminal, /data-payroll-action="(?:approve|pay)"/);
+}
+const inFlight = renderRegister({id:'legacy',status:'approved',amount:125}, {busy:true});
+for (const control of ['data-payroll-payment-account','data-payroll-payment-method','data-payroll-payment-date','data-payroll-action="pay"']) {
+  assert.match(inFlight, new RegExp(control + '[^>]*disabled'));
+}
 assert.doesNotMatch(zeroHtml, /data-payroll-payment-account|data-payroll-payment-method/);
 const pendingHtml = renderRegister({ ...linkedEntry, status: 'paid' }, { pending: { payload: { action: 'pay' } } });
 assert.match(pendingHtml, /data-payroll-linked-retry/);

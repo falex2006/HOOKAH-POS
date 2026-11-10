@@ -7205,27 +7205,42 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
         return `<div class="payroll-cancel-editor stack-form" data-payroll-linked-recovery><b>Есть действия без подтверждённого ответа</b><p class="muted">Повтор отправляет сохранённый запрос. Повторной выплаты не создаёт.</p>${attempts.map(attempt => `<div class="toolbar-row"><span>${esc(linkedPayrollActionNames[attempt.payload.action])} · ${esc(formatRuDate(attempt.periodFrom))} — ${esc(formatRuDate(attempt.periodTo))}</span><button type="button" class="button small" data-payroll-linked-retry="${esc(attempt.entryId)}" ${payrollPendingEntries.has(attempt.entryId) ? 'disabled' : ''}>Проверить результат</button></div>`).join('')}</div>`;
       } catch (error) { return `<p class="form-message error-message" role="alert">${esc(linkedPayrollError(error))}</p>`; }
     };
+    const payrollMethodLabel = method => ({ cash:'Наличные', card:'Карта', bank_transfer:'Банковский перевод', other:'Другое' })[method] || method;
+    const availablePayoutAccounts = () => financeAccountItems.filter(account => account.active !== false && account.allowedPaymentMethods?.length);
+    const renderPayrollPayout = (item, cents, busy, allowZero) => {
+      if (!Number.isSafeInteger(cents) || cents < 0 || (cents === 0 && !allowZero)) {
+        return '<p role="status">Проверьте сумму начисления перед выплатой.</p>';
+      }
+      const zero = cents === 0;
+      const id = esc(item.id);
+      const recipient = esc(displayName(item.employeeName || item.userName || 'Сотрудник не указан'));
+      const accounts = availablePayoutAccounts();
+      const selected = accounts.find(account => account.kind !== 'pos_cashbox') || accounts[0];
+      const financialFields = zero ? '' : `
+        <label>Счёт выплаты<select data-payroll-payment-account="${id}" required ${busy || !selected ? 'disabled' : ''}>
+          ${accounts.map(account => `<option value="${esc(account.id)}" ${account === selected ? 'selected' : ''}>${esc(account.name)}${account.kind === 'pos_cashbox' ? ' · касса смены' : ''}</option>`).join('')}
+        </select></label>
+        <label>Способ выплаты<select data-payroll-payment-method="${id}" required ${busy || !selected ? 'disabled' : ''}>
+          ${(selected?.allowedPaymentMethods || []).map(method => `<option value="${esc(method)}">${esc(payrollMethodLabel(method))}</option>`).join('')}
+        </select></label>`;
+      const hint = zero ? 'Сумма к выплате равна нулю. Завершение начисления не создаёт расход.'
+        : selected ? 'Укажите, когда и с какого счёта вы выдали деньги. После подтверждения появится расход.'
+        : 'Для выплаты нужен активный финансовый счёт с доступным способом оплаты. Настройте его в финансах и обновите ведомость.';
+      return `<fieldset class="payroll-payout-review"><legend>${recipient} · ${money(cents / 100)}</legend>
+        <p class="muted">${hint}</p><div class="payroll-payout-fields">
+        <label class="payroll-payment-date">Дата ${zero ? 'завершения' : 'выплаты'}<input type="date" data-payroll-payment-date="${id}" value="${todayDate}" required ${busy ? 'disabled' : ''}></label>
+        ${financialFields}<button type="button" class="button small primary" data-payroll-action="pay" data-entry="${id}" ${busy || (!zero && !selected) ? 'disabled' : ''}>${zero ? 'Завершить без выплаты' : 'Подтвердить выплату'}</button>
+        </div></fieldset>`;
+    };
     const renderLinkedPayrollActions = (item, state, pending, busy) => {
       if (!linkedPayrollAlive()) return '<small class="muted">Действия с расчётным начислением доступны владельцу.</small>';
       if (pending?.invalid) return `<small role="alert">${esc(pending.message)}</small>`;
       if (pending) return `<span class="muted">${esc(linkedPayrollActionNames[pending.payload.action])}: ответ ещё не подтверждён.</span><button type="button" class="button small" data-payroll-linked-retry="${esc(item.id)}" ${busy ? 'disabled' : ''}>Проверить результат</button>`;
-      if (!['draft', 'approved'].includes(item.status)) return '<small class="muted">Операция завершена</small>';
+      if (!['draft', 'approved'].includes(item.status)) return '';
       const buttons = [`<button type="button" class="button small" data-payroll-linked-check="${esc(item.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Проверяем…' : state ? 'Проверить ещё раз' : 'Проверить и открыть действия'}</button>`];
       if (!state) return buttons.join('');
       if (state.allowedActions.includes('approve')) buttons.push(`<button type="button" class="button small primary" data-payroll-action="approve" data-entry="${esc(item.id)}" ${busy ? 'disabled' : ''}>Утвердить начисление</button>`);
-      if (state.allowedActions.includes('pay')) {
-        const accounts = financeAccountItems.filter(account => account.active !== false);
-        const account = accounts.find(candidate => candidate.kind !== 'pos_cashbox') || accounts[0];
-        const zero = state.entry.amountCents === 0;
-        buttons.push(`<label class="payroll-payment-date">Дата ${zero ? 'завершения' : 'выплаты'}<input type="date" data-payroll-payment-date="${esc(item.id)}" value="${todayDate}" required ${busy ? 'disabled' : ''}></label>`);
-        if (zero) buttons.push('<small class="muted">К выплате 0 ₽. Завершение без денежного расхода.</small>');
-        else {
-          buttons.push(`<label>Счёт выплаты<select data-payroll-payment-account="${esc(item.id)}" required ${busy || !accounts.length ? 'disabled' : ''}>${accounts.map(candidate => `<option value="${esc(candidate.id)}" ${candidate.id === account?.id ? 'selected' : ''}>${esc(candidate.name)}${candidate.kind === 'pos_cashbox' ? ' · касса смены' : ''}</option>`).join('')}</select></label>`);
-          buttons.push(`<label>Способ<select data-payroll-payment-method="${esc(item.id)}" required ${busy || !account?.allowedPaymentMethods?.length ? 'disabled' : ''}>${(account?.allowedPaymentMethods || []).map(method => `<option value="${esc(method)}">${esc(({ cash: 'Наличные', card: 'Карта', bank_transfer: 'Банковский перевод', other: 'Другое' })[method] || method)}</option>`).join('')}</select></label>`);
-          if (!accounts.length) buttons.push('<small class="muted">Нет доступных счетов выплаты. Обновите финансовые счета и повторите проверку.</small>');
-        }
-        buttons.push(`<button type="button" class="button small primary" data-payroll-action="pay" data-entry="${esc(item.id)}" ${busy || (!zero && !account?.allowedPaymentMethods?.length) ? 'disabled' : ''}>${zero ? 'Завершить без выплаты' : 'Подтвердить выплату'}</button>`);
-      }
+      if (state.allowedActions.includes('pay')) buttons.push(renderPayrollPayout(item, state.entry.amountCents, busy, true));
       if (state.allowedActions.includes('cancel')) buttons.push(`<button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}" ${busy ? 'disabled' : ''}>Отменить</button>`);
       return buttons.join('');
     };
@@ -7257,12 +7272,14 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
         const linkedPending = linkedRun ? linkedPayrollPending(item.id) : null;
         const canCancel = linkedRun ? linkedPayrollAlive() && !linkedPending && linkedState?.allowedActions.includes('cancel')
           : item.status === 'draft' || item.status === 'approved';
-        const payoutAccounts=financeAccountItems.filter((account)=>account.active!==false);
-        const payoutAccount=payoutAccounts.find((account)=>account.kind!=='pos_cashbox')||payoutAccounts[0];
-        const payoutMethodLabel=(method)=>({cash:'Наличные',card:'Карта',bank_transfer:'Банковский перевод',other:'Другое'})[method]||method;
-        const paymentPending=payrollPendingEntries.has(String(item.id));
-        const payoutControlsDisabled=!payoutAccounts.length||paymentPending;
-        const legacyActions = item.status === 'draft' ? `<button type="button" class="button small primary" data-payroll-action="approve" data-entry="${esc(item.id)}">Утвердить</button><button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}">Отменить</button>` : item.status === 'approved' ? `<label class="payroll-payment-date">Дата выплаты<input type="date" data-payroll-payment-date="${esc(item.id)}" value="${todayDate}" aria-label="Дата выплаты сотруднику" ${paymentPending?'disabled':''}></label><label>Счёт выплаты<select data-payroll-payment-account="${esc(item.id)}" required ${payoutControlsDisabled?'disabled':''}>${payoutAccounts.map((account)=>`<option value="${esc(account.id)}" ${account.id===payoutAccount?.id?'selected':''}>${esc(account.name)}${account.kind==='pos_cashbox'?' · касса смены':''}</option>`).join('')}</select></label><label>Способ<select data-payroll-payment-method="${esc(item.id)}" required ${payoutControlsDisabled?'disabled':''}>${(payoutAccount?.allowedPaymentMethods||[]).map((method)=>`<option value="${esc(method)}">${esc(payoutMethodLabel(method))}</option>`).join('')}</select></label><button type="button" class="button small primary" data-payroll-action="pay" data-entry="${esc(item.id)}" ${payoutControlsDisabled?'disabled':''}>Отметить выплаченным</button><button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}" ${paymentPending?'disabled':''}>Отменить</button>` : '<small class="muted">Операция завершена</small>';
+        const paymentPending = payrollPendingEntries.has(String(item.id));
+        const legacyCancel = `<button type="button" class="button small danger-outline" data-payroll-cancel-open="${esc(item.id)}" ${paymentPending ? 'disabled' : ''}>Отменить</button>`;
+        let legacyActions = '';
+        if (!linkedRun && item.status === 'draft') {
+          legacyActions = `<button type="button" class="button small primary" data-payroll-action="approve" data-entry="${esc(item.id)}">Утвердить</button>` + legacyCancel;
+        } else if (!linkedRun && item.status === 'approved') {
+          legacyActions = renderPayrollPayout(item, Math.round(Number(item.amount) * 100), paymentPending, false) + legacyCancel;
+        }
         const actions = linkedRun ? renderLinkedPayrollActions(item, linkedState, linkedPending, paymentPending) : legacyActions;
         const workedLabel = linkedRun ? 'По сохранённому расчёту' : `Отработано: ${Number(item.hours || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ч`;
         const grossCents = linkedState?.entry.grossCents ?? item.grossCents;
@@ -7299,7 +7316,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
           : linkedRun && !linkedState ? 'Проверьте расчёт'
           : linkedRun && !linkedState.allowedActions.includes(item.status === 'draft' ? 'approve' : 'pay') ? 'Требуется проверка начисления'
           : item.status === 'draft' ? 'Утвердите начисление'
-          : netCents === 0 && linkedRun ? 'Подтвердите завершение' : !payoutAccounts.length ? 'Требуется активный счёт выплаты' : 'Проведите выплату';
+          : netCents === 0 && linkedRun ? 'Подтвердите завершение' : !availablePayoutAccounts().length ? 'Требуется активный счёт выплаты' : 'Проведите выплату';
         return `<article class="payment-row payroll-entry-row" data-payroll-entry="${esc(item.id)}">
           <div class="payroll-entry-person"><b>${esc(displayName(item.employeeName || item.userName || 'Сотрудник не указан'))}</b><small>${esc([halfLabel,period].filter(Boolean).join(' · '))}</small><span class="badge ${statusStyle}">${esc(statusLabel)}</span></div>
           <dl class="payroll-register-amounts"><div><dt>Начислено</dt><dd>${asMoney(gross)}</dd></div><div><dt>Удержано</dt><dd>${asMoney(withheld)}</dd></div><div><dt>Выплачено</dt><dd>${asMoney(actualPaid)}</dd></div><div><dt>Остаток</dt><dd>${asMoney(outstanding)}</dd></div></dl>
@@ -7450,7 +7467,22 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
       if (payrollReady && !row) registerMessage.textContent = 'Начисление не найдено в текущем реестре. Обновите статусы в сохранённом расчёте.';
     });
     for (const selector of ['#payroll-filter-user', '#payroll-filter-rule', '#payroll-filter-half']) payrollSection.querySelector(selector).addEventListener('change', drawPayroll);
-    payrollSection.addEventListener('change',(event)=>{const accountSelect=event.target.closest('select[data-payroll-payment-account]');if(!accountSelect)return;const methodSelect=[...payrollSection.querySelectorAll('select[data-payroll-payment-method]')].find((field)=>field.dataset.payrollPaymentMethod===accountSelect.dataset.payrollPaymentAccount);const account=financeAccountItems.find((item)=>item.id===accountSelect.value&&item.active!==false);if(!methodSelect)return;methodSelect.innerHTML=(account?.allowedPaymentMethods||[]).map((method)=>`<option value="${esc(method)}">${esc(({cash:'Наличные',card:'Карта',bank_transfer:'Банковский перевод',other:'Другое'})[method]||method)}</option>`).join('');methodSelect.disabled=!methodSelect.options.length;methodSelect._customSelectRefresh?.();});
+    payrollSection.addEventListener('change', event => {
+      const review = event.target.closest('.payroll-payout-review');
+      if (!review) return;
+      const pay = review.querySelector('[data-payroll-action="pay"]');
+      const account = review.querySelector('[data-payroll-payment-account]');
+      const method = review.querySelector('[data-payroll-payment-method]');
+      if (account && method && event.target === account) {
+        const selected = financeAccountItems.find(item => item.active !== false && item.id === account.value);
+        method.innerHTML = (selected?.allowedPaymentMethods || []).map(value =>
+          `<option value="${esc(value)}">${esc(payrollMethodLabel(value))}</option>`).join('');
+        method.disabled = !method.options.length;
+        method._customSelectRefresh?.();
+      }
+      pay.disabled = payrollPendingEntries.has(pay.dataset.entry) || !review.querySelector('[data-payroll-payment-date]').value
+        || Boolean(account && (!account.value || !method?.value));
+    });
     for (const selector of ['#payroll-filter-from', '#payroll-filter-to']) payrollSection.querySelector(selector).addEventListener('change', loadPayroll);
     payrollSection.querySelector('#payroll-reload').addEventListener('click', loadPayroll);
     const handlePayrollAction = async (event) => {
@@ -7514,7 +7546,7 @@ const expenseDraftMessage = expenseSection.querySelector('#expense-message');
             if (account) { account.disabled = !financeAccountItems.some((item) => item.active !== false); account._customSelectRefresh?.(); }
             if (method) { method.disabled = !method.options.length; method._customSelectRefresh?.(); }
             const pay = currentRow.querySelector('[data-payroll-action="pay"]');
-            if (pay) pay.disabled = !account?.value || !method?.value;
+            if (pay) pay.disabled = !currentRow.querySelector('[data-payroll-payment-date]')?.value || !account?.value || !method?.value;
           }
         }
       }

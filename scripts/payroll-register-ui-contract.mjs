@@ -20,10 +20,8 @@ assert.match(ui, /api\(`\/api\/payroll\/entries\?from=/, 'register reads date-fi
 assert.match(ui, /await api\('\/api\/payroll\/entries', \{ method: 'POST'/, 'create action persists an actual draft through the server API');
 assert.match(ui, /await api\(`\/api\/payroll\/entries\/\$\{encodeURIComponent\(entryId\)\}`, \{ method: 'PATCH'[\s\S]*?JSON\.stringify\(payload\)/, 'status actions persist to the server and do not update local mock state');
 for (const action of ['approve', 'pay', 'cancel']) assert.ok(ui.includes(`data-payroll-action="${action}"`), `${action} action is available in its valid lifecycle state`);
-assert.match(ui, /item\.status === 'draft'[\s\S]*?item\.status === 'approved'[\s\S]*?Операция завершена/, 'terminal entries are rendered without mutation controls');
 assert.match(ui,/data-payroll-payment-account=/,'approved salary payout requires a finance account selector');
 assert.match(ui,/data-payroll-payment-method=/,'approved salary payout requires an account-compatible payment method');
-assert.match(ui,/const paymentPending=payrollPendingEntries\.has\(String\(item\.id\)\)[\s\S]*?payoutControlsDisabled=!payoutAccounts\.length\|\|paymentPending[\s\S]*?data-payroll-action="pay"[\s\S]*?payoutControlsDisabled\?'disabled':''/,'a redraw during an in-flight payout keeps its payment controls disabled');
 assert.match(ui,/payload\.paymentAccountId[\s\S]*?payload\.paymentMethod/,'pay action sends the selected account and method to the API');
 assert.match(ui,/paymentAccountNameSnapshot[\s\S]*?item\.paymentMethod[\s\S]*?item\.shiftId/,'readback displays saved account, method, and POS shift attribution');
 assert.match(ui, /loadPayroll\(\), loadExpenses\(\), load\(\)/, 'transitions refresh register, expense ledger, and analytics');
