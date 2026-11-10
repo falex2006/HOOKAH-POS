@@ -27,6 +27,7 @@ COPY payroll-refund-recalculation-basis.js ./
 COPY payroll-refund-counterfactual.js ./
 COPY payroll-refund-economic-source.js payroll-refund-frozen-cost-source.js ./
 COPY payroll-refund-aware-calculation.js payroll-refund-aware-source.js payroll-refund-aware-sourced-comparison.js ./
+COPY payroll-pay-periods.js payroll-half-month-calculation.js payroll-half-month-settlement.js ./
 COPY payroll-refund-aware-snapshot.js payroll-refund-aware-provenance.js ./
 COPY payroll-calculation-entry-transition-command.js payroll-calculation-entry-corrections.js ./
 COPY payroll-calculation-entry-lifecycle.js ./
