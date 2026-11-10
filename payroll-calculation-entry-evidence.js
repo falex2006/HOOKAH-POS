@@ -7,7 +7,7 @@ const { createHash } = require('node:crypto');
 const { payrollCorrectionLedgerEventFromRow, samePayrollCorrectionSource } = require('./payroll-correction-ledger-source');
 const { hasPayrollVerifiedWriteSnapshot } = require('./payroll-source-fence');
 const { loadSavedRunEvidenceInTransaction } = require('./payroll-saved-run-reader');
-const { executeCalculatorReplay, getCalculatorReplayEngineManifest } = require('./payroll-calculator-replay');
+const { executeCalculatorReplay } = require('./payroll-calculator-replay');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA = /^[a-f0-9]{64}$/;
@@ -287,7 +287,6 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
     if (checked?.status !== 'current' || checked?.runId !== expected.runId) fail('source_not_current');
     freshness = { status: 'current', checkedAt: checked.checkedAt || null };
   }
-  const engine = getCalculatorReplayEngineManifest();
   const sourceEvidence = evidence.sourceEvidence;
   const proof = {
     schemaVersion: 1,
@@ -317,7 +316,7 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
       sourceEvidenceSha256: hash(sourceEvidence),
       calculatorInputSha256: evidence.calculatorReplay.inputSha256,
       calculatorResultSha256: replay.resultSha256,
-      engineRevision: engine.engineRevision
+      engineRevision: replay.engineRevision
     },
     expense: purpose === 'historical_paid' && !zeroSettlement ? {
       id: current.expense_id, entryId: expected.id, venueId,

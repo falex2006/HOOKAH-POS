@@ -67,15 +67,23 @@ const normalize = input => {
   };
   return walk(input, 0);
 };
-const sourceManifest = freeze({
+const engineManifest = directory => freeze({
   schemaVersion: 1, encoding: ENCODING, sourceNormalization: 'utf8-bom-stripped-crlf-to-lf-v1',
   files: ['payroll-schemes.js', 'payroll-incentive-math.js'].sort().map(file => ({
-    path: file, sha256: hash(readFileSync(path.join(__dirname, file), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'))
+    path: file, sha256: hash(readFileSync(path.join(directory, file), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'))
   }))
 });
 // Capture once at module initialization, matching the process's loaded engine.
 // Deploy/restart the process when changing either implementation file.
+const sourceManifest = engineManifest(__dirname);
 const ENGINE_REVISION = hash(normalize(sourceManifest).text);
+const archivedRevision = 'b3496ca00e7c2ef4bff406ad6680f9f04f1e2b64eee1b2c61d99a4c857298902';
+const archiveDirectory = path.join(__dirname, 'payroll-engine-archive', 'a0c94872');
+if (hash(normalize(engineManifest(archiveDirectory)).text) !== archivedRevision) fail('archive_digest_mismatch');
+const calculators = new Map([
+  [archivedRevision, require('./payroll-engine-archive/a0c94872/payroll-schemes').calculatePayrollScheme],
+  [ENGINE_REVISION, calculatePayrollScheme]
+]);
 const getCalculatorReplayEngineManifest = () => freeze({ engineRevision: ENGINE_REVISION, ...structuredClone(sourceManifest) });
 const equal = (a, b) => normalize(a).text === normalize(b).text;
 const dateValid = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -121,13 +129,13 @@ const inspect = (value, context = {}) => {
       || !HASH.test(replay.engineRevision || '') || !HASH.test(replay.inputSha256 || '') || !HASH.test(replay.resultSha256 || '')) fail('payload_invalid');
   if (hash(normalize(replay.input).text) !== replay.inputSha256 || hash(normalize(replay.result).text) !== replay.resultSha256) fail('checksum_mismatch');
   inputBounds(replay.input); resultValid(replay.input, replay.result); contextValid(replay, context);
-  const compatible = replay.engineRevision === ENGINE_REVISION;
+  const compatible = calculators.has(replay.engineRevision);
   return { replay, metadata: { state: compatible ? 'available' : 'engine_unavailable', saved: true, compatible,
     replayVerified: false, engineRevision: replay.engineRevision, inputSha256: replay.inputSha256, resultSha256: replay.resultSha256 } };
 };
 const validateCalculatorReplay = (replay, context = {}) => freeze(inspect(replay, context).metadata);
-const calculate = input => {
-  try { return calculatePayrollScheme(input); }
+const calculate = (input, revision = ENGINE_REVISION) => {
+  try { return calculators.get(revision)(input); }
   catch (_) { fail('execution_failed'); }
 };
 const buildCalculatorReplay = (input, result) => {
@@ -144,10 +152,14 @@ const buildCalculatorReplay = (input, result) => {
 const executeCalculatorReplay = value => {
   const { replay, metadata } = inspect(value);
   if (!metadata.compatible) return freeze({ ...metadata, status: metadata.state, matched: false, result: null });
-  const result = normalize(calculate(replay.input)), resultSha256 = hash(result.text);
+  const result = normalize(calculate(replay.input, replay.engineRevision)), resultSha256 = hash(result.text);
   const matched = resultSha256 === replay.resultSha256;
   return freeze({ ...metadata, status: matched ? 'matched' : 'mismatch', matched, replayVerified: matched,
     result: result.value, expectedResultSha256: replay.resultSha256, resultSha256 });
 };
+
+// H1 replay is a separate algorithm over the same immutable V2 input. It is
+// deliberately tagged and versioned so a normal V2 replay cannot be relabeled
+// as a first-half fixed-shift result.
 module.exports = { PayrollCalculatorReplayError, buildCalculatorReplay, validateCalculatorReplay, executeCalculatorReplay,
   getCalculatorReplayEngineManifest };

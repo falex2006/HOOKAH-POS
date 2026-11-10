@@ -20,7 +20,22 @@ const clone = value => structuredClone(value);
 const fail = suffix => { const code = `payroll_refund_provenance_${suffix}`; throw Object.assign(new TypeError(code), { code }); };
 
 function buildPayrollRefundAwareRunProvenance(sourceArgs) {
-  const prepared = buildPayrollRefundAwareSnapshot(sourceArgs);
+  return buildProvenance(sourceArgs);
+}
+
+function buildProvenance(sourceArgs, savedReplay) {
+  // Execute the saved revision, then independently rebuild its calculator input
+  // from the source bundle before accepting that historical result.
+  let calculate;
+  if (savedReplay) {
+    const replay = executeCalculatorReplay(savedReplay);
+    if (!replay.matched) fail('replay_unavailable');
+    calculate = input => {
+      if (canonical(input) !== canonical(savedReplay.input)) fail('rebuild_mismatch');
+      return replay.result;
+    };
+  }
+  const prepared = buildPayrollRefundAwareSnapshot(sourceArgs, calculate);
   if (prepared.status !== 'refund_aware_snapshot_input') return freeze({ schemaVersion: 2, status: 'blocked',
     officialReady: false, payoutEligible: false, persistence: 'none', reasons: prepared.reasons, prepared: null, provenance: null });
   const verified = prepared.verifiedCalculation;
@@ -36,7 +51,7 @@ function buildPayrollRefundAwareRunProvenance(sourceArgs) {
     schemeSnapshot: clone(verified.input.scheme), periodClosure: clone(sourceArgs.periodClosure),
     sourceEvidence: clone(verified.input.sourceEvidence), sourceBundle, sourceBundleWatermark: hash(sourceBundle),
     refundQuantityEvidence: clone(prepared.refundQuantityEvidence),
-    calculatorReplay: buildCalculatorReplay(verified.input, verified.engineResult), totalAmountCents: verified.amountCents };
+    calculatorReplay: savedReplay || buildCalculatorReplay(verified.input, verified.engineResult), totalAmountCents: verified.amountCents };
   const payload = canonical(evidence), sha256 = createHash('sha256').update(payload).digest('hex');
   return freeze({ schemaVersion: 2, status: 'verified_run_evidence', officialReady: false, payoutEligible: false, persistence: 'none',
     reasons: [], engineVersion: ENGINE_VERSION, prepared,
@@ -52,13 +67,12 @@ function rebuildPayrollRefundAwareRunProvenance(evidence) {
       || typeof evidence.sourceBundle.recognitionEvidence.payload !== 'string') fail('context_invalid');
   let recognitionEvidence;
   try { recognitionEvidence = JSON.parse(evidence.sourceBundle.recognitionEvidence.payload); } catch (_) { fail('source_json_invalid'); }
-  const replay = executeCalculatorReplay(evidence.calculatorReplay);
-  if (!replay.matched) fail('replay_unavailable');
-  const rebuilt = buildPayrollRefundAwareRunProvenance({ venueId: evidence.venueId, runId: evidence.runId,
+  if (!evidence.calculatorReplay) fail('replay_unavailable');
+  const rebuilt = buildProvenance({ venueId: evidence.venueId, runId: evidence.runId,
     scheme: evidence.schemeSnapshot, period: evidence.period, periodClosure: evidence.periodClosure, recognitionEvidence,
     employmentEligibility: evidence.sourceBundle.employmentEligibility,
     approvedAttendanceSource: evidence.sourceBundle.approvedAttendanceSource,
-    departmentMapping: evidence.sourceBundle.departmentMapping, costEvidenceByOrder: evidence.sourceBundle.costEvidenceByOrder });
+    departmentMapping: evidence.sourceBundle.departmentMapping, costEvidenceByOrder: evidence.sourceBundle.costEvidenceByOrder }, evidence.calculatorReplay);
   if (rebuilt.status !== 'verified_run_evidence' || rebuilt.provenance.evidence_payload !== canonical(evidence)) fail('rebuild_mismatch');
   return rebuilt;
 }

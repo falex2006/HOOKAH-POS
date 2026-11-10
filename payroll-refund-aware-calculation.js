@@ -34,7 +34,7 @@ const datesFor = period => {
 };
 
 function buildPayrollRefundAwareCalculation({ venueId, scheme, period, periodClosure, recognitionEvidence,
-  employmentEligibility, approvedAttendanceSource = null, departmentMapping = null, costEvidenceByOrder = null } = {}) {
+  employmentEligibility, approvedAttendanceSource = null, departmentMapping = null, costEvidenceByOrder = null } = {}, calculate = calculatePayrollScheme) {
   const reasons = new Set();
   const blocked = () => frozen({ schemaVersion: 2, capabilityVersion: CAPABILITY, status: 'blocked',
     officialReady: false, payoutEligible: false, sourceAttested: false, persistence: 'none',
@@ -180,7 +180,7 @@ function buildPayrollRefundAwareCalculation({ venueId, scheme, period, periodClo
     team: team ? { departmentShiftAllocation: team.departmentShiftAllocation.sourceWatermark,
       teamMembershipAndWeights: team.teamMembershipAndWeights.sourceWatermark } : null };
   let result;
-  try { result = calculatePayrollScheme(input); } catch (_) { add('payroll_refund_aware_engine_error'); return blocked(); }
+  try { result = calculate(input); } catch (_) { add('payroll_refund_aware_engine_error'); return blocked(); }
   if (result.status !== 'ready' || result.blockers?.length || result.criticalErrors?.length) {
     (result.blockers || []).forEach(add); (result.criticalErrors || []).forEach(row => add(row.code));
     add('payroll_refund_aware_engine_not_ready'); return blocked();

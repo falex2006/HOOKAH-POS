@@ -19,13 +19,13 @@ const freeze = value => { if (value && typeof value === 'object' && !Object.isFr
 const cloneFreeze = value => freeze(structuredClone(value));
 const exact = (a, b) => stable(a) === stable(b);
 
-function buildPayrollRefundAwareSnapshot({ venueId, runId, ...sourceArgs } = {}) {
+function buildPayrollRefundAwareSnapshot({ venueId, runId, ...sourceArgs } = {}, calculate) {
   const blocked = (code, calculation = null) => cloneFreeze({ schemaVersion: 2, status: 'blocked', officialReady: false,
     payoutEligible: false, sourceAttested: false, persistence: 'none', reasons: [code], verifiedCalculation: calculation,
     snapshotInput: null, mappedRows: null, milestoneRows: null, refundQuantityEvidence: null,
     sourceWatermark: null, snapshotInputWatermark: null });
   let calculation;
-  try { calculation = buildPayrollRefundAwareCalculation({ venueId, ...sourceArgs }); }
+  try { calculation = buildPayrollRefundAwareCalculation({ venueId, ...sourceArgs }, calculate); }
   catch (error) { return blocked(error?.code || 'payroll_refund_aware_calculation_unavailable'); }
   if (calculation?.status !== 'refund_aware_calculated' || calculation.officialReady !== false
       || calculation.payoutEligible !== false || calculation.sourceAttested !== false || calculation.persistence !== 'none') {

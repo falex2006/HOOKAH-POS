@@ -185,3 +185,28 @@ for (const key of ['employeeOverrides', 'itemRules']) {
   rejects(() => buildCalculatorReplay(badInput, replay.result), 'input_limit_exceeded');
 }
 console.log('PASS payroll-calculator-replay: full nonzero replay, immutable copies, tampering, incompatible/legacy engines, evidence bindings, safe JSON and bounds');
+
+// Canonical persisted envelopes generated using the calculator and QA source
+// fixtures checked out at a0c94872, before first-half payroll existed.
+const { readFileSync } = require('node:fs');
+const { rebuildPayrollRefundAwareRunProvenance } = require('../payroll-refund-aware-provenance');
+for (const [version, expectedHash] of [
+  [1, '665c14587e67e20b5814039bcbc6270d21836884430b62bff18edcb1774c6fef'],
+  [2, 'fc53d0cf8df39bce71d121e07683837a4dc3e0c21cbb9e6ba9625a81b389d588']
+]) {
+  const payload = readFileSync(new URL(`./fixtures/payroll-replay-a0c94872/v${version}.json`, import.meta.url), 'utf8');
+  const saved = JSON.parse(payload);
+  assert.equal(createHash('sha256').update(payload).digest('hex'), expectedHash);
+  assert.equal(saved.schemaVersion, version);
+  assert.equal(saved.calculatorReplay.engineRevision, 'b3496ca00e7c2ef4bff406ad6680f9f04f1e2b64eee1b2c61d99a4c857298902');
+  const historical = executeCalculatorReplay(saved.calculatorReplay);
+  assert.equal(historical.replayVerified, true);
+  assert.deepEqual(historical.result, saved.calculatorReplay.result);
+  if (version === 2) {
+    const rebuilt = rebuildPayrollRefundAwareRunProvenance(saved);
+    assert.equal(rebuilt.provenance.evidence_payload, payload);
+    assert.equal(rebuilt.provenance.evidence_sha256, expectedHash);
+    saved.schemeSnapshot.name += ' changed after settlement';
+    assert.throws(() => rebuildPayrollRefundAwareRunProvenance(saved));
+  }
+}
