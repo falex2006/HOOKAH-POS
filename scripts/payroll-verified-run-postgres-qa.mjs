@@ -1,3 +1,4 @@
+import { verifyH1H2PostgresAcceptance } from './payroll-h1-h2-postgres-acceptance-helper.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
@@ -416,7 +417,291 @@ try {
   assert.equal((await service.checkSavedRunFreshness(owner, v2Parallel[0].runId)).status, 'current');
   await assert.rejects(service.checkSavedRunFreshness({ ...owner, userId: ids.employee }, v2Parallel[0].runId), error => error.status === 403);
   assert.deepEqual(await financialCounts(), financesBeforeV2, 'v2 inspection is read only');
-  if(process.env.PAYROLL_QA_SCOPE==='comparison_v2') {
+  const runH1WriterAcceptance = async () => {
+  // H1 acceptance: a new owner-approved employee receives a persisted v2
+  // 1–14 run, marked entry, 202 request receipt and 213 claim in one source-
+  // fenced transaction; the ordinary 205 lifecycle then pays it once.
+  const h2Scope = process.env.PAYROLL_QA_SCOPE === 'h1-h2-only';
+  const h1Employee = randomUUID(), h1Order = randomUUID(), h1Item = randomUUID(), h1Pricing = randomUUID(), h1Payment = randomUUID();
+  const h2OnlyEmployee = h2Scope ? ids.zeroEmployee : null;
+  const h2Source = h2Scope ? { orderId: randomUUID(), itemId: randomUUID(), pricingId: randomUUID(), paymentId: randomUUID(),
+    zeroOrderId: randomUUID(), zeroItemId: randomUUID(), zeroPricingId: randomUUID(), zeroPaymentId: randomUUID() } : null;
+  const h1To = `${period.from.slice(0, 7)}-14`, h1ClockSchema = `payroll_h1_seed_${randomUUID().replaceAll('-', '')}`;
+  const h1Seed = new Client({ connectionString: target.url.href });
+  await h1Seed.connect();
+  try {
+    await h1Seed.query(`CREATE SCHEMA "${h1ClockSchema}"`);
+    await h1Seed.query(`CREATE FUNCTION "${h1ClockSchema}".transaction_timestamp() RETURNS timestamptz
+      LANGUAGE sql STABLE AS $$ SELECT current_setting('qa.payroll_seed_clock')::timestamptz $$`);
+    await h1Seed.query('BEGIN');
+    await h1Seed.query(`SET LOCAL search_path="${h1ClockSchema}",public,pg_catalog`);
+    await h1Seed.query("SELECT set_config('qa.payroll_seed_clock',$1,true)", [`${period.from}T12:00:00Z`]);
+    await h1Seed.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,role)
+      VALUES($1,$2,$3,'H1 V2 Employee',$4,'bartender')`, [h1Employee, ids.venue, ids.org, `h1-${h1Employee}`]);
+    await h1Seed.query(`INSERT INTO organization_memberships(organization_id,user_id,membership_role,status)
+      VALUES($1,$2,'member','active')`, [ids.org, h1Employee]);
+    await h1Seed.query(`INSERT INTO orders(id,venue_id,opened_by,status,created_at)
+      VALUES($1,$2,$3,'open',transaction_timestamp())`, [h1Order, ids.venue, ids.owner]);
+    await h1Seed.query(`INSERT INTO order_items(id,order_id,product_id,quantity,unit_price,station,sales_employee_id,sold_at)
+      VALUES($1,$2,$3,1,100,'bar',$4,transaction_timestamp())`, [h1Item, h1Order, ids.product, h1Employee]);
+    const h1Product = (await h1Seed.query('SELECT name,category,is_active FROM products WHERE venue_id=$1 AND id=$2',
+      [ids.venue, ids.product])).rows[0];
+    assert.ok(h1Product, 'H1 fixture product remains in the same venue');
+    await h1Seed.query(`INSERT INTO pos_order_pricing_snapshots(id,venue_id,order_id,sold_at,transaction_at,
+      subtotal_minor,discount_minor,minimum_adjustment_minor,final_total_minor,discount_source,winner_source_ids,
+      eligible_item_ids,winner_terms,frozen_terms)
+      VALUES($1,$2,$3,transaction_timestamp(),transaction_timestamp(),10000,0,0,10000,'none','{}','{}','{}',$4)`,
+    [h1Pricing, ids.venue, h1Order, JSON.stringify({ allocationPolicy: 'largest-remainder-item-id-v1',
+      offers: [], inputs: { approvedDiscounts: [], promotions: [] }, minimumAdjustment: 0 })]);
+    await h1Seed.query(`INSERT INTO pos_order_pricing_snapshot_lines(venue_id,snapshot_id,order_id,order_item_id,seller_id,
+      sold_at,quantity,unit_price,gross_minor,discount_minor,net_minor,eligible,product_facts)
+      VALUES($1,$2,$3,$4,$5,transaction_timestamp(),1,100,10000,0,10000,false,$6)`,
+    [ids.venue, h1Pricing, h1Order, h1Item, h1Employee,
+      JSON.stringify({ productId: ids.product, productName: h1Product.name, category: h1Product.category, station: 'bar', productActive: h1Product.is_active })]);
+    await h1Seed.query(`INSERT INTO payments(id,order_id,method,amount,status,created_at,finance_account_id,finance_account_name_snapshot)
+      VALUES($1,$2,'card',100,'paid',transaction_timestamp(),$3,'Freshness QA bank')`, [h1Payment, h1Order, ids.account]);
+    await h1Seed.query(`UPDATE orders SET pricing_locked_at=transaction_timestamp(),pricing_version=1,
+      subtotal_snapshot=100,discount_total_snapshot=0,minimum_adjustment_snapshot=0,final_total_snapshot=100,
+      closed_at=transaction_timestamp(),status='closed' WHERE id=$1`, [h1Order]);
+    if (h2Scope) {
+      // Reuse the already-eligible zero-pay employee: the main fixture has a
+      // zero-value H1 line, and only this new day-15 sale earns money for B.
+    }
+    await h1Seed.query('COMMIT');
+  } catch (error) { await h1Seed.query('ROLLBACK').catch(() => {}); throw error; }
+  finally { await h1Seed.query(`DROP SCHEMA IF EXISTS "${h1ClockSchema}" CASCADE`).catch(() => {}); await h1Seed.end(); }
+  const h1Eligibility = await service.getEmploymentEligibilityHistory(owner);
+  const h1EligibilityPeriods = (h1Eligibility.current?.periods || []).filter(row => row.employeeId !== h1Employee)
+    .map(row => ({ employeeId: row.employeeId, effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo }));
+  h1EligibilityPeriods.push({ employeeId: h1Employee, effectiveFrom: period.from, effectiveTo: period.to });
+  await service.createEmploymentEligibilityRevision(owner, { expectedRevisionId: h1Eligibility.current?.id || null,
+    reason: 'Owner confirms H1 V2 employee eligibility', idempotencyKey: 'h1-v2-eligibility', periods: h1EligibilityPeriods });
+  const h1Scheme = await service.createScheme(owner, { name: 'H1 fixed shift milestone deferral test scheme',
+    payoutRiskAcknowledgement: { confirmed: true, policyCode: 'payroll-own-revenue-ceiling-v1' },
+    definition: { mode: 'percent_only', currency: 'RUB', effectiveFrom: period.from, effectiveTo: period.to,
+      applyMilestones: true, roleParameters: { bar: { stableRateBps: 1000, milestoneBonusesCents: { 10000: 750 } } },
+      roleAssignments: [ids.employee, ids.zeroEmployee, h1Employee].map(employeeId =>
+        ({ employeeId, roleId: 'bar', effectiveFrom: period.from, effectiveTo: period.to })),
+      employeeOverrides: [{ employeeId: ids.zeroEmployee, path: 'applyMilestones', mode: 'override', value: false,
+        effectiveFrom: period.from, effectiveTo: period.to }], itemRules: [], sourcePolicies: refundPolicyV2 } });
+  await service.activateVersion(owner, h1Scheme.versions[0].versionId);
+  const h1SourceCalc = await service.prepareRefundAwareCalculation(owner, h1Scheme.versions[0].versionId,
+    { periodFrom: period.from, periodTo: h1To });
+  assert.equal(h1SourceCalc.status, 'refund_aware_calculated', JSON.stringify(h1SourceCalc));
+  const ordinaryH1Employee = h1SourceCalc.engineResult.employees.find(row => row.employeeId === h1Employee);
+  assert.ok(ordinaryH1Employee?.milestoneBonusCents > 0, 'the fixture reaches the monthly threshold before day 14');
+  const h1Run = await service.createH1CalculationRun(owner, { schemeVersionId: h1Scheme.versions[0].versionId,
+    periodFrom: period.from, periodTo: h1To, idempotencyKey: 'h1-v2-1-14-run' });
+  assert.equal(h1Run.status, 'ready', JSON.stringify(h1Run)); assert.equal(h1Run.amountCents, 2000);
+  if (h2Scope) {
+    // Seed real second-half sales only after the immutable 1–14 H1 run exists.
+    // This keeps the H1 closure independent while the monthly run includes both
+    // H2 earners and supports the no-H1-required case.
+    const h2Seed = new Client({ connectionString: target.url.href });
+    const h2ClockSchema = `payroll_h2_seed_${randomUUID().replaceAll('-', '')}`;
+    await h2Seed.connect();
+    try {
+      await h2Seed.query(`CREATE SCHEMA "${h2ClockSchema}"`);
+      await h2Seed.query(`CREATE FUNCTION "${h2ClockSchema}".transaction_timestamp() RETURNS timestamptz
+        LANGUAGE sql STABLE AS $$ SELECT current_setting('qa.payroll_seed_clock')::timestamptz $$`);
+      await h2Seed.query('BEGIN');
+      await h2Seed.query(`SET LOCAL search_path="${h2ClockSchema}",public,pg_catalog`);
+      await h2Seed.query("SELECT set_config('qa.payroll_seed_clock',$1,true)", [`${period.from.slice(0, 7)}-16T12:00:00Z`]);
+      const h2Product = (await h2Seed.query('SELECT name,category,is_active FROM products WHERE venue_id=$1 AND id=$2',
+        [ids.venue, ids.product])).rows[0];
+      assert.ok(h2Product, 'H2 fixture product remains in the same venue');
+      const seedH2Sale = async (employeeId, orderId, itemId, pricingId, paymentId) => {
+        await h2Seed.query(`INSERT INTO orders(id,venue_id,opened_by,status,created_at)
+          VALUES($1,$2,$3,'open',transaction_timestamp())`, [orderId, ids.venue, ids.owner]);
+        await h2Seed.query(`INSERT INTO order_items(id,order_id,product_id,quantity,unit_price,station,sales_employee_id,sold_at)
+          VALUES($1,$2,$3,1,100,'bar',$4,transaction_timestamp())`, [itemId, orderId, ids.product, employeeId]);
+        await h2Seed.query(`INSERT INTO pos_order_pricing_snapshots(id,venue_id,order_id,sold_at,transaction_at,
+          subtotal_minor,discount_minor,minimum_adjustment_minor,final_total_minor,discount_source,winner_source_ids,
+          eligible_item_ids,winner_terms,frozen_terms)
+          VALUES($1,$2,$3,transaction_timestamp(),transaction_timestamp(),10000,0,0,10000,'none','{}','{}','{}',$4)`,
+        [pricingId, ids.venue, orderId, JSON.stringify({ allocationPolicy: 'largest-remainder-item-id-v1',
+          offers: [], inputs: { approvedDiscounts: [], promotions: [] }, minimumAdjustment: 0 })]);
+        await h2Seed.query(`INSERT INTO pos_order_pricing_snapshot_lines(venue_id,snapshot_id,order_id,order_item_id,seller_id,
+          sold_at,quantity,unit_price,gross_minor,discount_minor,net_minor,eligible,product_facts)
+          VALUES($1,$2,$3,$4,$5,transaction_timestamp(),1,100,10000,0,10000,false,$6)`,
+        [ids.venue, pricingId, orderId, itemId, employeeId,
+          JSON.stringify({ productId: ids.product, productName: h2Product.name, category: h2Product.category,
+            station: 'bar', productActive: h2Product.is_active })]);
+        await h2Seed.query(`INSERT INTO payments(id,order_id,method,amount,status,created_at,finance_account_id,finance_account_name_snapshot)
+          VALUES($1,$2,'card',100,'paid',transaction_timestamp(),$3,'Freshness QA bank')`, [paymentId, orderId, ids.account]);
+        await h2Seed.query(`UPDATE orders SET pricing_locked_at=transaction_timestamp(),pricing_version=1,
+          subtotal_snapshot=100,discount_total_snapshot=0,minimum_adjustment_snapshot=0,final_total_snapshot=100,
+          closed_at=transaction_timestamp(),status='closed' WHERE id=$1`, [orderId]);
+      };
+      await seedH2Sale(h1Employee, h2Source.orderId, h2Source.itemId, h2Source.pricingId, h2Source.paymentId);
+      await seedH2Sale(h2OnlyEmployee, h2Source.zeroOrderId, h2Source.zeroItemId,
+        h2Source.zeroPricingId, h2Source.zeroPaymentId);
+      await h2Seed.query('COMMIT');
+    } catch (error) { await h2Seed.query('ROLLBACK').catch(() => {}); throw error; }
+    finally { await h2Seed.query(`DROP SCHEMA IF EXISTS "${h2ClockSchema}" CASCADE`).catch(() => {}); await h2Seed.end(); }
+  }
+  const monthEndRun = await service.createRefundAwareRun(owner, { schemeVersionId: h1Scheme.versions[0].versionId,
+    periodFrom: period.from, periodTo: period.to, idempotencyKey: 'h1-v2-month-end-comparison' });
+  assert.equal(monthEndRun.status, 'ready', JSON.stringify(monthEndRun));
+  assert.ok(monthEndRun.amountCents > h1Run.amountCents, 'H1 defers the milestone that the closed month can recognize');
+  const monthEndEvidence = await loadSavedRunEvidenceInTransaction(pool, ids.venue, monthEndRun.runId);
+  assert.ok(monthEndEvidence.evidence.calculatorReplay.result.employees.find(row => row.employeeId === h1Employee)?.milestoneBonusCents > 0);
+  const h1Detail = await service.getSavedRun(owner, h1Run.runId);
+  assert.equal(h1Detail.h1EntryAvailable, true);
+  const h1Input = { employeeId: h1Employee, financeCategoryId: null, idempotencyKey: 'h1-v2-materialize' };
+  const h1Counts = async () => (await pool.query(`SELECT
+    (SELECT count(*)::int FROM payroll_entries WHERE venue_id=$1 AND user_id=$2) entries,
+    (SELECT count(*)::int FROM payroll_calculation_entry_requests q JOIN payroll_entries e
+      ON e.venue_id=q.venue_id AND e.id=q.entry_id WHERE q.venue_id=$1 AND e.user_id=$2 AND q.created_by=$3) requests,
+    (SELECT count(*)::int FROM payroll_half_month_claims WHERE venue_id=$1 AND employee_id=$2) claims,
+    (SELECT count(*)::int FROM expenses WHERE venue_id=$1 AND payroll_calculation_entry_id IN
+      (SELECT id FROM payroll_entries WHERE venue_id=$1 AND user_id=$2)) expenses`, [ids.venue, h1Employee, ids.owner])).rows[0];
+  const h1BeforeFault = await h1Counts(); let h1FaultInjected = false;
+  const h1Failing = makeService({ query: (...args) => pool.query(...args), connect: async () => {
+    const client = await pool.connect();
+    return { query: async (sql, values) => { const result = await client.query(sql, values);
+      if (!h1FaultInjected && String(sql).startsWith('INSERT INTO payroll_half_month_claims')) {
+        h1FaultInjected = true; await client.query('SELECT 1/0');
+      }
+      return result;
+    }, release: error => client.release(error) };
+  } });
+  await assert.rejects(h1Failing.materializeH1Entry(owner, h1Run.runId, { ...h1Input, idempotencyKey: 'h1-v2-rollback' }),
+    error => error.code === '22012');
+  assert.equal(h1FaultInjected, true); assert.deepEqual(await h1Counts(), h1BeforeFault, 'entry, 202 receipt and 213 claim roll back together');
+  await assert.rejects(service.materializeH1Entry(owner, run.runId, { ...h1Input, idempotencyKey: 'h1-reject-full-month' }),
+    error => error.code === 'payroll_h1_verified_run_required');
+  assert.deepEqual(await h1Counts(), h1BeforeFault, 'full-month run cannot be relabeled as H1');
+  const h1Pair = await Promise.all([service.materializeH1Entry(owner, h1Run.runId, h1Input), service.materializeH1Entry(owner, h1Run.runId, h1Input)]);
+  assert.equal(h1Pair[0].entry.id, h1Pair[1].entry.id);
+  assert.deepEqual(h1Pair.map(row => row.replayed).sort(), [false, true]);
+  const h1Entry = h1Pair[0].currentEntry;
+  assert.equal(h1Entry.halfKind, 'h1'); assert.equal(h1Entry.periodFrom, period.from); assert.equal(h1Entry.periodTo, h1To);
+  assert.equal(h1Entry.amountCents, 1000);
+  const h1Bound = (await pool.query(`SELECT c.run_id,c.entry_id,c.employee_id,c.period_from::text,c.period_to::text,
+      c.provenance_sha256,e.payroll_h1_insert_xid IS NOT NULL AS stamped,
+      (q.response_payload::jsonb)->>'existing' AS existing,(q.response_payload::jsonb)->>'replayed' AS replayed
+    FROM payroll_half_month_claims c JOIN payroll_entries e ON e.venue_id=c.venue_id AND e.id=c.entry_id
+    JOIN payroll_calculation_entry_requests q ON q.venue_id=c.venue_id AND q.entry_id=e.id
+    WHERE c.venue_id=$1 AND c.employee_id=$2`, [ids.venue, h1Employee])).rows[0];
+  assert.equal(h1Bound.run_id, h1Run.runId); assert.equal(h1Bound.entry_id, h1Entry.id);
+  assert.equal(h1Bound.stamped, true); assert.equal(h1Bound.existing, 'false'); assert.equal(h1Bound.replayed, 'false');
+  let h1State = await service.getCalculationEntryState(owner, h1Entry.id);
+  assert.deepEqual(h1State.allowedActions, ['approve', 'cancel']); assert.equal(h1State.sourceStatus, 'current');
+  const h1Cancelled = await service.transitionCalculationEntry(owner, h1Entry.id, { action: 'cancel', expectedStateHash: h1State.stateHash,
+    idempotencyKey: 'h1-v2-cancel-first', paymentDate: null, paymentAccountId: null, paymentMethod: null, reason: 'Owner cancels first H1 QA draft' });
+  assert.equal(h1Cancelled.entry.status, 'cancelled');
+  const h1Void = (await pool.query(`SELECT c.entry_id,s.claim_id AS active_claim_id FROM payroll_h1_claim_voids v
+    JOIN payroll_half_month_claims c ON c.venue_id=v.venue_id AND c.id=v.claim_id
+    JOIN payroll_h1_claim_slots s ON s.venue_id=c.venue_id AND s.employee_id=c.employee_id AND s.month_from=c.month_from
+    WHERE v.venue_id=$1 AND c.entry_id=$2`, [ids.venue, h1Entry.id])).rows[0];
+  assert.equal(h1Void.entry_id, h1Entry.id); assert.equal(h1Void.active_claim_id, null);
+  const h1ReplacementRun = await service.createH1CalculationRun(owner, { schemeVersionId: h1Scheme.versions[0].versionId,
+    periodFrom: period.from, periodTo: h1To, idempotencyKey: 'h1-v2-replacement-run' });
+  assert.equal(h1ReplacementRun.status, 'ready'); assert.equal(h1ReplacementRun.amountCents, 2000);
+  const h1Replacement = await service.materializeH1Entry(owner, h1ReplacementRun.runId,
+    { ...h1Input, idempotencyKey: 'h1-v2-replacement-materialize' });
+  assert.equal(h1Replacement.currentEntry.halfKind, 'h1'); assert.notEqual(h1Replacement.currentEntry.id, h1Entry.id);
+  assert.deepEqual(await h1Counts(), { entries: 2, requests: 2, claims: 2, expenses: 0 });
+  let h1SupportEntry = null;
+  if (h2Scope) {
+    const h1ReplacementEvidence = await loadSavedRunEvidenceInTransaction(pool, ids.venue, h1ReplacementRun.runId);
+    const supportEmployee = h1ReplacementEvidence.evidence.calculatorReplay.result.employees
+      .find(row => row.employeeId === ids.employee && row.amountCents > 0);
+    assert.ok(supportEmployee, 'the real H1 sales fixture needs its other first-half employee settled before H2');
+    const supportMaterialized = await service.materializeH1Entry(owner, h1ReplacementRun.runId,
+      { employeeId: ids.employee, financeCategoryId: null, idempotencyKey: 'h1-h2-support-materialize' });
+    h1SupportEntry = supportMaterialized.currentEntry;
+    assert.equal(h1SupportEntry.amountCents, supportEmployee.amountCents);
+    const supportState = await service.getCalculationEntryState(owner, h1SupportEntry.id);
+    const supportApproved = await service.transitionCalculationEntry(owner, h1SupportEntry.id, { action: 'approve',
+      expectedStateHash: supportState.stateHash, idempotencyKey: 'h1-h2-support-approve',
+      paymentDate: null, paymentAccountId: null, paymentMethod: null, reason: null });
+    assert.equal(supportApproved.entry.status, 'approved');
+  }
+  await assert.rejects(service.materializeCalculationEntry(owner, h1ReplacementRun.runId,
+    { ...h1Input, idempotencyKey: 'h1-v2-replacement-materialize' }), error => error.code === 'payroll_entry_idempotency_conflict');
+  h1State = await service.getCalculationEntryState(owner, h1Replacement.currentEntry.id);
+  assert.deepEqual(h1State.allowedActions, ['approve', 'cancel']); assert.equal(h1State.sourceStatus, 'current');
+  const h1Approve = await service.transitionCalculationEntry(owner, h1Replacement.currentEntry.id, { action: 'approve', expectedStateHash: h1State.stateHash,
+    idempotencyKey: 'h1-v2-approve', paymentDate: null, paymentAccountId: null, paymentMethod: null, reason: null });
+  assert.equal(h1Approve.entry.status, 'approved');
+  const observeH1 = async (employeeId = h1Input.employeeId) => {
+    const db = await pool.connect();
+    let unlock;
+    try {
+      unlock = await require('../payroll-source-fence').beginPayrollVerifiedRunSourceTransaction(db, owner.venueId);
+      const attendance = require('../payroll-attendance-manifest').makePayrollAttendanceManifestService(pool);
+      const collect = (client, actor, scheme, window, options) =>
+        require('../payroll-refund-aware-source').readPayrollRefundAwareSourceArgsInTransaction(client, actor, scheme, window, attendance, options);
+      const checkFreshness = (client, actor, runId) =>
+        require('../payroll-run-source-freshness').checkPayrollRunSourceFreshnessInTransaction(client, actor, runId, null, collect);
+      const result = await require('../payroll-h1-claim-state').readH1StateInTransaction(db, owner,
+        {employeeId,month:period.from.slice(0,7)}, {checkFreshness});
+      await db.query('COMMIT');
+      return result;
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    } finally {
+      try { if (unlock) await unlock(); } finally { db.release(); }
+    }
+  };
+  if (h2Scope) {
+    const createLateRefund = async () => {
+      const client = await pool.connect();
+      try {
+        await beginPayrollSourceProducerTransaction(client, ids.venue);
+        const shift = (await client.query('INSERT INTO shifts(venue_id,opened_by) VALUES($1,$2) RETURNING id',
+          [ids.venue, ids.owner])).rows[0];
+        const refund = (await client.query(`INSERT INTO order_refunds(venue_id,order_id,shift_id,amount,reason,idempotency_key,actor_id,item_attribution_status)
+          VALUES($1,$2,$3,50,'Late partial H2 refund','h2-late-partial-refund',$4,'complete') RETURNING id`,
+        [ids.venue, h2Source.orderId, shift.id, ids.owner])).rows[0];
+        await client.query(`INSERT INTO order_refund_tenders(venue_id,refund_id,order_id,source_payment_id,amount,payout_method,finance_account_id,finance_account_name_snapshot)
+          VALUES($1,$2,$3,$4,50,'card',$5,'Freshness QA bank')`, [ids.venue, refund.id, h2Source.orderId, h2Source.paymentId, ids.account]);
+        await client.query(`INSERT INTO order_refund_items(venue_id,refund_id,order_id,snapshot_id,order_item_id,returned_quantity,returned_item_value_minor)
+          VALUES($1,$2,$3,$4,$5,0.5,5000)`, [ids.venue, refund.id, h2Source.orderId, h2Source.pricingId, h2Source.itemId]);
+        await client.query('COMMIT');
+        const recognized = (await pool.query(`SELECT coverage_status,coverage_reasons,recognized_local_date::text
+          FROM pos_payroll_refund_events WHERE venue_id=$1 AND refund_id=$2`, [ids.venue, refund.id])).rows[0];
+        assert.deepEqual(recognized.coverage_reasons, []); assert.equal(recognized.coverage_status, 'complete');
+        return { id: refund.id, recognizedLocalDate: recognized.recognized_local_date };
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+      finally { client.release(); }
+    };
+    const h2Acceptance = await verifyH1H2PostgresAcceptance({ service, pool, owner, ids, period,
+      schemeVersionId: h1Scheme.versions[0].versionId, initialMonthlyRun: monthEndRun,
+      h1EmployeeId: h1Employee, h1EntryId: h1Replacement.currentEntry.id, h2OnlyEmployeeId: h2OnlyEmployee,
+      paymentAccountId: ids.account, observeH1, createLateRefund });
+    console.log(`PASS real H1/H2 PostgreSQL acceptance: ${JSON.stringify(h2Acceptance)}`);
+    return;
+  }
+  const beforeH1Pay = await observeH1();
+  assert.equal(beforeH1Pay.usableForH2,true);
+  assert.equal(beforeH1Pay.paidMinor,0);
+  assert.equal(beforeH1Pay.entryId,h1Replacement.currentEntry.id);
+  h1State = await service.getCalculationEntryState(owner, h1Replacement.currentEntry.id);
+  const h1Paid = await service.transitionCalculationEntry(owner, h1Replacement.currentEntry.id, { action: 'pay', expectedStateHash: h1State.stateHash,
+    idempotencyKey: 'h1-v2-pay', paymentDate: new Date().toISOString().slice(0, 10), paymentAccountId: ids.account,
+    paymentMethod: 'card', reason: null });
+  assert.equal(h1Paid.entry.status, 'paid'); assert.ok(h1Paid.entry.expenseId);
+  const afterH1Pay = await observeH1();
+  assert.equal(afterH1Pay.status,'paid');
+  assert.equal(afterH1Pay.usableForH2,true);
+  assert.equal(afterH1Pay.paidMinor,beforeH1Pay.netDueMinor);
+  assert.equal(afterH1Pay.claimId,beforeH1Pay.claimId);
+  assert.equal(afterH1Pay.ledgerHash,beforeH1Pay.ledgerHash);
+  assert.equal(afterH1Pay.grossAccruedMinor,beforeH1Pay.grossAccruedMinor);
+  assert.deepEqual((await h1Counts()), { entries: 2, requests: 2, claims: 2, expenses: 1 });
+  const h1PayReplay = await service.transitionCalculationEntry(owner, h1Replacement.currentEntry.id, { action: 'pay', expectedStateHash: h1State.stateHash,
+    idempotencyKey: 'h1-v2-pay', paymentDate: new Date().toISOString().slice(0, 10), paymentAccountId: ids.account,
+    paymentMethod: 'card', reason: null });
+  assert.equal(h1PayReplay.replayed, true); assert.equal(h1PayReplay.entry.expenseId, h1Paid.entry.expenseId);
+  console.log('PASS H1 fixed-shifts 1–14 materialization: monthly milestone reached before day 14 is absent from H1 and present at month end; atomic DB claim+202 receipt+entry, replay, cancellation VOID/replacement, approval/pay via existing lifecycle');
+  };
+  if (['h1-only', 'h1-h2-only'].includes(process.env.PAYROLL_QA_SCOPE)) {
+    await runH1WriterAcceptance();
+  } else if(process.env.PAYROLL_QA_SCOPE==='comparison_v2') {
     const comparisonAcceptance = await verifyRefundAwareAllModesSources({ pool, target, sourcePolicies: refundPolicyV2 });
     assert.equal(comparisonAcceptance.runCount, 21);
     assert.equal(comparisonAcceptance.paidEntryCount, 14);

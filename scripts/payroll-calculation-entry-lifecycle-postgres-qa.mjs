@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { validateQaDatabaseUrl, assertQaDatabaseIdentity } from './postgres-qa-safety.mjs';
 import { addProvenance } from './payroll-provenance-storage-fixture.mjs';
 const require = createRequire(import.meta.url);
@@ -53,7 +53,17 @@ async function fixture(employeeId = randomUUID(), rateBps = 1000) {
 const linkedRow = f => ({ id: randomUUID(), venue_id: ids.venue, user_id: f.employeeId, period_from: '2026-10-01', period_to: '2026-10-01', amount: (f.grossCents / 100).toFixed(2), status: 'draft', calculation_run_id: f.runId, calculation_provenance_sha256: f.hash, calculation_gross_cents: f.grossCents, materialized_by: ids.owner, materialized_by_name: 'Owner', materialized_at: new Date().toISOString(), employee_name_snapshot: 'Frozen Employee', calculation_scheme_name_snapshot: 'Frozen scheme' });
 // Actual202 INSERT proof, actual public205/203 constraints. Source freshness
 // below is explicitly synthetic structural evidence, NOT source acceptance.
-const migration = readFileSync(new URL('../migrations/205_payroll_calculation_entry_lifecycle.sql', import.meta.url), 'utf8');
+async function replayLifecycleMigrations() {
+  const directory = new URL('../migrations/', import.meta.url);
+  const files = readdirSync(directory).filter(file => file.endsWith('.sql') && file >= '205_').sort();
+  const db = await pool.connect();
+  try {
+    await db.query('BEGIN');
+    for (const file of files) await db.query(readFileSync(new URL(file, directory), 'utf8'));
+    await db.query('COMMIT');
+  } catch (error) { await db.query('ROLLBACK'); throw error; }
+  finally { db.release(); }
+}
 const legacyRow = (expense = null) => ({ id: randomUUID(), venue_id: ids.venue, user_id: ids.owner, period_from: '2025-01-01', period_to: '2025-01-01', amount: '1.00', status: 'draft', expense_id: expense });
 async function connect() { const db = new Client({ connectionString: target.url.href }); await db.connect(); clients.push(db); return db; }
 async function reject(db, fn, message, code = '23514') {
@@ -124,7 +134,7 @@ async function committed(entry, action) {
 }
 try {
   assertQaDatabaseIdentity((await pool.query('SELECT current_database() database,inet_server_addr() address,inet_server_port() port,(SELECT rolsuper FROM pg_roles WHERE rolname=current_user) superuser')).rows[0], target.database, Number(target.url.port));
-  await pool.query(migration); await pool.query(migration); checks++;
+  await replayLifecycleMigrations(); await replayLifecycleMigrations(); checks++;
   await insert(pool, 'organizations', { id: ids.org, name: 'Lifecycle QA', slug: `lifecycle-${ids.org}`, timezone: 'UTC' });
   for (const venue of [ids.venue, ids.otherVenue]) await insert(pool, 'venues', { id: venue, organization_id: ids.org, name: 'Lifecycle QA', timezone: 'UTC' });
   for (const [id, venue] of [[ids.owner, ids.venue], [ids.otherOwner, ids.otherVenue]]) await insert(pool, 'users', { id, venue_id: venue, organization_id: ids.org, full_name: 'Owner', login: `lifecycle-${id}`, role: 'owner' });
@@ -187,13 +197,11 @@ try {
   const approved = await committed(draft, 'approve');
   await reject(db, () => db.query('UPDATE payroll_entries SET amount=9 WHERE id=$1', [draft.id]), 'immutable', '55000');
   await reject(db, () => act(db, approved.entry, 'pay', { payment_method: 'cash' }), null);
-  const legacyExpense = await expense(pool, approved.entry);
+  await reject(db, () => expense(db, approved.entry), 'settlement_witness_required');
+  const legacyExpense = await expense(pool, approved.entry, {source:'other'});
   await reject(db, () => act(db, approved.entry, 'pay', payFields(legacyExpense)), 'expense_mismatch');
-  await reject(db, async () => {
-    // xmin alone would falsely accept this updated historical expense.
-    await db.query('UPDATE expenses SET amount=amount WHERE id=$1', [legacyExpense.id]);
-    await act(db, approved.entry, 'pay', payFields(legacyExpense));
-  }, 'expense_mismatch');
+  await reject(db, () => db.query('UPDATE expenses SET amount=amount WHERE id=$1', [legacyExpense.id]),
+    'posted_finance_expense_immutable','55000');
   await reject(db, () => db.query('UPDATE expenses SET payroll_calculation_entry_id=$2 WHERE id=$1', [legacyExpense.id, approved.entry.id]), 'marker_insert_only', '55000');
   await reject(db, () => expense(db, approved.entry, { payroll_calculation_entry_id: approved.entry.id }), 'settlement_incomplete');
   await reject(db, async () => {
@@ -204,7 +212,7 @@ try {
     const nextExpense = await expense(db, approved.entry, { payroll_calculation_entry_id: approved.entry.id });
     await insert(db, 'payroll_entries', legacyRow(nextExpense.id));
     await act(db, approved.entry, 'pay', payFields(nextExpense));
-  }, 'expense_already_owned');
+  }, 'reconciliation_required');
   // Expense created after an already-established RR snapshot is not visible;
   // the narrow guard rejects before the FK's fresh visibility check can admit it.
   const oldSnapshot = await connect(); await oldSnapshot.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
@@ -212,9 +220,9 @@ try {
   const paid = await committed(approved.entry, 'pay');
   await fail(insert(oldSnapshot, 'payroll_entries', legacyRow(paid.entry.expense_id)), '23514', 'expense_not_visible'); checks++;
   await oldSnapshot.query('ROLLBACK');
-  await reject(db, () => insert(db, 'payroll_entries', legacyRow(paid.entry.expense_id)), 'expense_already_owned');
-  await reject(db, () => db.query('UPDATE expenses SET amount=1 WHERE id=$1', [paid.entry.expense_id]), 'expense_immutable', '55000');
-  await reject(db, () => db.query('DELETE FROM expenses WHERE id=$1', [paid.entry.expense_id]), 'expense_immutable', '55000');
+  await reject(db, () => insert(db, 'payroll_entries', legacyRow(paid.entry.expense_id)), 'reconciliation_required');
+  await reject(db, () => db.query('UPDATE expenses SET amount=1 WHERE id=$1', [paid.entry.expense_id]), 'immutable', '55000');
+  await reject(db, () => db.query('DELETE FROM expenses WHERE id=$1', [paid.entry.expense_id]), 'immutable', '55000');
   await reject(db, () => db.query("UPDATE payroll_entries SET status='cancelled' WHERE id=$1", [paid.entry.id]), 'immutable', '55000');
   for (const table of ['payroll_calculation_entry_transitions', 'payroll_calculation_entry_transition_requests']) {
     await reject(db, () => db.query(`UPDATE ${table} SET created_by=created_by`), 'history_immutable', '55000');
@@ -240,14 +248,10 @@ try {
   const before = (await pool.query('SELECT (SELECT count(*) FROM expenses)::int expenses,(SELECT count(*) FROM payroll_calculation_entry_transitions)::int transitions')).rows[0];
   await reject(db, async () => { await act(db, rollbackEntry.entry, 'pay'); await db.query('SELECT 1/0'); }, null, '22012');
   assert.deepEqual((await pool.query('SELECT (SELECT count(*) FROM expenses)::int expenses,(SELECT count(*) FROM payroll_calculation_entry_transitions)::int transitions')).rows[0], before); checks++;
-  // Legacy payroll components keep their old transition and duplicate-reference
-  // contract when the expense belongs to no205 settlement.
-  const oldExpense = await expense(pool, rollbackEntry.entry);
-  const legacyA = (await insert(pool, 'payroll_entries', legacyRow(oldExpense.id))).rows[0];
-  await insert(pool, 'payroll_entries', legacyRow(oldExpense.id));
-  await pool.query("UPDATE payroll_entries SET status='approved' WHERE id=$1", [legacyA.id]); checks++;
-  await pool.query(migration); checks++;
-  console.log(`PASS payroll calculation entry lifecycle PostgreSQL QA (${checks} checks; actual public202/203/205 schema; synthetic freshness proof, NOT current POS source/HTTP acceptance)`);
+  const oldExpense = await expense(pool, rollbackEntry.entry, {source:'other'});
+  await reject(db, () => insert(db, 'payroll_entries', legacyRow(oldExpense.id)), 'reconciliation_required');
+  await replayLifecycleMigrations(); checks++;
+  console.log(`PASS payroll calculation entry lifecycle PostgreSQL QA (${checks} checks; current migrations and populated replay; synthetic freshness proof)`);
 } finally {
   for (const db of clients) { try { await db.query('ROLLBACK'); } catch {} await db.end(); }
   await pool.end();
