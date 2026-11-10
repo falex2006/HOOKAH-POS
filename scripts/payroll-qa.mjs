@@ -21,7 +21,7 @@ assert.match(expenses, /CREATE TABLE IF NOT EXISTS expenses/);
 assert.match(server, /\/api\/expenses/);
 assert.match(server, /source.*payroll/);
 assert.match(server, /source <> 'payroll'/);
-assert.match(server, /source NOT IN \('payroll','purchase'\)/, 'purchase principal is cash flow, not an immediate P&L operating expense');
+assert.match(server, /source NOT IN \((?:'payroll','purchase'|'purchase','payroll')\)/, 'purchase principal is cash flow, not an immediate P&L operating expense');
 assert.match(server, /payrollNeedsReview/, 'legacy payroll expenses remain visible for reconciliation');
 assert.match(server, /legacy_unmatched/, 'unlinked historical payroll expense gets an explicit review state');
 assert.match(server, /pe\.period_to >= \$2::date/);
@@ -29,6 +29,19 @@ assert.match(server, /pe\.period_from <= \$3::date/);
 assert.match(server, /AT TIME ZONE COALESCE\(NULLIF\(v\.timezone/);
 assert.match(server, /COUNT\(DISTINCT shift_date\) FILTER \(WHERE is_shift_start\)/, 'split time logs on one business day count as one shift');
 assert.match(server, /MAX\(ends_at\) OVER \(ORDER BY starts_at,ends_at/, 'overlapping historical logs cannot inflate payroll hours');
-assert.match(server, /netProfit: revenue - expenses - costOfGoods/);
+// Evaluate the actual report expressions with stub coverage facts. The complete
+// branch is a pure-expression check only: the live payroll readiness gate is
+// currently false and requires separate end-to-end source integration.
+const incompleteExpr = server.match(/const profitIncomplete=([^;]+);/)?.[1];
+const knownExpr = server.match(/const knownNetProfit\s*=\s*(knownRecognizedRevenue\s*-\s*totalExpenses\s*-\s*totalCostOfGoods);/)?.[1];
+const reportExpr = server.match(/netProfit:\s*(profitIncomplete\s*\?\s*null\s*:\s*knownNetProfit)/)?.[1];
+assert.equal(incompleteExpr, 'expenseTotalsIncomplete||incompletePosRefunds||incompleteRecognizedRevenue||!payrollSourceOfficialReady');
+assert.ok(knownExpr && reportExpr, 'recognized revenue and incomplete-coverage profit expressions are present');
+const evaluateProfit = new Function('expenseTotalsIncomplete', 'incompletePosRefunds', 'incompleteRecognizedRevenue', 'payrollSourceOfficialReady', 'knownRecognizedRevenue', 'totalExpenses', 'totalCostOfGoods', `const profitIncomplete=${incompleteExpr}; const knownNetProfit=${knownExpr}; return {knownNetProfit, netProfit:${reportExpr}};`);
+assert.deepEqual(evaluateProfit(false, false, false, false, 100, 30, 20), {knownNetProfit:50, netProfit:null});
+assert.deepEqual(evaluateProfit(false, false, false, true, 100, 30, 20), {knownNetProfit:50, netProfit:50});
+for (const flags of [[true, false, false, true], [false, true, false, true], [false, false, true, true], [false, false, false, false]]) {
+  assert.deepEqual(evaluateProfit(...flags, 100, 30, 20), {knownNetProfit:50, netProfit:null});
+}
 assert.match(server, /totalCashOutflow/);
 console.log('PAYROLL QA: schedules, work time, calculated payroll lifecycle, expenses and P&L/cashflow separation wired');
