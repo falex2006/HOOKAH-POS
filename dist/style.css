@@ -6395,3 +6395,15 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 #payroll [data-trial-result-scroll] :is(td, th) { white-space: nowrap; }
 /* Payroll has a dedicated sidebar destination; keep finance tabs in the overview. */
 #page-content[data-finance-view="payroll"] :is(.finance-view-navigation, .finance-view-picker) { display: none; }
+@media (max-width: 700px) {
+  #payroll .finance-payroll-schemes :is(.stack-form, .form-row, fieldset, [data-scheme-pane]) {
+    min-width: 0;
+    max-width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #payroll .finance-payroll-schemes :is(.form-row, .stack-form, .panel-head) > * {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
