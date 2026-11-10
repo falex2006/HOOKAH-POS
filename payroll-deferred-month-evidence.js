@@ -43,7 +43,7 @@ function documentFor(monthly, state, context, calculation) {
   if (state.zeroBase === true) {
     const firstHalf = days.filter(day => day.date < row.period.from);
     const expected = {schemaVersion:1,venueId,employeeId,month,period:{from:month+'-01',to:month+'-14'},
-      monthlyRunId,monthlySourceSha256:hash(canonical(monthly)),snapshotRowCount:firstHalf.length,
+      monthlyRunId,capabilityVersion:'payroll-h1-zero-base-v1',h1ClaimCount:0,sourceWatermark:monthly.inputWatermark,monthlyEvidenceSha256:monthlyHash,snapshotRowCount:firstHalf.length,
       grossMinor:0,activeOverlapCount:0};
     if (firstHalf.some(day => day.grossMinor !== 0) || canonical(state.zeroBaseEvidence) !== canonical(expected)
         || state.zeroBaseEvidenceSha256 !== hash(canonical(expected))) fail('zero_base_unproven');
@@ -72,6 +72,11 @@ function buildPayrollDeferredMonthEvidence(monthly, candidate, context) {
   const calculation = rebuildDeferred(monthly, context.h1State, context.employeeId);
   if (canonical(calculation.result) !== canonical(candidate)) fail('candidate_mismatch');
   return documentFor(monthly,context.h1State,context,calculation);
+}
+
+function calculatePayrollDeferredMonthEvidence(monthly, context) {
+  const calculation = rebuildDeferred(monthly, context.h1State, context.employeeId);
+  return documentFor(monthly, context.h1State, context, calculation);
 }
 
 function verifyPayrollDeferredMonthEvidence(payload, monthly, liveH1State) {
@@ -103,4 +108,4 @@ function verifyPayrollDeferredMonthEvidence(payload, monthly, liveH1State) {
   }
 }
 
-module.exports = {buildPayrollDeferredMonthEvidence, verifyPayrollDeferredMonthEvidence};
+module.exports = {calculatePayrollDeferredMonthEvidence, buildPayrollDeferredMonthEvidence, verifyPayrollDeferredMonthEvidence};

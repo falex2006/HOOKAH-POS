@@ -1,4 +1,6 @@
 'use strict';
+const {readH2ClaimForEntryInTransaction} = require('./payroll-h2-claim-store');
+const {verifyPayrollDeferredMonthEvidence} = require('./payroll-deferred-month-evidence');
 
 // Server-only proof for payroll-entry lifecycle transitions and reviewed
 // corrections. Callers own authorization, transaction boundaries and writes.
@@ -152,7 +154,7 @@ const verifyZeroSettlement = async (db, identity, current, totals, capabilityVer
       || settled.corrections.ledgerHash !== receipt.ledger_hash || !Array.isArray(settled.corrections.activeApplicationIds)) fail('zero_settlement_invalid');
   const { correctionEvidenceHash, ...correctionBody } = settled.corrections;
   if (typeof correctionEvidenceHash !== 'string' || hash(correctionBody) !== correctionEvidenceHash) fail('zero_settlement_invalid');
-  const captured = ['employee_attributed_remaining_net_refund_v2','employee_attributed_h1_fixed_shifts_v1'].includes(capabilityVersion);
+  const captured = ['employee_attributed_remaining_net_refund_v2','employee_attributed_h1_fixed_shifts_v1','payroll-deferred-month-settlement-v1'].includes(capabilityVersion);
   const allEvents = (await db.query(`SELECT e.id,e.sequence_no::text,e.venue_id,e.employee_id,e.claim_id,e.kind,
       e.amount_cents::text,e.target_entry_id,e.reverses_event_id,c.original_entry_id,c.refund_line_event_id,c.currency,
       to_jsonb(c)->>'source_kind' AS source_kind,
@@ -257,6 +259,54 @@ const verifyPayrollCalculationEntryEvidence = async (db, actor, entryRow, { purp
     fail('historical_paid_entry_required');
   }
 
+  if (current.payroll_half_kind === 'h2') {
+    const h2Claim=await readH2ClaimForEntryInTransaction(db,actor,{id:expected.id,venueId:expected.venueId,
+      employeeId:expected.employeeId,runId:expected.runId,provenanceSha256:expected.provenanceSha256,
+      grossCents:Number(expected.grossCents),periodFrom:expected.periodFrom,periodTo:expected.periodTo});
+    if (!h2Claim||current.payroll_half_kind!=='h2'||h2Claim.h2EntryId!==expected.id
+        || h2Claim.h2GrossMinor!==Number(expected.grossCents)||h2Claim.monthlyRunId===expected.runId) fail('half_month_claim_invalid');
+    let monthly;
+    try { monthly=await loadSavedRunEvidenceInTransaction(db,venueId,h2Claim.monthlyRunId); }
+    catch (_) { fail('monthly_source_invalid'); }
+    const storedVerified=verifyPayrollDeferredMonthEvidence(h2Claim.settlementPayload,monthly.evidence);
+    if (!storedVerified.valid||storedVerified.evidenceSha256!==expected.provenanceSha256) fail('deferred_evidence_invalid');
+    let freshness=null;
+    if (purpose==='current_transition') {
+      let checked;
+      try { checked=await checkFreshness(db,actor,expected.runId); } catch (_) { fail('source_freshness_unavailable'); }
+      if (checked?.status!=='current'||checked.runId!==expected.runId
+          ||checked.h2EvidenceSha256!==storedVerified.evidenceSha256||!h2Claim.active) fail('source_not_current');
+      freshness={status:'current',checkedAt:checked.checkedAt||null};
+    }
+    const doc=JSON.parse(h2Claim.settlementPayload);
+    if (doc.h2RunId!==expected.runId||doc.monthlyRunId!==h2Claim.monthlyRunId
+        || doc.employeeId!==expected.employeeId||doc.periodFrom!==expected.periodFrom||doc.periodTo!==expected.periodTo
+        || doc.h2GrossAccruedMinor!==Number(expected.grossCents)
+        || !Number.isSafeInteger(doc.h2ProtectedFixedMinor)||!Number.isSafeInteger(doc.h2EligibleVariableMinor)
+        || doc.h2ProtectedFixedMinor+doc.h2EligibleVariableMinor!==doc.h2GrossAccruedMinor
+        || expected.netCents>BigInt(doc.h2GrossAccruedMinor)) fail('deferred_amount_binding_invalid');
+    if (purpose==='historical_paid'&&!h2Claim.active) fail('deferred_claim_not_active');
+    const settlement=purpose==='historical_paid' && expected.netCents===0n && current.expense_id===null
+      ? await verifyZeroSettlement(db,persisted,current,{grossCents:expected.grossCents,
+        protectedFixedCents:BigInt(doc.h2ProtectedFixedMinor),eligibleVariableCents:BigInt(doc.h2EligibleVariableMinor)},doc.capabilityVersion)
+      : null;
+    const proof=deepFreeze({schemaVersion:1,capabilityVersion:doc.capabilityVersion,proofKind:purpose,
+      ...(settlement ? {settlement} : {}),
+      venueId,entryId:expected.id,employeeId:expected.employeeId,runId:expected.runId,entryStatus:persisted.status,
+      origin:'calculation_run',currency:'RUB',period:{from:expected.periodFrom,to:expected.periodTo},
+      periodFrom:expected.periodFrom,periodTo:expected.periodTo,grossCents:doc.h2GrossAccruedMinor,
+      netCents:Number(expected.netCents),protectedFixedCents:doc.h2ProtectedFixedMinor,
+      eligibleVariableCents:doc.h2EligibleVariableMinor,
+      evidenceHashes:{provenanceSha256:expected.provenanceSha256,monthlyEvidenceSha256:doc.monthlyEvidenceSha256,
+        economicEvidenceSha256:doc.economicEvidenceSha256,settlementEvidenceSha256:doc.settlementEvidenceSha256},
+      expense:purpose==='historical_paid'&&current.expense_id?{id:current.expense_id,entryId:expected.id,venueId,
+        source:current.expense_source,amountCents:Number(expected.netCents)}:null,
+      halfSettlement:{halfKind:'h2',month:h2Claim.month,monthlyRunId:h2Claim.monthlyRunId,
+        h1ClaimId:h2Claim.h1ClaimId,h1EntryId:h2Claim.h1EntryId,h1GrossMinor:h2Claim.h1GrossMinor,
+        monthlyGrossMinor:h2Claim.monthlyGrossMinor,h2GrossMinor:h2Claim.h2GrossMinor},freshness});
+    if (purpose==='historical_paid'&&current.expense_id&&decimalCents(current.expense_amount)!==expected.netCents) fail('paid_expense_amount_mismatch');
+    return proof;
+  }
   let saved;
   try { saved = await loadSavedRunEvidenceInTransaction(db, venueId, expected.runId); }
   catch (_) { fail('saved_run_evidence_invalid'); }

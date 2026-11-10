@@ -172,7 +172,7 @@ for (const mode of payrollRefundAwareModes) {
     ? '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}' : JSON.stringify(v);
   const digest = v => require('node:crypto').createHash('sha256').update(canonical(v)).digest('hex');
   zero.zeroBaseEvidence = {schemaVersion:1,venueId:args.venueId,employeeId:secondEmployee,month,period:zero.period,
-    monthlyRunId,monthlySourceSha256:digest(monthly),snapshotRowCount:daily.filter(d=>d.date<=zero.period.to &&
+    monthlyRunId,capabilityVersion:'payroll-h1-zero-base-v1',h1ClaimCount:0,sourceWatermark:monthly.inputWatermark,monthlyEvidenceSha256:digest(monthly),snapshotRowCount:daily.filter(d=>d.date<=zero.period.to &&
       d.employees.some(e=>e.employeeId===secondEmployee)).length,grossMinor:0,activeOverlapCount:0};
   zero.zeroBaseEvidenceSha256 = digest(zero.zeroBaseEvidence);
   const zeroContext = {...context,employeeId:secondEmployee,h1State:zero};

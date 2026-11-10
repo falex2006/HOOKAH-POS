@@ -5,6 +5,7 @@
 // deliberately pure: the source-fenced service must load all three inputs in
 // one transaction, and the DB claim/205 transition remain the write authority.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHA = /^[0-9a-f]{64}$/;
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const fail = suffix => { throw Object.assign(new TypeError(`payroll_half_month_settlement_${suffix}`), {
   code: `payroll_half_month_settlement_${suffix}`

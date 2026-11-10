@@ -1,4 +1,5 @@
 'use strict';
+const {readH2CancellationBasis} = require('./payroll-h2-claim-store');
 
 // Owner lifecycle for immutable calculation-linked entries. The service owns a
 // fresh source-fenced write transaction; all effects commit or roll back once.
@@ -154,6 +155,8 @@ async function transitionPayrollCalculationEntry(db, actor, entryId, input, chec
     proof = await freshProof(db, actor, row, checkFreshness, prepared.state.ledgerHash);
     fixed = proof.protectedFixedCents;
     if (command.action === 'pay') settlement = await paymentDetails(db, actor, command, row);
+  } else if (row.payroll_half_kind === 'h2') {
+    fixed = integer((await readH2CancellationBasis(db,actor,entry)).fixed);
   } else {
     const totals = (await db.query(`SELECT COALESCE(sum(LEAST(base_pay,final_amount)*100),0)::bigint::text AS fixed,
       COALESCE(sum(final_amount*100),0)::bigint::text AS gross FROM payroll_daily_snapshots

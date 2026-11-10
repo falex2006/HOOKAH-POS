@@ -87,7 +87,7 @@ async function verifyPayrollEntryCorrections(db, actor, proof) {
   const result = { schemaVersion: 1, entryId: proof.entryId, venueId: proof.venueId, employeeId: proof.employeeId,
     netCents: proof.netCents, protectedFixedCents: proof.protectedFixedCents, appliedCents: Number(used),
     ledgerHash: hash([...ledger].sort((a, b) => a.id.localeCompare(b.id))),
-    ...(['employee_attributed_remaining_net_refund_v2','employee_attributed_h1_fixed_shifts_v1'].includes(proof.capabilityVersion)
+    ...(['employee_attributed_remaining_net_refund_v2','employee_attributed_h1_fixed_shifts_v1','payroll-deferred-month-settlement-v1'].includes(proof.capabilityVersion)
       ? { ledgerCaptureSchemaVersion: 1, ledgerEventIds: ledger.map(event => event.id).sort() } : {}),
     activeApplicationIds: [...active.keys()].sort(), sources };
   return freeze({ ...result, correctionEvidenceHash: hash(result) });

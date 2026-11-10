@@ -5,6 +5,8 @@
 // uses caller-supplied data; the separate venue-turnover preview reads a
 // source-backed venue total. Preview paths never persist calculations. The
 // createVerifiedRun collects and saves its own source-fenced snapshot.
+const { calculatePayrollDeferredMonthEvidence, verifyPayrollDeferredMonthEvidence } = require('./payroll-deferred-month-evidence');
+const { readH1StateInTransaction } = require('./payroll-h1-claim-state');
 const { createHash, randomUUID } = require('node:crypto');
 const { buildPayrollPersonalRevenueSource } = require('./payroll-personal-revenue-source');
 const { collectPayrollRefundAwareCalculationInTransaction, readPayrollRefundAwareSourceArgsInTransaction,
@@ -1498,9 +1500,12 @@ const makeService = (pool) => {
     if (typeof error?.code === 'string' && /^payroll_[a-z0-9_]{1,100}$/.test(error.code)) throw error;
     fail('payroll_entry_lifecycle_unavailable', 503);
   };
-  const lifecycleFreshness = (db, actor, runId) =>
-    checkPayrollRunSourceFreshnessInTransaction(db, actor, runId, collectSourcedPayrollContext,
+  const lifecycleFreshness = async (db, actor, runId) => {
+    const run = (await db.query("SELECT engine_version FROM payroll_calculation_runs WHERE venue_id=$1 AND id=$2", [actor.venueId, runId])).rows[0];
+    if (run?.engine_version === 'payroll-deferred-month-settlement-v1') return deferredH2Freshness(db, actor, runId);
+    return checkPayrollRunSourceFreshnessInTransaction(db, actor, runId, collectSourcedPayrollContext,
       (client, owner, scheme, period, options) => readPayrollRefundAwareSourceArgsInTransaction(client, owner, scheme, period, attendanceManifest, options));
+  };
   const h1RunEligible = (header, evidence) => {
     const from = header?.period?.from, to = header?.period?.to;
     if (typeof from !== 'string' || !/^\d{4}-\d{2}-01$/.test(from)) return false;
@@ -1665,6 +1670,200 @@ const makeService = (pool) => {
     }, 'payroll_entry_materialization');
   };
 
+  const readH1StatesOrVerifiedZero = async (db, actor, monthlyRunId, month, monthlyEvidence, employeeRows) => {
+    const states = [];
+    for (const employee of employeeRows) {
+      try {
+        states.push(await readH1StateInTransaction(db, actor, { employeeId: employee.employeeId, month }, {
+          checkFreshness: (client, owner, h1RunId) => lifecycleFreshness(client, owner, h1RunId)
+        }));
+      } catch (error) {
+        if (error?.code !== 'payroll_h1_state_claim_missing') throw error;
+        const window = { from: `${month}-01`, to: `${month}-14` };
+        const snapshot = (await db.query(`SELECT count(*)::text AS row_count,
+            COALESCE(sum(final_amount*100),0)::numeric(30,0)::text AS gross_minor
+          FROM payroll_daily_snapshots WHERE venue_id=$1 AND run_id=$2 AND employee_id=$3
+            AND local_date BETWEEN $4::date AND $5::date`,
+        [actor.venueId,monthlyRunId,employee.employeeId,window.from,window.to])).rows[0];
+        const active = (await db.query(`SELECT id FROM payroll_entries WHERE venue_id=$1 AND user_id=$2
+          AND status IN ('draft','approved','paid') AND period_from<=$3::date AND period_to>=$4::date LIMIT 1 FOR SHARE`,
+        [actor.venueId,employee.employeeId,window.to,window.from])).rows;
+        if (!snapshot || snapshot.gross_minor !== '0' || active.length) fail('payroll_half_month_h1_zero_base_requires_review', 409);
+        const zeroBaseEvidence = { schemaVersion:1,venueId:actor.venueId,employeeId:employee.employeeId,month,
+          period:window,monthlyRunId,capabilityVersion:'payroll-h1-zero-base-v1',h1ClaimCount:0,sourceWatermark:monthlyEvidence.inputWatermark,
+          monthlyEvidenceSha256:createHash('sha256').update(canonicalJson(monthlyEvidence)).digest('hex'),
+          snapshotRowCount:Number(snapshot.row_count),grossMinor:0,activeOverlapCount:active.length };
+        const zeroBaseEvidenceSha256 = createHash('sha256').update(canonicalJson(zeroBaseEvidence)).digest('hex');
+        states.push({ venueId:actor.venueId,employeeId:employee.employeeId,month,currency:'RUB',runId:null,entryId:null,claimId:null,
+          period:window,status:'zero_base',zeroBase:true,zeroBaseEvidence,zeroBaseEvidenceSha256,
+          grossAccruedMinor:0,netDueMinor:0,paidMinor:0,appliedCorrectionMinor:0,usableForH2:true });
+      }
+    }
+    return states;
+  };
+  const deferredH2Freshness = async (db,actor,runId) => {
+    const claim=(await db.query(`SELECT employee_id::text,month_from::text,monthly_run_id::text,h2_entry_id::text,evidence_sha256
+      FROM payroll_h2_settlement_claims WHERE venue_id=$1 AND h2_run_id=$2 FOR SHARE`,[actor.venueId,runId])).rows[0];
+    if (!claim) return {status:'stale',runId,reasons:['payroll_half_month_claim_missing']};
+    let monthly;
+    try { monthly=await savedRunReader.loadSavedRunEvidenceInTransaction(db,actor.venueId,claim.monthly_run_id); }
+    catch (_) { return {status:'stale',runId,reasons:['payroll_half_month_monthly_evidence_invalid']}; }
+    const current=await lifecycleFreshness(db,actor,claim.monthly_run_id);
+    if (current.status!=='current') return {...current,runId};
+    const proofRow=(await db.query(`SELECT evidence_payload FROM payroll_run_provenance WHERE venue_id=$1 AND run_id=$2 FOR SHARE`,
+      [actor.venueId,runId])).rows[0];
+    if (!proofRow?.evidence_payload) return {status:'stale',runId,reasons:['payroll_half_month_saved_evidence_invalid']};
+    const employee=monthly.evidence.calculatorReplay.result.employees.find(row=>row.employeeId===claim.employee_id);
+    if (!employee) return {status:'stale',runId,reasons:['payroll_half_month_employee_binding_mismatch']};
+    let h1;
+    try { [h1]=await readH1StatesOrVerifiedZero(db,actor,claim.monthly_run_id,String(claim.month_from).slice(0,7),monthly.evidence,[employee]); }
+    catch (_) { return {status:'stale',runId,reasons:['payroll_half_month_h1_binding_changed']}; }
+    const verified=verifyPayrollDeferredMonthEvidence(proofRow.evidence_payload,monthly.evidence,h1);
+    if (!verified.valid||!verified.liveH1Verified||verified.evidenceSha256!==claim.evidence_sha256) {
+      return {status:'stale',runId,reasons:verified.reasons||['payroll_half_month_h1_binding_changed']};
+    }
+    return {...current,runId,h2EvidenceSha256:verified.evidenceSha256};
+  };
+  const materializeSecondHalfCalculationEntry = async (principal, monthlyRunId, input) => {
+    if (!UUID.test(monthlyRunId || '')) fail('payroll_half_month_monthly_run_id_invalid',400);
+    const monthlyId = monthlyRunId.toLowerCase();
+    if (!input || Object.getPrototypeOf(input)!==Object.prototype || Reflect.ownKeys(input).length!==3
+        || Object.keys(input).sort().join(',')!=='employeeId,financeCategoryId,idempotencyKey'
+        || Object.values(Object.getOwnPropertyDescriptors(input)).some(d=>!Object.hasOwn(d,'value'))
+        || !UUID.test(input.employeeId||'') || !(input.financeCategoryId===null||UUID.test(input.financeCategoryId||''))
+        || typeof input.idempotencyKey!=='string' || !/^[A-Za-z0-9_.:-]{8,120}$/.test(input.idempotencyKey)) {
+      fail('payroll_half_month_request_invalid',400);
+    }
+    const employeeId=input.employeeId.toLowerCase(), financeCategoryId=input.financeCategoryId?.toLowerCase()||null;
+    const idempotencyKey=input.idempotencyKey;
+    return withOwnerSourceWrite(pool,principal,async (db,actor) => {
+      const monthFrom=(await db.query(`SELECT period_from::text FROM payroll_calculation_runs WHERE venue_id=$1 AND id=$2 FOR SHARE`,
+        [actor.venueId,monthlyId])).rows[0]?.period_from;
+      if (!monthFrom || monthFrom.slice(-2)!=='01') fail('payroll_half_month_monthly_v2_run_required',409);
+      const month=monthFrom.slice(0,7), from=`${month}-01`, h2From=`${month}-15`;
+      await db.query('SELECT payroll_half_month_serialized_key($1::uuid,$2::uuid,$3::date)',
+        [actor.venueId,employeeId,from]);
+      const requestHash=createHash('sha256').update(canonicalJson({venueId:actor.venueId,createdBy:actor.userId,
+        employeeId,monthlyRunId:monthlyId,financeCategoryId})).digest('hex');
+      const prior=(await db.query(`SELECT request_hash,created_by::text,claim_id::text,response_payload,response_sha256
+        FROM payroll_h2_requests WHERE venue_id=$1 AND idempotency_key=$2 FOR UPDATE`,[actor.venueId,idempotencyKey])).rows[0];
+      if (prior) {
+        if (prior.request_hash!==requestHash || prior.created_by!==actor.userId
+            || createHash('sha256').update(prior.response_payload||'').digest('hex')!==prior.response_sha256) fail('payroll_half_month_idempotency_conflict',409);
+        const body=JSON.parse(prior.response_payload);
+        const row=(await db.query(`SELECT e.*,e.period_from::text AS period_from,e.period_to::text AS period_to,
+            e.payment_date::text AS payment_date,e.amount::text AS amount,(e.amount*100)::bigint::text AS net_cents,
+            e.calculation_gross_cents::text AS calculation_gross_cents,c.monthly_run_id::text,c.evidence_sha256,
+            p.evidence_payload,p.evidence_sha256 AS provenance_sha256,p.total_amount_cents::text,
+            original.response_payload AS original_payload,original.response_sha256 AS original_sha256
+          FROM payroll_h2_settlement_claims c JOIN payroll_entries e ON e.venue_id=c.venue_id AND e.id=c.h2_entry_id
+          JOIN payroll_run_provenance p ON p.venue_id=c.venue_id AND p.run_id=c.h2_run_id
+          JOIN payroll_calculation_entry_requests original ON original.venue_id=c.venue_id AND original.entry_id=e.id
+            AND original.idempotency_key=$3 AND original.request_hash=$4 AND original.created_by=$5
+          WHERE c.venue_id=$1 AND c.id=$2 FOR SHARE OF c,e,p`,[actor.venueId,prior.claim_id,idempotencyKey,requestHash,actor.userId])).rows[0];
+        if (!row || row.user_id!==employeeId || row.monthly_run_id!==monthlyId || row.id!==body.entry?.id) fail('payroll_half_month_idempotency_conflict',409);
+        if (createHash('sha256').update(row.original_payload).digest('hex')!==row.original_sha256) fail('payroll_half_month_idempotency_conflict',409);
+        const original=JSON.parse(row.original_payload);
+        if (original.entry?.id!==row.id || original.entry?.calculationRunId!==row.calculation_run_id) fail('payroll_half_month_idempotency_conflict',409);
+        const evidence=JSON.parse(row.evidence_payload),reconciliation={monthlyGrossMinor:evidence.monthlyGrossMinor,
+          h1GrossAccruedMinor:evidence.h1GrossAccruedMinor,h2GrossAccruedMinor:evidence.h2GrossAccruedMinor};
+        const currentEntry={id:row.id,userId:row.user_id,status:row.status,origin:'calculation_run',halfKind:'h2',transitionStateRequired:true,allowedActions:[],
+          calculationRunId:row.calculation_run_id,monthlyRunId:row.monthly_run_id,provenanceSha256:row.provenance_sha256,
+          grossCents:Number(row.calculation_gross_cents),amountCents:Number(row.net_cents),currency:'RUB',
+          periodFrom:row.period_from,periodTo:row.period_to,h2Reconciliation:reconciliation,
+          employeeName:row.employee_name_snapshot,schemeName:row.calculation_scheme_name_snapshot,
+          financeCategoryId:row.finance_category_id,expenseId:row.expense_id||null,paymentDate:row.payment_date||null};
+        return {...original,currentEntry,replayed:true,existing:false,runId:row.calculation_run_id,
+          monthlyRunId:monthlyId,half:2,officialReady:false,payoutEligible:false,settlementAuthorized:false};
+      }
+
+      const monthly=await savedRunReader.loadSavedRunEvidenceInTransaction(db,actor.venueId,monthlyId);
+      if (monthly.header.capabilityVersion!=='employee_attributed_remaining_net_refund_v2'
+          || monthly.header.period.from!==from || monthly.header.period.to.slice(0,7)!==month) fail('payroll_half_month_monthly_v2_run_required',409);
+      const [,year,monthNo]=/^(\d{4})-(\d{2})$/.exec(month);
+      const monthEnd=`${month}-${String(new Date(Date.UTC(Number(year),Number(monthNo),0)).getUTCDate()).padStart(2,'0')}`;
+      if (monthly.header.period.to!==monthEnd) fail('payroll_half_month_monthly_v2_run_required',409);
+      const venue=(await db.query('SELECT timezone FROM venues WHERE id=$1 FOR SHARE',[actor.venueId])).rows[0];
+      if (!venue||monthly.header.venueTimezone!==venue.timezone) fail('payroll_half_month_timezone_mismatch',409);
+      const current=await lifecycleFreshness(db,actor,monthlyId);
+      if (current.status!=='current') fail('payroll_half_month_monthly_v2_sources_changed',409);
+      const engineResult=monthly.evidence.calculatorReplay.result;
+      const employeeRows=engineResult.employees.filter(row=>row.employeeId===employeeId);
+      if (employeeRows.length!==1) fail('payroll_entry_employee_not_in_calculation',409);
+      const [h1State]=await readH1StatesOrVerifiedZero(db,actor,monthlyId,month,monthly.evidence,employeeRows);
+      if (!h1State?.usableForH2) fail('payroll_half_month_h1_not_usable',409);
+      const runId=randomUUID();
+      const proof=calculatePayrollDeferredMonthEvidence(monthly.evidence,{venueId:actor.venueId,employeeId,month,
+        monthlyRunId:monthlyId,h2RunId:runId,h1State});
+      if (proof.periodFrom!==h2From || proof.periodTo!==monthEnd || proof.h1GrossAccruedMinor!==h1State.grossAccruedMinor) {
+        fail('payroll_half_month_evidence_binding_invalid',409);
+      }
+      const activeOverlap=(await db.query(`SELECT id FROM payroll_entries WHERE venue_id=$1 AND user_id=$2
+        AND status IN ('draft','approved','paid') AND period_from<=$3::date AND period_to>=$4::date FOR UPDATE`,
+      [actor.venueId,employeeId,monthEnd,h2From])).rows;
+      if (activeOverlap.length) fail('payroll_entry_period_overlap',409);
+      const name=(await db.query('SELECT employee_name_snapshot FROM payroll_daily_snapshots WHERE venue_id=$1 AND run_id=$2 AND employee_id=$3 ORDER BY local_date DESC,id DESC LIMIT 1',
+        [actor.venueId,monthlyId,employeeId])).rows[0]?.employee_name_snapshot;
+      if (!name || !monthly.header.scheme.name) fail('payroll_half_month_employee_missing',409);
+      const runKey=`h2:${monthlyId}:${employeeId}:${createHash('sha256').update(idempotencyKey).digest('hex').slice(0,24)}`;
+      const run={id:runId,venue_id:actor.venueId,scheme_version_id:monthly.evidence.schemeVersionId,
+        period_from:proof.periodFrom,period_to:proof.periodTo,status:'ready',source_coverage:'complete',
+        commission_basis:'net_after_discounts_refunds',eligible_line_count:0,unattributed_line_count:0,missing_net_line_count:0,
+        input_watermark:monthly.evidence.inputWatermark,input_checksum:proof.evidenceSha256,
+        engine_version:'payroll-deferred-month-settlement-v1',blocked_reason:null,idempotency_key:runKey,
+        created_by:actor.userId,created_by_name:actor.name,venue_timezone:venue.timezone,currency:monthly.header.currency};
+      await db.query(`INSERT INTO payroll_calculation_runs(id,venue_id,scheme_version_id,period_from,period_to,status,source_coverage,
+        commission_basis,eligible_line_count,unattributed_line_count,missing_net_line_count,input_watermark,input_checksum,
+        engine_version,blocked_reason,idempotency_key,created_by,created_by_name,venue_timezone,currency)
+        VALUES($1,$2,$3,$4::date,$5::date,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+      [run.id,run.venue_id,run.scheme_version_id,run.period_from,run.period_to,run.status,run.source_coverage,run.commission_basis,
+        run.eligible_line_count,run.unattributed_line_count,run.missing_net_line_count,run.input_watermark,run.input_checksum,
+        run.engine_version,run.blocked_reason,run.idempotency_key,run.created_by,run.created_by_name,run.venue_timezone,run.currency]);
+      await db.query(`INSERT INTO payroll_run_provenance(venue_id,run_id,schema_version,capability_version,evidence_payload,evidence_sha256,total_amount_cents)
+        VALUES($1,$2,5,'payroll-deferred-month-settlement-v1',$3,$4,$5)`,
+      [actor.venueId,runId,proof.payload,proof.evidenceSha256,proof.h2GrossAccruedMinor]);
+      const amount=BigInt(proof.h2GrossAccruedMinor), decimal=`${amount/100n}.${String(amount%100n).padStart(2,'0')}`;
+      if (proof.h2GrossAccruedMinor<=0) fail('payroll_half_month_zero_residual_requires_review',409);
+      const entryId=randomUUID();
+      const inserted=(await db.query(`INSERT INTO payroll_entries(id,venue_id,user_id,rule_id,period_from,period_to,amount,status,
+        finance_category_id,calculation_run_id,calculation_provenance_sha256,calculation_gross_cents,materialized_by,
+        materialized_by_name,materialized_at,employee_name_snapshot,calculation_scheme_name_snapshot,payroll_half_kind)
+        VALUES($1,$2,$3,NULL,$4::date,$5::date,$6,'draft',$7,$8,$9,$10,$11,$12,transaction_timestamp(),$13,$14,'h2')
+        RETURNING id,user_id,status,calculation_run_id,calculation_provenance_sha256,calculation_gross_cents,period_from::text,period_to::text,
+          employee_name_snapshot,calculation_scheme_name_snapshot,finance_category_id,(amount*100)::bigint::text AS net_cents`,
+      [entryId,actor.venueId,employeeId,proof.periodFrom,proof.periodTo,decimal,financeCategoryId,runId,proof.evidenceSha256,
+        proof.h2GrossAccruedMinor,actor.userId,actor.name,name,monthly.header.scheme.name])).rows[0];
+      if (!inserted||inserted.id!==entryId) fail('payroll_half_month_entry_binding_invalid',409);
+      const receipt={schemaVersion:1,entry:{id:entryId,userId:employeeId,status:'draft',origin:'calculation_run',
+        calculationRunId:runId,provenanceSha256:proof.evidenceSha256,amountCents:proof.h2GrossAccruedMinor,
+        periodFrom:proof.periodFrom,periodTo:proof.periodTo,currency:'RUB',employeeName:name,
+        schemeName:monthly.header.scheme.name,financeCategoryId,
+        allowedActions:['cancel'],transitionBlockedReason:'payroll_run_payout_not_enabled',officialReady:false,payoutEligible:false},
+        replayed:false,existing:false};
+      const receiptPayload=canonicalJson(receipt),receiptSha=createHash('sha256').update(receiptPayload).digest('hex');
+      await db.query(`INSERT INTO payroll_calculation_entry_requests(venue_id,idempotency_key,request_hash,created_by,entry_id,response_payload,response_sha256)
+        VALUES($1,$2,$3,$4,$5,$6,$7)`,[actor.venueId,idempotencyKey,requestHash,actor.userId,entryId,receiptPayload,receiptSha]);
+      const claimId=randomUUID();
+      await db.query(`INSERT INTO payroll_h2_settlement_claims(id,venue_id,employee_id,month_from,monthly_run_id,h1_origin,h1_claim_id,
+        zero_base_payload,zero_base_sha256,h2_run_id,h2_entry_id,evidence_sha256,created_by)
+        VALUES($1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [claimId,actor.venueId,employeeId,from,monthlyId,h1State.zeroBase?'verified_zero_base':'official_claim',h1State.claimId||null,
+        h1State.zeroBase?canonicalJson(h1State.zeroBaseEvidence):null,h1State.zeroBase?h1State.zeroBaseEvidenceSha256:null,
+        runId,entryId,proof.evidenceSha256,actor.userId]);
+      const response={schemaVersion:1,action:'h2_materialize',claimId,runId,entry:{id:entryId},replayed:false};
+      const responsePayload=canonicalJson(response),responseSha=createHash('sha256').update(responsePayload).digest('hex');
+      await db.query(`INSERT INTO payroll_h2_requests(venue_id,idempotency_key,request_hash,created_by,claim_id,response_payload,response_sha256)
+        VALUES($1,$2,$3,$4,$5,$6,$7)`,[actor.venueId,idempotencyKey,requestHash,actor.userId,claimId,responsePayload,responseSha]);
+      const currentEntry={id:entryId,userId:employeeId,status:'draft',origin:'calculation_run',halfKind:'h2',transitionStateRequired:true,allowedActions:[],calculationRunId:runId,
+        monthlyRunId:monthlyId,provenanceSha256:proof.evidenceSha256,grossCents:proof.h2GrossAccruedMinor,
+        amountCents:proof.h2GrossAccruedMinor,currency:'RUB',periodFrom:proof.periodFrom,periodTo:proof.periodTo,
+        h2Reconciliation:{monthlyGrossMinor:proof.monthlyGrossMinor,h1GrossAccruedMinor:proof.h1GrossAccruedMinor,
+          h2GrossAccruedMinor:proof.h2GrossAccruedMinor},employeeName:name,schemeName:monthly.header.scheme.name,
+        financeCategoryId,expenseId:null,paymentDate:null};
+      return {...receipt,currentEntry,runId,monthlyRunId:monthlyId,half:2,h2EntryAvailable:true,
+        officialReady:false,payoutEligible:false,settlementAuthorized:false,persistence:'schema5'};
+    },'payroll_half_month_entry_materialization');
+  };
   const supersessionCallbacks = {
     checkFreshness: lifecycleFreshness,
     buildReplacement: async (db, actor, saved, runId) => {
@@ -1708,7 +1907,7 @@ const makeService = (pool) => {
     getRefundAwareCorrectionContext, previewRefundAwareCorrection, applyRefundAwareCorrection,
     prepareRefundAwareCalculation,
     prepareRefundAwareRunEvidence,
-    createRefundAwareRun, createH1CalculationRun,
+    createRefundAwareRun, createH1CalculationRun, materializeSecondHalfCalculationEntry,
     createRefundReview, decideRefundReview,
     getReviewedCorrectionContext, previewReviewedCorrection, applyReviewedCorrection,
     getCalculationEntryState, transitionCalculationEntry,
@@ -1728,8 +1927,44 @@ const makeService = (pool) => {
           { ...request, h1MonthFrom: from, h1PeriodTo: to }, lifecycleFreshness);
       }, 'payroll_entry_materialization');
     },
-    listCalculationEntries: (principal, runId) => withOwnerRead(pool, principal,
-      (db, actor) => calculationEntryBridge.listCalculationEntries(db, actor, runId)),
+    listCalculationEntries: (principal, runId) => withOwnerRead(pool, principal, async (db, actor) => {
+      const base=await calculationEntryBridge.listCalculationEntries(db,actor,runId);
+      if (!(await db.query("SELECT to_regclass('payroll_h2_settlement_claims') AS claims")).rows[0]?.claims) return base;
+      const claims=(await db.query(`SELECT c.id::text AS claim_id,c.employee_id::text,c.month_from::text,c.monthly_run_id::text,
+          c.h2_run_id::text,c.h2_entry_id::text,c.evidence_sha256,p.evidence_payload,p.evidence_sha256 AS provenance_sha256,
+          e.status,e.calculation_gross_cents::text,e.amount::text,(e.amount*100)::bigint::text AS net_cents,
+          e.period_from::text,e.period_to::text,e.payment_date::text,e.expense_id,e.finance_category_id,
+          e.employee_name_snapshot,e.calculation_scheme_name_snapshot,
+          EXISTS(SELECT 1 FROM payroll_h2_claim_voids v WHERE v.venue_id=c.venue_id AND v.claim_id=c.id) AS voided
+        FROM payroll_h2_settlement_claims c
+        JOIN payroll_run_provenance p ON p.venue_id=c.venue_id AND p.run_id=c.h2_run_id
+        JOIN payroll_entries e ON e.venue_id=c.venue_id AND e.id=c.h2_entry_id
+        JOIN payroll_h2_claim_slots slot ON slot.venue_id=c.venue_id AND slot.claim_id=c.id
+          AND slot.employee_id=c.employee_id AND slot.month_from=c.month_from
+        WHERE c.venue_id=$1 AND c.monthly_run_id=$2 ORDER BY c.employee_id`,[actor.venueId,runId])).rows;
+      if (!claims.length) return base;
+      const monthly=await savedRunReader.loadSavedRunEvidenceInTransaction(db,actor.venueId,runId);
+      const h2=[];
+      for (const row of claims) {
+        const proof=verifyPayrollDeferredMonthEvidence(row.evidence_payload,monthly.evidence);
+        if (!proof.valid||proof.evidenceSha256!==row.evidence_sha256||row.provenance_sha256!==row.evidence_sha256
+            || row.monthly_run_id!==runId||row.h2_run_id!==JSON.parse(row.evidence_payload).h2RunId) fail('payroll_half_month_saved_evidence_invalid',409);
+        const doc=JSON.parse(row.evidence_payload),gross=Number(row.calculation_gross_cents),net=Number(row.net_cents);
+        if (row.employee_id!==doc.employeeId||gross!==doc.h2GrossAccruedMinor||row.period_from!==doc.periodFrom||row.period_to!==doc.periodTo) {
+          fail('payroll_half_month_entry_binding_invalid',409);
+        }
+        h2.push({id:row.h2_entry_id,userId:row.employee_id,status:row.status,origin:'calculation_run',halfKind:'h2',transitionStateRequired:true,allowedActions:[],
+          calculationRunId:row.h2_run_id,monthlyRunId:runId,provenanceSha256:row.provenance_sha256,grossCents:gross,
+          amountCents:net,currency:'RUB',periodFrom:row.period_from,periodTo:row.period_to,
+          h2Reconciliation:{monthlyGrossMinor:doc.monthlyGrossMinor,h1GrossAccruedMinor:doc.h1GrossAccruedMinor,
+            h2GrossAccruedMinor:doc.h2GrossAccruedMinor},employeeName:row.employee_name_snapshot,
+          schemeName:row.calculation_scheme_name_snapshot,financeCategoryId:row.finance_category_id,
+          expenseId:row.expense_id||null,paymentDate:row.payment_date||null,voided:row.voided===true});
+      }
+      const employees=new Set(h2.map(row=>row.userId));
+      if (base.items.some(row=>employees.has(row.userId) && row.status!=='cancelled')) fail('payroll_half_month_entry_binding_invalid',409);
+      return { ...base,items:[...base.items.filter(row=>!employees.has(row.userId)),...h2],monthlyRunId:runId };
+    }),
     listRefundReviews: (principal, query) => withOwnerRead(pool, principal, (db, actor) => refundReviewStore.listRefundReviews(db, actor, query)),
     getRefundReview: (principal, caseId) => withOwnerRead(pool, principal, (db, actor) => refundReviewStore.getRefundReview(db, actor, caseId)),
     listSavedRuns: (principal, query) => withOwnerRead(pool, principal, (db, actor) => savedRunReader.listSavedRuns(db, actor.venueId, query)),

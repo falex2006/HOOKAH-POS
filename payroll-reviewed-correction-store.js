@@ -197,10 +197,16 @@ const cancellationInput = input => {
 };
 async function cancellationPlan(db, actor, targetEntryId) {
   const row = (await db.query(`SELECT id,venue_id,user_id,status,calculation_run_id,calculation_provenance_sha256,
+      to_jsonb(payroll_entries)->>'payroll_half_kind' AS payroll_half_kind,
       calculation_gross_cents::text,period_from::text,period_to::text,(amount*100)::bigint::text AS net_cents
     FROM payroll_entries WHERE venue_id=$1 AND id=$2 AND calculation_run_id IS NOT NULL FOR UPDATE`, [actor.venueId, targetEntryId])).rows[0];
   if (!row) fail('entry_not_found', 404);
-  const totals = (await db.query(`SELECT COALESCE(sum(LEAST(base_pay,final_amount)*100),0)::bigint::text AS fixed,
+  const totals = row.payroll_half_kind === 'h2'
+    ? await require('./payroll-h2-claim-store').readH2CancellationBasis(db,actor,{id:row.id,
+      venueId:row.venue_id,employeeId:row.user_id,runId:row.calculation_run_id,
+      provenanceSha256:row.calculation_provenance_sha256,grossCents:integer(row.calculation_gross_cents),
+      periodFrom:row.period_from,periodTo:row.period_to})
+    : (await db.query(`SELECT COALESCE(sum(LEAST(base_pay,final_amount)*100),0)::bigint::text AS fixed,
       COALESCE(sum(final_amount*100),0)::bigint::text AS gross
     FROM payroll_daily_snapshots WHERE venue_id=$1 AND run_id=$2 AND employee_id=$3`, [actor.venueId, row.calculation_run_id, row.user_id])).rows[0];
   const gross = integer(totals.gross), fixed = integer(totals.fixed);
