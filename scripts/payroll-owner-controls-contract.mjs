@@ -73,7 +73,7 @@ assert.ok(lookupStart > 0 && lookupEnd > lookupStart);
 const employeeControl = { value:'historic', innerHTML:'', _customSelectRefresh() {} };
 const departmentControl = { value:'old-key', innerHTML:'', hasAttribute:()=>true, _customSelectRefresh() {} };
 let captionRefreshes = 0;
-Object.assign(context, { gridSource:definition, gridDirty:true, lookupMessage:{textContent:''},
+Object.assign(context, { gridSource:definition, gridDirty:true, selectedVersion:null, refreshQuickStaff(){}, renderAssignments(){}, lookupMessage:{textContent:''},
   grid:{querySelectorAll(selector){ return selector === '[data-grid-employee]' ? [employeeControl] : [departmentControl]; }},
   refreshInheritedCaptions(){captionRefreshes++;}, request:async()=>{throw new Error('forbidden');}
 });

@@ -41,6 +41,10 @@ function fixture({ authorized = false, rollbackFailure = false, ownerFailure = f
         if (ownerFailure) throw fault;
         return { rows: state.authorized ? [{ id: userId, name: 'Database owner' }] : [] };
       }
+      if (text === "SELECT to_regclass('payroll_calendar_substitutes') IS NOT NULL AS ready") {
+        assert.ok(state.authorized, 'schema readiness is checked after owner authorization');
+        return { rows: [{ ready: true }] };
+      }
       state.business++;
       // Stop at the first real business SQL. Do not emulate configuration storage.
       assert.ok(params.includes(venueId), 'first business operation remains venue scoped');
