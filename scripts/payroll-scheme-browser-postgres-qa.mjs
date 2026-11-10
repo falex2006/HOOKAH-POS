@@ -158,6 +158,8 @@ try {
     data: { ...employmentRequest, idempotencyKey: 'browser-employment-stale-base', reason: 'Confirm a stale edit attempt' } });
   assert.equal(staleEmploymentRevision.status(), 409, 'a new idempotency key cannot silently replace a newer full snapshot');
   await page.goto(`${base}/finance#payroll`, { waitUntil: 'networkidle' });
+  const directorySummary = page.getByText('Сотрудники и подразделения для расчёта', {exact: true});
+  await ensureDisclosureOpen(directorySummary);
   const eligibilityPanel = page.locator('.finance-payroll-eligibility');
   await assert.doesNotReject(() => eligibilityPanel.waitFor({ state: 'visible' }));
   assert.match(await eligibilityPanel.locator('[data-eligibility-current]').innerText(), /Payroll QA employee/);
@@ -185,7 +187,7 @@ try {
   const raceReadback = (await (await page.request.get(`${base}/api/payroll/employment-eligibility`)).json()).current;
   assert.equal(raceReadback.revisionNo, 3, 'refreshing an open stale editor cannot overwrite the competing revision');
   assert.equal(raceReadback.periods[0].effectiveFrom, '2026-11-03');
-  const payrollSettingsSummary = page.getByText('Настройки схем и проверка расчётов', { exact: true });
+  const payrollSettingsSummary = page.locator('.finance-payroll-settings > summary');
   if (!(await payrollSettingsSummary.evaluate((node) => node.parentElement?.open))) await payrollSettingsSummary.click();
   const newSchemeButton = page.locator('[data-scheme-new]');
   if (!(await newSchemeButton.isVisible())) {
@@ -334,7 +336,8 @@ try {
   const comparisonVersion = await comparisonVersionResponse.json();
   await page.waitForFunction(() => document.querySelector('[data-scheme-editor-title]')?.textContent === 'Редактирование черновика');
   await page.reload({ waitUntil: 'networkidle' });
-  await ensureDisclosureOpen(page.getByText('Настройки схем и проверка расчётов', { exact: true }));
+  await ensureDisclosureOpen(directorySummary);
+  await ensureDisclosureOpen(payrollSettingsSummary);
   await page.locator(`[data-scheme-compare-version="${versionId}"]`).check();
   await page.locator(`[data-scheme-compare-version="${comparisonVersion.versionId}"]`).check();
   await page.locator(`[data-scheme-open-version="${versionId}"]`).click();
@@ -367,6 +370,7 @@ try {
   }
   assert.match(await page.locator('[data-source-policy-fieldset]').innerText(), /ещё не подтверждены/);
   await page.locator('[data-scheme-workspace="trial"]').first().click();
+  await ensureDisclosureOpen(page.locator('[data-trial-advanced] > summary'));
   await ensureDisclosureOpen(page.getByText('Данные пробного сценария — JSON', { exact: true }));
   const scenario = { periodFrom: '2026-11-01', periodTo: '2026-11-01', employees: [{ id: employeeId }], attendance: [],
     coverage: { kind: 'month_to_date_complete', from: '2026-11-01', through: '2026-11-01', complete: true, watermark: 'scenario' },
@@ -897,6 +901,7 @@ try {
   }
   scenario.attendance = [{ id: 'forged', employeeId, date: '2026-11-01', approved: true, workedMinutes: 480, plannedMinutes: 480 }];
   await page.locator('[data-scheme-workspace="trial"]').first().click();
+  await ensureDisclosureOpen(page.locator('[data-trial-advanced] > summary'));
   await ensureDisclosureOpen(page.getByText('Данные пробного сценария — JSON', { exact: true }));
   await page.locator('[data-scheme-preview-input]').fill(JSON.stringify(scenario));
   const sourcedResponse = page.waitForResponse((response) => response.url().endsWith(`/api/payroll/versions/${versionId}/preview/approved-attendance`) && response.request().method() === 'POST');
