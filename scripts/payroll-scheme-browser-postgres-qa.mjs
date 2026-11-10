@@ -159,7 +159,8 @@ try {
   assert.equal(staleEmploymentRevision.status(), 409, 'a new idempotency key cannot silently replace a newer full snapshot');
   await page.goto(`${base}/finance#payroll`, { waitUntil: 'networkidle' });
   await page.locator('[data-payroll-screen-target="settings"]').click();
-  const directorySummary = page.getByText('Сотрудники и подразделения для расчёта', {exact: true});
+  await page.locator('[data-scheme-workspace="checks"]').first().click();
+  const directorySummary = page.getByText('Периоды работы сотрудников', {exact: true});
   await ensureDisclosureOpen(directorySummary);
   const eligibilityPanel = page.locator('.finance-payroll-eligibility');
   await assert.doesNotReject(() => eligibilityPanel.waitFor({ state: 'visible' }));
@@ -189,6 +190,7 @@ try {
   assert.equal(raceReadback.revisionNo, 3, 'refreshing an open stale editor cannot overwrite the competing revision');
   assert.equal(raceReadback.periods[0].effectiveFrom, '2026-11-03');
 
+  await page.locator('[data-scheme-workspace="list"]').first().click();
   const newSchemeButton = page.locator('[data-scheme-new]');
   if (!(await newSchemeButton.isVisible())) {
     const visibility = await newSchemeButton.evaluate((node) => {
@@ -336,7 +338,6 @@ try {
   const comparisonVersion = await comparisonVersionResponse.json();
   await page.waitForFunction(() => document.querySelector('[data-scheme-editor-title]')?.textContent === 'Редактирование черновика');
   await page.reload({ waitUntil: 'networkidle' });
-  await ensureDisclosureOpen(directorySummary);
 
   await page.locator(`[data-scheme-compare-version="${versionId}"]`).check();
   await page.locator(`[data-scheme-compare-version="${comparisonVersion.versionId}"]`).check();
@@ -577,6 +578,7 @@ try {
   await page.locator('[data-source-readiness-to]').fill('2026-11-01');
   await page.locator('[data-source-readiness-run]').click();
   await page.locator('[data-source-readiness-official]').waitFor();
+  await ensureDisclosureOpen(page.getByText('Сверка начислений и выплат', {exact:true}));
   await page.locator('[data-entry-diagnostic-from]').fill('2026-10-14');
   await page.locator('[data-entry-diagnostic-to]').fill('2026-10-14');
   await page.locator('[data-entry-diagnostic-run]').click();

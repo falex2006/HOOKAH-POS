@@ -431,11 +431,11 @@
         .finance-payroll-eligibility [data-eligibility-history] li{margin:8px 0;overflow-wrap:anywhere}
         @media(max-width:700px){.finance-payroll-eligibility [data-eligibility-row]{grid-template-columns:minmax(0,1fr)}.finance-payroll-eligibility [data-eligibility-row] .button{width:100%}}
       </style>
-      <div class="panel-head"><div><h3>Сотрудники, которых учитывать в зарплате</h3><span class="muted">История по датам для будущих расчётов. Сохранение не создаёт начисление или выплату.</span></div><div class="toolbar-row"><button type="button" class="button small" data-eligibility-reload>Обновить</button><button type="button" class="button small primary" data-eligibility-edit>Настроить список</button></div></div>
+      <div class="panel-head"><div><h3>Сотрудники, которых учитывать в зарплате</h3><span class="muted">Укажите даты начала и окончания работы. Для действующего сотрудника оставьте дату окончания пустой.</span></div><div class="toolbar-row"><button type="button" class="button small" data-eligibility-reload>Обновить</button><button type="button" class="button small primary" data-eligibility-edit>Настроить список</button></div></div>
       <p class="form-message" data-eligibility-status role="status" aria-live="polite">Загружаем список сотрудников и историю…</p>
       <div data-eligibility-current><div class="empty">Загрузка…</div></div>
       <form class="stack-form" data-eligibility-editor hidden>
-        <p class="muted">Укажите все действующие периоды. Сохранение создаст новую версию; предыдущие версии останутся в истории. Неактивных сотрудников можно выбрать для прошлых дат.</p>
+        <p class="muted">Сохраняется весь список. Чтобы завершить период работы, укажите дату окончания.</p>
         <div data-eligibility-rows></div>
         <button type="button" class="button small" data-eligibility-add>Добавить период</button>
         <label>Причина изменения <span class="required-mark">*</span><textarea data-eligibility-reason rows="2" maxlength="1000" minlength="8" required placeholder="Например: сверили дату приёма и завершения работы"></textarea></label>
@@ -460,7 +460,7 @@
     const periodLabel = period => `${escapeHtml(period.employeeName || 'Сотрудник недоступен в справочнике')} · ${escapeHtml(period.effectiveFrom)} — ${escapeHtml(period.effectiveTo || 'без даты окончания')}`;
     const renderRoster = () => {
       const current = snapshot?.current || null;
-      if (!current) currentView.innerHTML = '<p class="empty">История ещё не настроена. Пока нет подтверждённых периодов, будущий расчёт зарплаты должен оставаться заблокированным.</p>';
+      if (!current) currentView.innerHTML = '<p class="empty">История ещё не настроена. Пока нет подтверждённых периодов, расчёт по схеме оплаты недоступен.</p>';
       else if (!current.periods?.length) currentView.innerHTML = '<p class="warning-message">Сохранена пустая версия: ни один сотрудник не включён в расчёт.</p>';
       else currentView.innerHTML = `<p class="muted">Текущая версия ${Number(current.revisionNo)} · ${current.periods.length} ${current.periods.length === 1 ? 'период' : 'периода'}</p><div>${current.periods.map(period => `<div class="finance-payroll-eligibility__period" data-eligibility-period><span>${periodLabel(period)}</span></div>`).join('')}</div>`;
     };
@@ -513,7 +513,7 @@
       return `<option value="">Выберите сотрудника</option>${[...known.values()].map(row => `<option value="${escapeHtml(row.id)}"${row.id === selected ? ' selected' : ''}>${escapeHtml(row.name)}${row.active ? '' : ' · неактивен'}</option>`).join('')}`;
     };
     const renderRows = () => {
-      rowsView.innerHTML = editRows.map((row, index) => `<div data-eligibility-row data-row-index="${index}"><label>Сотрудник <span class="required-mark">*</span><select data-period-employee required>${optionHtml(row.employeeId)}</select></label><label>Учитывать с <span class="required-mark">*</span><input type="date" data-period-from value="${escapeHtml(row.effectiveFrom)}" required></label><label>По дату<input type="date" data-period-to value="${escapeHtml(row.effectiveTo)}"><small class="muted">Пусто — период продолжается</small></label><button type="button" class="button small" data-period-remove aria-label="Удалить период ${index + 1}">Удалить</button></div>`).join('');
+      rowsView.innerHTML = editRows.map((row, index) => `<div data-eligibility-row data-row-index="${index}"><label>Сотрудник <span class="required-mark">*</span><select data-period-employee required>${optionHtml(row.employeeId)}</select></label><label>Учитывать с <span class="required-mark">*</span><input type="date" data-period-from value="${escapeHtml(row.effectiveFrom)}" required></label><label>По дату<input type="date" data-period-to value="${escapeHtml(row.effectiveTo)}"><small class="muted">Пусто — период продолжается</small></label><button type="button" class="button small" data-period-remove aria-label="Убрать период ${index + 1} из списка">Убрать период</button></div>`).join('');
       emptyConfirmRow.hidden = editRows.length > 0;
     };
     const openEditor = () => {
@@ -604,7 +604,7 @@
         .finance-payroll-departments [data-department-current] li,.finance-payroll-departments [data-department-history] li{margin:8px 0;overflow-wrap:anywhere}
         @media(max-width:800px){.finance-payroll-departments [data-department-row],.finance-payroll-departments [data-department-row][data-retro=true]{grid-template-columns:minmax(0,1fr)}.finance-payroll-departments [data-department-row] .button{width:100%}}
       </style>
-      <div class="panel-head"><div><h3>Подразделения товаров для зарплаты</h3><span class="muted">Отдельная классификация зарплаты. Она не меняет товар, категорию, заказ или финансовую выручку.</span></div><div class="toolbar-row"><button type="button" class="button small" data-department-reload>Обновить</button><button type="button" class="button small primary" data-department-edit>Настроить назначения</button><button type="button" class="button small" data-department-retro>Историческая корректировка</button></div></div>
+      <div class="panel-head"><div><h3>Подразделения товаров для зарплаты</h3><span class="muted">Используется в схемах, где зарплата зависит от продаж по подразделениям.</span></div><div class="toolbar-row"><button type="button" class="button small" data-department-reload>Обновить</button><button type="button" class="button small primary" data-department-edit>Настроить назначения</button><button type="button" class="button small" data-department-retro>Историческая корректировка</button></div></div>
       <p class="form-message" data-department-status role="status" aria-live="polite">Загружаем зарплатную классификацию…</p>
       <p class="warning-message">Обычная версия начнёт действовать с <b data-department-boundary>—</b> по времени площадки. Прошлые интервалы останутся в каждой сохранённой версии.</p>
       <div data-department-current><p class="empty">Загрузка…</p></div>
@@ -3128,13 +3128,22 @@
     });
     mountEmploymentEligibilityPanel(payrollPanel, settings);
     mountProductDepartmentPanel(payrollPanel, settings);
-    const directories = document.createElement('details');
-    directories.className = 'finance-secondary-details';
-    const directoryTitle = document.createElement('summary');
-    directoryTitle.textContent = 'Сотрудники и подразделения для расчёта';
-    directories.append(directoryTitle);
-    settings.append(directories);
-    directories.append(payrollPanel.querySelector('.finance-payroll-eligibility'), payrollPanel.querySelector('.finance-payroll-departments'));
+    const directories = document.createElement('div');
+    directories.className = 'payroll-source-directories';
+    for (const [selector, title, description] of [
+      ['.finance-payroll-eligibility', 'Периоды работы сотрудников', 'Кого учитывать в зарплате и с какой даты.'],
+      ['.finance-payroll-departments', 'Продажи по подразделениям', 'К какому подразделению отнести продажу товара для расчёта зарплаты.']
+    ]) {
+      const group = document.createElement('details');
+      const summary = document.createElement('summary');
+      const heading = document.createElement('strong');
+      heading.textContent = title;
+      const hint = document.createElement('span');
+      hint.textContent = description;
+      summary.append(heading, hint);
+      group.append(summary, payrollPanel.querySelector(selector));
+      directories.append(group);
+    }
 
     const list = panel.querySelector('[data-scheme-list]');
     const message = panel.querySelector('[data-scheme-message]');
@@ -3341,6 +3350,7 @@
     message.before(workspaceNav);
     const workspacePanes={};
     for(const key of Object.keys(workspaceLabels)){const section=document.createElement('section');section.dataset.schemePane=key;section.hidden=key!=='list';workspacePanes[key]=section;panel.append(section);}
+    workspacePanes.checks.prepend(directories);
     workspacePanes.list.append(list);workspacePanes.configuration.append(editor);workspacePanes.trial.append(previewBox);
     screens.calculation.append(workspacePanes.saved);
     workspacePanes.saved.hidden = false;
@@ -3348,9 +3358,10 @@
     const disclosure=(node,title)=>{const details=document.createElement('details');details.className='scheme-group';const summary=document.createElement('summary');summary.textContent=title;node.before(details);details.append(summary,node);return details;};
     const attendancePanel=panel.querySelector('[data-attendance-approval]'),readinessPanel=panel.querySelector('[data-source-readiness]'),entryDiagnosticPanel=panel.querySelector('[data-payroll-entry-diagnostic]');
     workspacePanes.checks.append(attendancePanel,readinessPanel,entryDiagnosticPanel);
-    const attendanceDetails=disclosure(attendancePanel,'Табель: проверить время и утвердить снимок');attendanceDetails.open=true;
+    disclosure(attendancePanel,'Табель: проверить время и утвердить снимок');
+    disclosure(entryDiagnosticPanel,'Сверка начислений и выплат');
     disclosure(readinessPanel,'Источники: проверить сохранённую версию схемы');
-    const checksHint=document.createElement('p');checksHint.className='scheme-guidance';checksHint.textContent='Табель и источники проверяются независимо. Утверждение табеля не означает готовность официального расчёта.';workspacePanes.checks.prepend(checksHint);
+    const checksHint=document.createElement('p');checksHint.className='scheme-guidance';checksHint.textContent='Выберите данные, которые хотите проверить.';workspacePanes.checks.prepend(checksHint);
     const trialHint=document.createElement('p');trialHint.className='scheme-guidance';trialHint.textContent='Введите продажи за одну смену и проверьте, подходит ли сумма сотруднику.';workspacePanes.trial.prepend(trialHint);
     const trialEmpty=document.createElement('p');trialEmpty.className='empty';trialEmpty.textContent='Откройте сохранённую версию в списке схем. Для сравнения отметьте от 2 до 8 версий.';workspacePanes.trial.prepend(trialEmpty);
     const configEmpty=document.createElement('p');configEmpty.className='empty';configEmpty.textContent='Откройте существующую версию или создайте новую схему.';workspacePanes.configuration.prepend(configEmpty);
@@ -3421,7 +3432,7 @@
       const simpleEntry = key === 'configuration' && editorAction?.guided === true;
       workspaceNav.hidden = simpleEntry;
       panel.querySelector(':scope > .panel-head').hidden = simpleEntry;
-      directories.hidden = simpleEntry;
+
       editor.querySelector('[data-scheme-editor-cancel]').textContent = simpleEntry ? 'Назад' : 'Закрыть';
       configEmpty.hidden=Boolean(editorAction);
       const savedVersion=Boolean(selectedVersion&&['edit','inspect'].includes(editorAction?.kind));

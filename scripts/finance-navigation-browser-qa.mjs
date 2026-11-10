@@ -426,6 +426,9 @@ try {
       await settings.locator('[data-scheme-save]').click();const schemeResponse=await schemeSave;assert.equal(schemeResponse.status(),201);
       const savedScheme=await schemeResponse.json();const savedVersion=savedScheme.versions[0].versionId;
       await settings.locator('[data-scheme-pane="checks"]').waitFor({state:'visible'});
+      if (!await settings.locator('[data-attendance-refresh]').isVisible()) {
+        await settings.getByText('Табель: проверить время и утвердить снимок', {exact:true}).click();
+      }
       await settings.locator('[data-attendance-refresh]').click();
       await settings.locator('.scheme-workspace-nav [data-scheme-workspace="trial"]').click();
       await settings.locator('[data-scheme-preview]').waitFor({state:'visible'});

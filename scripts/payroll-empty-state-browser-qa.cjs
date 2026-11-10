@@ -35,7 +35,7 @@ const css = source.match(/<style data-payroll-editor-responsive>([\s\S]*?)<\/sty
     await page.waitForFunction(() => document.querySelector('[data-eligibility-current]').textContent.includes('История ещё не настроена.'));
     assert.equal(await status.textContent(), '');
     assert.equal(((await page.locator('.finance-payroll-eligibility').innerText()).match(/История ещё не настроена\./g) || []).length, 1);
-    assert.match(await current.textContent(), /расчёт зарплаты должен оставаться заблокированным/);
+    assert.match(await current.textContent(), /расчёт зарплаты недоступен/);
     const edit=page.locator('[data-eligibility-edit]');
     const form=page.locator('[data-eligibility-editor]');
     for (const width of [390, 1440]) {
