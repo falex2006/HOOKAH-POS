@@ -40,6 +40,14 @@ function documentFor(monthly, state, context, calculation) {
   const {result, monthlyHash} = calculation;
   const row = result.reconciliation.items[0];
   const days = result.employees[0].earnedDays;
+  if (state.zeroBase === true) {
+    const firstHalf = days.filter(day => day.date < row.period.from);
+    const expected = {schemaVersion:1,venueId,employeeId,month,period:{from:month+'-01',to:month+'-14'},
+      monthlyRunId,monthlySourceSha256:hash(canonical(monthly)),snapshotRowCount:firstHalf.length,
+      grossMinor:0,activeOverlapCount:0};
+    if (firstHalf.some(day => day.grossMinor !== 0) || canonical(state.zeroBaseEvidence) !== canonical(expected)
+        || state.zeroBaseEvidenceSha256 !== hash(canonical(expected))) fail('zero_base_unproven');
+  }
   const floor = rows => rows.reduce((sum,day) => sum + Math.min(day.fixedMinor,day.grossMinor),0);
   const monthlyProtectedFixedMinor = floor(days);
   const h2ProtectedFixedMinor = floor(days.filter(day => day.date >= row.period.from));

@@ -164,6 +164,30 @@ for (const mode of payrollRefundAwareModes) {
   eq(verifyEvidence(document.payload,monthly,{...fixedPaid,status:'cancelled'}).valid,false);
   eq(verifyEvidence(document.payload.replace('"h2GrossAccruedMinor":2000','"h2GrossAccruedMinor":2001'),monthly).valid,false);
   eq(verifyEvidence(document.payload,{...monthly,venueId:ids[1]}).valid,false);
+  const secondEmployee = args.approvedAttendanceSource.attendance[1].employeeId;
+  const zero = {...fixedApproved,employeeId:secondEmployee,status:'zero_base',zeroBase:true,
+    protectedFixedMinor:0,netDueMinor:0,grossAccruedMinor:0,claimId:null,entryId:null,runId:null};
+  const daily = require('../payroll-refund-aware-calculation').buildPayrollRefundAwareCalculation(args).engineResult.daily;
+  const canonical = v => Array.isArray(v) ? '['+v.map(canonical).join(',')+']' : v && typeof v === 'object'
+    ? '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}' : JSON.stringify(v);
+  const digest = v => require('node:crypto').createHash('sha256').update(canonical(v)).digest('hex');
+  zero.zeroBaseEvidence = {schemaVersion:1,venueId:args.venueId,employeeId:secondEmployee,month,period:zero.period,
+    monthlyRunId,monthlySourceSha256:digest(monthly),snapshotRowCount:daily.filter(d=>d.date<=zero.period.to &&
+      d.employees.some(e=>e.employeeId===secondEmployee)).length,grossMinor:0,activeOverlapCount:0};
+  zero.zeroBaseEvidenceSha256 = digest(zero.zeroBaseEvidence);
+  const zeroContext = {...context,employeeId:secondEmployee,h1State:zero};
+  const zeroDoc = buildEvidence(monthly,settle(args,[zero],secondEmployee),zeroContext);
+  const secondEmployeeGross = daily.flatMap(day => day.employees)
+    .filter(row => row.employeeId === secondEmployee).reduce((total, row) => total + row.amountCents, 0);
+  check(secondEmployeeGross > 0);
+  eq(zeroDoc.h1GrossAccruedMinor, 0);
+  eq(zeroDoc.h2GrossAccruedMinor, secondEmployeeGross, 'all wages earned after the 14th remain due');
+  eq(verifyEvidence(zeroDoc.payload,monthly,zero).liveH1Verified,true);
+  const forged = {...zero,zeroBaseEvidence:{...zero.zeroBaseEvidence,snapshotRowCount:999}};
+  forged.zeroBaseEvidenceSha256 = digest(forged.zeroBaseEvidence);
+  assert.throws(()=>buildEvidence(monthly,settle(args,[forged],secondEmployee),{...zeroContext,h1State:forged}),
+    {code:'payroll_h2_evidence_zero_base_unproven'});
+  checks++;
   const early = clone(args);
   early.scheme.roleParameters.bar.bracketRatesBps = {0: 1000, 9000: 2000};
   const earlyResult = settle(early,[advance],employeeId);
