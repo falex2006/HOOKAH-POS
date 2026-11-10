@@ -6758,7 +6758,7 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 #payroll-screen-settings .finance-scheme-versions .toolbar-row { gap:8px; }
 #payroll-screen-settings .finance-scheme-versions > .toolbar-row { margin-top:8px; }
 #payroll-screen-settings :is(.finance-scheme-card,.panel-head) .button { min-height:44px; }
-@media(max-width:900px) {
+@media(max-width:960px) {
   #page-content #payroll [data-saved-run-form] > .form-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
   #payroll [data-saved-run-form] .form-row > label:first-child { grid-column:1/-1; }
   #page-content #payroll-screen-settings .finance-scheme-versions .payment-row { grid-template-columns:minmax(0,1fr) auto; }
