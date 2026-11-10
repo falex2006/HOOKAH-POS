@@ -309,8 +309,7 @@ export async function createRefundAwareComparisonProbe({ pool, target, fixture, 
       const wrongOrigin = await page.request.post(`${base}/api/payroll/compare/sourced`, { headers: { origin: 'https://foreign.invalid' }, data: input });
       assert.equal(wrongOrigin.status(), 403);
       await page.goto(`${base}/finance#payroll`, { waitUntil: 'networkidle' });
-      const settings = page.getByText('Настройки схем и проверка расчётов', { exact: true });
-      if (!(await settings.locator('..').evaluate(node => node.open))) await settings.click();
+      await page.locator('button[data-payroll-screen-target="settings"]').click();
       await page.locator('[data-scheme-workspace="list"]').first().click();
       await page.locator('[data-scheme-compare-version]').first().waitFor();
       for (const versionId of versions.values()) await page.locator(`[data-scheme-compare-version="${versionId}"]`).check();

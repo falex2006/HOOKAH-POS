@@ -78,9 +78,7 @@ export async function verifyUnpaidSupersessionBrowser({ page, base, pool, fixtur
     else {
       if (new URL(page.url()).origin !== origin || new URL(page.url()).pathname !== '/finance')
         await page.goto(`${origin}/finance#payroll`,{waitUntil:'networkidle'});
-      const settings=page.getByText('Настройки схем и проверка расчётов',{exact:true});
-      if(!(await settings.locator('..').evaluate(node=>node.open)))await settings.click();
-      await page.locator('button[data-scheme-workspace="saved"]').click();
+      await page.locator('button[data-payroll-screen-target="calculation"]').click();
     }
     const button=page.locator(`[data-saved-run-open="${targetRunId}"]`);
     for(let n=0;n<20;n++) {

@@ -47,9 +47,7 @@ export async function verifyRefundAwarePublicBrowser({page,pool,base,headers={},
   };
   const openSaved=async()=>{
     await page.goto(`${origin}/finance#payroll`,{waitUntil:'networkidle'});
-    const settings=page.getByText('Настройки схем и проверка расчётов',{exact:true});
-    if(!(await settings.locator('..').evaluate(node=>node.open)))await settings.click();
-    await page.locator('button[data-scheme-workspace="saved"]').click();
+    await page.locator('button[data-payroll-screen-target="calculation"]').click();
     await page.locator(`[data-saved-run-version] option[value="${version.versionId}"]`).waitFor({state:'attached'});
   };
   const openRun=async runId=>{

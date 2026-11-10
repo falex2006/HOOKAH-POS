@@ -8,16 +8,15 @@ const source = fs.readFileSync(path.join(root, 'payroll-scheme-ui.js'), 'utf8');
 const component = source.slice(source.indexOf('  const mountEmploymentEligibilityPanel ='), source.indexOf('  const mountProductDepartmentPanel ='));
 const escape = source.match(/  const escapeHtml = [^\r\n]+/)[0];
 const css = source.match(/<style data-payroll-editor-responsive>([\s\S]*?)<\/style>/)[1];
-const summaryCode = source.slice(source.indexOf("    const settings = document.createElement('details');"), source.indexOf('    mountProductDepartmentPanel(payrollPanel, settings);'));
 
 (async () => {
   const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   try {
     const page = await browser.newPage();
     await page.route('**/*', route => route.abort());
-    await page.setContent('<main id="page-content" class="finance-workspace"><section id="qa-payroll-host"></section></main>');
+    await page.setContent('<main id="page-content" class="finance-workspace finance-payroll-workspace"><section id="payroll"></section></main>');
     await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'style.css'), 'utf8') + '\n' + css });
-    await page.evaluate(({ component, escape, summaryCode }) => {
+    await page.evaluate(({ component, escape }) => {
       window.qaSnapshot = { current: null, history: [] };
       window.qaError = false;
       // Execute actual component source with an in-memory, read-only API substitute.
@@ -25,28 +24,25 @@ const summaryCode = source.slice(source.indexOf("    const settings = document.c
         if (window.qaError) throw new Error('offline');
         return url.endsWith('/employees') ? { items: [] } : window.qaSnapshot;
       };
-      const payrollPanel = document.querySelector('#qa-payroll-host');
-      const panel = document.createElement('section');
-      eval(escape + '\n' + component + '\n' + summaryCode);
-    }, { component, escape, summaryCode });
+      const payrollPanel = document.querySelector('#payroll');
+      const anchor = payrollPanel.appendChild(document.createElement('section'));
+      eval(escape + '\n' + component + '\n' + 'mountEmploymentEligibilityPanel(payrollPanel, anchor);');
+    }, { component, escape });
     const status = page.locator('[data-eligibility-status]');
     const current = page.locator('[data-eligibility-current]');
     await page.waitForFunction(() => document.querySelector('[data-eligibility-current]').textContent.includes('История ещё не настроена.'));
     assert.equal(await status.textContent(), '');
     assert.equal(((await page.locator('.finance-payroll-eligibility').innerText()).match(/История ещё не настроена\./g) || []).length, 1);
     assert.match(await current.textContent(), /расчёт зарплаты должен оставаться заблокированным/);
-    const summary = page.locator('.finance-payroll-settings > summary');
+    const edit=page.locator('[data-eligibility-edit]');
+    const form=page.locator('[data-eligibility-editor]');
     for (const width of [390, 1440]) {
-      await page.setViewportSize({ width, height: 900 });
-      assert.equal(await summary.evaluate(el => getComputedStyle(el, '::after').content), '""');
-      const ax = await summary.ariaSnapshot();
-      assert.ok(ax.includes('Настройки схем и проверка расчётов'), `Unexpected AX: ${ax}`);
-      assert.ok(!ax.includes('⌄'), 'decorative chevron must not enter the accessible name');
-      await summary.focus();
-      await page.keyboard.press('Enter');
-      assert.equal(await summary.evaluate(el => el.parentElement.open), true);
-      await page.keyboard.press('Space');
-      assert.equal(await summary.evaluate(el => el.parentElement.open), false);
+      await page.setViewportSize({width,height:900});
+      assert.match(await edit.ariaSnapshot(), /Настроить список/);
+      await edit.focus(); await page.keyboard.press('Enter');
+      assert.equal(await form.isVisible(),true);
+      await form.locator('[data-eligibility-cancel]').focus(); await page.keyboard.press('Space');
+      assert.equal(await form.isVisible(),false);
     }
     await page.evaluate(() => { window.qaSnapshot = { current: { revisionNo: 2, createdByName: 'Владелец', periods: [] }, history: [] }; });
     await page.locator('[data-eligibility-reload]').click();

@@ -336,16 +336,16 @@ try {
     await page.locator('#expenses-filter-reset').click();assert.equal(await page.locator('#expenses-filter-from').inputValue(),'');
     evidence.assertions.push('supplier, income and expense filter controls issue expected queries; reset clears applied values');
 
-    await chooseSection('payroll');await page.locator('#payroll-create-toggle').click();
+    await chooseSection('payroll');await revealControl(page.locator('#payroll-create-toggle'));await page.locator('#payroll-create-toggle').click();
     await page.locator('#payroll-create-form').waitFor({state:'visible'});
     await page.locator('#payroll-create-from').fill('2026-01-01');
     const payrollSettings=page.locator('.finance-payroll-settings');
     await payrollSettings.waitFor({state:'attached'});
-    assert.equal(await payrollSettings.evaluate(node=>node.open),false);
-    await payrollSettings.locator(':scope > summary').click();
+    assert.equal(await payrollSettings.isVisible(),false);
+    await page.locator('[data-payroll-screen-target="settings"]').click();
     assert.equal(await payrollSettings.locator('[data-scheme-new]').isVisible(),true);
     await captureControl(payrollSettings,'section-payroll-settings');
-    await payrollSettings.locator(':scope > summary').click();
+    await page.locator('[data-payroll-screen-target="register"]').click();
     assert.equal(await page.locator('#payroll-create-from').inputValue(),'2026-01-01','settings toggle preserves payroll creation input');
     await captureControl(page.locator('#payroll-create-form'),'section-payroll-create');
     await page.locator('#payroll-create-cancel').click();
@@ -407,6 +407,7 @@ try {
     evidence.assertions.push('cash account creation persists; failed account loading is recoverable via visible retry');
     if(seededPayrollUser){
       await chooseSection('payroll');
+      await page.locator('[data-payroll-screen-target="settings"]').click();
       const settings=page.locator('.finance-payroll-settings');
       await revealControl(settings.locator('[data-scheme-new]'));
       await settings.locator('[data-scheme-new]').click();
@@ -444,7 +445,8 @@ try {
         await page.setViewportSize({width:1366,height:900});
       }
       evidence.assertions.push('guided scheme configuration retains unsaved input across panes, saves version, advances to checks and runs real preview without payroll entries');
-      await settings.locator(':scope > summary').click();
+      await page.locator('[data-payroll-screen-target="register"]').click();
+      await revealControl(page.locator('#payroll-create-toggle'));
       await page.locator('#payroll-create-toggle').click();
       await page.waitForFunction(id=>[...document.querySelector('#payroll-create-user').options].some(option=>option.value===id),seededPayrollUser);
       await selectOption(page.locator('#payroll-create-user'),seededPayrollUser);

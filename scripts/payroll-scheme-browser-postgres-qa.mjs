@@ -158,6 +158,7 @@ try {
     data: { ...employmentRequest, idempotencyKey: 'browser-employment-stale-base', reason: 'Confirm a stale edit attempt' } });
   assert.equal(staleEmploymentRevision.status(), 409, 'a new idempotency key cannot silently replace a newer full snapshot');
   await page.goto(`${base}/finance#payroll`, { waitUntil: 'networkidle' });
+  await page.locator('[data-payroll-screen-target="settings"]').click();
   const directorySummary = page.getByText('Сотрудники и подразделения для расчёта', {exact: true});
   await ensureDisclosureOpen(directorySummary);
   const eligibilityPanel = page.locator('.finance-payroll-eligibility');
@@ -187,8 +188,7 @@ try {
   const raceReadback = (await (await page.request.get(`${base}/api/payroll/employment-eligibility`)).json()).current;
   assert.equal(raceReadback.revisionNo, 3, 'refreshing an open stale editor cannot overwrite the competing revision');
   assert.equal(raceReadback.periods[0].effectiveFrom, '2026-11-03');
-  const payrollSettingsSummary = page.locator('.finance-payroll-settings > summary');
-  if (!(await payrollSettingsSummary.evaluate((node) => node.parentElement?.open))) await payrollSettingsSummary.click();
+
   const newSchemeButton = page.locator('[data-scheme-new]');
   if (!(await newSchemeButton.isVisible())) {
     const visibility = await newSchemeButton.evaluate((node) => {
@@ -337,7 +337,7 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-scheme-editor-title]')?.textContent === 'Редактирование черновика');
   await page.reload({ waitUntil: 'networkidle' });
   await ensureDisclosureOpen(directorySummary);
-  await ensureDisclosureOpen(payrollSettingsSummary);
+
   await page.locator(`[data-scheme-compare-version="${versionId}"]`).check();
   await page.locator(`[data-scheme-compare-version="${comparisonVersion.versionId}"]`).check();
   await page.locator(`[data-scheme-open-version="${versionId}"]`).click();

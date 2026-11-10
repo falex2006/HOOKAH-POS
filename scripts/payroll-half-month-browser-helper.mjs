@@ -51,9 +51,7 @@ export async function verifyHalfMonthBrowser({page,base,pool,fixture}) {
   };
   const workspace = async () => {
     await page.goto(base+'/finance#payroll',{waitUntil:'networkidle'});
-    const summary=page.getByText('Настройки схем и проверка расчётов',{exact:true});
-    if (!await summary.locator('..').evaluate(node=>node.open)) await summary.click();
-    await page.locator('[data-scheme-workspace="saved"]').click();
+    await page.locator('button[data-payroll-screen-target="calculation"]').click();
     const select=page.locator('[data-saved-run-version]');
     await select.locator('option[value="'+versionId+'"]').waitFor({state:'attached'});
     const wrapper=select.locator('..'), trigger=wrapper.locator('.custom-select-trigger');
@@ -96,11 +94,14 @@ export async function verifyHalfMonthBrowser({page,base,pool,fixture}) {
     const entry=Object.hasOwn(materialized,'currentEntry') ? materialized.currentEntry : materialized.entry;
     assert.equal(entry.halfKind,first ? 'h1' : 'h2');
     assert.equal(entry.amountCents,1000);
-    await page.goto(base+'/finance#payroll',{waitUntil:'networkidle'});
-    await page.locator('#payroll-filter-from').fill(period.from);
-    await page.locator('#payroll-filter-to').fill(period.to);
-    await page.locator('#payroll-reload').click();
+    await page.locator('[data-saved-entry-register="'+entry.id+'"]').click();
     const row=page.locator('[data-payroll-entry="'+entry.id+'"]'), transition='/api/payroll/calculation-entries/'+entry.id+'/transition';
+    await row.waitFor({state:'visible'});
+    await page.waitForFunction(id=>document.querySelector('#payroll-filter-user')?.value===id,ids.employee);
+    const rowDetails=row.locator('details[data-payroll-expand]');
+    if (await rowDetails.count() && !await rowDetails.evaluate(el=>el.open)) {
+      await rowDetails.locator(':scope > summary').click();
+    }
     const checkAction = async action => {
       const stateUrl = base + transition.replace(/transition$/, 'state');
       const [response] = await Promise.all([

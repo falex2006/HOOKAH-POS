@@ -122,9 +122,7 @@ export const verifySavedRunBrowser = async ({ pool, target, ids, period, version
       const readStart = failedReads.length;
       await page.goto(`${base}/finance#payroll`, { waitUntil: 'networkidle' });
       await page.reload({ waitUntil: 'networkidle' });
-      const settings = page.getByText('Настройки схем и проверка расчётов', { exact: true });
-      if (!(await settings.locator('..').evaluate(node => node.open))) await settings.click();
-      await page.locator('button[data-scheme-workspace="saved"]').click();
+      await page.locator('button[data-payroll-screen-target="calculation"]').click();
       try {
         await page.locator(`[data-saved-run-version] option[value="${versionId}"]`).waitFor({ state: 'attached' });
         return;

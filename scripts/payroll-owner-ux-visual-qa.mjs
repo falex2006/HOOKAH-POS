@@ -60,8 +60,15 @@ try {
  await page.locator('#login-form button[type=submit]').click();
  await page.waitForURL(url=>url.pathname!='/login');
  await page.goto(base+'/finance#payroll');
- const summary=page.getByText('Настройки схем и проверка расчётов',{exact:true});
- if(await summary.isVisible() && !(await summary.locator('..').evaluate(n=>n.open))) await summary.click();
+ const panel=page.locator('#payroll');
+ const screen=async key=>{
+  await page.locator('#payroll[data-payroll-screen="'+key+'"]').waitFor();
+  for(const other of ['register','settings','calculation']){
+   const pane=other==='register'?panel.locator('.payroll-register-screen'):panel.locator('[data-payroll-screen-content="'+other+'"]');
+   assert.equal(await pane.isVisible(),key===other,'visible payroll screen '+other);
+  }
+ };
+ await screen('register');
  const start=page.locator('[data-payroll-quick-start]');
  await page.getByRole('button',{name:'Настроить ставку',exact:true}).waitFor({state:'visible'});
  const secondary = page.locator('.payroll-other-actions');
@@ -70,9 +77,25 @@ try {
  await secondary.locator('summary').click();
  await modelAction.click();
  assert.equal(await page.locator('#payroll-create-form').isVisible(),true);
+ await page.locator('#payroll-rule-new').click();
+ await page.locator('#payroll-rule-name').fill('Почасовая модель');
+ await page.locator('#payroll-rule-rate').fill('550');
+ const [legacyRule]=await Promise.all([
+  page.waitForResponse(r=>r.url()===base+'/api/payroll/rules' && r.request().method()==='POST'),
+  page.locator('#payroll-rule-form button[type="submit"]').click()
+ ]);
+ assert.equal(legacyRule.status(),201,await legacyRule.text());
+ await page.locator('#payroll-create-cancel').click();
+ await panel.locator('.payroll-header-actions > #payroll-create-toggle.primary').waitFor();
+ await page.reload({waitUntil:'networkidle'});
+ await panel.locator('.payroll-header-actions > #payroll-create-toggle.primary').waitFor();
+ assert.equal(await start.isVisible(),false);
+ await modelAction.click();
+ assert.equal(await page.locator('#payroll-create-form').isVisible(),true);
  await page.locator('#payroll-create-cancel').click();
  await secondary.locator('summary').click();
  await start.click();
+ await screen('settings');
  await choose('[data-quick-employee]',fixture.ids.employee);
  await choose('[data-quick-method]','combined');
  await page.locator('[data-quick-rate]').fill('10');
@@ -86,6 +109,7 @@ try {
  const [response]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/api/payroll/schemes') && r.request().method()==='POST'),page.locator('[data-scheme-save]').click()]);
  assert.ok(response.ok(),'save '+response.status()+' '+(await response.text()).slice(0,200));
  const saved=await response.json();
+ await screen('settings');
  await choose('[data-trial-employee]',fixture.ids.employee);
  await page.locator('[data-trial-date]').fill(fixture.period.from);
  await page.locator('[data-trial-sales]').fill('100');
@@ -101,12 +125,18 @@ try {
   return JSON.parse(text);
  };
  await page.reload({waitUntil:'networkidle'});
+ await screen('settings');
+ await panel.locator('[data-payroll-screen-target="register"]').click();
+ await screen('register');
  await page.getByRole('button',{name:'Проверить ставку',exact:true}).click();
  await page.locator('[data-trial-date]').fill(fixture.period.from);
  await command('/api/payroll/versions/'+saved.versions[0].versionId+'/preview',page.locator('[data-trial-run]'));
  const version=saved.versions[0].versionId;
  await command('/api/payroll/versions/'+version+'/activate',page.locator('[data-trial-official]'));
+ await screen('calculation');
  await page.waitForFunction(id=>document.querySelector('[data-saved-run-version]')?.value===id && !document.querySelector('[data-saved-run-create]')?.disabled,version);
+ await panel.locator('[data-payroll-screen-target="register"]').click();
+ await screen('register');
  await page.getByRole('button',{name:'Рассчитать зарплату',exact:true}).click();
  await page.locator('[data-saved-run-to]').fill(fixture.period.to);
  assert.equal(await page.locator('[data-saved-run-from]').inputValue(),fixture.period.from);
@@ -119,6 +149,7 @@ try {
  const entry=Object.hasOwn(receipt,'currentEntry')?receipt.currentEntry:receipt.entry;
  assert.equal(entry.amountCents,2000);
  await page.locator('[data-saved-entry-register="'+entry.id+'"]').click();
+ await screen('register');
  const registry=page.locator('article[data-payroll-entry="'+entry.id+'"]');
  await registry.waitFor({state:'visible'});
  await page.waitForFunction(id=>document.querySelector('#payroll-filter-user')?.value===id,fixture.ids.employee);
@@ -128,6 +159,17 @@ try {
 
  assert.equal(await registry.locator('.payroll-register-amounts dt').count(),4);
  for(const action of ['approve','pay']){
+  const actionLabel=action==='approve'?'Проверить начисление':'Перейти к выплате';
+  const writes=[];
+  const recordWrite=request=>{
+   if (['POST','PATCH','PUT','DELETE'].includes(request.method()) && /\/api\/(payroll|finance)\//.test(request.url())) writes.push(request.url());
+  };
+  page.on('request',recordWrite);
+  try {
+   await panel.getByRole('button',{name:actionLabel,exact:true}).click();
+   await page.waitForFunction(id=>document.activeElement?.closest('[data-payroll-entry]')?.dataset.payrollEntry===id,entry.id);
+   assert.deepEqual(writes,[],actionLabel+' must only navigate and focus');
+  } finally { page.off('request',recordWrite); }
   await registry.locator('[data-payroll-linked-check]').click();
   if(action==='pay') await registry.locator('[data-payroll-payment-date]').fill(fixture.period.to);
   const [reply]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/'+entry.id+'/transition') && r.request().method()==='POST'),
@@ -155,6 +197,25 @@ try {
    } finally {await pool.end();}
   }
  }
+ // A second, explicitly authorized scheme exceeds the real seller's daily revenue.
+ const costly=response.request().postDataJSON();
+ costly.name='Превышение личной выручки';
+ for(const params of Object.values(costly.definition.roleParameters)) params.perShiftCents=15000;
+ const draftResponse=await page.request.post(base+'/api/payroll/schemes',{headers:{origin:base},data:costly});
+ assert.equal(draftResponse.status(),201,await draftResponse.text());
+ const highVersion=(await draftResponse.json()).versions[0].versionId;
+ const activate=await page.request.post(base+'/api/payroll/versions/'+highVersion+'/activate',{headers:{origin:base}});
+ assert.equal(activate.status(),200);
+ await page.reload({waitUntil:'networkidle'});
+ await panel.locator('[data-payroll-screen-target="calculation"]').click();
+ await page.locator('[data-saved-run-version] option[value="'+highVersion+'"]').waitFor({state:'attached'});
+ await choose('[data-saved-run-version]',highVersion);
+ await page.locator('[data-saved-run-from]').fill(fixture.period.from);
+ await page.locator('[data-saved-run-to]').fill(fixture.period.to);
+ const [refusal]=await Promise.all([page.waitForResponse(r=>r.url()===base+'/api/payroll/refund-aware-calculation-runs' && r.request().method()==='POST'),page.locator('[data-saved-run-create]').click()]);
+ assert.equal(refusal.status(),422,await refusal.text());
+ assert.ok((await refusal.json()).reasons.includes('employee_daily_pay_exceeds_personal_revenue'));
+ await page.getByText(/За один из дней зарплата/).first().waitFor();
  console.log('PASS: payroll owner 3 stages × 4 sizes: '+output);
 } finally {
  if(browser) await browser.close();

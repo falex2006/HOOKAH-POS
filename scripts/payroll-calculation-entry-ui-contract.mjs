@@ -221,8 +221,8 @@ const renderRegister = (item, { owner = true, state = null, pending = null, busy
   const employees = ['first', 'second'].map(id=>({...entry, id, status:'draft', amount:125}));
   const details = employees.map(({id},index)=>({dataset:{payrollExpand:id},open:index===1}));
   const html = renderRegister(employees[0], {rows:employees, existingDetails:details, expanded:new Set(['first'])});
-  assert.match(html, /data-payroll-entry="first"><details data-payroll-expand="first"\s*>/);
-  assert.match(html, /data-payroll-entry="second"><details data-payroll-expand="second" open>/);
+  assert.match(html, /data-payroll-entry="first"[^>]*><details data-payroll-expand="first"\s*>/);
+  assert.match(html, /data-payroll-entry="second"[^>]*><details data-payroll-expand="second" open>/);
   assert.equal((html.match(/data-payroll-expand=/g)||[]).length,2);
   assert.doesNotMatch(renderRegister(employees[0]), /data-payroll-expand=/, 'one employee remains visible directly');
 }
@@ -252,6 +252,12 @@ assert.match(paidSecondHalf, /Выплата завершена/);
 assert.match(renderRegister({ ...linkedEntry, status: 'paid' }), /Выплачено<\/dt><dd>—.*Остаток<\/dt><dd>—.*Сверьте расход/s);
 assert.match(renderRegister({ ...linkedEntry, payrollPeriod: { kind: 'H1', settlementEntryId: id(5) } }), /уже учтена/);
 assert.match(renderRegister({ ...linkedEntry, payrollPeriod: { kind: 'H2', h1Origin: 'verified_zero_base', monthlyGrossCents: 12500 } }), /начислений за первую часть не было/);
+for (const base of [linkedEntry, {id:'legacy',amount:120}]) {
+  const partial=renderRegister({...base,status:'paid',expenseId:id(4),paidExpenseAmount:'50.00'});
+  assert.match(partial,/Выплачено<\/dt><dd>50.*Остаток<\/dt><dd>70/s);
+  assert.match(partial,/Сверьте расход/);
+  assert.doesNotMatch(partial,/data-payroll-action="pay"/,'a partial historical expense cannot trigger a second payment');
+}
 const blocked = linkedState('approved', { sourceStatus: 'blocked', allowedActions: ['cancel'] });
 const blockedHtml = renderRegister({ ...linkedEntry, status: 'approved' }, { state: blocked });
 assert.match(blockedHtml, /data-payroll-cancel-open/);
