@@ -501,7 +501,10 @@ const makeService = (pool) => {
     catch (error) { fail(error.message === 'payroll_employment_periods_overlap'
       ? error.message : 'invalid_payroll_employment_periods'); }
     const payloadSha256 = eligibilityPayloadSha256(periods, reason, expectedRevisionId);
-    return withOwnerTransaction(pool, principal, async (db, actor) => {
+    return withOwnerTransaction(pool, principal, (db, actor) => persistEligibilityRevision(
+      db, actor, { expectedRevisionId, reason, idempotencyKey, periods, payloadSha256 }), { sourceProducer: true });
+  };
+  const persistEligibilityRevision = async (db, actor, { expectedRevisionId, reason, idempotencyKey, periods, payloadSha256 }) => {
       // Serialize idempotency lookup and revision allocation even before the DB guard executes.
       await db.query('SELECT id FROM venues WHERE id=$1 FOR UPDATE', [actor.venueId]);
       const prior = await db.query(`SELECT id::text,revision_no,supersedes_revision_id::text AS "supersedesRevisionId" FROM payroll_employment_eligibility_revisions
@@ -540,7 +543,7 @@ const makeService = (pool) => {
       const source = await loadLatestEligibilitySourceInTransaction(db, actor.venueId);
       if (source.revision?.id !== revisionId) fail('payroll_employment_revision_conflict', 409);
       return { ...source.revision, periods: source.periods, replayed: false };
-    }, { sourceProducer: true });
+
   };
   const loadProductDepartmentRevision = async (db, venueId, revisionId) => {
     const revision = (await db.query(`SELECT id::text,venue_id::text AS "venueId",revision_no AS "revisionNo",
@@ -1265,6 +1268,69 @@ const makeService = (pool) => {
       {name:rule.name,ruleType:rule.rule_type,rate:rule.rate}]);
     return rule;
   });
+  const calendarSubstituteOptions = (principal, workDate) => withOwnerRead(pool, principal, async (db, actor) => {
+    const day = nullableDate(workDate, 'invalid_effective_from');
+    if (!day) fail('invalid_effective_from');
+    const result = await db.query(`SELECT DISTINCT ON (s.id) s.name,v.id AS "versionId",
+        v.version_no AS "versionNo",v.status,v.effective_from::text AS "effectiveFrom",v.effective_to::text AS "effectiveTo",
+        v.config_json->'roleParameters' AS roles,v.config_json->'payoutRiskAcknowledgement'->>'configDigest' AS digest, v.config_json->'payoutRiskAcknowledgement' ? 'personalCapIncrease' AS "hasCapIncrease"
+      FROM payroll_schemes s JOIN payroll_scheme_versions v ON v.venue_id=s.venue_id AND v.scheme_id=s.id
+      WHERE s.venue_id=$1 AND v.status IN ('draft','active') AND v.effective_from<=$2 AND COALESCE(v.effective_to,'infinity'::date)>=$2 ORDER BY s.id,v.version_no DESC`, [actor.venueId,day]);
+    return { items: result.rows.map(row => ({ ...row, roles: Object.keys(row.roles || {}) })) };
+  });
+
+  const enrollCalendarSubstitute = async (principal, input, checkQuota) => {
+    const name = cleanText(input?.name, 160, 'invalid_employee_name');
+    const day = nullableDate(input?.workDate, 'invalid_effective_from');
+    const role = cleanText(input?.roleKey, 80, 'invalid_role_assignment');
+    if (!day || !UUID.test(String(input?.versionId)) || !UUID.test(String(input?.requestKey))
+        || !/^[a-f0-9]{64}$/.test(input?.digest || '') || input?.confirmRates !== true || typeof checkQuota !== 'function') fail('invalid_substitute_request');
+    const hash = createHash('sha256').update(canonicalJson([name, day, role, input.versionId, input.digest,
+      input.confirmCapIncrease === true])).digest('hex');
+    return withOwnerTransaction(pool, principal, async (db, actor) => {
+      const venue = (await db.query(`SELECT organization_id,(now() AT TIME ZONE timezone)::date::text AS today
+        FROM venues WHERE id=$1 AND is_active`, [actor.venueId])).rows[0];
+      if (!venue?.organization_id) fail('organization_context_required', 409);
+      // Staff creation takes the organization lock before the venue lock for its seat quota.
+      await db.query('SELECT id FROM organizations WHERE id=$1 FOR UPDATE', [venue.organization_id]);
+      await db.query('SELECT id FROM venues WHERE id=$1 FOR UPDATE', [actor.venueId]);
+      const existing = (await db.query(`SELECT employee_id AS id,scheme_version_id AS "versionId",request_hash
+        FROM payroll_calendar_substitutes WHERE venue_id=$1 AND idempotency_key=$2`, [actor.venueId, input.requestKey])).rows[0];
+      if (existing) {
+        if (existing.request_hash !== hash) fail('substitute_request_conflict', 409);
+        return { id: existing.id, versionId: existing.versionId, replayed: true };
+      }
+      if (day < venue.today) fail('substitute_past_date', 409);
+      const version = await loadVersion(db, actor.venueId, input.versionId);
+      await db.query('SELECT id FROM payroll_schemes WHERE venue_id=$1 AND id=$2 FOR UPDATE', [actor.venueId, version.id]);
+      const latest = (await db.query(`SELECT id FROM payroll_scheme_versions WHERE venue_id=$1 AND scheme_id=$2
+        AND status IN ('draft','active') AND effective_from<=$3 AND COALESCE(effective_to,'infinity'::date)>=$3
+        ORDER BY version_no DESC LIMIT 1 FOR UPDATE`, [actor.venueId, version.id,day])).rows[0];
+      if (latest?.id !== version.versionId) fail('substitute_scheme_changed', 409);
+      const current = await loadVersion(db, actor.venueId, version.versionId);
+      if (!current.payoutRiskAcknowledgementCurrent || current.payoutRiskAcknowledgement?.configDigest !== input.digest) fail('substitute_scheme_changed', 409);
+      if (!Object.hasOwn(current.roleParameters, role) || day < current.effectiveFrom || (current.effectiveTo && day > current.effectiveTo)) fail('substitute_role_or_date_invalid', 409);
+      const quota = await checkQuota(db, venue.organization_id, 'seat');
+      if (quota.error) fail(quota.error, quota.status);
+      const userId = randomUUID();
+      await db.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,role,employment_started_at)
+        VALUES($1,$2,$3,$4,$5,'other_staff',$6)`, [userId, actor.venueId, venue.organization_id, name, 'sub_' + userId, day]);
+      await db.query(`INSERT INTO organization_memberships(organization_id,user_id,membership_role,status)
+        VALUES($1,$2,'member','active')`, [venue.organization_id, userId]);
+      const assignment = { employeeId: userId, roleId: role, effectiveFrom: day, effectiveTo: day };
+      const nextNo = (await db.query('SELECT MAX(version_no)::int+1 AS n FROM payroll_scheme_versions WHERE venue_id=$1 AND scheme_id=$2', [actor.venueId, current.id])).rows[0].n;
+      const draft = await insertVersion(db, actor, current.id, nextNo,
+        { ...current, roleAssignments: [...current.roleAssignments, assignment] },
+        { confirmed: true, policyCode: PAYOUT_RISK_ACK_POLICY,
+          personalCapIncrease: { confirmed: input.confirmCapIncrease === true, policyCode: PERSONAL_CAP_ACK_POLICY } });
+      const source = await loadLatestEligibilitySourceInTransaction(db, actor.venueId);
+      if (!source.revision || source.component.status !== 'available') fail('substitute_eligibility_setup_required', 409);
+      await db.query(`INSERT INTO payroll_calendar_substitutes
+        (venue_id,employee_id,enrolled_by,scheme_version_id,role_key,effective_from,idempotency_key,request_hash,source_version_id,draft_digest)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [actor.venueId, userId, actor.userId, draft.versionId, role, day, input.requestKey, hash,current.versionId,draft.payoutRiskAcknowledgement.configDigest]);
+      return { id: userId, versionId: draft.versionId, replayed: false };
+    }, { sourceProducer: true });
+  };
 
   const createScheme = async (principal, input = {}) => withOwnerTransaction(pool, principal, async (db, actor) => {
     const name = cleanText(input.name, 120, 'invalid_scheme_name');
@@ -1305,7 +1371,7 @@ const makeService = (pool) => {
     return scheme;
   });
 
-  const activateVersion = async (principal, versionId) => withOwnerTransaction(pool, principal, async (db, actor) => {
+  const activateInTransaction = async (db, actor, versionId) => {
     await db.query('SELECT id FROM payroll_scheme_versions WHERE venue_id=$1 AND id=$2 FOR UPDATE', [actor.venueId, versionId]);
     const current = await loadVersion(db, actor.venueId, versionId);
     if (current.status !== 'draft') fail('payroll_scheme_version_not_draft', 409);
@@ -1337,7 +1403,72 @@ const makeService = (pool) => {
     const scheme = await loadVersion(db, actor.venueId, versionId);
     await recordRevision(db, actor, scheme, 'activated');
     return scheme;
+  };
+  const activateVersion = (principal, versionId) => withOwnerTransaction(pool, principal, async (db, actor) => {
+    if ((await db.query("SELECT to_regclass('payroll_calendar_substitutes') IS NOT NULL AS ready")).rows[0].ready &&
+      (await db.query('SELECT 1 FROM payroll_calendar_substitutes WHERE venue_id=$1 AND scheme_version_id=$2',[actor.venueId,versionId])).rowCount)
+      fail('substitute_calendar_confirmation_required', 409);
+    return activateInTransaction(db, actor, versionId);
   });
+
+  const calendarPendingAssignments = async (db, venueId, versionId) => (await db.query(`WITH RECURSIVE chain AS (
+      SELECT employee_id,role_key,effective_from,source_version_id FROM payroll_calendar_substitutes WHERE venue_id=$1 AND scheme_version_id=$2
+      UNION SELECT s.employee_id,s.role_key,s.effective_from,s.source_version_id FROM payroll_calendar_substitutes s
+        JOIN chain c ON s.scheme_version_id=c.source_version_id WHERE s.venue_id=$1
+        AND NOT EXISTS(SELECT 1 FROM payroll_calendar_substitute_applications a WHERE a.venue_id=$1 AND a.draft_id=c.source_version_id))
+      SELECT c.employee_id AS id,u.full_name AS name,c.role_key,c.effective_from::text AS day FROM chain c
+      JOIN users u ON u.venue_id=$1 AND u.id=c.employee_id ORDER BY c.effective_from,u.full_name,c.employee_id`,[venueId,versionId])).rows;
+
+  const previewCalendarSubstitute = (principal, versionId) => withOwnerRead(pool, principal, async (db, actor) => {
+    if (!UUID.test(String(versionId))) fail('invalid_substitute_request');
+    return { items: await calendarPendingAssignments(db,actor.venueId,versionId) };
+  });
+
+  const applyCalendarSubstitute = (principal, versionId) => withOwnerTransaction(pool, principal, async (db, actor) => {
+    if (!UUID.test(String(versionId))) fail('invalid_substitute_request');
+    await db.query('SELECT id FROM venues WHERE id=$1 FOR UPDATE', [actor.venueId]);
+    const draft = await loadVersion(db, actor.venueId, versionId);
+    await db.query('SELECT id FROM payroll_schemes WHERE venue_id=$1 AND id=$2 FOR UPDATE', [actor.venueId,draft.id]);
+    const replay = await db.query('SELECT 1 FROM payroll_calendar_substitute_applications WHERE venue_id=$1 AND draft_id=$2',[actor.venueId,versionId]);
+    if (replay.rowCount) return { versionId, replayed:true };
+    const receipt = (await db.query('SELECT draft_digest,effective_from::text AS day FROM payroll_calendar_substitutes WHERE venue_id=$1 AND scheme_version_id=$2',
+      [actor.venueId,versionId])).rows[0];
+    const versions = await db.query(`SELECT id,status FROM payroll_scheme_versions WHERE venue_id=$1 AND scheme_id=$2
+      AND status IN ('active','draft') AND effective_from<=$3 AND COALESCE(effective_to,'infinity'::date)>=$3
+      ORDER BY version_no DESC FOR UPDATE`,[actor.venueId,draft.id,receipt?.day || null]);
+    const current = await loadVersion(db, actor.venueId, versionId);
+    if (!receipt || versions.rows[0]?.id !== versionId || current.status !== 'draft'
+        || !current.payoutRiskAcknowledgementCurrent || receipt.draft_digest !== current.payoutRiskAcknowledgement.configDigest) fail('substitute_scheme_changed',409);
+    const overlap = (await db.query(`SELECT id FROM payroll_scheme_versions WHERE venue_id=$1 AND scheme_id=$2 AND status='active'
+      AND effective_from<=COALESCE($4,'infinity'::date) AND COALESCE(effective_to,'infinity'::date)>=$3`,[actor.venueId,draft.id,current.effectiveFrom,current.effectiveTo])).rows;
+    if (overlap.length>1) fail('substitute_scheme_changed',409);
+    const prior = overlap[0] ? await loadVersion(db,actor.venueId,overlap[0].id) : null;
+    const additions = await calendarPendingAssignments(db,actor.venueId,versionId);
+    if (!additions.length) fail('substitute_scheme_changed',409);
+    if (prior) {
+      const priorIds = new Set(prior.roleAssignments.map(row=>row.employeeId));
+      const unchanged = current.roleAssignments.filter(row=>priorIds.has(row.employeeId) || !additions.some(extra=>
+        extra.id===row.employeeId && extra.role_key===row.roleId && extra.day===row.effectiveFrom && extra.day===row.effectiveTo));
+      if (payoutConfigurationDigest({...current,roleAssignments:unchanged}) !== payoutConfigurationDigest(prior)) fail('substitute_requires_salary_review',409);
+    }
+    const source = await loadLatestEligibilitySourceInTransaction(db, actor.venueId);
+    if (!source.revision || source.component.status !== 'available') fail('substitute_eligibility_setup_required', 409);
+    const previousPeriods = source.periods.map(({employeeId,effectiveFrom,effectiveTo}) => ({employeeId,effectiveFrom,effectiveTo}));
+    const additionalPeriods = additions.filter(row => !previousPeriods.some(p => p.employeeId === row.id && p.effectiveFrom <= row.day && (!p.effectiveTo || p.effectiveTo >= row.day)))
+      .map(row => ({employeeId:row.id,effectiveFrom:row.day,effectiveTo:row.day}));
+    if (additionalPeriods.length) {
+      const periods = normalizeEligibilityPeriods([...previousPeriods,...additionalPeriods]);
+      const reason = 'Применение ставок подменных сотрудников из графика';
+      await persistEligibilityRevision(db,actor,{periods,reason,expectedRevisionId:source.revision.id,
+        idempotencyKey:'calendar-' + versionId,payloadSha256:eligibilityPayloadSha256(periods,reason,source.revision.id)});
+    }
+    await db.query('INSERT INTO payroll_calendar_substitute_applications(venue_id,draft_id,prior_version_id,actor_id) VALUES($1,$2,$3,$4)',
+      [actor.venueId,versionId,prior?.versionId || null,actor.userId]);
+    if (prior) await db.query(`UPDATE payroll_scheme_versions SET status='retired',status_changed_at=now(),status_changed_by=$3,status_changed_by_name=$4
+      WHERE venue_id=$1 AND id=$2 AND status='active'`,[actor.venueId,prior.versionId,actor.userId,actor.name]);
+    await activateInTransaction(db,actor,versionId);
+    return { versionId, replayed:false };
+  }, { sourceProducer:true });
 
   const createRefundReview = async (principal, runId, input) => {
     runId = reviewRequest(runId, input);
@@ -1511,7 +1642,7 @@ const makeService = (pool) => {
     return withReviewedCorrection(principal, (db, actor) =>
       require('./payroll-refund-aware-correction-store').applyRefundAwareCorrection(db, actor, request, lifecycleFreshness));
   };
-  return { createRegisterRule, listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion,
+  return { createRegisterRule, calendarSubstituteOptions, enrollCalendarSubstitute, previewCalendarSubstitute, applyCalendarSubstitute, listSchemes, getVersion, listVersionRevisions, createScheme, createVersion, replaceDraftVersion, activateVersion,
     previewUnpaidRunSupersession, commitUnpaidRunSupersession,
     getRefundAwareCorrectionContext, previewRefundAwareCorrection, applyRefundAwareCorrection,
     prepareRefundAwareCalculation,

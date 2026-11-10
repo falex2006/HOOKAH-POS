@@ -1448,7 +1448,7 @@ async function api(req, res) {
     }
   }
   const requestVenueId = req.user?.venueId || currentVenueId;
-  if (await handleScheduleAccessRoute({ req, res, url, pool: repositories?.pool, readBody: body, json })) return;
+  if (await handleScheduleAccessRoute({ req, res, url, pool: repositories?.pool, readBody: body, json, payrollSchemeService, checkOrganizationQuota })) return;
   if (await handleAttendanceRoute({ req, res, url, pool: repositories?.pool, readBody: body, json })) return;
   const financeJson = (...args) => { json(...args); return true; };
   if (await handleFinanceExpenseDraftRoute({ req, res, url, pool: repositories?.pool, venueId: venueDbId, json: financeJson, readBody: body, hasPermission: (permission) => hasPermission(req, permission), isOperationalEmployee: (request) => isOperationalEmployee(request), recordAudit, isValidIsoDate, validateDocument: validatePurchasePaymentDocument })) return;

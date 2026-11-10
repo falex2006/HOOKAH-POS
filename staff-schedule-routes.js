@@ -15,7 +15,7 @@ const { MAX_OUTPUT_BYTES } = require('./staff-avatar-image');
 const MAX_AVATAR_DATA_URL_CHARS = 110_000;
 const MAX_EMPLOYEE_AVATAR_PAYLOAD_CHARS = 1024 * 1024;
 const { sameOriginMutation } = require('./payroll-scheme-routes');
-async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json }) {
+async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json, payrollSchemeService, checkOrganizationQuota }) {
   const base = '/api/staff/schedule';
   if (url.pathname !== base && !url.pathname.startsWith(`${base}/`)) return false;
   const reply = (status, value) => { json(res, status, value); return true; };
@@ -47,6 +47,24 @@ async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json }
     if (grantRoute) return reply(405, { error: 'method_not_allowed' });
     if (!access.view || (req.method !== 'GET' && !access.manage)) return reply(403, { error: 'schedule_forbidden' });
     if (req.method !== 'GET' && !sameOriginMutation(req)) return reply(403, { error: 'schedule_origin_forbidden' });
+    if ([`${base}/substitutes`, `${base}/substitutes/apply`].includes(url.pathname)) {
+      if (access.role !== 'owner') return reply(403, { error: 'schedule_forbidden' });
+      try {
+        if (url.pathname.endsWith('/apply')) {
+          if (req.method === 'GET') return reply(200, await payrollSchemeService.previewCalendarSubstitute(principal,url.searchParams.get('versionId')));
+          if (req.method !== 'POST') return reply(405, { error: 'method_not_allowed' });
+          const request = await readBody(req);
+          if (request?.confirmed !== true) return reply(400, { error: 'substitute_confirmation_required' });
+          return reply(200, await payrollSchemeService.applyCalendarSubstitute(principal, request.versionId));
+        }
+        if (req.method === 'GET') return reply(200, await payrollSchemeService.calendarSubstituteOptions(principal, url.searchParams.get('workDate')));
+        if (req.method === 'POST') return reply(201, await payrollSchemeService.enrollCalendarSubstitute(principal, await readBody(req), checkOrganizationQuota));
+        return reply(405, { error: 'method_not_allowed' });
+      } catch (error) {
+        if (error.name === 'PayrollSchemeServiceError') return reply(error.status, { error: error.code });
+        throw error;
+      }
+    }
     const employeeDefaultsRoute = url.pathname.match(/^\/api\/staff\/schedule\/employees\/([0-9a-f-]{36})\/defaults$/i);
     if (employeeDefaultsRoute) {
       if (req.method === 'GET') return reply(200, await defaults.listEmployeeDefaults(pool, principal, employeeDefaultsRoute[1]));
@@ -151,9 +169,13 @@ async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json }
     if (url.pathname === `${base}/copy/apply` && req.method === 'POST') return reply(200, await copy.apply(pool, principal, await readBody(req)));
     if (url.pathname === `${base}/employees` && req.method === 'GET') {
       const result = await pool.query(`SELECT u.id,u.full_name AS name,u.role,(u.is_active AND u.deleted_at IS NULL) AS active,
+        (sub.employee_id IS NOT NULL) AS substitute,
+        CASE WHEN $2 AND pv.status='draft' THEN pv.id END AS "substituteDraftId",
         u.avatar_url AS "avatarUrl" FROM users u
+        LEFT JOIN payroll_calendar_substitutes sub ON sub.venue_id=u.venue_id AND sub.employee_id=u.id
+        LEFT JOIN payroll_scheme_versions pv ON pv.venue_id=sub.venue_id AND pv.id=sub.scheme_version_id
         WHERE u.venue_id=$1 AND (u.deleted_at IS NULL OR EXISTS(SELECT 1 FROM staff_schedules s WHERE s.user_id=u.id AND s.venue_id=u.venue_id)
-        OR EXISTS(SELECT 1 FROM staff_work_logs w WHERE w.user_id=u.id AND w.venue_id=u.venue_id)) ORDER BY u.full_name,u.id`, [principal.venueId]);
+        OR EXISTS(SELECT 1 FROM staff_work_logs w WHERE w.user_id=u.id AND w.venue_id=u.venue_id)) ORDER BY u.full_name,u.id`, [principal.venueId,access.role === 'owner']);
       let avatarPayloadChars = 0;
       const items = result.rows.map(employee => {
         const match = typeof employee.avatarUrl === 'string' && employee.avatarUrl.length <= MAX_AVATAR_DATA_URL_CHARS &&
@@ -167,7 +189,7 @@ async function handleScheduleAccessRoute({ req, res, url, pool, readBody, json }
             avatarPayloadChars += employee.avatarUrl.length;
           }
         }
-        return { id: employee.id, name: employee.name, role: employee.role, active: employee.active, avatarUrl };
+        return { id: employee.id, name: employee.name, role: employee.role, active: employee.active, substitute: employee.substitute, ...(access.role === 'owner' ? { substituteDraftId: employee.substituteDraftId } : {}), avatarUrl };
       });
       return reply(200, { items });
     }

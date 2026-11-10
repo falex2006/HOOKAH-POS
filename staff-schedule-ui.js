@@ -1,5 +1,13 @@
 /* Standalone route renderer; no dashboard requests or global layout changes. */
 (() => {
+  const scheduleUuid = () => {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
+  };
   const labels = { shift: 'Смена', day_off: 'Выходной', vacation: 'Отпуск', sick: 'Больничный', other_absence: 'Отсутствие' };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const addDays = (date, n) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
@@ -87,7 +95,7 @@
       if (!helpButton.isConnected || !access.view) return;
       target.querySelector('[data-help-load-error]')?.remove();
       const node = document.createElement('dialog'); node.className = 'schedule-dialog schedule-help-dialog ui-components'; node.dataset.scheduleHelp = '';
-      const titleId = `schedule-help-${crypto.randomUUID()}`; node.setAttribute('aria-labelledby', titleId);
+      const titleId = `schedule-help-${scheduleUuid()}`; node.setAttribute('aria-labelledby', titleId);
       node.innerHTML = `<h2 id="${titleId}">Справка по графику</h2><div class="schedule-help-content">
         <p class="schedule-help-intro">Выберите задачу или найдите её по словам. Названия кнопок ниже соответствуют интерфейсу; доступность действий зависит от ваших прав. Все часы относятся к часовому поясу заведения.</p>
         <div class="schedule-help-tools"><label>Найти тему<input type="search" data-help-search aria-label="Найти в справке" placeholder="Например: 2/2, больничный, шаблон"></label><button type="button" class="button" data-help-clear hidden>Показать все темы</button></div>
@@ -426,7 +434,7 @@ ${guide.html}
       node.innerHTML = `<form><h2>${esc(title)}</h2>${content}<p data-error role="alert"></p><div class="schedule-actions"><button type="button" class="button" data-close>Закрыть</button><button type="submit" class="button primary" data-submit>Сохранить</button></div></form>`;
       target.append(node); const previous = document.activeElement; let busy = false, dirty = false, guarded = false;
       let disabledBeforePending = new Map();
-      node.setAttribute('aria-labelledby', `schedule-dialog-${crypto.randomUUID()}`); node.querySelector('h2').id=node.getAttribute('aria-labelledby');
+      node.setAttribute('aria-labelledby', `schedule-dialog-${scheduleUuid()}`); node.querySelector('h2').id=node.getAttribute('aria-labelledby');
       const actions = node.querySelector('.schedule-actions');
       const discardPanel = document.createElement('section');
       discardPanel.className = 'schedule-discard-confirm'; discardPanel.hidden = true;
@@ -476,13 +484,101 @@ ${guide.html}
         error(text) { node.querySelector('[data-error]').textContent = text; }
       };
     }
+    async function addCalendarSubstitute(parent, employeeSelect, workDate) {
+      const chooser = dialog('Подменный сотрудник', `<label>Имя сотрудника<input name="name" maxlength="160" required autocomplete="off"></label>
+        <p>Разовый выход на ${esc(workDate)}. Ставку можно применить после сохранения карточки. До подтверждения действует предыдущая версия схемы.</p>
+        <label>Схема и ставка<select name="rate" required></select></label>
+        <label class="schedule-check"><input type="checkbox" name="confirmRates" required>Подтверждаю ставки и ограничения выплаты этой схемы</label>
+        <label class="schedule-check" data-cap hidden><input type="checkbox" name="confirmCapIncrease">Подтверждаю повышенные персональные лимиты этой схемы</label>`);
+      const form = chooser.node.querySelector('form'), fields = form.elements;
+      form.onsubmit = event => event.preventDefault();
+      const submit = form.querySelector('[data-submit]');
+      submit.textContent = 'Добавить сотрудника'; submit.disabled = true;
+      let options;
+      try { options = (await api('/substitutes?workDate=' + encodeURIComponent(workDate))).items; }
+      catch (error) { chooser.error(error.message); return; }
+      if (!chooser.node.isConnected) return;
+      const choices = options.filter(item => item.effectiveFrom <= workDate && (!item.effectiveTo || item.effectiveTo >= workDate))
+        .flatMap(item => item.roles.map(role => ({ ...item, role })));
+      if (!choices.length) { chooser.error('На эту дату нет настроенных ставок. Создайте схему в разделе «Зарплата».'); return; }
+      choices.forEach((choice, index) => fields.rate.add(new Option(`${choice.name} · ${roleNames[choice.role] || choice.role} · версия ${choice.versionNo}`, String(index))));
+      const cap = form.querySelector('[data-cap]');
+      fields.rate.onchange = () => {
+        cap.hidden = !choices[Number(fields.rate.value)].hasCapIncrease;
+        fields.confirmCapIncrease.required = !cap.hidden;
+        fields.confirmCapIncrease.checked = false;
+      };
+      fields.rate.onchange(); submit.disabled = false; chooser.guard();
+      const requestKey = scheduleUuid();
+      form.onsubmit = async event => {
+        event.preventDefault();
+        if (submit.disabled) return;
+        const choice = choices[Number(fields.rate.value)];
+        const payload = { requestKey, name: fields.name.value.trim(), workDate, roleKey: choice.role,
+          versionId: choice.versionId, digest: choice.digest, confirmRates: fields.confirmRates.checked, confirmCapIncrease: fields.confirmCapIncrease.checked };
+        chooser.pending(true);
+        try {
+          const saved = await api('/substitutes', 'POST', payload);
+          const worker = { id: saved.id, name: payload.name, role: 'other_staff', active: true, substitute: true, substituteDraftId: saved.versionId };
+          if (!employees.some(item => item.id === saved.id)) employees.push(worker);
+          employeeSelect.add(new Option(`${worker.name} · Подменный`, worker.id, true, true));
+          employeeSelect._customSelectRefresh?.();
+          employeeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          chooser.node.close();
+          parent.error('Сотрудник выбран. Подтвердите ставку и сохраните смену.');
+        } catch (error) {
+          chooser.error(({ seat_limit_reached: 'Достигнут лимит сотрудников тарифа.', substitute_past_date: 'Выберите сегодняшнюю или будущую дату.',
+            substitute_scheme_changed: 'Схема изменилась. Закройте окно и выберите ставку заново.',
+            substitute_eligibility_setup_required: 'Сначала настройте периоды работы сотрудников в разделе «Зарплата».' })[error.code] || error.message);
+        } finally { if (chooser.node.isConnected) chooser.pending(false); }
+      };
+    }
     function editor(entry, person = '', day = date) {
       if (!ready) return;
       const readonly = !access.manage || entry?.status === 'cancelled';
-      const d = dialog(entry ? 'Запись графика' : 'Назначить смену', `<label>Сотрудник<select name="userId" required><option value="">Выберите сотрудника</option>${employees.filter(p => p.active || p.id === entry?.userId).map(p => `<option value="${esc(p.id)}" ${p.id === (entry?.userId || person) ? 'selected' : ''}>${esc(p.name)} · ${esc(roleNames[p.role]||'Сотрудник')}</option>`).join('')}</select></label><label>Тип<select name="kind">${Object.entries(labels).map(([key, value]) => `<option value="${key}" ${key === entry?.kind ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label>Дата<input name="workDate" type="date" required value="${esc(entry?.workDate || day)}"></label><fieldset data-times><legend>Время заведения · ${esc(access.timezone)}</legend><label>Начало<input name="start" type="datetime-local" value="${esc(entry?.plannedStart ? local(entry.plannedStart, access.timezone) : day + 'T10:00')}"></label><label>Окончание<input name="end" type="datetime-local" value="${esc(entry?.plannedEnd ? local(entry.plannedEnd, access.timezone) : day + 'T18:00')}"></label><label>Неоплачиваемый перерыв, минут<input name="breakMinutes" type="number" min="0" step="1" value="${entry?.breakMinutes || 0}"></label><label>Ранний выход, минут<input name="preparationMinutes" type="number" min="0" max="240" step="1" placeholder="Правило заведения" value="${entry?.preparationMinutes == null ? '' : esc(entry.preparationMinutes)}"><small>Пусто — правило заведения; 0 — без раннего выхода.</small></label></fieldset><label>Заметка<textarea name="note" maxlength="500">${esc(entry?.note)}</textarea></label><label>Причина изменения / отмены<textarea name="reason" maxlength="500"></textarea></label><p class="muted">Изменения прошлого периода требуют причины. Утверждённая зарплата автоматически не изменяется.</p>${entry && !readonly ? '<button type="button" class="button" data-cancel>Отменить смену / отсутствие</button>' : ''}`);
-      const form = d.node.querySelector('form'); let requestKey = crypto.randomUUID();
+      const d = dialog(entry ? 'Запись графика' : 'Назначить смену', `<label>Сотрудник<select name="userId" required><option value="">Выберите сотрудника</option>${employees.filter(p => p.active || p.id === entry?.userId).map(p => `<option value="${esc(p.id)}" ${p.id === (entry?.userId || person) ? 'selected' : ''}>${esc(p.name)} · ${esc(p.substitute ? 'Подменный' : roleNames[p.role]||'Сотрудник')}</option>`).join('')}</select></label><label>Тип<select name="kind">${Object.entries(labels).map(([key, value]) => `<option value="${key}" ${key === entry?.kind ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label>Дата<input name="workDate" type="date" required value="${esc(entry?.workDate || day)}"></label><fieldset data-times><legend>Время заведения · ${esc(access.timezone)}</legend><label>Начало<input name="start" type="datetime-local" value="${esc(entry?.plannedStart ? local(entry.plannedStart, access.timezone) : day + 'T10:00')}"></label><label>Окончание<input name="end" type="datetime-local" value="${esc(entry?.plannedEnd ? local(entry.plannedEnd, access.timezone) : day + 'T18:00')}"></label><label>Неоплачиваемый перерыв, минут<input name="breakMinutes" type="number" min="0" step="1" value="${entry?.breakMinutes || 0}"></label><label>Ранний выход, минут<input name="preparationMinutes" type="number" min="0" max="240" step="1" placeholder="Правило заведения" value="${entry?.preparationMinutes == null ? '' : esc(entry.preparationMinutes)}"><small>Пусто — правило заведения; 0 — без раннего выхода.</small></label></fieldset><label>Заметка<textarea name="note" maxlength="500">${esc(entry?.note)}</textarea></label><label>Причина изменения / отмены<textarea name="reason" maxlength="500"></textarea></label><p class="muted">Изменения прошлого периода требуют причины. Утверждённая зарплата автоматически не изменяется.</p>${entry && !readonly ? '<button type="button" class="button" data-cancel>Отменить смену / отсутствие</button>' : ''}`);
+      const form = d.node.querySelector('form'); let requestKey = scheduleUuid();
       const basics = document.createElement('div'); basics.className = 'schedule-editor-basics';
       form.elements.userId.closest('label').after(basics);
+      if (!readonly && access.role === 'owner') {
+        const addSubstitute = document.createElement('button');
+        addSubstitute.type = 'button'; addSubstitute.className = 'button';
+        addSubstitute.textContent = 'Добавить подменного сотрудника';
+        addSubstitute.onclick = () => addCalendarSubstitute(d, form.elements.userId, form.elements.workDate.value);
+        form.elements.userId.closest('label').after(addSubstitute);
+        const applyRate = document.createElement('button');
+        applyRate.type='button'; applyRate.className='button';
+        applyRate.textContent='Подтвердить ставку подменного сотрудника';
+        addSubstitute.after(applyRate);
+        const updateRateButton = () => {
+          applyRate.hidden=!employees.find(person=>person.id===form.elements.userId.value)?.substituteDraftId;
+        };
+        updateRateButton(); form.elements.userId.addEventListener('change',updateRateButton);
+        applyRate.onclick = async () => {
+          const worker=employees.find(person=>person.id===form.elements.userId.value);
+          if (!worker?.substituteDraftId) return;
+          applyRate.disabled=true;
+          let terms;
+          try { terms=(await api('/substitutes/apply?versionId='+encodeURIComponent(worker.substituteDraftId))).items; }
+          catch (error) { d.error(error.message); return; }
+          finally { applyRate.disabled=false; }
+          if (!form.isConnected || worker.id!==form.elements.userId.value) return;
+          const confirmation=dialog('Применить ставку',`<p>Активировать ставки на указанные смены?</p><ul>${terms.map(row=>
+            `<li>${esc(row.name)} · ${esc(roleNames[row.role_key] || row.role_key)} · ${esc(row.day)}</li>`).join('')}</ul>`);
+          const confirmForm=confirmation.node.querySelector('form');
+          confirmForm.querySelector('[data-submit]').textContent='Применить ставку';
+          confirmForm.onsubmit=async event=>{
+            event.preventDefault(); confirmation.pending(true);
+            try {
+              await api('/substitutes/apply','POST',{confirmed:true,versionId:worker.substituteDraftId});
+              worker.substituteDraftId=null; updateRateButton(); confirmation.node.close(); d.error('Ставка применена. Сохраните смену.');
+            } catch (error) {
+              confirmation.error(({substitute_scheme_changed:'Схема изменилась. Откройте актуальный черновик в разделе «Зарплата».',
+                substitute_requires_salary_review:'В черновике изменены и другие условия. Проверьте их в разделе «Зарплата».'})[error.code] || error.message);
+            } finally { if (confirmation.node.isConnected) confirmation.pending(false); }
+          };
+        };
+      }
       basics.append(form.elements.workDate.closest('label'), form.elements.kind.closest('label'));
       form.querySelector('[data-submit]').textContent = entry ? 'Сохранить изменения' : 'Добавить в график';
       const saveHint=document.createElement('p');saveHint.className='schedule-save-hint muted';saveHint.textContent=readonly?(entry?.status==='cancelled'?'Запись отменена. Доступен просмотр и история; редактирование запрещено.':'Режим просмотра. Для изменения нужно право управления графиком.'):entry?'Изменение сразу появится в действующем графике.':'Запись сразу появится в действующем графике.';form.querySelector('.schedule-actions').before(saveHint);
@@ -534,7 +630,7 @@ ${guide.html}
         if(Object.prototype.hasOwnProperty.call(slot,'preparationMinutes'))form.elements.preparationMinutes.value=slot.preparationMinutes==null?'':String(slot.preparationMinutes);
         const functionId=slot.functionId||member?.functionId||'';
         if(functionId&&[...form.elements.functionId.options].some(option=>option.value===functionId))form.elements.functionId.value=functionId;
-        manualTimeChanged=false;requestKey=crypto.randomUUID();return true;
+        manualTimeChanged=false;requestKey=scheduleUuid();return true;
       };
       async function loadSuggestion(){
         const userId=form.elements.userId.value,current=++suggestionGeneration;
@@ -589,7 +685,7 @@ ${guide.html}
           conflictPanel.innerHTML = `<h3>Запись изменена другим пользователем</h3><p>Было (версия ${esc(entry.version)}): ${esc(summary(entry))}</p><p>Сейчас (версия ${esc(latest.version)}): ${esc(summary(latest))}</p><p>Ваш черновик сохранён в полях выше. Сравните изменения перед повторным сохранением.</p>`;
           if (latest.status !== 'cancelled') {
             const accept = document.createElement('button'); accept.type='button'; accept.className='button'; accept.textContent='Применить мой черновик к новой версии';
-            accept.onclick=()=>{ entry=latest; conflictPending=false; requestKey=crypto.randomUUID(); conflictPanel.textContent='Актуальная версия принята. Черновик не изменён. Нажмите «Сохранить», чтобы применить его.'; d.error('Проверьте поля перед сохранением.'); };
+            accept.onclick=()=>{ entry=latest; conflictPending=false; requestKey=scheduleUuid(); conflictPanel.textContent='Актуальная версия принята. Черновик не изменён. Нажмите «Сохранить», чтобы применить его.'; d.error('Проверьте поля перед сохранением.'); };
             conflictPanel.append(accept);
           } else conflictPanel.append(document.createTextNode('Запись отменена. Повторное сохранение запрещено; черновик доступен для копирования.'));
         } catch (error) {
@@ -615,7 +711,7 @@ ${guide.html}
           } catch (error) { historyPanel.textContent = error.message; } finally { historyButton.disabled = false; }
         };
       }
-      form.addEventListener('input', () => { requestKey = crypto.randomUUID(); });
+      form.addEventListener('input', () => { requestKey = scheduleUuid(); });
       const kind = form.elements.kind;
       const sync = () => { d.node.querySelector('[data-times]').hidden = kind.value !== 'shift'; breakFields.hidden = kind.value !== 'shift'; };
       kind.onchange = sync; sync();
@@ -669,8 +765,8 @@ ${guide.html}
       reasonLabel.textContent = 'Причина копирования (обязательна для смен и прошлых дат)';
       const reasonInput = document.createElement('textarea'); reasonInput.name = 'reason'; reasonInput.maxLength = 500;
       reasonLabel.append(reasonInput); area.after(reasonLabel);
-      let preview = null, requestKey = crypto.randomUUID(), query = null,confirmWarnings=false;
-      const resetConfirmation = () => { if (confirmWarnings) d.error('Параметры копирования изменены. Проверьте их и отправьте заново.'); confirmWarnings = false; apply.textContent = 'Копировать выбранные'; requestKey = crypto.randomUUID(); };
+      let preview = null, requestKey = scheduleUuid(), query = null,confirmWarnings=false;
+      const resetConfirmation = () => { if (confirmWarnings) d.error('Параметры копирования изменены. Проверьте их и отправьте заново.'); confirmWarnings = false; apply.textContent = 'Копировать выбранные'; requestKey = scheduleUuid(); };
       reasonInput.addEventListener('input', resetConfirmation);
       const invalidate = () => { resetConfirmation(); preview = null; apply.disabled = true; area.textContent = 'Параметры изменены. Обновите предварительный просмотр.'; };
       form.querySelectorAll('[name=sourceFrom],[name=targetFrom],[name=person]').forEach(el => el.addEventListener('change', invalidate));
@@ -680,7 +776,7 @@ ${guide.html}
           userIds: [...form.querySelectorAll('[name=person]:checked')].map(el => el.value) };
         d.pending(true); d.error('Проверка…'); preview = null;
         try {
-          preview = await api('/copy/preview', 'POST', query); requestKey = crypto.randomUUID();
+          preview = await api('/copy/preview', 'POST', query); requestKey = scheduleUuid();
           area.innerHTML = preview.items.map(item => `<label class="schedule-check"><input type="checkbox" data-source="${esc(item.sourceId)}" ${item.conflict ? 'disabled' : 'checked'}><span><b>${esc(item.employeeName)} · ${esc(dayName(item.workDate))}</b><small>${item.kind === 'shift' && item.plannedStart ? `${esc(local(item.plannedStart,access.timezone).replace('T',' '))} — ${esc(local(item.plannedEnd,access.timezone).replace('T',' '))}` : esc(labels[item.kind])}</small>${item.conflict ? `<small>Не будет скопировано: ${esc(messages[item.conflict] || item.conflict)}</small>` : ''}</span></label>`).join('') || '<p>В исходной неделе нет записей для выбранных сотрудников.</p>';
           area.querySelectorAll('input').forEach(el => el.onchange = () => { resetConfirmation(); apply.disabled = !area.querySelector('input:checked'); });
           d.error(preview.items.some(item => item.workDate < preview.today)
@@ -776,7 +872,7 @@ ${guide.html}
         finally{loading=false;if(current(generation))list.removeAttribute('aria-busy');}
       }
       form.elements.scope.onchange=sync;d.node.querySelector('[data-demand-new]').onclick=reset;
-      form.onsubmit=async event=>{event.preventDefault();if(!loaded||!functions.length||!alive()||!d.node.isConnected||!d.node.open)return;const data=new FormData(form),ruleId=data.get('ruleId'),scope=data.get('scope'),body={functionId:data.get('functionId'),scope,weekday:scope==='weekly'?Number(data.get('weekday')):null,effectiveFrom:scope==='date_range'?data.get('effectiveFrom'):null,effectiveTo:scope==='date_range'?data.get('effectiveTo'):null,startTime:data.get('startTime'),endTime:data.get('endTime'),endDayOffset:Number(data.get('endDayOffset')),requiredCount:Number(data.get('requiredCount')),active:form.elements.active.checked,requestKey:crypto.randomUUID(),version:Number(data.get('version'))};d.pending(true);try{await api(`/demand-rules${ruleId?`/${ruleId}`:''}`,ruleId?'PATCH':'POST',body);rules=(await api('/demand-rules')).items;draw();reset();d.error('Правило сохранено и перечитано. Предпросмотр черновика обновится.');}catch(error){d.error(error.message);}finally{d.pending(false);}};
+      form.onsubmit=async event=>{event.preventDefault();if(!loaded||!functions.length||!alive()||!d.node.isConnected||!d.node.open)return;const data=new FormData(form),ruleId=data.get('ruleId'),scope=data.get('scope'),body={functionId:data.get('functionId'),scope,weekday:scope==='weekly'?Number(data.get('weekday')):null,effectiveFrom:scope==='date_range'?data.get('effectiveFrom'):null,effectiveTo:scope==='date_range'?data.get('effectiveTo'):null,startTime:data.get('startTime'),endTime:data.get('endTime'),endDayOffset:Number(data.get('endDayOffset')),requiredCount:Number(data.get('requiredCount')),active:form.elements.active.checked,requestKey:scheduleUuid(),version:Number(data.get('version'))};d.pending(true);try{await api(`/demand-rules${ruleId?`/${ruleId}`:''}`,ruleId?'PATCH':'POST',body);rules=(await api('/demand-rules')).items;draw();reset();d.error('Правило сохранено и перечитано. Предпросмотр черновика обновится.');}catch(error){d.error(error.message);}finally{d.pending(false);}};
       await loadDemand();
     }
     q('[data-refresh]').onclick = () => initialize();

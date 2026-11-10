@@ -34,6 +34,15 @@ async function check(name, run) {
   await run(); checks++; console.log(`PASS ${name}`);
 }
 async function main() {
+  await check('calendar dialogs generate valid v4 request IDs on HTTP without crypto.randomUUID', () => {
+    const source = between(ui, '  const scheduleUuid =', '  const labels =');
+    const webcrypto = require('node:crypto').webcrypto;
+    const id = vm.runInNewContext(source + ';scheduleUuid', {crypto:{getRandomValues: data => webcrypto.getRandomValues(data)}});
+    const ids = Array.from({length:16}, () => id());
+    assert.equal(new Set(ids).size, ids.length);
+    for (const value of ids) assert.match(value,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+    assert.equal(ui.slice(ui.indexOf('  const labels =')).includes('crypto.randomUUID('), false);
+  });
   await check('semantic disabled and enabled submit restored; custom selects refreshed', () => {
     const submit = control(), readonly = control(true), d = model([submit, readonly]);
     d.pending(true);

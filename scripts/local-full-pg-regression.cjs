@@ -13,6 +13,7 @@ const suites = new Set([
   'payroll-zero-settlement-correction-postgres-qa.mjs',
   'payroll-reviewed-correction-ledger-postgres-qa.mjs',
   'payroll-calculation-entry-lifecycle-postgres-qa.mjs',
+  'payroll-calendar-substitute-postgres-qa.mjs',
   'payroll-calculation-entry-bridge-postgres-qa.mjs',
   'payroll-verified-run-postgres-qa.mjs',
   'payroll-run-provenance-postgres-qa.mjs',
@@ -316,7 +317,7 @@ async function runSuite(value) {
     }
     if (['acceptance-48-inventory-department-boundaries-postgres-qa.mjs', 'acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs'].includes(name)) env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
     if (['paid-order-balance-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs', 'finance-shift-analytics-postgres-qa.mjs', 'finance-employee-postgres-qa.mjs', 'guest-loyalty-postgres-api-qa.mjs', 'session-preferences-postgres-qa.mjs', 'scoped-role-dependencies-postgres-qa.mjs', 'staff-identity-postgres-qa.mjs', 'staff-login-race-postgres-qa.mjs', 'pos-order-refunds-postgres-qa.mjs', 'pos-role-payment-postgres-browser-qa.mjs', 'floor-management-postgres-browser-qa.mjs', 'orders-attention-postgres-browser-qa.mjs', 'acceptance-48-inventory-department-boundaries-postgres-qa.mjs', 'acceptance-48-inventory-subdepartment-restore-postgres-qa.mjs'].includes(name)) env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE || 'orders_qa_' + crypto.randomBytes(8).toString('hex'));
-    if (['payroll-zero-settlement-correction-postgres-qa.mjs', 'payroll-calculation-entry-lifecycle-postgres-qa.mjs', 'payroll-reviewed-correction-ledger-postgres-qa.mjs', 'payroll-calculation-entry-bridge-postgres-qa.mjs', 'payroll-verified-run-postgres-qa.mjs', 'payroll-run-provenance-postgres-qa.mjs', 'pos-payroll-recognition-postgres-qa.mjs', 'payroll-snapshot-persistence-postgres-qa.mjs', 'payroll-recognition-manifest-postgres-qa.mjs', 'payroll-source-readiness-postgres-contract.mjs'].includes(name)) {
+    if (['payroll-calendar-substitute-postgres-qa.mjs', 'payroll-zero-settlement-correction-postgres-qa.mjs', 'payroll-calculation-entry-lifecycle-postgres-qa.mjs', 'payroll-reviewed-correction-ledger-postgres-qa.mjs', 'payroll-calculation-entry-bridge-postgres-qa.mjs', 'payroll-verified-run-postgres-qa.mjs', 'payroll-run-provenance-postgres-qa.mjs', 'pos-payroll-recognition-postgres-qa.mjs', 'payroll-snapshot-persistence-postgres-qa.mjs', 'payroll-recognition-manifest-postgres-qa.mjs', 'payroll-source-readiness-postgres-contract.mjs'].includes(name)) {
       env.LOCAL_FULL_PG_OWNED_DATABASE = 'orders_qa_' + crypto.randomBytes(8).toString('hex');
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase(env.LOCAL_FULL_PG_OWNED_DATABASE);
     }
