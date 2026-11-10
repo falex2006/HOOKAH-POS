@@ -19,8 +19,10 @@ const css = source.match(/<style data-payroll-editor-responsive>([\s\S]*?)<\/sty
     await page.evaluate(({ component, escape }) => {
       window.qaSnapshot = { current: null, history: [] };
       window.qaError = false;
+      window.qaWrites = [];
       // Execute actual component source with an in-memory, read-only API substitute.
-      const request = async url => {
+      const request = async (url, options) => {
+        if (options?.method === 'POST') window.qaWrites.push(JSON.parse(options.body));
         if (window.qaError) throw new Error('offline');
         return url.endsWith('/employees') ? { items: [] } : window.qaSnapshot;
       };
@@ -48,10 +50,22 @@ const css = source.match(/<style data-payroll-editor-responsive>([\s\S]*?)<\/sty
     await page.locator('[data-eligibility-reload]').click();
     await page.waitForFunction(() => document.querySelector('[data-eligibility-status]').textContent.includes('версия 2'));
     assert.match(await current.textContent(), /Сохранена пустая версия/);
+    await edit.click();
+    const reason=page.locator('[data-eligibility-reason]');
+    await reason.fill('Уточнён состав сотрудников');
+    await page.locator('[data-eligibility-empty-confirm]').check();
     await page.evaluate(() => { window.qaError = true; });
     await page.locator('[data-eligibility-reload]').click();
     await page.waitForFunction(() => document.querySelector('[data-eligibility-status]').textContent.includes('Не удалось'));
     assert.match(await current.textContent(), /Сохранение временно недоступно/);
+    const save=page.locator('[data-eligibility-save]');
+    assert.equal(await save.isDisabled(),true);
+    await form.evaluate(el=>el.requestSubmit());
+    assert.deepEqual(await page.evaluate(()=>window.qaWrites),[]);
+    await page.evaluate(()=>{window.qaError=false;});
+    await page.locator('[data-eligibility-reload]').click();
+    await page.waitForFunction(()=>!document.querySelector('[data-eligibility-save]').disabled);
+    assert.equal(await reason.inputValue(),'Уточнён состав сотрудников');
     console.log('PAYROLL EMPTY STATE BROWSER QA: PASS (isolated empty/version/error, AX, keyboard, 390/1440px)');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

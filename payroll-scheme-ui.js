@@ -454,6 +454,8 @@
     const editorMessage = section.querySelector('[data-eligibility-editor-message]');
     const emptyConfirmRow = section.querySelector('[data-eligibility-empty-confirm-row]');
     let roster = null, snapshot = null, editRows = [], editingRevisionId = null, pendingRequestKey = '', pendingIdempotencyKey = '', saving = false;
+    const save = section.querySelector('[data-eligibility-save]');
+    let historyReady = false, refreshNumber = 0;
     const setMessage = (node, message, error = false) => { node.textContent = message; node.className = `form-message${error ? ' error-message' : ''}`; };
     const periodLabel = period => `${escapeHtml(period.employeeName || 'Сотрудник недоступен в справочнике')} · ${escapeHtml(period.effectiveFrom)} — ${escapeHtml(period.effectiveTo || 'без даты окончания')}`;
     const renderRoster = () => {
@@ -476,11 +478,15 @@
       invalid_payroll_employment_reason: 'Укажите причину изменения (не менее 8 символов).'
     })[error?.message] || 'Не удалось загрузить или сохранить историю. Проверьте соединение и попробуйте ещё раз.';
     const refresh = async () => {
+      const requestNumber = ++refreshNumber;
+      historyReady = false;
+      save.disabled = true;
       status.textContent = 'Загружаем список сотрудников и историю…';
       try {
         const [nextRoster, nextSnapshot] = await Promise.all([
           request('/api/payroll/employment-eligibility/employees'), request('/api/payroll/employment-eligibility')
         ]);
+        if (requestNumber !== refreshNumber) return;
         if (!Array.isArray(nextRoster.items) || !Array.isArray(nextSnapshot.history)) throw new Error('payroll_employment_eligibility_unavailable');
         roster = nextRoster.items.filter(row => row && typeof row.id === 'string' && typeof row.name === 'string')
           .map(row => ({ id: row.id, name: row.name, active: row.active === true }));
@@ -488,7 +494,10 @@
         setMessage(status, nextSnapshot.current ? `Последнее изменение: версия ${Number(nextSnapshot.current.revisionNo)} · ${nextSnapshot.current.createdByName || 'владелец'}`
           : '');
         renderRoster(); renderHistory();
+        historyReady = true;
+        save.disabled = saving;
       } catch (error) {
+        if (requestNumber !== refreshNumber) return;
         status.textContent = showError(error);
         currentView.innerHTML = '<p class="empty">Не удалось подтвердить актуальную историю. Сохранение временно недоступно.</p>';
         historyView.innerHTML = '<li class="muted">История не загружена.</li>';
@@ -508,7 +517,7 @@
       emptyConfirmRow.hidden = editRows.length > 0;
     };
     const openEditor = () => {
-      if (!Array.isArray(roster) || !snapshot) { setMessage(editorMessage, 'Сначала загрузите актуальный список сотрудников и историю.', true); editor.hidden = false; return; }
+      if (!historyReady || !Array.isArray(roster) || !snapshot) { setMessage(editorMessage, 'Сначала загрузите актуальный список сотрудников и историю.', true); editor.hidden = false; return; }
       editingRevisionId = snapshot.current?.id || null;
       editRows = (snapshot.current?.periods || []).map(row => ({ employeeId: row.employeeId, effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo || '' }));
       if (!editRows.length && roster.length) editRows = [{ employeeId: '', effectiveFrom: '', effectiveTo: '' }];
@@ -536,7 +545,7 @@
     });
     editor.addEventListener('submit', async event => {
       event.preventDefault();
-      if (saving || !editor.reportValidity()) return;
+      if (saving || !historyReady || !editor.reportValidity()) return;
       const periods = [...rowsView.querySelectorAll('[data-eligibility-row]')].map(row => ({
         employeeId: row.querySelector('[data-period-employee]').value,
         effectiveFrom: row.querySelector('[data-period-from]').value,
@@ -556,7 +565,7 @@
         pendingIdempotencyKey = `payroll-eligibility:${newKey}`;
       }
       const payload = { ...base, idempotencyKey: pendingIdempotencyKey };
-      saving = true; const save = section.querySelector('[data-eligibility-save]'); save.disabled = true;
+      saving = true; save.disabled = true;
       setMessage(editorMessage, 'Сохраняем новую версию…');
       let committedRevision = null;
       try {
@@ -576,7 +585,7 @@
           ? `Версия ${Number(committedRevision.revisionNo)} сохранена, но не удалось повторно загрузить историю. Нажмите «Обновить».`
           : showError(error), true);
       }
-      finally { saving = false; save.disabled = false; }
+      finally { saving = false; save.disabled = !historyReady; }
     });
     refresh().catch(() => {});
     return section;
