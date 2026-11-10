@@ -74,6 +74,7 @@ const makeEditorHarness = (decide = async () => false) => {
     rawGridFields: () => [], rawGridOverrides: () => [], sourcePolicyControls: () => ({}),
     editorAction: { kind: 'edit', versionId: 'original' }, editorBaseline: null,
     selectedVersion: { versionId: 'original' }, editor: { hidden: false },
+    toggleQuick() {}, refreshTrial() {}, trialDate:field(''), venueLocalToday:()=> '2026-10-10',
     previewBox: { hidden: true }, previewInput: field('{}'), previewResult: { hidden: true },
     payoutRiskAcknowledgementLabel: { hidden: false },
     panel: { querySelector(selector) {
