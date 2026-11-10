@@ -338,7 +338,10 @@ const payrollSchemeRequiresAttendance = (scheme, input) => {
   return hasBonuses && hasEnablement && workedDayEligibility;
 };
 
-const calculatePayrollScheme = (input) => {
+const calculatePayrollScheme = input => calculatePeriod(input, false);
+const calculatePayrollH1FixedShifts = input => calculatePeriod(input, true);
+
+const calculatePeriod = (input, firstHalf) => {
   const blockers = [];
   const criticalErrors = [];
   const scheme = input?.scheme;
@@ -348,6 +351,11 @@ const calculatePayrollScheme = (input) => {
   const monthStart = isDate(input?.periodFrom) ? monthStartOf(input.periodFrom) : '';
   const monthEnd = isDate(input?.periodFrom) ? monthEndOf(input.periodFrom) : '';
   const coverage = input?.coverage;
+  if (firstHalf && (!monthStart || input?.periodFrom !== monthStart
+      || input?.periodTo !== monthStart.slice(0, 8) + '14'
+      || coverage?.kind !== 'month_to_date_complete' || input?.monthClosed === true)) {
+    blockers.push('payroll_h1_period_required');
+  }
   const attendanceRequired = payrollSchemeRequiresAttendance(scheme, input);
   if (!coverage || !['month_to_date_complete', 'month_closed_complete'].includes(coverage.kind) || coverage.from !== monthStart || !isDate(coverage.through) || coverage.complete !== true || typeof coverage.watermark !== 'string' || !coverage.watermark.trim()) blockers.push('sales_coverage_manifest_required');
   if (coverage && isDate(coverage.through) && coverage.through < input?.periodTo) blockers.push('sales_coverage_does_not_cover_period');
@@ -358,7 +366,7 @@ const calculatePayrollScheme = (input) => {
       || attendanceCoverage.from !== monthStart || !isDate(attendanceCoverage.through)
       || attendanceCoverage.through < input?.periodTo || attendanceCoverage.complete !== true
       || typeof attendanceCoverage.watermark !== 'string' || !attendanceCoverage.watermark.trim())) blockers.push('attendance_coverage_manifest_required');
-  if (scheme?.mode === 'final_month_threshold' && (coverage?.kind !== 'month_closed_complete' || input?.monthClosed !== true)) blockers.push('closed_month_required');
+  if (!firstHalf && scheme?.mode === 'final_month_threshold' && (coverage?.kind !== 'month_closed_complete' || input?.monthClosed !== true)) blockers.push('closed_month_required');
   const venueTurnoverByDate = new Map();
   if (hasVenueDailyTurnover) {
     let invalidVenueTurnoverManifest = !Array.isArray(input.venueDailyTurnover)
@@ -505,7 +513,7 @@ const calculatePayrollScheme = (input) => {
       }
     }
   }
-  if (effectiveModes.has('final_month_threshold')) {
+  if (!firstHalf && effectiveModes.has('final_month_threshold')) {
     if (coverage?.kind !== 'month_closed_complete' || input?.monthClosed !== true) blockers.push('closed_month_required');
     if (input?.periodFrom !== monthStart || input?.periodTo !== monthEnd) blockers.push('full_month_period_required');
   }
@@ -620,12 +628,15 @@ const calculatePayrollScheme = (input) => {
       if (!hasPersonalRevenueSource) employeeDay.personalRevenueCents += BigInt(line.turnoverCents);
       addToMap(employeeDay.departmentSalesCents, line.department, BigInt(line.commissionBaseCents));
       addToMap(employeeDay.departmentTurnoverCents, line.department, BigInt(line.turnoverCents));
+      // First-half settlement keeps the fixed shift amount for month-end terms.
+      // Product commissions and milestone bonuses for these terms settle with the month.
+      const deferCommission = firstHalf && effectiveMode === 'final_month_threshold';
       const rateBps = effectiveMode === 'progressive_daily'
         ? selectedBracketRate(params, monthTurnoverOnDay)
         : effectiveMode === 'final_month_threshold'
-          ? selectedBracketRate(params, finalMonthTurnover)
+          ? (deferCommission ? 0 : selectedBracketRate(params, finalMonthTurnover))
           : (params.stableRateBps || 0);
-      const itemRule = itemRuleFor(scheme.itemRules || [], line, line.employeeId, roleId);
+      const itemRule = deferCommission ? null : itemRuleFor(scheme.itemRules || [], line, line.employeeId, roleId);
       if (effectiveMode === 'margin_target') {
         const marginCents = line.commissionBaseCents - line.costSnapshot.costCents;
         const ordinary = itemRule ? rateAmountCents(line.commissionBaseCents, itemRule.rateBps) : 0n;
@@ -788,6 +799,7 @@ const calculatePayrollScheme = (input) => {
       if (!roleId) continue;
       const params = resolveRoleParameters(scheme, employeeId, roleId, date);
       const employeeMode = params?.mode || scheme.mode;
+      if (firstHalf && employeeMode === 'final_month_threshold') continue;
       const applyMilestones = params?.applyMilestones ?? scheme.applyMilestones ?? employeeMode === 'progressive_daily';
       if (!applyMilestones && !explainMilestoneEligibility) continue;
       for (const [thresholdText, bonusCents] of Object.entries(params?.milestoneBonusesCents || {})) {
@@ -899,5 +911,5 @@ const calculatePayrollScheme = (input) => {
   };
 };
 
-module.exports = { isDepartmentKey, MODES: [...MODES], CALCULATOR_INPUT_CAPABILITIES, calculatePayrollScheme, validateScheme,
+module.exports = { isDepartmentKey, MODES: [...MODES], CALCULATOR_INPUT_CAPABILITIES, calculatePayrollScheme, calculatePayrollH1FixedShifts, validateScheme,
   validatePersonalThresholdAssignments, validatePersonalScalarAssignments, resolveRoleParameters, resolveRoleAt, employeeActiveOn };
