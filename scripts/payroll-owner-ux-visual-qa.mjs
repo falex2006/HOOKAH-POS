@@ -96,11 +96,13 @@ try {
  const receipt=await command('/api/payroll/calculation-runs/'+run.runId+'/entries',page.locator('[data-saved-entry-create="'+fixture.ids.employee+'"]:not([data-saved-entry-half])'));
  const entry=Object.hasOwn(receipt,'currentEntry')?receipt.currentEntry:receipt.entry;
  assert.equal(entry.amountCents,2000);
- await page.goto(base+'/finance#payroll',{waitUntil:'networkidle'});
- await page.locator('#payroll-filter-from').fill(fixture.period.from);
- await page.locator('#payroll-filter-to').fill(fixture.period.to);
- await page.locator('#payroll-reload').click();
+ await page.locator('[data-saved-entry-register="'+entry.id+'"]').click();
  const registry=page.locator('article[data-payroll-entry="'+entry.id+'"]');
+ await registry.waitFor({state:'visible'});
+ await page.waitForFunction(id=>document.querySelector('#payroll-filter-user')?.value===id,fixture.ids.employee);
+ assert.equal(await page.locator('#payroll-filter-from').inputValue(),entry.periodFrom);
+ assert.equal(await page.locator('#payroll-filter-to').inputValue(),entry.periodTo);
+ assert.equal(await page.locator('.finance-view-navigation').isVisible(),false);
  await capture('03-register',registry);
  assert.equal(await registry.locator('.payroll-register-amounts dt').count(),4);
  for(const action of ['approve','pay']){
