@@ -37,7 +37,12 @@ try {
    await anchor.waitFor({state:'visible'});
    for(const [width,height] of widths){
     await page.setViewportSize({width,height});
-    await anchor.evaluate(el=>el.scrollIntoView({block:'start',behavior:'instant'}));
+    await anchor.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+    if(width===1920) {
+     const frame=await anchor.boundingBox();
+     assert.ok(frame && frame.y>=0 && frame.y+frame.height<=height,
+      stage+' Full HD capture must contain the complete subject: '+JSON.stringify(frame));
+    }
     await page.screenshot({path:output+'/'+stage+'-'+width+'.png',animations:'disabled'});
     const geometry=await page.evaluate(()=>({outer:document.documentElement.scrollWidth,viewport:innerWidth}));
     assert.ok(geometry.outer<=width+1,stage+' document overflow '+JSON.stringify(geometry));
@@ -77,7 +82,7 @@ try {
  await page.locator('[data-quick-sources]').check();
  const ack=page.locator('[data-scheme-risk-acknowledged]');
  if(await ack.isVisible()) await ack.check();
- await capture('01-setup',page.locator('[data-quick-employee]').locator('..'));
+ await capture('01-setup',page.locator('[data-quick-pay]'));
  const [response]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/api/payroll/schemes') && r.request().method()==='POST'),page.locator('[data-scheme-save]').click()]);
  assert.ok(response.ok(),'save '+response.status()+' '+(await response.text()).slice(0,200));
  const saved=await response.json();
@@ -86,8 +91,9 @@ try {
  await page.locator('[data-trial-sales]').fill('100');
  const [trial]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/preview') && r.request().method()==='POST'),page.locator('[data-trial-run]').click()]);
  assert.equal(trial.status(),200);await page.locator('[data-scheme-preview-result]').waitFor();
- await capture('02-trial',page.locator('[data-trial-employee]').locator('..'));
- assert.match(await page.locator('[data-scheme-preview-result]').innerText(),/20,00/);
+ await capture('02-trial',page.locator('[data-scheme-preview-result]'));
+ const equation=(await page.locator('.payroll-trial-equation').innerText()).replace(/\s+/g,' ');
+ assert.match(equation,/10(?:,00)? ₽ за смену \+ 10% от 100(?:,00)? ₽ = 20(?:,00)? ₽/);
  const command=async(path,control)=>{
   const [reply]=await Promise.all([page.waitForResponse(r=>r.url()===base+path && r.request().method()==='POST'),control.click()]).catch(async error=>{console.error(path, (await page.locator('#payroll').innerText()).slice(-2400));throw error;});
   const text=await reply.text();
@@ -119,7 +125,7 @@ try {
  assert.equal(await page.locator('#payroll-filter-from').inputValue(),entry.periodFrom);
  assert.equal(await page.locator('#payroll-filter-to').inputValue(),entry.periodTo);
  assert.equal(await page.locator('.finance-view-navigation').isVisible(),false);
- await capture('03-register',registry);
+
  assert.equal(await registry.locator('.payroll-register-amounts dt').count(),4);
  for(const action of ['approve','pay']){
   await registry.locator('[data-payroll-linked-check]').click();
@@ -137,6 +143,7 @@ try {
     assert.deepEqual(result.rows,[{cents:entry.amountCents}]);
     const payrollExpenses = () => pool.query("SELECT id FROM expenses WHERE venue_id=$1 AND source='payroll' ORDER BY id", [fixture.ids.venue]);
     const beforeRetry = await payrollExpenses();
+    assert.deepEqual(beforeRetry.rows,[{id:paid.expenseId}]);
     const retry = await page.request.post(reply.url(), { headers: {origin:base}, data:reply.request().postDataJSON() });
     assert.ok(retry.ok(), 'repeat the confirmed payout: '+retry.status());
     const repeatedEntry = (await retry.json()).entry;
@@ -144,11 +151,11 @@ try {
     assert.deepEqual((await payrollExpenses()).rows, beforeRetry.rows);
     const detail=registry.locator('.payroll-entry-breakdown');
     await detail.locator('summary').click();
-    await capture('04-paid', detail);
+    await capture('03-paid', registry);
    } finally {await pool.end();}
   }
  }
- console.log('PASS: payroll owner 4 stages × 4 sizes: '+output);
+ console.log('PASS: payroll owner 3 stages × 4 sizes: '+output);
 } finally {
  if(browser) await browser.close();
  if(server && server.exitCode===null && !server.signalCode){const exited=once(server,'exit');server.kill();await exited;}
