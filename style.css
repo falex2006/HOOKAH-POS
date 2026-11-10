@@ -6634,82 +6634,82 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   }
 }
 
-/* The payroll canvas has one navigation strip and one working surface. */
-#page-content[data-finance-view="payroll"] .finance-section-intro .eyebrow,
-#page-content[data-finance-view="payroll"] .finance-section-intro .muted { display: none; }
-#page-content[data-finance-view="payroll"] .finance-section-intro h1 {
-  font-size: clamp(1.85rem, 2.6vw, 2.75rem);
-  line-height: 1.1;
-  letter-spacing: -.035em;
-  margin: 0;
+/* Payroll follows the finance directory: page title, section switch, working panel. */
+#page-content.portal-content.finance-workspace.ui-financial-pages[data-finance-view="payroll"] {
+  background: transparent;
+  padding: clamp(16px, 3vw, 56px);
 }
+#page-content[data-finance-view="payroll"] .finance-section-intro h1 {
+  font-size: 28px;
+  line-height: 1.2;
+  margin: 6px 0;
+}
+#page-content[data-finance-view="payroll"] .finance-section-intro .eyebrow { color: var(--ui-text-secondary); }
 #page-content #payroll .payroll-screen-nav {
   width: fit-content;
   max-width: 100%;
-  gap: .25rem;
-  padding: .25rem;
+  gap: 6px;
+  padding: 5px;
   border: 0;
-  border-radius: .75rem;
-  background: var(--ui-raised);
-  margin: 0 0 clamp(1.4rem, 2.4vw, 2.4rem);
+  border-radius: 12px;
+  margin: 0 0 20px;
+  background: var(--ui-input);
 }
 #page-content #payroll .payroll-screen-nav [data-payroll-screen-target] {
-  min-height: 2.75rem;
-  border: 0;
+  padding: 10px 16px;
   margin: 0;
-  padding: .5rem clamp(.65rem, 1.3vw, 1.3rem);
-  border-radius: .5rem;
-  line-height: 1.2;
+  min-height: 44px;
+  border-radius: 8px;
+  background: var(--ui-raised);
+  border: 1px solid var(--ui-border-control);
+  color: var(--ui-text-primary);
+  box-shadow: none;
 }
 #page-content #payroll .payroll-screen-nav [aria-current="page"] {
-  background: var(--ui-panel);
+  background: color-mix(in srgb, var(--ui-accent,#ff7952) 12%, var(--ui-panel));
+  border-color: color-mix(in srgb, var(--ui-accent,#ff7952) 35%, var(--ui-border-subtle));
   color: var(--ui-text-primary);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 18%), inset 0 -2px var(--ui-accent, #ff7952);
+}
+#page-content #payroll .payroll-screen-content {
+  box-sizing: border-box;
+  max-width: none;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-border-subtle);
+  background: var(--ui-panel);
 }
 #page-content #payroll .payroll-register-screen > .panel-head {
   align-items: center;
-  gap: 1rem;
   padding: 0;
   border: 0;
 }
-#page-content #payroll #payroll-register-heading { font-size: clamp(1.25rem,1.7vw,1.65rem); letter-spacing: -.025em; }
-#page-content #payroll[data-payroll-screen] .payroll-list-head {
-  border-radius: .55rem .55rem 0 0;
+#page-content #payroll[data-payroll-screen] .finance-payroll-filters {
   background: var(--ui-raised);
-  font-weight: 600;
-}
-#page-content #payroll .payroll-team-status .badge {
   border: 0;
-  border-radius: 2rem;
-  min-height: 1.6rem;
-  padding: .25rem .65rem;
-  line-height: 1.1;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 16px 0;
 }
-#payroll .payroll-team-person b { line-height: 1.3; }
-#payroll .payroll-team-person small { font-variant-numeric: tabular-nums; }
+#page-content #payroll .payroll-team-status .badge { border: 0; border-radius: 20px; }
 #payroll .payroll-team-amount:not(:nth-last-child(2)) b { font-weight: 500; }
-#payroll [data-quick-pay] .form-row + .form-row { margin-top: .8rem; }
-#payroll .payroll-screen-content :is(input,textarea) { font-variant-numeric: tabular-nums; }
-@media(max-width:600px) {
-  #page-content #payroll .payroll-screen-nav { width: 100%; box-sizing: border-box; }
-  #page-content #payroll .payroll-register-screen > .panel-head { align-items: start; }
-}
-@media (min-width: 1201px) {
-  #page-content[data-finance-view="payroll"] .finance-section-intro { padding-inline-end: 35rem; }
-  #page-content #payroll .payroll-screen-nav {
-    margin: -3.45rem 0 1.65rem auto;
-  }
+#payroll [data-quick-pay] .form-row + .form-row { margin-top: 12px; }
+@media(min-width:1201px) {
   #page-content #payroll[data-payroll-screen] .finance-payroll-filters {
-    grid-template-columns: repeat(2,minmax(10rem,13rem)) minmax(15rem,22rem) max-content max-content;
+    grid-template-columns: minmax(9rem,1fr) minmax(9rem,1fr) minmax(14rem,2fr) auto auto;
   }
-  #page-content #payroll .payroll-extra-filters:not([open]) {
-    grid-column: 5;
-    grid-row: 1;
-    align-self: end;
-    margin-inline-start: .45rem;
-  }
-  #page-content #payroll .payroll-extra-filters:not([open]) > summary {
-    display: list-item;
-    line-height: 2rem;
-  }
+  #page-content #payroll .payroll-extra-filters:not([open]) { grid-column: 5; grid-row: 1; align-self: center; }
+}
+@media(max-width:700px) {
+  #page-content #payroll .payroll-screen-content { padding: 14px; }
+  #page-content #payroll .payroll-screen-nav { width: 100%; box-sizing: border-box; }
+  #page-content #payroll .payroll-screen-nav [data-payroll-screen-target] { padding-inline: 5px; flex: 1; }
+}
+#page-content #payroll .payroll-screen-nav [data-payroll-screen-target] { font-size: 14px; }
+.portal:not(.light-theme) #page-content #payroll .payroll-screen-nav [aria-current="page"] {
+  background: #38252c;
+  color: #ffb08f;
+}
+#page-content #payroll[data-payroll-screen] .finance-payroll-filters :is(input,.custom-select-trigger,#payroll-reload) {
+  height: 44px;
+  min-height: 44px;
 }
