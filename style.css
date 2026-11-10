@@ -5487,8 +5487,6 @@ body[data-page="delivery"] #delivery-editor>.panel-head>#delivery-close { flex:0
  #page-content.finance-workspace .finance-payroll-schemes .scheme-group>summary{padding:12px 0;min-height:44px}
  #page-content.finance-workspace .finance-payroll-schemes .scheme-group .scheme-group>summary{color:var(--ui-text-secondary)}
  #page-content.finance-workspace .finance-payroll-schemes .scheme-role-fields{padding-inline:0}
- #page-content.finance-workspace .finance-payroll-schemes .scheme-workspace-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
- #page-content.finance-workspace .finance-payroll-schemes .scheme-workspace-nav>.button{width:100%;padding-inline:10px}
 }
 
 
@@ -6327,13 +6325,13 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   align-items: end;
 }
-#payroll-register .payroll-entry-row {
+#page-content #payroll-register .payroll-entry-row {
   display: grid;
   grid-template-columns: minmax(12rem, 1fr) minmax(24rem, 2fr);
   gap: .6rem 1.25rem;
   align-items: start;
 }
-#payroll-register .payroll-entry-person { min-width: 0; overflow-wrap: anywhere; }
+#payroll-register .payroll-entry-person { display: grid; justify-items: start; gap: .25rem; min-width: 0; overflow-wrap: anywhere; }
 #payroll-register .payroll-register-amounts {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -6359,8 +6357,9 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
 }
 #payroll-register .payroll-entry-breakdown { grid-column: 1 / -1; }
 #payroll-register .payroll-entry-breakdown summary { cursor: pointer; }
+#payroll-register .payroll-entry-breakdown > div > small { display: block; margin-top: .35rem; }
 @media (max-width: 980px) {
-  #payroll-register .payroll-entry-row { grid-template-columns: minmax(0, 1fr); }
+  #page-content #payroll-register .payroll-entry-row { grid-template-columns: minmax(0, 1fr); }
   #payroll-register .payroll-entry-actions { grid-column: 1; }
 }
 @media (max-width: 620px) {
@@ -6369,3 +6368,28 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
   #payroll-register .payroll-entry-actions .button { min-height: 44px; }
   #payroll .finance-payroll-filters { gap: .6rem; }
 }
+#payroll .finance-payroll-schemes label[data-scheme-risk-ack]:not([hidden]) {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  max-width: 66ch;
+  line-height: 1.45;
+}
+#payroll .finance-payroll-schemes input[data-quick-sources],
+#payroll .finance-payroll-schemes [data-scheme-risk-ack] input[type=checkbox] {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 0;
+  flex: 0 0 1.15rem;
+  margin: .15em 0 0;
+}
+#payroll [data-trial-result-scroll] {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+#payroll [data-trial-result-scroll] table {
+  min-width: max-content;
+  font-variant-numeric: tabular-nums;
+}
+#payroll [data-trial-result-scroll] :is(td, th) { white-space: nowrap; }
