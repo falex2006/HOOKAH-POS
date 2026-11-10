@@ -229,6 +229,14 @@ assert.match(renderRegister(linkedEntry, { state: linkedState() }), /data-payrol
 assert.match(renderRegister(linkedEntry, { state: linkedState() }), /Начислено: 125.*Корректировки: 5.*К выплате: 120/s);
 assert.doesNotMatch(renderRegister(linkedEntry, { owner: false, state: linkedState() }), /data-payroll-(?:action|linked-check|cancel-open)=/);
 assert.match(renderRegister(linkedEntry, { owner: false }), /доступны владельцу/);
+const paidSecondHalf = renderRegister({ ...linkedEntry, status: 'paid', expenseId: id(4), paidExpenseAmount: '120.00',
+  payrollPeriod: { kind: 'H2', monthlyGrossCents: 22500, firstGrossCents: 10000, firstPaidAtSettlementCents: 8000, secondGrossCents: 12500 } });
+assert.match(paidSecondHalf, /За месяц начислено 225.*1–14 число 100.*выплачено 80.*вторую часть начислено 125/s);
+assert.match(paidSecondHalf, /Выплачено<\/dt><dd>120.*Остаток<\/dt><dd>0/s);
+assert.match(paidSecondHalf, /Выплата завершена/);
+assert.match(renderRegister({ ...linkedEntry, status: 'paid' }), /Выплачено<\/dt><dd>—.*Остаток<\/dt><dd>—.*Сверьте расход/s);
+assert.match(renderRegister({ ...linkedEntry, payrollPeriod: { kind: 'H1', settlementEntryId: id(5) } }), /уже учтена/);
+assert.match(renderRegister({ ...linkedEntry, payrollPeriod: { kind: 'H2', h1Origin: 'verified_zero_base', monthlyGrossCents: 12500 } }), /начислений за первую часть не было/);
 const blocked = linkedState('approved', { sourceStatus: 'blocked', allowedActions: ['cancel'] });
 const blockedHtml = renderRegister({ ...linkedEntry, status: 'approved' }, { state: blocked });
 assert.match(blockedHtml, /data-payroll-cancel-open/);

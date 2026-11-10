@@ -10,7 +10,7 @@ const implementation = source.slice(start, end);
 function harness() {
   const requests = [];
   const fields = new Map();
-  for (const name of ['user', 'rule', 'from', 'to']) {
+  for (const name of ['user', 'rule', 'half', 'from', 'to']) {
     fields.set(`#payroll-filter-${name}`, {
       value: name === 'from' ? '2026-09-01' : name === 'to' ? '2026-09-30' : '',
       html: '',
