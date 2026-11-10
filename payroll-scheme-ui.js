@@ -2804,8 +2804,9 @@
         }
 
         .finance-payroll-schemes [data-scheme-pane][hidden]{display:none!important}
-        .finance-payroll-schemes .scheme-workspace-nav{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
-        .finance-payroll-schemes .scheme-workspace-nav [aria-current=step]{background:var(--ui-action-fill);color:var(--ui-text-on-action);border-color:var(--ui-action-fill)}
+        .finance-payroll-schemes .scheme-workspace-nav{display:flex;gap:4px;align-items:stretch;max-width:100%;min-width:0;overflow-x:auto;scroll-padding-inline:6px;margin:12px 0 16px;padding:2px 2px 4px;border-bottom:1px solid var(--ui-border-control);scrollbar-width:thin}
+        .finance-payroll-schemes .scheme-workspace-nav .button:focus-visible{outline-offset:-3px}
+        .finance-payroll-schemes .scheme-workspace-nav .button[aria-current=step]{color:var(--ui-text-primary);background:var(--ui-panel);box-shadow:inset 0 -2px var(--ui-accent,#ff8051)}
         .finance-payroll-schemes .scheme-guidance{margin:12px 0;color:var(--ui-text-secondary);line-height:1.5}
         .finance-payroll-schemes .scheme-group{margin:12px 0;border:1px solid var(--ui-border-control);border-radius:12px;padding:0 12px}
         .finance-payroll-schemes .scheme-group>summary{padding:12px 0;min-height:44px;box-sizing:border-box;cursor:pointer;font-weight:600}
@@ -2816,7 +2817,12 @@
         .finance-payroll-schemes [data-grid-overrides]>section{padding:12px 0;border-top:1px solid var(--ui-border-control)}
         .finance-payroll-schemes [data-scheme-pane]>[data-scheme-editor]{margin:0}
         .finance-payroll-schemes [data-scheme-preview-input]{font-family:monospace}
-        .finance-payroll-schemes .scheme-workspace-nav .button{flex:1 1 150px}
+        .finance-payroll-schemes .scheme-workspace-nav .button{flex:0 0 auto;width:auto;min-height:42px;padding:8px 12px;border:0;background:transparent;box-shadow:none;white-space:nowrap}
+        @media(max-width:600px){
+          .finance-payroll-schemes .scheme-workspace-nav{margin-block:8px 12px}
+          .finance-payroll-schemes .scheme-workspace-nav .button{min-height:44px;padding-inline:10px}
+        }
+        .finance-payroll-schemes [data-scheme-pane]{scroll-margin-top:var(--header-height,80px)}
       </style>
       <div class="panel-head"><div><h2>Настройка зарплатных схем</h2><span class="muted">Сначала настройте схему, затем проверьте данные и выполните пробный расчёт</span></div><div class="toolbar-row"><button type="button" class="button small" data-scheme-reload>Обновить</button><button type="button" class="button small primary" data-scheme-new>Новая схема</button></div></div>
       <p class="muted">Настройки и суммы доступны только владельцу площадки. Черновик можно редактировать; активация закрепляет версию. Обычный preview использует введённый сценарий. Отдельный preview оборота площадки читает закрытые заказы, но не подтверждает строки продаж, комиссии или посещаемость; оба варианта неофициальны и ничего не сохраняют.</p>
@@ -2955,6 +2961,13 @@
       panel.dataset.schemeWorkspace=key;
       for(const [name,node] of Object.entries(workspacePanes))node.hidden=name!==key;
       workspaceNav.querySelectorAll('[data-scheme-workspace]').forEach(button=>{if(button.dataset.schemeWorkspace===key)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');});
+      const activeButton = workspaceNav.querySelector('[aria-current="step"]');
+      if (activeButton && workspaceNav.scrollWidth > workspaceNav.clientWidth) {
+        const bounds = workspaceNav.getBoundingClientRect();
+        const tab = activeButton.getBoundingClientRect();
+        if (tab.left < bounds.left) workspaceNav.scrollLeft += tab.left - bounds.left;
+        else if (tab.right > bounds.right) workspaceNav.scrollLeft += tab.right - bounds.right;
+      }
       configEmpty.hidden=Boolean(editorAction);
       const savedVersion=Boolean(selectedVersion&&['edit','inspect'].includes(editorAction?.kind));
       const hasComparison=panel.querySelectorAll('[data-scheme-compare-version]:checked').length>=2;

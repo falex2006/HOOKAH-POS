@@ -6320,3 +6320,52 @@ body.portal.velora-theme dialog.inventory-item-modal.ui-critical-dialog { inset:
  .portal-sidebar.is-expanded .hookah-pos-brand img { content:url('/assets/brand/hookah-pos-lockup.svg?rev=2'); }
  .light-theme .portal-sidebar.is-expanded .hookah-pos-brand img { content:url('/assets/brand/hookah-pos-lockup-light.svg?rev=2'); }
 }
+
+/* Owner payroll register */
+#payroll .finance-payroll-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  align-items: end;
+}
+#payroll-register .payroll-entry-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(24rem, 2fr);
+  gap: .6rem 1.25rem;
+  align-items: start;
+}
+#payroll-register .payroll-entry-person { min-width: 0; overflow-wrap: anywhere; }
+#payroll-register .payroll-register-amounts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .6rem;
+  margin: 0;
+  text-align: right;
+}
+#payroll-register .payroll-register-amounts dt { color: var(--ui-text-muted); font-size: .82rem; }
+#payroll-register .payroll-register-amounts dd {
+  margin: .2rem 0 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#payroll-register .payroll-entry-actions {
+  grid-column: 2;
+  justify-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: .5rem;
+}
+#payroll-register .payroll-entry-breakdown { grid-column: 1 / -1; }
+#payroll-register .payroll-entry-breakdown summary { cursor: pointer; }
+@media (max-width: 980px) {
+  #payroll-register .payroll-entry-row { grid-template-columns: minmax(0, 1fr); }
+  #payroll-register .payroll-entry-actions { grid-column: 1; }
+}
+@media (max-width: 620px) {
+  #payroll-register .payroll-register-amounts { grid-template-columns: repeat(2, minmax(0, 1fr)); text-align: start; }
+  #payroll-register .payroll-entry-actions { grid-column: 1; justify-self: stretch; justify-content: start; }
+  #payroll-register .payroll-entry-actions .button { min-height: 44px; }
+  #payroll .finance-payroll-filters { gap: .6rem; }
+}
