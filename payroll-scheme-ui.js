@@ -1923,9 +1923,9 @@
       if (!alive()) throw new Error('session_access_unverified');
       return result;
     };
-    section.innerHTML = `<h3>Сохранённые расчёты</h3>
+    section.innerHTML = `<h3>Расчёт зарплаты за период</h3>
       <p class="scheme-guidance">Выберите действующую или завершённую версию и прошедший период.
-      Расчёт сохранит суммы и их расшифровку. Начисления и выплаты создаются отдельно.</p>
+      Нажмите «Рассчитать и сохранить», откройте результат и проверьте сумму сотрудника перед начислением.</p>
       <form data-saved-run-form><div class="form-row">
         <label>Версия схемы<select data-saved-run-version required><option value="">Загружаем версии…</option></select></label>
         <label>С даты<input type="date" data-saved-run-from required></label>
@@ -2975,6 +2975,47 @@
     start.type = 'button'; start.className = 'button primary'; start.dataset.payrollQuickStart = '';
     start.textContent = 'Настроить оплату'; start.hidden = true;
     (payrollPanel.querySelector('.payroll-header-actions') || payrollPanel.querySelector('.panel-head'))?.append(start);
+    const guide = document.createElement('p');
+    guide.className = 'muted payroll-next-step';
+    const heading = payrollPanel.querySelector('.panel-head');
+    heading?.after(guide);
+    const nextStep = document.createElement('button');
+    nextStep.type = 'button';
+    nextStep.className = 'button primary';
+    nextStep.hidden = true;
+    start.parentElement.prepend(nextStep, start);
+    nextStep.addEventListener('click', async () => {
+      if (pending) return;
+      settings.open = true;
+      if (nextStep.dataset.destination === 'saved') {
+        selectWorkspace('saved', {focus:true});
+        return;
+      }
+      const drafts = schemes.flatMap(scheme => sortedVersions(scheme)).filter(version => version.status === 'draft');
+      if (drafts.length === 1) {
+        try {
+          if (await openVersion(drafts[0].id)) selectWorkspace('trial', {focus:true});
+        } catch (error) { notify(error.message, 'error'); }
+      } else {
+        selectWorkspace('list', {focus:true});
+      }
+    });
+    const updateGuide = () => {
+      const versions = schemes.flatMap(scheme => sortedVersions(scheme));
+      const canCalculate = versions.some(version => ['active','retired'].includes(version.status));
+      const drafts = versions.filter(version => version.status === 'draft');
+      nextStep.hidden = !canCalculate && !drafts.length;
+      nextStep.dataset.destination = canCalculate ? 'saved' : 'trial';
+      nextStep.textContent = canCalculate ? 'Рассчитать по схеме' : drafts.length > 1 ? 'Выбрать черновик' : 'Проверить ставку';
+      start.hidden = false;
+      start.textContent = versions.length ? 'Новая схема оплаты' : 'Настроить первую ставку';
+      start.classList.toggle('primary', nextStep.hidden);
+      guide.textContent = canCalculate
+        ? 'Для нового расчёта выберите схему и период. Для выплаты откройте начисление ниже.'
+        : drafts.length > 1 ? 'Выберите черновик и откройте его, чтобы проверить ставку на примере смены.'
+        : drafts.length ? 'Ставка сохранена в черновике. Проверьте её на примере смены и активируйте для расчёта.'
+        : 'Начните с первой ставки. Выберите сотрудника, укажите, сколько ему платить и с какой даты.';
+    };
     start.addEventListener('click', async () => {
       settings.open = true;
       if (await showEditor({kind:'create', guided:true})) {
@@ -3102,6 +3143,7 @@
       } catch (error) { feedback.textContent = error.message; }
     });
     const toggleQuick = guided => {
+      editor.querySelector('[data-scheme-save]').textContent = guided ? 'Сохранить и проверить ставку' : 'Сохранить черновик';
       quick.hidden = !guided;
       panel.querySelector('[data-advanced-pay-fields]').hidden = guided;
       if (guided) {
@@ -3640,8 +3682,8 @@
       invalidateReadiness();
       notify('Загружаем настройки…');
       list.innerHTML = '<div class="empty">Загрузка схем…</div>';
-      try { const data = await request('/api/payroll/schemes'); schemes = Array.isArray(data.items) ? data.items : []; start.hidden = false; start.textContent = schemes.length ? 'Создать схему оплаты' : 'Настроить оплату'; start.classList.toggle('primary', !schemes.length); renderList(); notify(''); }
-      catch (error) { schemes = []; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
+      try { const data = await request('/api/payroll/schemes'); schemes = Array.isArray(data.items) ? data.items : []; updateGuide(); renderList(); notify(''); }
+      catch (error) { schemes = []; start.hidden = true; nextStep.hidden = true; guide.textContent = 'Не удалось загрузить ставки. Откройте настройки схем ниже и нажмите «Повторить».'; list.innerHTML = `<div class="empty">Не удалось загрузить схемы (${escapeHtml(error.message)}). <button type="button" class="button small" data-scheme-retry>Повторить</button></div>`; notify('Настройки недоступны.', 'error'); }
     };
     const openVersion = async (versionId, transitionToken = null) => {
       const token = transitionToken ?? await beginEditorTransition();

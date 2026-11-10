@@ -58,6 +58,7 @@ try {
  const summary=page.getByText('Настройки схем и проверка расчётов',{exact:true});
  if(await summary.isVisible() && !(await summary.locator('..').evaluate(n=>n.open))) await summary.click();
  const start=page.locator('[data-payroll-quick-start]');
+ await page.getByRole('button',{name:'Настроить первую ставку',exact:true}).waitFor({state:'visible'});
  await start.click();
  await choose('[data-quick-employee]',fixture.ids.employee);
  await choose('[data-quick-method]','combined');
@@ -85,9 +86,13 @@ try {
   assert.ok(reply.ok(),path+' '+reply.status()+' '+text.slice(0,500));
   return JSON.parse(text);
  };
+ await page.getByRole('button',{name:'Проверить ставку',exact:true}).click();
+ await page.locator('[data-trial-date]').fill(fixture.period.from);
+ await page.locator('[data-trial-run]').click();
  const version=saved.versions[0].versionId;
  await command('/api/payroll/versions/'+version+'/activate',page.locator('[data-trial-official]'));
  await page.waitForFunction(id=>document.querySelector('[data-saved-run-version]')?.value===id && !document.querySelector('[data-saved-run-create]')?.disabled,version);
+ await page.getByRole('button',{name:'Рассчитать по схеме',exact:true}).click();
  await page.locator('[data-saved-run-to]').fill(fixture.period.to);
  assert.equal(await page.locator('[data-saved-run-version]').inputValue(),version);
  const run=await command('/api/payroll/refund-aware-calculation-runs',page.locator('[data-saved-run-create]'));
